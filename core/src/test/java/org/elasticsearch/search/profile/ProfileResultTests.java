@@ -3,11 +3,7 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
-<<<<<<< eea4db5512fb616608e283d295d583e62d4607c6
  * the Apache License, Version 2.0 (the "License"); you may
-=======
- * the Apache License, Version 2.0 (the \"License\"); you may
->>>>>>> Adding parsing to ProfileResult
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -23,6 +19,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -66,19 +63,17 @@ public class ProfileResultTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         ProfileResult profileResult = createTestItem(2);
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        builder.humanReadable(humanReadable);
-        builder = profileResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        XContentParser parser = createParser(builder);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        ProfileResult parsed = ProfileResult.fromXContent(parser);
-        assertEquals(profileResult.getTime(), parsed.getTime());
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType, humanReadable), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ProfileResult parsed = ProfileResult.fromXContent(parser);
+            assertEquals(profileResult.getTime(), parsed.getTime());
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testToXContent() throws IOException {

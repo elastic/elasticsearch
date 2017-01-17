@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * Public interface and serialization container for profiled timings of the
@@ -175,7 +176,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 } else if (REASON.match(currentFieldName)) {
                     reason = parser.text();
                 } else if (TIME.match(currentFieldName)) {
-                    // we can skip this, it only for human readability
+                    // we need to consume this value, but we use the raw nanosecond value
                     parser.text();
                 } else if (TIME_NANOS.match(currentFieldName)) {
                     time = parser.longValue();
@@ -190,6 +191,8 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
+            } else {
+                throwUnknownToken(token, parser.getTokenLocation());
             }
         }
         return new CollectorResult(name, reason, time, children);

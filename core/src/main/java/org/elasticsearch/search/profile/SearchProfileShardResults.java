@@ -34,12 +34,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A container class to hold all the profile results across all shards.  Internally
@@ -86,7 +88,6 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
-
         for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
             builder.startObject();
             builder.field(ID_FIELD, entry.getKey());
@@ -98,7 +99,6 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
             entry.getValue().getAggregationProfileResults().toXContent(builder, params);
             builder.endObject();
         }
-
         builder.endArray().endObject();
         return builder;
     }
@@ -106,7 +106,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
+        Map<String, ProfileShardResult> searchProfileResults = new LinkedHashMap<>();
         ensureFieldName(parser, parser.nextToken(), SHARDS_FIELD);
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -122,14 +122,14 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
-        String name = null;
+        String id = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (ID_FIELD.equals(currentFieldName)) {
-                    name = parser.text();
+                    id = parser.text();
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
@@ -143,9 +143,11 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
+            } else {
+                throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        searchProfileResults.put(name, new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult));
     }
 
     /**

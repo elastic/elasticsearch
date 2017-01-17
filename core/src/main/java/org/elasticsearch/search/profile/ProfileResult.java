@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -66,7 +66,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     public ProfileResult(String type, String description, Map<String, Long> timings, List<ProfileResult> children) {
         this.type = type;
         this.description = description;
-        this.timings = timings;
+        this.timings = Objects.requireNonNull(timings, "required timings argument missing");
         this.children = children;
         this.nodeTime = getNodeTime(timings);
     }
@@ -171,7 +171,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         String currentFieldName = null;
         String type = null, description = null;
-        Map<String, Object> parsedTimings =  null;
+        Map<String, Long> timings =  new HashMap<>();
         List<ProfileResult> children = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -192,7 +192,13 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BREAKDOWN.match(currentFieldName)) {
-                    parsedTimings = parser.map();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        ensureExpectedToken(parser.currentToken(), XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
+                        String name = parser.currentName();
+                        ensureExpectedToken(parser.nextToken(), XContentParser.Token.VALUE_NUMBER, parser::getTokenLocation);
+                        long value = parser.longValue();
+                        timings.put(name, value);
+                    }
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
@@ -204,15 +210,6 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
-            }
-        }
-        Map<String, Long> timings = new HashMap<>(parsedTimings.size());
-        for (Entry<String, Object> entry : parsedTimings.entrySet()) {
-            Object value = entry.getValue();
-            if (value instanceof Integer) {
-                timings.put(entry.getKey(), ((Integer)value).longValue());
-            } else {
-                timings.put(entry.getKey(), (Long) value);
             }
         }
         return new ProfileResult(type, description, timings, children);

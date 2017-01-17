@@ -34,6 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A container class to hold the profile results for a single shard in the request.
@@ -140,6 +141,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
+            } else {
+                throwUnknownToken(token, parser.getTokenLocation());
             }
         }
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);

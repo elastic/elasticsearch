@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
@@ -60,20 +58,17 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         SearchProfileShardResults shardResult = createTestItem();
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder.startObject();
-        builder = shardResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        XContentParser parser = createParser(builder);
-        ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
-        ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
-        ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
-        SearchProfileShardResults parsed = SearchProfileShardResults.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toXContent(shardResult, xContentType);
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+            ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
+            ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+            SearchProfileShardResults parsed = SearchProfileShardResults.fromXContent(parser);
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType), xContentType);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
     }
 
 }

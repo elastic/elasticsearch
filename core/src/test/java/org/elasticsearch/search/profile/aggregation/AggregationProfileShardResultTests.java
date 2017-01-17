@@ -84,7 +84,7 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         assertEquals("{\"aggregations\":["
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
-                            + "\"time\":\"0.006000000000ms\","
+                            + "\"time_in_nanos\":6000,"
                             + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
                         + "}"
                    + "]}", builder.string());

@@ -12,7 +12,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static org.elasticsearch.mock.orig.Mockito.mock;
+import static org.mockito.Mockito.mock;
 
 public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T> {
     private final List<Deque<T>> batches;

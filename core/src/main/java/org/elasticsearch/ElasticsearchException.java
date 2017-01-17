@@ -22,6 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,13 +37,15 @@ import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -56,19 +59,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
 
     /**
-     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter.
      */
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     /**
-     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter. Use the {@code error_trace} parameter instead.
      */
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
     public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
-    public static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
+    private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
     private static final String INDEX_HEADER_KEY = "es.index";
     private static final String INDEX_HEADER_KEY_UUID = "es.index_uuid";
     private static final String SHARD_HEADER_KEY = "es.shard";
@@ -158,6 +161,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public List<String> getHeader(String key) {
         return headers.get(key);
+    }
+
+    protected Map<String, List<String>> getHeaders() {
+        return headers;
     }
 
     /**
@@ -257,64 +264,56 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            toXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this);
         } else {
-            builder.field(TYPE, getExceptionName());
-            builder.field(REASON, getMessage());
-            for (String key : headers.keySet()) {
-                if (key.startsWith("es.")) {
-                    List<String> values = headers.get(key);
-                    xContentHeader(builder, key.substring("es.".length()), values);
-                }
-            }
-            innerToXContent(builder, params);
-            renderHeader(builder, params);
-            if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-                builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(this));
-            }
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, getCause());
         }
         return builder;
     }
 
-    /**
-     * Renders additional per exception information into the xcontent
-     */
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        causeToXContent(builder, params);
-    }
+    protected static void innerToXContent(XContentBuilder builder, Params params,
+                                          Throwable throwable, String type, String message, Map<String, List<String>> headers,
+                                          Throwable cause) throws IOException {
+        builder.field(TYPE, type);
+        builder.field(REASON, message);
 
-    /**
-     * Renders a cause exception as xcontent
-     */
-    protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
-        final Throwable cause = getCause();
-        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
-            builder.field(CAUSED_BY);
-            builder.startObject();
-            toXContent(builder, params, cause);
-            builder.endObject();
-        }
-    }
-
-    protected final void renderHeader(XContentBuilder builder, Params params) throws IOException {
-        boolean hasHeader = false;
+        Set<String> customHeaders = new HashSet<>();
         for (String key : headers.keySet()) {
             if (key.startsWith("es.")) {
-                continue;
+                headerToXContent(builder, key.substring("es.".length()), headers.get(key));
+            } else {
+                customHeaders.add(key);
             }
-            if (hasHeader == false) {
-                builder.startObject(HEADER);
-                hasHeader = true;
-            }
-            List<String> values = headers.get(key);
-            xContentHeader(builder, key, values);
         }
-        if (hasHeader) {
+
+        if (throwable instanceof ElasticsearchException) {
+            ElasticsearchException exception = (ElasticsearchException) throwable;
+            exception.metadataToXContent(builder, params);
+        }
+
+        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
+            if (cause != null) {
+                builder.field(CAUSED_BY);
+                builder.startObject();
+                generateThrowableXContent(builder, params, cause);
+                builder.endObject();
+            }
+        }
+
+        if (customHeaders.isEmpty() == false) {
+            builder.startObject(HEADER);
+            for (String header : customHeaders) {
+                headerToXContent(builder, header, headers.get(header));
+            }
             builder.endObject();
+        }
+
+        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
+            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
     }
 
-    private void xContentHeader(XContentBuilder builder, String key, List<String> values) throws IOException {
+    private static void headerToXContent(XContentBuilder builder, String key, List<String> values) throws IOException {
         if (values != null && values.isEmpty() == false) {
             if (values.size() == 1) {
                 builder.field(key, values.get(0));
@@ -329,25 +328,73 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Static toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent.
+     * Renders additional per exception information into the XContent
      */
-    public static void toXContent(XContentBuilder builder, Params params, Throwable ex) throws IOException {
-        ex = ExceptionsHelper.unwrapCause(ex);
-        if (ex instanceof ElasticsearchException) {
-            ((ElasticsearchException) ex).toXContent(builder, params);
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
+    }
+
+    /**
+     * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
+     * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Throwable)}.
+     *
+     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
+     */
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        t = ExceptionsHelper.unwrapCause(t);
+
+        if (t instanceof ElasticsearchException) {
+            ((ElasticsearchException) t).toXContent(builder, params);
         } else {
-            builder.field(TYPE, getExceptionName(ex));
-            builder.field(REASON, ex.getMessage());
-            if (ex.getCause() != null) {
-                builder.field(CAUSED_BY);
+            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), t.getCause());
+        }
+    }
+
+    /**
+     * Render any exception as a xcontent, encapsulated within a field or object named "error". The level of details that are rendered
+     * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
+     * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
+     * trace.
+     *
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
+     */
+    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
+            throws IOException {
+        // No exception to render as an error
+        if (e == null) {
+            builder.field(ERROR, "unknown");
+            return;
+        }
+
+        // Render the exception with a simple message
+        if (detailed == false) {
+            String message = "No ElasticsearchException found";
+            Throwable t = e;
+            for (int counter = 0; counter < 10 && t != null; counter++) {
+                if (t instanceof ElasticsearchException) {
+                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                    break;
+                }
+                t = t.getCause();
+            }
+            builder.field(ERROR, message);
+            return;
+        }
+
+        // Render the exception with all details
+        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
+        builder.startObject(ERROR);
+        {
+            builder.startArray(ROOT_CAUSE);
+            for (ElasticsearchException rootCause : rootCauses) {
                 builder.startObject();
-                toXContent(builder, params, ex.getCause());
+                rootCause.toXContent(builder, new DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
                 builder.endObject();
             }
-            if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-                builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(ex));
-            }
+            builder.endArray();
         }
+        generateThrowableXContent(builder, params, e);
+        builder.endObject();
     }
 
     /**
@@ -875,22 +922,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return header.get(0);
         }
         return null;
-    }
-
-    public static void renderException(XContentBuilder builder, Params params, Exception e) throws IOException {
-        builder.startObject(ERROR);
-        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
-        builder.field(ROOT_CAUSE);
-        builder.startArray();
-        for (ElasticsearchException rootCause : rootCauses) {
-            builder.startObject();
-            rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(
-                    Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), params));
-            builder.endObject();
-        }
-        builder.endArray();
-        ElasticsearchException.toXContent(builder, params, e);
-        builder.endObject();
     }
 
     // lower cases and adds underscores to transitions in a name

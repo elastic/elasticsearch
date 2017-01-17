@@ -67,6 +67,8 @@ import java.util.stream.Stream;
  */
 public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
+    public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
@@ -113,6 +115,9 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
     private synchronized void updateRemoteClusters(Map<String, List<DiscoveryNode>> seeds, ActionListener<Void> connectionListener) {
+        if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
+            throw new IllegalArgumentException("remote clusters must have the empty string as it's key");
+        }
         Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
         if (seeds.isEmpty()) {
             connectionListener.onResponse(null);
@@ -173,43 +178,38 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     }
 
     /**
-     * Filters out indices that refer to a remote cluster and adds them to the given per cluster indices map.
+     * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All
+     * indices per cluster are collected as a list in the returned map keyed by the cluster alias. Local indices are grouped under
+     * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
-     * @param perClusterIndices a map to fill with remote cluster indices from the given request indices
      * @param requestIndices the indices in the search request to filter
      * @param indexExists a predicate that can test if a certain index or alias exists
      *
-     * @return all indices in the requestIndices array that are not remote cluster indices
+     * @return a map of grouped remote and local indices
      */
-    String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices, Predicate<String> indexExists) {
-        List<String> localIndicesList = new ArrayList<>();
+    Map<String, List<String>> groupClusterIndices(String[] requestIndices, Predicate<String> indexExists) {
+        Map<String, List<String>> perClusterIndices = new HashMap<>();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
+            String indexName = index;
+            String clusterName = LOCAL_CLUSTER_GROUP_KEY;
             if (i >= 0) {
-                String remoteCluster = index.substring(0, i);
-                if (isRemoteClusterRegistered(remoteCluster)) {
+                String remoteClusterName = index.substring(0, i);
+                if (isRemoteClusterRegistered(remoteClusterName)) {
                     if (indexExists.test(index)) {
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
                         // if that happens
                         throw new IllegalArgumentException("Index " + index + " exists but there is also a remote cluster named: "
-                            + remoteCluster + " can't filter indices");
+                            + clusterName + " can't filter indices");
                     }
-                    String remoteIndex = index.substring(i + 1);
-                    List<String> indices = perClusterIndices.get(remoteCluster);
-                    if (indices == null) {
-                        indices = new ArrayList<>();
-                        perClusterIndices.put(remoteCluster, indices);
-                    }
-                    indices.add(remoteIndex);
-                } else {
-                    localIndicesList.add(index);
+                    indexName = index.substring(i + 1);
+                    clusterName = remoteClusterName;
                 }
-            } else {
-                localIndicesList.add(index);
             }
+            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<String>()).add(indexName);
         }
-        return localIndicesList.toArray(new String[localIndicesList.size()]);
+        return perClusterIndices;
 }
 
     /**

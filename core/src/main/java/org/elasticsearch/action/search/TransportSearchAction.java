@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -121,22 +122,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // pure paranoia if time goes backwards we are at least positive
         final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
         final String[] localIndices;
-        final Map<String, List<String>> remoteIndicesByCluster;
+        final Map<String, List<String>> remoteClusterIndices;
         final ClusterState clusterState = clusterService.state();
         if (remoteClusterService.isCrossClusterSearchEnabled()) {
-            remoteIndicesByCluster = new HashMap<>();
-            localIndices = remoteClusterService.filterIndices(remoteIndicesByCluster, searchRequest.indices(),
+            remoteClusterIndices = remoteClusterService.groupClusterIndices( searchRequest.indices(), // empty string is not allowed
                 idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+            List<String> remove = remoteClusterIndices.remove(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            localIndices = remove == null ? Strings.EMPTY_ARRAY : remove.toArray(new String[remove.size()]);
         } else {
-            remoteIndicesByCluster = Collections.emptyMap();
+            remoteClusterIndices = Collections.emptyMap();
             localIndices = searchRequest.indices();
         }
 
-        if (remoteIndicesByCluster.isEmpty()) {
+        if (remoteClusterIndices.isEmpty()) {
             executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, Collections.emptyList(),
                 (nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
-            remoteClusterService.collectSearchShards(searchRequest, remoteIndicesByCluster,
+            remoteClusterService.collectSearchShards(searchRequest, remoteClusterIndices,
                 ActionListener.wrap((searchShardsResponses) -> {
                     List<ShardIterator> remoteShardIterators = new ArrayList<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();

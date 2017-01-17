@@ -89,10 +89,10 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
      * For instance a node can be configured with <tt>node.attr.gateway: true</tt> in order to be eligible as a gateway node between
-     * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster.
+     * clusters. In that case <tt>search.remote.node.attr: gateway</tt> can be used to filter out other nodes in the remote cluster.
      * The value of the setting is expected to be a boolean, <tt>true</tt> for nodes that can become gateways, <tt>false</tt> otherwise.
      */
-    public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
+    public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node.attr",
         Setting.Property.NodeScope);
 
     private static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
@@ -181,7 +181,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      *
      * @return all indices in the requestIndices array that are not remote cluster indices
      */
-    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices, Predicate<String> indexExists) {
+    String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices, Predicate<String> indexExists) {
         List<String> localIndicesList = new ArrayList<>();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
@@ -317,7 +317,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return connection.getConnection(node);
     }
 
-    public void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+    void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
         updateRemoteClusters(Collections.singletonMap(clusterAlias, addresses.stream().map(address -> {
                 TransportAddress transportAddress = new TransportAddress(address);
                 return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(),
@@ -344,7 +344,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         }));
     }
 
-    static InetSocketAddress parseSeedAddress(String remoteHost) {
+    private static InetSocketAddress parseSeedAddress(String remoteHost) {
         int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
         if (portSeparator == -1 || portSeparator == remoteHost.length()) {
             throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");

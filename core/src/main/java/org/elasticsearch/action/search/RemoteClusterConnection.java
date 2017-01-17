@@ -145,7 +145,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     @Override
     public void onNodeDisconnected(DiscoveryNode node) {
         boolean remove = connectedNodes.remove(node);
-        if (remove == true && connectedNodes.size() < maxNumRemoteConnections) {
+        if (remove && connectedNodes.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
             connectHandler.forceConnect();
         }
@@ -224,13 +224,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 assert false: "proxy connections must not be closed";
             }
         };
-    }
-
-    /**
-     * Returns the alias / name of the remote cluster
-     */
-    public String getClusterAlias() {
-        return clusterAlias;
     }
 
     @Override

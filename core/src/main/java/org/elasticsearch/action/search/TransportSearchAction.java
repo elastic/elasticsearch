@@ -159,7 +159,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // of just for the _search api
         final Index[] indices;
         if (localIndices.length == 0 && remoteShardIterators.size() > 0) {
-            indices = new Index[0]; // don't search on _all if only remote indices were specified
+            indices = Index.EMPTY_ARRAY; // don't search on _all if only remote indices were specified
         } else {
             indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),
                 startTimeInMillis, localIndices);

@@ -100,7 +100,7 @@ public final class TransportActionProxy {
         Supplier<T> supplier;
         DiscoveryNode targetNode;
 
-        ProxyRequest(Supplier<T>  supplier) {
+        ProxyRequest(Supplier<T> supplier) {
             this.supplier = supplier;
         }
 

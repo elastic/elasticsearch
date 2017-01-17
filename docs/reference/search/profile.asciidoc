@@ -287,30 +287,29 @@ The overall structure of this query tree will resemble your original Elasticsear
 <1> The breakdown timings are omitted for simplicity
 
 Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
-clauses (both holding a TermQuery).  The `"type"` field displays the Lucene class name, and often aligns with
-the equivalent name in Elasticsearch.  The `"description"` field displays the Lucene explanation text for the query, and
-is made available to help differentiating between parts of your query (e.g. both `"message:search"` and `"message:test"`
+clauses (both holding a TermQuery).  The `type` field displays the Lucene class name, and often aligns with
+the equivalent name in Elasticsearch.  The `description` field displays the Lucene explanation text for the query, and
+is made available to help differentiating between parts of your query (e.g. both `message:search` and `message:test`
 are TermQuery's and would appear identical otherwise.
 
-The `"time"` field shows that this query took ~1.8ms for the entire BooleanQuery to execute. The recorded time is inclusive
+The `time` field shows that this query took ~1.8ms for the entire BooleanQuery to execute.  The recorded time is inclusive
 of all children.
 
-The `"time_in nanos"` field shows the timing information in an exact, machine readable format in nanoseconds.
-of all children.
+The `time_in nanos` field shows the timing information in an exact, machine readable format in nanoseconds.
 
-The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at
-that in a moment.  Finally, the `"children"` array lists any sub-queries that may be present.  Because we searched for two
+The `breakdown` field will give detailed stats about how the time was spent, we'll look at
+that in a moment.  Finally, the `children` array lists any sub-queries that may be present.  Because we searched for two
 values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (type, time,
 breakdown, etc).  Children are allowed to have their own children.
 
-NOTE: The `"time"` field is only intended for human consumption. If you need exact timing values use `"time_in nanos"`. The `"time"`
-field is currently printed by default, but this will change with the next major version (6.0.0) where `"time_in_nanos"` will be
+NOTE: The `time` field is only intended for human consumption. If you need exact timing values use `time_in nanos`. The `time`
+field is currently printed by default, but this will change with the next major version (6.0.0) where `time_in_nanos` will be
 printed by default.
 
 
 ===== Timing Breakdown
 
-The `"breakdown"` component lists detailed timing statistics about low-level Lucene execution:
+The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
 [source,js]
 --------------------------------------------------
@@ -339,7 +338,7 @@ The `"breakdown"` component lists detailed timing statistics about low-level Luc
 // TESTRESPONSE[s/"next_doc": 53876/"next_doc": $body.profile.shards.0.searches.0.query.0.breakdown.next_doc/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
-`"time"` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
+`time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
 actually eating time, and B) the magnitude of differences in times between the various components.  Like the overall time,
 the breakdown is inclusive of all children times.
 
@@ -447,8 +446,8 @@ Looking at the previous example:
 // TESTRESPONSE[s/"time_in_nanos": "32273"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.children.0.time_in_nanos/]
 
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
-`Collector` used by Elasticsearch.  The `"reason"` field attempts to give a plain english description of the class name.  The
-`"time"` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
+`Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The
+`time` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
 all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by elasticsearch to detect if the current
 search was cancelled and stop collecting documents as soon as it occurs.
 
@@ -812,16 +811,16 @@ Which yields the following aggregation profile output
 From the profile structure we can see our `property_type` terms aggregation which is internally represented by the
 `GlobalOrdinalsStringTermsAggregator` class and the sub aggregator `avg_price` which is internally represented by the `AvgAggregator` class. The `type` field displays the class used internally to represent the aggregation. The `description` field displays the name of the aggregation.
 
-The `"time"` field shows that it took ~4 seconds for the entire aggregation to execute.  The recorded time is inclusive
+The `time` field shows that it took ~4 seconds for the entire aggregation to execute.  The recorded time is inclusive
 of all children.
 
-The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at
-that in a moment.  Finally, the `"children"` array lists any sub-aggregations that may be present.  Because we have an `avg_price` aggregation as a sub-aggregation to the `property_type` aggregation we see it listed as a child of the `property_type` aggregation.  the two aggregation outputs have identical information (type, time,
+The `breakdown` field will give detailed stats about how the time was spent, we'll look at
+that in a moment.  Finally, the `children` array lists any sub-aggregations that may be present.  Because we have an `avg_price` aggregation as a sub-aggregation to the `property_type` aggregation we see it listed as a child of the `property_type` aggregation.  the two aggregation outputs have identical information (type, time,
 breakdown, etc).  Children are allowed to have their own children.
 
 ===== Timing Breakdown
 
-The `"breakdown"` component lists detailed timing statistics about low-level Lucene execution:
+The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
 [source,js]
 --------------------------------------------------

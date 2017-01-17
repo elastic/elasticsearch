@@ -585,6 +585,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 }
                 ensureGreen("test");
 
+                // make sure all nodes have the updated cluster state with the latest routing table
+                final long clusterStateVersionOnMaster = internalCluster().clusterService(internalCluster().getMasterName())
+                                                             .state().getVersion();
+                assertBusy(() -> {
+                    for (String node : nodes) {
+                        assertThat(internalCluster().clusterService(node).state().getVersion(),
+                            greaterThanOrEqualTo(clusterStateVersionOnMaster));
+                    }
+                });
+
                 logger.info("validating successful docs");
                 for (String node : nodes) {
                     try {

@@ -84,7 +84,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry());
+                xContentRegistry(), (request, channel, context) -> {});
         final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
@@ -101,7 +101,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry());
+                xContentRegistry(), (request, channel, context) -> {});
         final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
         assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::getName).collect(Collectors.toSet()), equalTo(methods));
@@ -110,12 +110,12 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         try (Netty3HttpServerTransport transport = new Netty3HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-                xContentRegistry())) {
+                xContentRegistry(), (request, channel, context) -> {})){
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
             try (Netty3HttpServerTransport otherTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry())) {
+                    xContentRegistry(), (request, channel, context) -> {})) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }

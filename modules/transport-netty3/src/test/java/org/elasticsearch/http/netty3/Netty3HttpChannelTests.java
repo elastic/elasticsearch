@@ -175,7 +175,8 @@ public class Netty3HttpChannelTests extends ESTestCase {
 
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
-        httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry());
+        httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+            (request, channel, context) -> {});
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
@@ -202,7 +203,8 @@ public class Netty3HttpChannelTests extends ESTestCase {
 
     private HttpResponse execRequestWithCors(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
-        httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry());
+        httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+            (request, channel, context) -> {});
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, originValue);
         httpRequest.headers().add(HttpHeaders.Names.HOST, host);

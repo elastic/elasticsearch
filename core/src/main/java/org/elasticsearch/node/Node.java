@@ -84,7 +84,6 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
-import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesModule;
@@ -101,8 +100,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -117,6 +114,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -342,14 +340,18 @@ public class Node implements Closeable {
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
+
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
-                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class));
-            modules.add(actionModule);
-            modules.add(new GatewayModule());
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
+            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class), client,
+                circuitBreakerService);
+            modules.add(actionModule);
+            modules.add(new GatewayModule());
+
+
             BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
@@ -388,30 +390,35 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
                 .collect(Collectors.toList());
+            final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
-                    threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
+                    threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService,
+                    restController::dispatchRequest);
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final Consumer<Binder> httpBind;
+            final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {
-                HttpServerTransport httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
-                HttpServer httpServer = new HttpServer(settings, httpServerTransport, actionModule.getRestController(), client,
-                    circuitBreakerService);
+                httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
                 httpBind = b -> {
-                    b.bind(HttpServer.class).toInstance(httpServer);
                     b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 };
             } else {
                 httpBind = b -> {
-                    b.bind(HttpServer.class).toProvider(Providers.of(null));
+                    b.bind(HttpServerTransport.class).toProvider(Providers.of(null));
                 };
+                httpServerTransport = null;
             }
-
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
                 namedWriteableRegistry, networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
+            NodeService nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
+                transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
+                httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
+
             modules.add(b -> {
+                    b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
@@ -630,7 +637,7 @@ public class Node implements Closeable {
 
 
         if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServer.class).start();
+            injector.getInstance(HttpServerTransport.class).start();
         }
 
         // start nodes now, after the http server, because it may take some time
@@ -663,7 +670,7 @@ public class Node implements Closeable {
         injector.getInstance(TribeService.class).stop();
         injector.getInstance(ResourceWatcherService.class).stop();
         if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServer.class).stop();
+            injector.getInstance(HttpServerTransport.class).stop();
         }
 
         injector.getInstance(SnapshotsService.class).stop();
@@ -714,7 +721,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeService.class));
         toClose.add(() -> stopWatch.stop().start("http"));
         if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            toClose.add(injector.getInstance(HttpServer.class));
+            toClose.add(injector.getInstance(HttpServerTransport.class));
         }
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));

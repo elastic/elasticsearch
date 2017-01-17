@@ -17,16 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.elasticsearch.common;
 
-import org.elasticsearch.index.query.QueryParseContext;
-
-import java.io.IOException;
+import java.util.function.Function;
 
 /**
- * Parses XContent into a {@link ScoreFunctionBuilder}.
+ * A {@link Function}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
-public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {
-    FB fromXContent(QueryParseContext context) throws IOException;
+public interface CheckedFunction<T, R, E extends Exception> {
+    R apply(T t) throws E;
 }

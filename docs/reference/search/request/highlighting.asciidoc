@@ -11,7 +11,7 @@ The following is an example of the search request body:
 GET /_search
 {
     "query" : {
-        "match": { "user": "kimchy" }
+        "match": { "content": "kimchy" }
     },
     "highlight" : {
         "fields" : {

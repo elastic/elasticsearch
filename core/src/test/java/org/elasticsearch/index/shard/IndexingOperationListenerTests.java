@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -131,9 +133,10 @@ public class IndexingOperationListenerTests extends ESTestCase{
         }
         Collections.shuffle(indexingOperationListeners, random());
         IndexingOperationListener.CompositeListener compositeListener =
-                new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
+            new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
+        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
+        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
         compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());

@@ -61,8 +61,7 @@ public class ExportException extends ElasticsearchException implements Iterable<
     }
 
     @Override
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        super.innerToXContent(builder, params);
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasExportExceptions()) {
             builder.startArray("exceptions");
             for (ExportException exception : exceptions) {

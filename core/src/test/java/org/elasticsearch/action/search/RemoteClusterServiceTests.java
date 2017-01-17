@@ -145,8 +145,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
                             "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
 
-                    assertEquals("Index cluster_1:bar exists but there is also a remote cluster named: cluster_1 can't filter indices",
-                        iae.getMessage());
+                    assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
+                            " cluster_1 can't filter indices", iae.getMessage());
                 }
             }
         }
@@ -182,8 +182,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     service.updateRemoteCluster("cluster_2", Collections.emptyList());
                     assertFalse(service.isRemoteClusterRegistered("cluster_2"));
-                    expectThrows(IllegalArgumentException.class,
+                    IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                         () -> service.updateRemoteCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList()));
+                    assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
             }
         }
@@ -226,7 +227,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     shardRouting = iterator.nextOrNull();
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "foo");
-
                     assertNull(iterator.nextOrNull());
                 } else {
                     assertEquals(0, iterator.shardId().getId());
@@ -237,7 +237,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     shardRouting = iterator.nextOrNull();
                     assertNotNull(shardRouting);
                     assertEquals(shardRouting.getIndexName(), "bar");
-
                     assertNull(iterator.nextOrNull());
                 }
             }

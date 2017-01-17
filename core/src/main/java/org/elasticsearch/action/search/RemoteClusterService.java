@@ -67,7 +67,7 @@ import java.util.stream.Stream;
  */
 public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
-    public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+    static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
@@ -116,7 +116,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      */
     private synchronized void updateRemoteClusters(Map<String, List<DiscoveryNode>> seeds, ActionListener<Void> connectionListener) {
         if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
-            throw new IllegalArgumentException("remote clusters must have the empty string as it's key");
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
         Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
         if (seeds.isEmpty()) {
@@ -200,8 +200,8 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                         // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
                         // if that happens
-                        throw new IllegalArgumentException("Index " + index + " exists but there is also a remote cluster named: "
-                            + remoteClusterName + " can't filter indices");
+                        throw new IllegalArgumentException("Can not filter indices; index " + index +
+                            " exists but there is also a remote cluster named: " + remoteClusterName + " can't filter indices");
                     }
                     indexName = index.substring(i + 1);
                     clusterName = remoteClusterName;

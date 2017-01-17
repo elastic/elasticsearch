@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -242,11 +243,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
     public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
+        Setting.groupSetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
+        Setting.groupSetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
+        Setting.groupSetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
 

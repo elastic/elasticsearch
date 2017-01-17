@@ -37,6 +37,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -190,5 +192,17 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         return service.reroute(clusterState, "reroute", false);
+    }
+
+    public void testInvalidIPFilter() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+            indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192..168.1.1").build(),
+                Settings.builder().put(Settings.EMPTY), Settings.builder(), "test ip validation");
+        });
+        assertEquals("invalid IP address [192..168.1.1] for [" + ipKey + "]", e.getMessage());
     }
 }

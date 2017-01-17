@@ -146,7 +146,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
 
                     assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
-                            " cluster_1 can't filter indices", iae.getMessage());
+                            " cluster_1", iae.getMessage());
                 }
             }
         }

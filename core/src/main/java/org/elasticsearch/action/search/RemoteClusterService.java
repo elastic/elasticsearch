@@ -201,7 +201,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                         // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
                         // if that happens
                         throw new IllegalArgumentException("Can not filter indices; index " + index +
-                            " exists but there is also a remote cluster named: " + remoteClusterName + " can't filter indices");
+                            " exists but there is also a remote cluster named: " + remoteClusterName);
                     }
                     indexName = index.substring(i + 1);
                     clusterName = remoteClusterName;

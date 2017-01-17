@@ -9,10 +9,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
-public abstract class ElasticsearchBatchedResultsIterator<T>
-        extends ElasticsearchBatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<T>> {
+public abstract class BatchedResultsIterator<T>
+        extends BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<T>> {
 
-    public ElasticsearchBatchedResultsIterator(Client client, String jobId, String resultType) {
+    public BatchedResultsIterator(Client client, String jobId, String resultType) {
         super(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId),
                 new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), resultType));
     }

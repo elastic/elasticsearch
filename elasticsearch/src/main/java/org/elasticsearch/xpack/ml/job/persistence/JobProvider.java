@@ -491,8 +491,8 @@ public class JobProvider {
      * @param jobId the id of the job for which buckets are requested
      * @return a bucket {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> newBatchedBucketsIterator(String jobId) {
-        return new ElasticsearchBatchedBucketsIterator(client, jobId);
+    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> newBatchedBucketsIterator(String jobId) {
+        return new BatchedBucketsIterator(client, jobId);
     }
 
     /**
@@ -503,9 +503,9 @@ public class JobProvider {
      * @param jobId the id of the job for which buckets are requested
      * @return a record {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
+    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
     newBatchedRecordsIterator(String jobId) {
-        return new ElasticsearchBatchedRecordsIterator(client, jobId);
+        return new BatchedRecordsIterator(client, jobId);
     }
 
     // TODO (norelease): Use scroll search instead of multiple searches with increasing from
@@ -761,9 +761,9 @@ public class JobProvider {
      * @param jobId the id of the job for which influencers are requested
      * @return an influencer {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>>
+    public BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>>
     newBatchedInfluencersIterator(String jobId) {
-        return new ElasticsearchBatchedInfluencersIterator(client, jobId);
+        return new BatchedInfluencersIterator(client, jobId);
     }
 
     /**

@@ -12,26 +12,26 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 
 import java.io.IOException;
 
-class ElasticsearchBatchedInfluencersIterator extends ElasticsearchBatchedResultsIterator<Influencer> {
-    public ElasticsearchBatchedInfluencersIterator(Client client, String jobId) {
-        super(client, jobId, Influencer.RESULT_TYPE_VALUE);
+class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
+
+    public BatchedRecordsIterator(Client client, String jobId) {
+        super(client, jobId, AnomalyRecord.RESULT_TYPE_VALUE);
     }
 
     @Override
-    protected ResultWithIndex<Influencer> map(SearchHit hit) {
+    protected ResultWithIndex<AnomalyRecord> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
             parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parser influencer", e);
+            throw new ElasticsearchParseException("failed to parse record", e);
         }
-
-        Influencer influencer = Influencer.PARSER.apply(parser, null);
-        return new ResultWithIndex<>(hit.getIndex(), influencer);
+        AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, null);
+        return new ResultWithIndex<>(hit.getIndex(), record);
     }
 }

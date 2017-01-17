@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
-public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
+public class BatchedDocumentsIteratorTests extends ESTestCase {
     private static final String INDEX_NAME = ".ml-anomalies-foo";
     private static final String SCROLL_ID = "someScrollId";
 
@@ -187,7 +187,7 @@ public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
         }
     }
 
-    private static class TestIterator extends ElasticsearchBatchedDocumentsIterator<String> {
+    private static class TestIterator extends BatchedDocumentsIterator<String> {
         public TestIterator(Client client, String jobId) {
             super(client, jobId);
         }

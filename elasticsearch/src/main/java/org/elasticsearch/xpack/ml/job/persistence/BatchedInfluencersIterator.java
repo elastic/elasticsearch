@@ -12,26 +12,26 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.job.results.Influencer;
 
 import java.io.IOException;
 
-class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIterator<Bucket> {
-
-    public ElasticsearchBatchedBucketsIterator(Client client, String jobId) {
-        super(client, jobId, Bucket.RESULT_TYPE_VALUE);
+class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
+    public BatchedInfluencersIterator(Client client, String jobId) {
+        super(client, jobId, Influencer.RESULT_TYPE_VALUE);
     }
 
     @Override
-    protected ResultWithIndex<Bucket> map(SearchHit hit) {
+    protected ResultWithIndex<Influencer> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
             parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse bucket", e);
+            throw new ElasticsearchParseException("failed to parser influencer", e);
         }
-        Bucket bucket = Bucket.PARSER.apply(parser, null);
-        return new ResultWithIndex<>(hit.getIndex(), bucket);
+
+        Influencer influencer = Influencer.PARSER.apply(parser, null);
+        return new ResultWithIndex<>(hit.getIndex(), influencer);
     }
 }

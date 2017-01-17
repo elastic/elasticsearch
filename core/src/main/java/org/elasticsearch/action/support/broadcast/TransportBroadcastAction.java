@@ -178,7 +178,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        taskManager.registerChildTask(task, node.getId());
                         transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
                             @Override
                             public ShardResponse newInstance() {

@@ -502,7 +502,6 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                final TransportResponseHandler<T> handler) {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
-            taskManager.registerChildTask(parentTask, node.getId());
             final Transport.Connection connection = getConnection(node);
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {

@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,20 +78,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Standard {@link ParseField} for options on the inner level.
      */
     public static final ParseField OPTIONS_PARSE_FIELD = new ParseField("options");
-
-    /**
-     * Helper class used by {@link ObjectParser} to match names against fields
-     * parsed from XContent.
-     */
-    private static final class MatcherSupplier implements ParseFieldMatcherSupplier {
-
-        private MatcherSupplier() {}
-
-        @Override
-        public ParseFieldMatcher getParseFieldMatcher() {
-            return ParseFieldMatcher.EMPTY;
-        }
-    }
 
     /**
      * Helper class used by {@link ObjectParser} to store mutable {@link StoredScriptSource} variables and then
@@ -169,7 +153,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("stored script source", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("stored script source", Builder::new);
 
     static {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
@@ -276,7 +260,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                 } else if (token == Token.START_OBJECT) {
                     if (lang == null) {
-                        return PARSER.apply(parser, new MatcherSupplier()).build();
+                        return PARSER.apply(parser, null).build();
                     } else {
                         try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
                             builder.copyCurrentStructure(parser);
@@ -342,7 +326,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * a complex JSON object.
      */
     public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, new MatcherSupplier()).build();
+        return PARSER.apply(parser, null).build();
     }
 
     /**
@@ -382,12 +366,12 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * Reads a {@link StoredScriptSource} from a stream.  Version 5.2+ will read
-     * all of the lang, code, and options parameters.  For versions prior to 5.2,
+     * Reads a {@link StoredScriptSource} from a stream.  Version 5.3+ will read
+     * all of the lang, code, and options parameters.  For versions prior to 5.3,
      * only the code parameter will be read in as a bytes reference.
      */
     public StoredScriptSource(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             this.lang = in.readString();
             this.code = in.readString();
             @SuppressWarnings("unchecked")
@@ -401,13 +385,13 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * Writes a {@link StoredScriptSource} to a stream.  Version 5.2+ will write
-     * all of the lang, code, and options parameters.  For versions prior to 5.2,
+     * Writes a {@link StoredScriptSource} to a stream.  Version 5.3+ will write
+     * all of the lang, code, and options parameters.  For versions prior to 5.3,
      * only the code parameter will be read in as a bytes reference.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeString(lang);
             out.writeString(code);
             @SuppressWarnings("unchecked")

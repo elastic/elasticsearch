@@ -77,14 +77,14 @@
       features: warnings
 
   - do:
-      warnings:
-        - "specifying lang [painless] as part of the url path is deprecated, use request content instead"
       put_script:
-        id: "sum_bytes"
-        lang: "painless"
+        lang: "sum_bytes"
         body: >
           {
-            "script" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+            "script": {
+              "lang": "painless",
+              "code" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+            }
           }
   - match: { acknowledged: true }
 

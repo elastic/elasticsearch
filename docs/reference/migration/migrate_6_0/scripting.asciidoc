@@ -1,8 +1,6 @@
 [[breaking_60_scripting_changes]]
 === Scripting changes
 
-
-
 ==== Groovy language removed
 
 The groovy scripting language was deprecated in elasticsearch 5.0 and is now removed.

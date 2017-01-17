@@ -261,7 +261,11 @@ public final class Script implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
                 }
             } else if (type == ScriptType.STORED) {
-                if (lang != null) {
+                // Only issue this deprecation warning if we aren't using a template.  Templates during
+                // this deprecation phase must always specify the default template language or they would
+                // possibly pick up a script in a different language as defined by the user under the new
+                // namespace unintentionally.
+                if (lang != null && lang.equals(DEFAULT_TEMPLATE_LANG) == false) {
                     DEPRECATION_LOGGER.deprecated("specifying the field [" + LANG_PARSE_FIELD.getPreferredName() + "] " +
                         "for executing " + ScriptType.STORED + " scripts is deprecated; use only the field " +
                         "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
@@ -484,8 +488,8 @@ public final class Script implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             this.type = ScriptType.readFrom(in);
 
-            // The lang parameter will be optional for stored scripts as of 5.2.
-            if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            // The lang parameter will be optional for stored scripts as of 5.3.
+            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                 this.lang = in.readOptionalString();
             } else {
                 this.lang = in.readString();
@@ -494,7 +498,7 @@ public final class Script implements ToXContentObject, Writeable {
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
             Map<String, String> options = (Map<String, String>)(Map)in.readMap();
-            // The options parameter is expected to be null for stored and file scripts as of 5.2.
+            // The options parameter is expected to be null for stored and file scripts as of 5.3.
             this.options = options;
             this.params = in.readMap();
         // Prior to version 5.1 the script members are read in certain cases as optional and given
@@ -547,8 +551,8 @@ public final class Script implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             type.writeTo(out);
 
-            // The lang parameter will be optional for stored scripts as of 5.2.
-            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            // The lang parameter will be optional for stored scripts as of 5.3.
+            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                 out.writeOptionalString(lang);
             } else {
                 out.writeString(lang == null ? "" : lang);
@@ -557,7 +561,7 @@ public final class Script implements ToXContentObject, Writeable {
             out.writeString(idOrCode);
             @SuppressWarnings("unchecked")
             Map<String, Object> options = (Map<String, Object>)(Map)this.options;
-            // The options parameter is expected to be null for stored and file scripts as of 5.2.
+            // The options parameter is expected to be null for stored and file scripts as of 5.3.
             out.writeMap(options);
             out.writeMap(params);
         // Prior to version 5.1 the Script members were possibly written as optional or null, though this is no longer

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
+public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
                 Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
+        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScrollableHitSource.BasicHit doc() {
         return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
     }
 
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
 }

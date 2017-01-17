@@ -141,9 +141,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(Arrays.asList("bar", "test"), perClusterIndices.get("cluster_1"));
                     assertEquals(Arrays.asList("foo:bar", "foo*"), perClusterIndices.get("cluster_2"));
 
-                    expectThrows(IllegalArgumentException.class, () ->
-                    service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
-                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
+                    IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                        service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
+                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
+
+                    assertEquals("Index cluster_1:bar exists but there is also a remote cluster named: cluster_1 can't filter indices",
+                        iae.getMessage());
                 }
             }
         }

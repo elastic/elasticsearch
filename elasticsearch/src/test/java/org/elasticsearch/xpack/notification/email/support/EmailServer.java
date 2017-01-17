@@ -16,6 +16,8 @@ import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -75,7 +77,11 @@ public class EmailServer {
     }
 
     public void start() {
-        server.start();
+        // Must have privileged access because underlying server will accept socket connections
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            server.start();
+            return null;
+        });
     }
 
     public void stop() {

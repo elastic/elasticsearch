@@ -183,7 +183,16 @@ public class Node implements Closeable {
     */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
-    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", (settings) -> {
+        Map<String, String> settingsMap = settings.getAsMap();
+        for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
+            String value = entry.getValue();
+            if (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1))) {
+                throw new IllegalArgumentException("node.attr." + entry.getKey() + " cannot have leading or trailing whitespace " +
+                                                       "[" + value + "]");
+            }
+        }
+    }, Property.NodeScope);
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
         switch (s) {
             case "hierarchy":

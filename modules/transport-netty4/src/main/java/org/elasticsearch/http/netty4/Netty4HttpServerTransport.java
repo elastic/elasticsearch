@@ -419,14 +419,14 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_METHODS.get(settings));
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
         HttpMethod[] methods = Arrays.asList(strMethods)
             .stream()
             .map(HttpMethod::valueOf)
             .toArray(size -> new HttpMethod[size]);
         return builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_HEADERS.get(settings)))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
             .shortCircuit()
             .build();
     }

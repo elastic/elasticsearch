@@ -199,7 +199,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         TransportRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            taskManager.registerChildTask(task, node.getId());
                         }
 
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),

@@ -278,7 +278,6 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override

@@ -120,7 +120,6 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        taskManager.registerChildTask(thisTask, node.getId());
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override

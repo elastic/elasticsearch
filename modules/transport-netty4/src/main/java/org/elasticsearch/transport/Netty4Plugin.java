@@ -58,7 +58,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_BLOCKING_SERVER,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,

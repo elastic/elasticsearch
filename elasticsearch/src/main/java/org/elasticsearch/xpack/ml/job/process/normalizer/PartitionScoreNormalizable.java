@@ -5,16 +5,24 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.results.PartitionScore;
 
+import java.io.IOException;
 import java.util.Objects;
 
 
 public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
     private final PartitionScore score;
 
-    public PartitionScoreNormalizable(PartitionScore score) {
+    public PartitionScoreNormalizable(PartitionScore score, String indexName) {
+        super(indexName);
         this.score = Objects.requireNonNull(score);
+    }
+
+    @Override
+    public String getId() {
+        throw new IllegalStateException("PartitionScore has no ID as is should not be persisted outside of the owning bucket");
     }
 
     @Override
@@ -68,12 +76,7 @@ public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
-    public void resetBigChangeFlag() {
-        score.resetBigNormalizedUpdateFlag();
-    }
-
-    @Override
-    public void raiseBigChangeFlag() {
-        score.raiseBigNormalizedUpdateFlag();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return score.toXContent(builder, params);
     }
 }

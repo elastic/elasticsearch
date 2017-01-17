@@ -5,16 +5,24 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 
+import java.io.IOException;
 import java.util.Objects;
 
 
 class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
     private final BucketInfluencer bucketInfluencer;
 
-    public BucketInfluencerNormalizable(BucketInfluencer influencer) {
+    public BucketInfluencerNormalizable(BucketInfluencer influencer, String indexName) {
+        super(indexName);
         bucketInfluencer = Objects.requireNonNull(influencer);
+    }
+
+    @Override
+    public String getId() {
+        return bucketInfluencer.getId();
     }
 
     @Override
@@ -69,12 +77,7 @@ class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
-    public void resetBigChangeFlag() {
-        // Do nothing
-    }
-
-    @Override
-    public void raiseBigChangeFlag() {
-        // Do nothing
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return bucketInfluencer.toXContent(builder, params);
     }
 }

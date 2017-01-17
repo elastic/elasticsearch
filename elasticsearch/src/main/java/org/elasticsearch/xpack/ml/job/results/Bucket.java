@@ -95,7 +95,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private List<AnomalyRecord> records = new ArrayList<>();
     private long eventCount;
     private boolean isInterim;
-    private boolean hadBigNormalizedUpdate;
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>(); // Can't use emptyList as might be appended to
     private long processingTimeMs;
     private Map<String, Double> perPartitionMaxProbability = Collections.emptyMap();
@@ -118,7 +117,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         this.records = new ArrayList<>(other.records);
         this.eventCount = other.eventCount;
         this.isInterim = other.isInterim;
-        this.hadBigNormalizedUpdate = other.hadBigNormalizedUpdate;
         this.bucketInfluencers = new ArrayList<>(other.bucketInfluencers);
         this.processingTimeMs = other.processingTimeMs;
         this.perPartitionMaxProbability = other.perPartitionMaxProbability;
@@ -330,7 +328,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        // hadBigNormalizedUpdate is deliberately excluded from the hash
         return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, maxNormalizedProbability, recordCount, records,
                 isInterim, bucketSpan, bucketInfluencers);
     }
@@ -350,7 +347,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
         Bucket that = (Bucket) other;
 
-        // hadBigNormalizedUpdate is deliberately excluded from the test
         return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
                 && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
@@ -359,38 +355,15 @@ public class Bucket extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.bucketInfluencers, that.bucketInfluencers);
     }
 
-    public boolean hadBigNormalizedUpdate() {
-        return hadBigNormalizedUpdate;
-    }
-
-    public void resetBigNormalizedUpdateFlag() {
-        hadBigNormalizedUpdate = false;
-    }
-
-    public void raiseBigNormalizedUpdateFlag() {
-        hadBigNormalizedUpdate = true;
-    }
-
     /**
      * This method encapsulated the logic for whether a bucket should be
-     * normalized. The decision depends on two factors.
-     *
-     * The first is whether the bucket has bucket influencers. Since bucket
-     * influencers were introduced, every bucket must have at least one bucket
-     * influencer. If it does not, it means it is a bucket persisted with an
-     * older version and should not be normalized.
-     *
-     * The second factor has to do with minimising the number of buckets that
-     * are sent for normalization. Buckets that have no records and a score of
+     * normalized.  Buckets that have no records and a score of
      * zero should not be normalized as their score will not change and they
      * will just add overhead.
      *
      * @return true if the bucket should be normalized or false otherwise
      */
     public boolean isNormalizable() {
-        if (bucketInfluencers.isEmpty()) {
-            return false;
-        }
         return anomalyScore > 0.0 || recordCount > 0;
     }
 }

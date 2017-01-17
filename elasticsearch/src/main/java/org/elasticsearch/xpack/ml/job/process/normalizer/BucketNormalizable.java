@@ -5,25 +5,42 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.BUCKET_INFLUENCER;
+import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.PARTITION_SCORE;
+import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.RECORD;
 
 
-class BucketNormalizable implements Normalizable {
-    private static final int BUCKET_INFLUENCER = 0;
-    private static final int RECORD = 1;
-    private static final int PARTITION_SCORE = 2;
-    private static final List<Integer> CHILDREN_TYPES =
-            Arrays.asList(BUCKET_INFLUENCER, RECORD, PARTITION_SCORE);
+public class BucketNormalizable extends Normalizable {
+
+    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER, RECORD, PARTITION_SCORE);
 
     private final Bucket bucket;
 
-    public BucketNormalizable(Bucket bucket) {
+    private List<RecordNormalizable> records = Collections.emptyList();
+
+    public BucketNormalizable(Bucket bucket, String indexName) {
+        super(indexName);
         this.bucket = Objects.requireNonNull(bucket);
+    }
+
+    public Bucket getBucket() {
+        return bucket;
+    }
+
+    @Override
+    public String getId() {
+        return bucket.getId();
     }
 
     @Override
@@ -76,35 +93,44 @@ class BucketNormalizable implements Normalizable {
         bucket.setAnomalyScore(normalizedScore);
     }
 
+    public List<RecordNormalizable> getRecords() {
+        return records;
+    }
+
+    public void setRecords(List<RecordNormalizable> records) {
+        this.records = records;
+    }
+
     @Override
-    public List<Integer> getChildrenTypes() {
-        return CHILDREN_TYPES;
+    public List<ChildType> getChildrenTypes() {
+        return CHILD_TYPES;
     }
 
     @Override
     public List<Normalizable> getChildren() {
         List<Normalizable> children = new ArrayList<>();
-        for (Integer type : getChildrenTypes()) {
+        for (ChildType type : getChildrenTypes()) {
             children.addAll(getChildren(type));
         }
         return children;
     }
 
     @Override
-    public List<Normalizable> getChildren(int type) {
+    public List<Normalizable> getChildren(ChildType type) {
         List<Normalizable> children = new ArrayList<>();
         switch (type) {
             case BUCKET_INFLUENCER:
-                bucket.getBucketInfluencers().stream().forEach(
-                        influencer -> children.add(new BucketInfluencerNormalizable(influencer)));
+                children.addAll(bucket.getBucketInfluencers().stream()
+                        .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
+                        .collect(Collectors.toList()));
                 break;
             case RECORD:
-                bucket.getRecords().stream().forEach(
-                        record -> children.add(new RecordNormalizable(record)));
+                children.addAll(records);
                 break;
             case PARTITION_SCORE:
-                bucket.getPartitionScores().stream().forEach(
-                        partitionScore -> children.add(new PartitionScoreNormalizable(partitionScore)));
+                children.addAll(bucket.getPartitionScores().stream()
+                        .map(ps -> new PartitionScoreNormalizable(ps, getOriginatingIndex()))
+                        .collect(Collectors.toList()));
                 break;
             default:
                 throw new IllegalArgumentException("Invalid type: " + type);
@@ -113,7 +139,7 @@ class BucketNormalizable implements Normalizable {
     }
 
     @Override
-    public boolean setMaxChildrenScore(int childrenType, double maxScore) {
+    public boolean setMaxChildrenScore(ChildType childrenType, double maxScore) {
         double oldScore = 0.0;
         switch (childrenType) {
             case BUCKET_INFLUENCER:
@@ -138,12 +164,7 @@ class BucketNormalizable implements Normalizable {
     }
 
     @Override
-    public void resetBigChangeFlag() {
-        bucket.resetBigNormalizedUpdateFlag();
-    }
-
-    @Override
-    public void raiseBigChangeFlag() {
-        bucket.raiseBigNormalizedUpdateFlag();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return bucket.toXContent(builder, params);
     }
 }

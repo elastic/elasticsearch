@@ -12,34 +12,20 @@ import java.util.NoSuchElementException;
 import static org.junit.Assert.assertEquals;
 
 public class MockBatchedDocumentsIterator<T> implements BatchedDocumentsIterator<T> {
-    private final Long startEpochMs;
-    private final Long endEpochMs;
     private final List<Deque<T>> batches;
     private int index;
     private boolean wasTimeRangeCalled;
     private String interimFieldName;
 
-    public MockBatchedDocumentsIterator(long startEpochMs, long endEpochMs, List<Deque<T>> batches) {
-        this((Long) startEpochMs, (Long) endEpochMs, batches);
-    }
-
     public MockBatchedDocumentsIterator(List<Deque<T>> batches) {
-        this(null, null, batches);
-    }
-
-    private MockBatchedDocumentsIterator(Long startEpochMs, Long endEpochMs, List<Deque<T>> batches) {
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;
         interimFieldName = "";
-        this.startEpochMs = startEpochMs;
-        this.endEpochMs = endEpochMs;
     }
 
     @Override
     public BatchedDocumentsIterator<T> timeRange(long startEpochMs, long endEpochMs) {
-        assertEquals(this.startEpochMs.longValue(), startEpochMs);
-        assertEquals(this.endEpochMs.longValue(), endEpochMs);
         wasTimeRangeCalled = true;
         return this;
     }
@@ -52,7 +38,7 @@ public class MockBatchedDocumentsIterator<T> implements BatchedDocumentsIterator
 
     @Override
     public Deque<T> next() {
-        if ((startEpochMs != null && !wasTimeRangeCalled) || !hasNext()) {
+        if ((!wasTimeRangeCalled) || !hasNext()) {
             throw new NoSuchElementException();
         }
         return batches.get(index++);

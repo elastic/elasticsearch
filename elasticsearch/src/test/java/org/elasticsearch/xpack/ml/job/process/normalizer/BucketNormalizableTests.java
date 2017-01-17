@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
@@ -19,6 +20,7 @@ import org.junit.Before;
 
 
 public class BucketNormalizableTests extends ESTestCase {
+    private static final String INDEX_NAME = "foo-index";
     private static final double EPSILON = 0.0001;
     private Bucket bucket;
 
@@ -54,43 +56,43 @@ public class BucketNormalizableTests extends ESTestCase {
     }
 
     public void testIsContainerOnly() {
-        assertTrue(new BucketNormalizable(bucket).isContainerOnly());
+        assertTrue(new BucketNormalizable(bucket, INDEX_NAME).isContainerOnly());
     }
 
     public void testGetLevel() {
-        assertEquals(Level.ROOT, new BucketNormalizable(bucket).getLevel());
+        assertEquals(Level.ROOT, new BucketNormalizable(bucket, INDEX_NAME).getLevel());
     }
 
     public void testGetPartitionFieldName() {
-        assertNull(new BucketNormalizable(bucket).getPartitionFieldName());
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPartitionFieldName());
     }
 
     public void testGetPartitionFieldValue() {
-        assertNull(new BucketNormalizable(bucket).getPartitionFieldValue());
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPartitionFieldValue());
     }
 
     public void testGetPersonFieldName() {
-        assertNull(new BucketNormalizable(bucket).getPersonFieldName());
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPersonFieldName());
     }
 
     public void testGetFunctionName() {
-        assertNull(new BucketNormalizable(bucket).getFunctionName());
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getFunctionName());
     }
 
     public void testGetValueFieldName() {
-        assertNull(new BucketNormalizable(bucket).getValueFieldName());
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getValueFieldName());
     }
 
     public void testGetProbability() {
-        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket).getProbability());
+        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).getProbability());
     }
 
     public void testGetNormalizedScore() {
-        assertEquals(88.0, new BucketNormalizable(bucket).getNormalizedScore(), EPSILON);
+        assertEquals(88.0, new BucketNormalizable(bucket, INDEX_NAME).getNormalizedScore(), EPSILON);
     }
 
     public void testSetNormalizedScore() {
-        BucketNormalizable normalizable = new BucketNormalizable(bucket);
+        BucketNormalizable normalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         normalizable.setNormalizedScore(99.0);
 
@@ -99,8 +101,11 @@ public class BucketNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren() {
-        List<Normalizable> children = new BucketNormalizable(bucket).getChildren();
+        BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
+        bn.setRecords(bucket.getRecords().stream().map(r -> new RecordNormalizable(r, INDEX_NAME))
+                .collect(Collectors.toList()));
 
+        List<Normalizable> children = bn.getChildren();
         assertEquals(6, children.size());
         assertTrue(children.get(0) instanceof BucketInfluencerNormalizable);
         assertEquals(42.0, children.get(0).getNormalizedScore(), EPSILON);
@@ -117,7 +122,8 @@ public class BucketNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren_GivenTypeBucketInfluencer() {
-        List<Normalizable> children = new BucketNormalizable(bucket).getChildren(0);
+        BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
+        List<Normalizable> children = bn.getChildren(Normalizable.ChildType.BUCKET_INFLUENCER);
 
         assertEquals(2, children.size());
         assertTrue(children.get(0) instanceof BucketInfluencerNormalizable);
@@ -127,7 +133,10 @@ public class BucketNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren_GivenTypeRecord() {
-        List<Normalizable> children = new BucketNormalizable(bucket).getChildren(1);
+        BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
+        bn.setRecords(bucket.getRecords().stream().map(r -> new RecordNormalizable(r, INDEX_NAME))
+                .collect(Collectors.toList()));
+        List<Normalizable> children = bn.getChildren(Normalizable.ChildType.RECORD);
 
         assertEquals(2, children.size());
         assertTrue(children.get(0) instanceof RecordNormalizable);
@@ -136,53 +145,45 @@ public class BucketNormalizableTests extends ESTestCase {
         assertEquals(2.0, children.get(1).getNormalizedScore(), EPSILON);
     }
 
-    public void testGetChildren_GivenInvalidType() {
-        expectThrows(IllegalArgumentException.class, () -> new BucketNormalizable(bucket).getChildren(3));
-    }
-
     public void testSetMaxChildrenScore_GivenDifferentScores() {
-        BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket);
+        BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
-        assertTrue(bucketNormalizable.setMaxChildrenScore(0, 95.0));
-        assertTrue(bucketNormalizable.setMaxChildrenScore(1, 42.0));
+        assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 95.0));
+        assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 42.0));
 
         assertEquals(95.0, bucket.getAnomalyScore(), EPSILON);
         assertEquals(42.0, bucket.getMaxNormalizedProbability(), EPSILON);
     }
 
     public void testSetMaxChildrenScore_GivenSameScores() {
-        BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket);
+        BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
-        assertFalse(bucketNormalizable.setMaxChildrenScore(0, 88.0));
-        assertFalse(bucketNormalizable.setMaxChildrenScore(1, 2.0));
+        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 88.0));
+        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 2.0));
 
         assertEquals(88.0, bucket.getAnomalyScore(), EPSILON);
         assertEquals(2.0, bucket.getMaxNormalizedProbability(), EPSILON);
     }
 
-    public void testSetMaxChildrenScore_GivenInvalidType() {
-        expectThrows(IllegalArgumentException.class, () -> new BucketNormalizable(bucket).setMaxChildrenScore(3, 95.0));
-    }
-
     public void testSetParentScore() {
-        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket).setParentScore(42.0));
+        expectThrows(IllegalStateException.class, () -> new BucketNormalizable(bucket, INDEX_NAME).setParentScore(42.0));
     }
 
     public void testResetBigChangeFlag() {
-        BucketNormalizable normalizable = new BucketNormalizable(bucket);
+        BucketNormalizable normalizable = new BucketNormalizable(bucket, INDEX_NAME);
         normalizable.raiseBigChangeFlag();
 
         normalizable.resetBigChangeFlag();
 
-        assertFalse(bucket.hadBigNormalizedUpdate());
+        assertFalse(normalizable.hadBigNormalizedUpdate());
     }
 
     public void testRaiseBigChangeFlag() {
-        BucketNormalizable normalizable = new BucketNormalizable(bucket);
+        BucketNormalizable normalizable = new BucketNormalizable(bucket, INDEX_NAME);
         normalizable.resetBigChangeFlag();
 
         normalizable.raiseBigChangeFlag();
 
-        assertTrue(bucket.hadBigNormalizedUpdate());
+        assertTrue(normalizable.hadBigNormalizedUpdate());
     }
 }

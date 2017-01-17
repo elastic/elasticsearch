@@ -5,75 +5,97 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
+import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
+import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.ml.job.results.Result;
 
+import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 
 /**
  * Interface for classes that update {@linkplain Bucket Buckets}
  * for a particular job with new normalized anomaly scores and
  * unusual scores.
- *
+ * <p>
  * Renormalized results must already have an ID.
  */
 public class JobRenormalizedResultsPersister extends AbstractComponent {
 
-    private final JobResultsPersister jobResultsPersister;
+    private final Client client;
+    private BulkRequest bulkRequest;
 
-    public JobRenormalizedResultsPersister(Settings settings, JobResultsPersister jobResultsPersister) {
+    public JobRenormalizedResultsPersister(Settings settings, Client client) {
         super(settings);
-        this.jobResultsPersister = jobResultsPersister;
+        this.client = client;
+        bulkRequest = new BulkRequest();
+    }
+
+    public void updateBucket(BucketNormalizable normalizable) {
+        updateResult(normalizable.getId(), normalizable.getOriginatingIndex(), normalizable.getBucket());
+        updateBucketInfluencersStandalone(normalizable.getOriginatingIndex(), normalizable.getBucket().getBucketInfluencers());
+    }
+
+    private void updateBucketInfluencersStandalone(String indexName, List<BucketInfluencer> bucketInfluencers) {
+        if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
+            for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
+                updateResult(bucketInfluencer.getId(), indexName, bucketInfluencer);
+            }
+        }
+    }
+
+    public void updateResults(List<Normalizable> normalizables) {
+        for (Normalizable normalizable : normalizables) {
+            updateResult(normalizable.getId(), normalizable.getOriginatingIndex(), normalizable);
+        }
+    }
+
+    public void updateResult(String id, String index, ToXContent resultDoc) {
+        try {
+            XContentBuilder content = toXContentBuilder(resultDoc);
+            bulkRequest.add(new IndexRequest(index, Result.TYPE.getPreferredName(), id).source(content));
+        } catch (IOException e) {
+            logger.error("Error serialising result", e);
+        }
+    }
+
+    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
     }
 
     /**
-     * Update the bucket with the changes that may result
-     * due to renormalization.
+     * Execute the bulk action
      *
-     * @param bucket the bucket to update
+     * @param jobId The job Id
      */
-    public void updateBucket(Bucket bucket) {
-        jobResultsPersister.bulkPersisterBuilder(bucket.getJobId()).persistBucket(bucket).executeRequest();
+    public void executeRequest(String jobId) {
+        if (bulkRequest.numberOfActions() == 0) {
+            return;
+        }
+        logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
+
+        BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
+        if (addRecordsResponse.hasFailures()) {
+            logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+        }
     }
 
-    /**
-     * Update the anomaly records for a particular job.
-     * The anomaly records are updated with the values in <code>records</code> and
-     * stored with the ID returned by {@link AnomalyRecord#getId()}
-     *
-     * @param jobId Id of the job to update
-     * @param records The updated records
-     */
-    public void updateRecords(String jobId, List<AnomalyRecord> records) {
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistRecords(records).executeRequest();
-    }
-
-    /**
-     * Create a {@link PerPartitionMaxProbabilities} object from this list of records and persist
-     * with the given ID.
-     *
-     * @param jobId Id of the job to update
-     * @param records Source of the new {@link PerPartitionMaxProbabilities} object
-     */
-    public void updatePerPartitionMaxProbabilities(String jobId, List<AnomalyRecord> records) {
-        PerPartitionMaxProbabilities ppMaxProbs = new PerPartitionMaxProbabilities(records);
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistPerPartitionMaxProbabilities(ppMaxProbs).executeRequest();
-    }
-
-    /**
-     * Update the influencer for a particular job.
-     * The Influencer's are stored with the ID in {@link Influencer#getId()}
-     *
-     * @param jobId Id of the job to update
-     * @param influencers The updated influencers
-     */
-    public void updateInfluencer(String jobId, List<Influencer> influencers) {
-        jobResultsPersister.bulkPersisterBuilder(jobId).persistInfluencers(influencers).executeRequest();
+    BulkRequest getBulkRequest() {
+        return bulkRequest;
     }
 }
 

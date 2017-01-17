@@ -114,7 +114,7 @@ public class JobResultsPersister extends AbstractComponent {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     XContentBuilder content = serialiseBucketInfluencerStandalone(bucketInfluencer);
-                    // Need consistent IDs to ensure overwriting on renormalisation
+                    // Need consistent IDs to ensure overwriting on renormalization
                     String id = bucketInfluencer.getId();
                     logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
                             jobId, BucketInfluencer.RESULT_TYPE_VALUE, indexName, id);

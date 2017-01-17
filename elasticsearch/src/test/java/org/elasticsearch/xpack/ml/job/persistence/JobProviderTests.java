@@ -638,6 +638,7 @@ public class JobProviderTests extends ESTestCase {
         QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
+
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
         assertEquals(33.3, records.get(0).getActual().get(0), 0.000001);
         assertEquals("irritable", records.get(0).getFunction());
@@ -700,9 +701,9 @@ public class JobProviderTests extends ESTestCase {
         Integer[] holder = new Integer[1];
         provider.expandBucket(jobId, false, bucket, null, 0, records -> holder[0] = records, RuntimeException::new);
         int records = holder[0];
+
         // This is not realistic, but is an artifact of the fact that the mock
-        // query
-        // returns all the records, not a subset
+        // query returns all the records, not a subset
         assertEquals(1200L, records);
     }
 

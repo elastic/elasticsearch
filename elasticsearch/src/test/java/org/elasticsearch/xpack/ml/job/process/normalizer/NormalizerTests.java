@@ -11,10 +11,7 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Date;
-import java.util.Deque;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 public class NormalizerTests extends ESTestCase {
     private static final String JOB_ID = "foo";
+    private static final String INDEX_NAME = "foo-index";
     private static final String QUANTILES_STATE = "someState";
     private static final int BUCKET_SPAN = 600;
     private static final double INITIAL_SCORE = 2.0;
@@ -57,12 +55,8 @@ public class NormalizerTests extends ESTestCase {
             Bucket bucket = generateBucket(new Date(0));
             bucket.setAnomalyScore(0.0);
             bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.07, INITIAL_SCORE));
-            Deque<Bucket> buckets = new ArrayDeque<>();
-            buckets.add(bucket);
 
-            List<Normalizable> asNormalizables = buckets.stream()
-                    .map(b -> new BucketNormalizable(b)).collect(Collectors.toList());
-
+            List<Normalizable> asNormalizables = Arrays.asList(new BucketNormalizable(bucket, INDEX_NAME));
             normalizer.normalize(BUCKET_SPAN, false, asNormalizables, QUANTILES_STATE);
 
             assertEquals(1, asNormalizables.size());

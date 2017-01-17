@@ -146,8 +146,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     private List<Influence> influencers;
 
-    private boolean hadBigNormalizedUpdate;
-
     public AnomalyRecord(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
         this.jobId = jobId;
         this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
@@ -487,9 +485,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-
-        // hadBigNormalizedUpdate is deliberately excluded from the hash
-
         return Objects.hash(jobId, detectorIndex, sequenceNum, bucketSpan, probability, anomalyScore,
                 normalizedProbability, initialNormalizedProbability, typical, actual,
                 function, functionDescription, fieldName, byFieldName, byFieldValue, correlatedByFieldValue,
@@ -510,7 +505,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
         AnomalyRecord that = (AnomalyRecord) other;
 
-        // hadBigNormalizedUpdate is deliberately excluded from the test
         return Objects.equals(this.jobId, that.jobId)
                 && this.detectorIndex == that.detectorIndex
                 && this.sequenceNum == that.sequenceNum
@@ -535,17 +529,5 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.causes, that.causes)
                 && Objects.equals(this.influencers, that.influencers);
-    }
-
-    public boolean hadBigNormalizedUpdate() {
-        return this.hadBigNormalizedUpdate;
-    }
-
-    public void resetBigNormalizedUpdateFlag() {
-        hadBigNormalizedUpdate = false;
-    }
-
-    public void raiseBigNormalizedUpdateFlag() {
-        hadBigNormalizedUpdate = true;
     }
 }

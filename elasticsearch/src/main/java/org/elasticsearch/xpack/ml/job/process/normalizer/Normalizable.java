@@ -5,9 +5,27 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import java.util.List;
+import org.elasticsearch.common.xcontent.ToXContent;
 
-interface Normalizable {
+import java.util.List;
+import java.util.Objects;
+
+public abstract class Normalizable implements ToXContent {
+    public enum ChildType {BUCKET_INFLUENCER, RECORD, PARTITION_SCORE};
+
+    private final String indexName;
+    private boolean hadBigNormalizedUpdate;
+
+    public Normalizable(String indexName) {
+        this.indexName = Objects.requireNonNull(indexName);
+    }
+
+    /**
+     * The document ID of the underlying result.
+     * @return The document Id string
+     */
+    public abstract String getId();
+
     /**
      * A {@code Normalizable} may be the owner of scores or just a
      * container of other {@code Normalizable} objects. A container only
@@ -16,40 +34,40 @@ interface Normalizable {
      *
      * @return true if this {@code Normalizable} is only a container
      */
-    boolean isContainerOnly();
+    abstract boolean isContainerOnly();
 
-    Level getLevel();
+    abstract Level getLevel();
 
-    String getPartitionFieldName();
+    abstract String getPartitionFieldName();
 
-    String getPartitionFieldValue();
+    abstract String getPartitionFieldValue();
 
-    String getPersonFieldName();
+    abstract String getPersonFieldName();
 
-    String getFunctionName();
+    abstract String getFunctionName();
 
-    String getValueFieldName();
+    abstract String getValueFieldName();
 
-    double getProbability();
+    abstract double getProbability();
 
-    double getNormalizedScore();
+    abstract double getNormalizedScore();
 
-    void setNormalizedScore(double normalizedScore);
+    abstract void setNormalizedScore(double normalizedScore);
 
-    List<Integer> getChildrenTypes();
+    abstract List<ChildType> getChildrenTypes();
 
-    List<Normalizable> getChildren();
+    abstract List<Normalizable> getChildren();
 
-    List<Normalizable> getChildren(int type);
+    abstract List<Normalizable> getChildren(ChildType type);
 
     /**
      * Set the aggregate normalized score for a type of children
      *
-     * @param childrenType the integer that corresponds to a children type
+     * @param type         the child type
      * @param maxScore     the aggregate normalized score of the children
      * @return true if the score has changed or false otherwise
      */
-    boolean setMaxChildrenScore(int childrenType, double maxScore);
+    abstract boolean setMaxChildrenScore(ChildType type, double maxScore);
 
     /**
      * If this {@code Normalizable} holds the score of its parent,
@@ -57,9 +75,21 @@ interface Normalizable {
      *
      * @param parentScore the score of the parent {@code Normalizable}
      */
-    void setParentScore(double parentScore);
+    abstract void setParentScore(double parentScore);
 
-    void resetBigChangeFlag();
+    public boolean hadBigNormalizedUpdate() {
+        return hadBigNormalizedUpdate;
+    }
 
-    void raiseBigChangeFlag();
+    public void resetBigChangeFlag() {
+        hadBigNormalizedUpdate = false;
+    }
+
+    public void raiseBigChangeFlag() {
+        hadBigNormalizedUpdate = true;
+    }
+
+    public String getOriginatingIndex() {
+        return indexName;
+    }
 }

@@ -12,6 +12,7 @@ import org.junit.Before;
 import java.util.Date;
 
 public class InfluencerNormalizableTests extends ESTestCase {
+    private static final String INDEX_NAME = "foo-index";
     private static final double EPSILON = 0.0001;
     private Influencer influencer;
 
@@ -24,43 +25,43 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testIsContainerOnly() {
-        assertFalse(new InfluencerNormalizable(influencer).isContainerOnly());
+        assertFalse(new InfluencerNormalizable(influencer, INDEX_NAME).isContainerOnly());
     }
 
     public void testGetLevel() {
-        assertEquals(Level.INFLUENCER, new InfluencerNormalizable(influencer).getLevel());
+        assertEquals(Level.INFLUENCER, new InfluencerNormalizable(influencer, INDEX_NAME).getLevel());
     }
 
     public void testGetPartitionFieldName() {
-        assertNull(new InfluencerNormalizable(influencer).getPartitionFieldName());
+        assertNull(new InfluencerNormalizable(influencer, INDEX_NAME).getPartitionFieldName());
     }
 
     public void testGetPartitionFieldValue() {
-        assertNull(new InfluencerNormalizable(influencer).getPartitionFieldValue());
+        assertNull(new InfluencerNormalizable(influencer, INDEX_NAME).getPartitionFieldValue());
     }
 
     public void testGetPersonFieldName() {
-        assertEquals("airline", new InfluencerNormalizable(influencer).getPersonFieldName());
+        assertEquals("airline", new InfluencerNormalizable(influencer, INDEX_NAME).getPersonFieldName());
     }
 
     public void testGetFunctionName() {
-        assertNull(new InfluencerNormalizable(influencer).getFunctionName());
+        assertNull(new InfluencerNormalizable(influencer, INDEX_NAME).getFunctionName());
     }
 
     public void testGetValueFieldName() {
-        assertNull(new InfluencerNormalizable(influencer).getValueFieldName());
+        assertNull(new InfluencerNormalizable(influencer, INDEX_NAME).getValueFieldName());
     }
 
     public void testGetProbability() {
-        assertEquals(0.05, new InfluencerNormalizable(influencer).getProbability(), EPSILON);
+        assertEquals(0.05, new InfluencerNormalizable(influencer, INDEX_NAME).getProbability(), EPSILON);
     }
 
     public void testGetNormalizedScore() {
-        assertEquals(1.0, new InfluencerNormalizable(influencer).getNormalizedScore(), EPSILON);
+        assertEquals(1.0, new InfluencerNormalizable(influencer, INDEX_NAME).getNormalizedScore(), EPSILON);
     }
 
     public void testSetNormalizedScore() {
-        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer);
+        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer, INDEX_NAME);
 
         normalizable.setNormalizedScore(99.0);
 
@@ -69,40 +70,38 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildrenTypes() {
-        assertTrue(new InfluencerNormalizable(influencer).getChildrenTypes().isEmpty());
+        assertTrue(new InfluencerNormalizable(influencer, INDEX_NAME).getChildrenTypes().isEmpty());
     }
 
     public void testGetChildren_ByType() {
-        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer).getChildren(0));
+        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
+                .getChildren(Normalizable.ChildType.BUCKET_INFLUENCER));
     }
 
     public void testGetChildren() {
-        assertTrue(new InfluencerNormalizable(influencer).getChildren().isEmpty());
+        assertTrue(new InfluencerNormalizable(influencer, INDEX_NAME).getChildren().isEmpty());
     }
 
     public void testSetMaxChildrenScore() {
-        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer).setMaxChildrenScore(0, 42.0));
+        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
+                .setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0));
     }
 
     public void testSetParentScore() {
-        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer).setParentScore(42.0));
+        expectThrows(IllegalStateException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME).setParentScore(42.0));
     }
 
     public void testResetBigChangeFlag() {
-        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer);
+        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer, INDEX_NAME);
         normalizable.raiseBigChangeFlag();
-
         normalizable.resetBigChangeFlag();
-
-        assertFalse(influencer.hadBigNormalizedUpdate());
+        assertFalse(normalizable.hadBigNormalizedUpdate());
     }
 
     public void testRaiseBigChangeFlag() {
-        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer);
+        InfluencerNormalizable normalizable = new InfluencerNormalizable(influencer, INDEX_NAME);
         normalizable.resetBigChangeFlag();
-
         normalizable.raiseBigChangeFlag();
-
-        assertTrue(influencer.hadBigNormalizedUpdate());
+        assertTrue(normalizable.hadBigNormalizedUpdate());
     }
 }

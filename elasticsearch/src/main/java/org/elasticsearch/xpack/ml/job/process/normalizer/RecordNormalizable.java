@@ -5,16 +5,24 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 
+import java.io.IOException;
 import java.util.Objects;
 
 
 class RecordNormalizable extends AbstractLeafNormalizable {
     private final AnomalyRecord record;
 
-    public RecordNormalizable(AnomalyRecord record) {
+    public RecordNormalizable(AnomalyRecord record, String indexName) {
+        super(indexName);
         this.record = Objects.requireNonNull(record);
+    }
+
+    @Override
+    public String getId() {
+        return record.getId();
     }
 
     @Override
@@ -69,12 +77,11 @@ class RecordNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
-    public void resetBigChangeFlag() {
-        record.resetBigNormalizedUpdateFlag();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return record.toXContent(builder, params);
     }
 
-    @Override
-    public void raiseBigChangeFlag() {
-        record.raiseBigNormalizedUpdateFlag();
+    public AnomalyRecord getRecord() {
+        return record;
     }
 }

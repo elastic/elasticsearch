@@ -23,7 +23,7 @@ class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIte
     }
 
     @Override
-    protected Bucket map(SearchHit hit) {
+    protected ResultWithIndex<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
@@ -31,6 +31,7 @@ class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIte
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse bucket", e);
         }
-        return Bucket.PARSER.apply(parser, null);
+        Bucket bucket = Bucket.PARSER.apply(parser, null);
+        return new ResultWithIndex<>(hit.getIndex(), bucket);
     }
 }

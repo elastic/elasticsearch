@@ -14,6 +14,7 @@ import java.util.Date;
 
 public class BucketInfluencerNormalizableTests extends ESTestCase {
     private static final double EPSILON = 0.0001;
+    private static final String INDEX_NAME = "foo-index";
     private BucketInfluencer bucketInfluencer;
 
     @Before
@@ -27,43 +28,43 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testIsContainerOnly() {
-        assertFalse(new BucketInfluencerNormalizable(bucketInfluencer).isContainerOnly());
+        assertFalse(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).isContainerOnly());
     }
 
     public void testGetLevel() {
-        assertEquals(Level.BUCKET_INFLUENCER, new BucketInfluencerNormalizable(bucketInfluencer).getLevel());
+        assertEquals(Level.BUCKET_INFLUENCER, new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getLevel());
 
         BucketInfluencer timeInfluencer = new BucketInfluencer("foo", new Date(), 600, 1);
         timeInfluencer.setInfluencerFieldName(BucketInfluencer.BUCKET_TIME);
-        assertEquals(Level.ROOT, new BucketInfluencerNormalizable(timeInfluencer).getLevel());
+        assertEquals(Level.ROOT, new BucketInfluencerNormalizable(timeInfluencer, INDEX_NAME).getLevel());
     }
 
     public void testGetPartitionFieldName() {
-        assertNull(new BucketInfluencerNormalizable(bucketInfluencer).getPartitionFieldName());
+        assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPartitionFieldName());
     }
 
     public void testGetPersonFieldName() {
-        assertEquals("airline", new BucketInfluencerNormalizable(bucketInfluencer).getPersonFieldName());
+        assertEquals("airline", new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getPersonFieldName());
     }
 
     public void testGetFunctionName() {
-        assertNull(new BucketInfluencerNormalizable(bucketInfluencer).getFunctionName());
+        assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getFunctionName());
     }
 
     public void testGetValueFieldName() {
-        assertNull(new BucketInfluencerNormalizable(bucketInfluencer).getValueFieldName());
+        assertNull(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getValueFieldName());
     }
 
     public void testGetProbability() {
-        assertEquals(0.05, new BucketInfluencerNormalizable(bucketInfluencer).getProbability(), EPSILON);
+        assertEquals(0.05, new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getProbability(), EPSILON);
     }
 
     public void testGetNormalizedScore() {
-        assertEquals(1.0, new BucketInfluencerNormalizable(bucketInfluencer).getNormalizedScore(), EPSILON);
+        assertEquals(1.0, new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getNormalizedScore(), EPSILON);
     }
 
     public void testSetNormalizedScore() {
-        BucketInfluencerNormalizable normalizable = new BucketInfluencerNormalizable(bucketInfluencer);
+        BucketInfluencerNormalizable normalizable = new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME);
 
         normalizable.setNormalizedScore(99.0);
 
@@ -72,23 +73,26 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildrenTypes() {
-        assertTrue(new BucketInfluencerNormalizable(bucketInfluencer).getChildrenTypes().isEmpty());
+        assertTrue(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getChildrenTypes().isEmpty());
     }
 
     public void testGetChildren_ByType() {
-        expectThrows(IllegalStateException.class, () -> new BucketInfluencerNormalizable(bucketInfluencer).getChildren(0));
+        expectThrows(IllegalStateException.class, () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME)
+                .getChildren(Normalizable.ChildType.BUCKET_INFLUENCER));
     }
 
     public void testGetChildren() {
-        assertTrue(new BucketInfluencerNormalizable(bucketInfluencer).getChildren().isEmpty());
+        assertTrue(new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getChildren().isEmpty());
     }
 
     public void testSetMaxChildrenScore() {
-        expectThrows(IllegalStateException.class, () -> new BucketInfluencerNormalizable(bucketInfluencer).setMaxChildrenScore(0, 42.0));
+        expectThrows(IllegalStateException.class,
+                () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME)
+                        .setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0));
     }
 
     public void testSetParentScore() {
-        new BucketInfluencerNormalizable(bucketInfluencer).setParentScore(42.0);
+        new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).setParentScore(42.0);
 
         assertEquals("airline", bucketInfluencer.getInfluencerFieldName());
         assertEquals(1.0, bucketInfluencer.getAnomalyScore(), EPSILON);
@@ -98,10 +102,14 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testResetBigChangeFlag() {
-        new BucketInfluencerNormalizable(bucketInfluencer).resetBigChangeFlag();
+        BucketInfluencerNormalizable normalizable = new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME);
+        normalizable.resetBigChangeFlag();
+        assertFalse(normalizable.hadBigNormalizedUpdate());
     }
 
     public void testRaiseBigChangeFlag() {
-        new BucketInfluencerNormalizable(bucketInfluencer).raiseBigChangeFlag();
+        BucketInfluencerNormalizable normalizable = new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME);
+        normalizable.raiseBigChangeFlag();
+        assertTrue(normalizable.hadBigNormalizedUpdate());
     }
 }

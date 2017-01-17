@@ -5,15 +5,23 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 
+import java.io.IOException;
 import java.util.Objects;
 
 class InfluencerNormalizable extends AbstractLeafNormalizable {
     private final Influencer influencer;
 
-    public InfluencerNormalizable(Influencer influencer) {
+    public InfluencerNormalizable(Influencer influencer, String indexName) {
+        super(indexName);
         this.influencer = Objects.requireNonNull(influencer);
+    }
+
+    @Override
+    public String getId() {
+        return influencer.getId();
     }
 
     @Override
@@ -67,12 +75,7 @@ class InfluencerNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
-    public void resetBigChangeFlag() {
-        influencer.resetBigNormalizedUpdateFlag();
-    }
-
-    @Override
-    public void raiseBigChangeFlag() {
-        influencer.raiseBigNormalizedUpdateFlag();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return influencer.toXContent(builder, params);
     }
 }

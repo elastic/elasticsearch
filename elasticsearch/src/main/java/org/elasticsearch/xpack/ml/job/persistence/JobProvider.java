@@ -401,6 +401,7 @@ public class JobProvider {
                 List<PerPartitionMaxProbabilities> partitionProbs =
                         handlePartitionMaxNormailizedProbabilitiesResponse(item2.getResponse());
                 mergePartitionScoresIntoBucket(partitionProbs, buckets.results(), query.getPartitionValue());
+
                 if (query.isExpand()) {
                     Iterator<Bucket> bucketsToExpand = buckets.results().stream()
                             .filter(bucket -> bucket.getRecordCount() > 0).iterator();
@@ -484,22 +485,29 @@ public class JobProvider {
 
     /**
      * Returns a {@link BatchedDocumentsIterator} that allows querying
-     * and iterating over a large number of buckets of the given job
+     * and iterating over a large number of buckets of the given job.
+     * The bucket and source indexes are returned by the iterator.
      *
      * @param jobId the id of the job for which buckets are requested
      * @return a bucket {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
+    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> newBatchedBucketsIterator(String jobId) {
         return new ElasticsearchBatchedBucketsIterator(client, jobId);
     }
 
     /**
-     * Expand a bucket to include the associated records.
+     * Returns a {@link BatchedDocumentsIterator} that allows querying
+     * and iterating over a large number of records in the given job
+     * The records and source indexes are returned by the iterator.
      *
-     * @param jobId          the job id
-     * @param includeInterim Include interim results
-     * @param bucket         The bucket to be expanded
+     * @param jobId the id of the job for which buckets are requested
+     * @return a record {@link BatchedDocumentsIterator}
      */
+    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
+    newBatchedRecordsIterator(String jobId) {
+        return new ElasticsearchBatchedRecordsIterator(client, jobId);
+    }
+
     // TODO (norelease): Use scroll search instead of multiple searches with increasing from
     public void expandBucket(String jobId, boolean includeInterim, Bucket bucket, String partitionFieldValue, int from,
                              Consumer<Integer> consumer, Consumer<Exception> errorHandler) {
@@ -753,7 +761,8 @@ public class JobProvider {
      * @param jobId the id of the job for which influencers are requested
      * @return an influencer {@link BatchedDocumentsIterator}
      */
-    public BatchedDocumentsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
+    public BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>>
+    newBatchedInfluencersIterator(String jobId) {
         return new ElasticsearchBatchedInfluencersIterator(client, jobId);
     }
 

@@ -170,7 +170,7 @@ public class Normalizer {
             }
         }
 
-        for (Integer childrenType : result.getChildrenTypes()) {
+        for (Normalizable.ChildType childrenType : result.getChildrenTypes()) {
             List<Normalizable> children = result.getChildren(childrenType);
             if (!children.isEmpty()) {
                 double maxChildrenScore = 0.0;

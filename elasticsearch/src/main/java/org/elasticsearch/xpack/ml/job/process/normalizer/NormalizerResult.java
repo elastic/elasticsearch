@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Parse the output of the normaliser process, for example:
+ * Parse the output of the normalizer process, for example:
  *
  * {"probability":0.01,"normalized_score":2.2}
  */

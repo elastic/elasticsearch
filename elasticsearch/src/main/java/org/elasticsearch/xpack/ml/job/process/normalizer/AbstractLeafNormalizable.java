@@ -8,14 +8,19 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 import java.util.Collections;
 import java.util.List;
 
-abstract class AbstractLeafNormalizable implements Normalizable {
+abstract class AbstractLeafNormalizable extends Normalizable {
+
+    public AbstractLeafNormalizable(String indexName) {
+        super(indexName);
+    }
+
     @Override
     public final boolean isContainerOnly() {
         return false;
     }
 
     @Override
-    public final List<Integer> getChildrenTypes() {
+    public final List<ChildType> getChildrenTypes() {
         return Collections.emptyList();
     }
 
@@ -25,12 +30,12 @@ abstract class AbstractLeafNormalizable implements Normalizable {
     }
 
     @Override
-    public final List<Normalizable> getChildren(int type) {
+    public final List<Normalizable> getChildren(ChildType type) {
         throw new IllegalStateException(getClass().getSimpleName() + " has no children");
     }
 
     @Override
-    public final boolean setMaxChildrenScore(int childrenType, double maxScore) {
+    public final boolean setMaxChildrenScore(ChildType childrenType, double maxScore) {
         throw new IllegalStateException(getClass().getSimpleName() + " has no children");
     }
 }

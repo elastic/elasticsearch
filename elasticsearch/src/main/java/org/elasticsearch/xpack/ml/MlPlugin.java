@@ -171,8 +171,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry) {
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0);
-        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings,
-                jobResultsPersister);
+        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings, client);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);

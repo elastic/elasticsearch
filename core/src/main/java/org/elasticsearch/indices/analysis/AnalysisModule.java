@@ -60,6 +60,7 @@ import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintTokenFilterFactory;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
 import org.elasticsearch.index.analysis.FrenchStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
@@ -226,6 +227,7 @@ public final class AnalysisModule {
         tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
+        tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);
         tokenFilters.register("keep", requriesAnalysisSettings(KeepWordFilterFactory::new));
         tokenFilters.register("keep_types", requriesAnalysisSettings(KeepTypesFilterFactory::new));
         tokenFilters.register("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));

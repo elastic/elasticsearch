@@ -74,11 +74,11 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray(Fields.RESPONSES);
+        builder.startArray(Fields.RESPONSES);erchExc
         for (MultiPercolateResponse.Item item : items) {
             if (item.isFailure()) {
                 builder.startObject();
-                ElasticsearchException.renderException(builder, params, item.getFailure());
+                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);

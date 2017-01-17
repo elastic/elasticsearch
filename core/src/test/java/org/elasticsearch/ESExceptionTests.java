@@ -253,7 +253,7 @@ public class ESExceptionTests extends ESTestCase {
             }
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, PARAMS, ex);
+            ElasticsearchException.generateThrowableXContent(builder, PARAMS, ex);
             builder.endObject();
 
             String expected = "{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}";
@@ -264,7 +264,7 @@ public class ESExceptionTests extends ESTestCase {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, PARAMS, ex);
+            ElasticsearchException.generateThrowableXContent(builder, PARAMS, ex);
             builder.endObject();
             String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}";
             assertEquals(expected, builder.string());
@@ -274,7 +274,7 @@ public class ESExceptionTests extends ESTestCase {
             ElasticsearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, PARAMS, ex);
+            ElasticsearchException.generateThrowableXContent(builder, PARAMS, ex);
             builder.endObject();
 
             XContentBuilder otherBuilder = XContentFactory.jsonBuilder();
@@ -292,7 +292,7 @@ public class ESExceptionTests extends ESTestCase {
             ex.addHeader("test_multi", "some value", "another value");
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, PARAMS, ex);
+            ElasticsearchException.generateThrowableXContent(builder, PARAMS, ex);
             builder.endObject();
             assertThat(builder.string(), Matchers.anyOf( // iteration order depends on platform
                             equalTo("{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),

@@ -378,7 +378,7 @@ public abstract class ScrollableHitSource implements Closeable {
             builder.field("reason");
             {
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, reason);
+                ElasticsearchException.generateThrowableXContent(builder, params, reason);
                 builder.endObject();
             }
             builder.endObject();

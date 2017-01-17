@@ -128,7 +128,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         if (reason != null) {
             builder.field("reason");
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, reason);
+            ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

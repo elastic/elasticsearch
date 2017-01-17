@@ -75,12 +75,11 @@ public class SearchParseException extends SearchContextException {
     }
 
     @Override
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         if (lineNumber != UNKNOWN_POSITION) {
             builder.field("line", lineNumber);
             builder.field("col", columnNumber);
         }
-        super.innerToXContent(builder, params);
     }
 
     /**

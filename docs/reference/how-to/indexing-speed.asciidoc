@@ -17,17 +17,17 @@ it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
 [float]
-=== Use multiple workers/threads to send data to elasticsearch
+=== Use multiple workers/threads to send data to Elasticsearch
 
 A single thread sending bulk requests is unlikely to be able to max out the
-indexing capacity of an elasticsearch cluster. In order to use all resources
+indexing capacity of an Elasticsearch cluster. In order to use all resources
 of the cluster, you should send data from multiple threads or processes. In
 addition to making better use of the resources of the cluster, this should
 help reduce the cost of each fsync.
 
 Make sure to watch for `TOO_MANY_REQUESTS (429)` response codes
 (`EsRejectedExecutionException` with the Java client), which is the way that
-elasticsearch tells you that it cannot keep up with the current indexing rate.
+Elasticsearch tells you that it cannot keep up with the current indexing rate.
 When it happens, you should pause indexing a bit before trying again, ideally
 with randomized exponential backoff.
 
@@ -39,7 +39,7 @@ number of workers until either I/O or CPU is saturated on the cluster.
 === Increase the refresh interval
 
 The default <<dynamic-index-settings,`index.refresh_interval`>> is `1s`, which
-forces elasticsearch to create a new segment every second.
+forces Elasticsearch to create a new segment every second.
 Increasing this value (to say, `30s`) will allow larger segments to flush and
 decreases future merge pressure.
 

@@ -84,7 +84,7 @@ will not be as efficient as it could be.
 This section mostly focused on `norms` and `doc values` because those are the
 two features that are most affected by sparsity. Sparsity also affect the
 efficiency of the inverted index (used to index `text`/`keyword` fields) and
-dimensional points (used to index `geo_point` and numerics) but to a lesser
+dimensional points (used to index `geo_point` and `numerics`) but to a lesser
 extent.
 
 Here are some recommendations that can help avoid sparsity:

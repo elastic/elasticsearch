@@ -12,7 +12,7 @@ to use `text` or `keyword`.
 
 Indexes imported from 2.x *only* support `string` and not `text` or `keyword`.
 To ease the migration from 2.x Elasticsearch will downgrade `text` and `keyword`
-mappings applied to indexes imported to 2.x into `string`. While long lived
+mappings applied to indexes imported from 2.x into `string`. While long lived
 indexes will eventually need to be recreated against 5.x before eventually
 upgrading to 6.x, this downgrading smooths the process before you find time for
 it.

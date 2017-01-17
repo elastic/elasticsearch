@@ -32,7 +32,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -44,7 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -53,11 +51,6 @@ import java.util.Set;
  */
 public class ClientYamlTestClient {
     private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
-    /**
-     * Query params that don't need to be declared in the spec, they are supported by default.
-     */
-    private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet(
-            "ignore", "error_trace", "human", "filter_path", "pretty", "source");
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
@@ -108,7 +101,8 @@ public class ClientYamlTestClient {
             if (restApi.getPathParts().contains(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
             } else {
-                if (restApi.getParams().contains(entry.getKey()) || ALWAYS_ACCEPTED_QUERY_STRING_PARAMS.contains(entry.getKey())) {
+                if (restApi.getParams().contains(entry.getKey()) || restSpec.isGlobalParameter(entry.getKey())
+                        || restSpec.isClientParameter(entry.getKey())) {
                     queryStringParams.put(entry.getKey(), entry.getValue());
                 } else {
                     throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in ["

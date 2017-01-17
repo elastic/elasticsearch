@@ -80,7 +80,7 @@ The modules in this section are:
 
 <<modules-cross-cluster-search, Cross cluster Search>>::
 
-    Cross cluster search allows to execute search requests across more than one cluster without joining them and acts
+    Cross cluster search enables executing search requests across more than one cluster without joining them and acts
     as a federated client across them.
 --
 

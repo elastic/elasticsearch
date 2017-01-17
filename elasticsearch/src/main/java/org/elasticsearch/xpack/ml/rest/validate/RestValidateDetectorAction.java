@@ -20,13 +20,9 @@ import java.io.IOException;
 
 public class RestValidateDetectorAction extends BaseRestHandler {
 
-    private ValidateDetectorAction.TransportAction transportValidateAction;
-
     @Inject
-    public RestValidateDetectorAction(Settings settings, RestController controller,
-            ValidateDetectorAction.TransportAction transportValidateAction) {
+    public RestValidateDetectorAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportValidateAction = transportValidateAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "_validate/detector", this);
     }
 
@@ -34,8 +30,8 @@ public class RestValidateDetectorAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateDetectorAction.Request validateDetectorRequest = ValidateDetectorAction.Request.parseRequest(parser);
-        return channel -> transportValidateAction.execute(validateDetectorRequest,
-                new AcknowledgedRestListener<ValidateDetectorAction.Response>(channel));
+        return channel ->
+                client.execute(ValidateDetectorAction.INSTANCE, validateDetectorRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

@@ -14,20 +14,17 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.job.Job;
 
 import java.io.IOException;
 
 public class RestOpenJobAction extends BaseRestHandler {
 
-    private final OpenJobAction.TransportAction openJobAction;
-
     @Inject
-    public RestOpenJobAction(Settings settings, RestController controller, OpenJobAction.TransportAction openJobAction) {
+    public RestOpenJobAction(Settings settings, RestController controller) {
         super(settings);
-        this.openJobAction = openJobAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_open", this);
     }
@@ -41,6 +38,6 @@ public class RestOpenJobAction extends BaseRestHandler {
                     restRequest.param(OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()),
                     OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()));
         }
-        return channel -> openJobAction.execute(request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(OpenJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
 }

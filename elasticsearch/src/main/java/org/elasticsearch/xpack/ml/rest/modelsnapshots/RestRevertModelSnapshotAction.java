@@ -21,18 +21,14 @@ import java.io.IOException;
 
 public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
-    private final RevertModelSnapshotAction.TransportAction transportAction;
-
     private final String TIME_DEFAULT = null;
     private final String SNAPSHOT_ID_DEFAULT = null;
     private final String DESCRIPTION_DEFAULT = null;
     private final boolean DELETE_INTERVENING_DEFAULT = false;
 
     @Inject
-    public RestRevertModelSnapshotAction(Settings settings, RestController controller,
-            RevertModelSnapshotAction.TransportAction transportAction) {
+    public RestRevertModelSnapshotAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.POST,
                 MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/_revert",
                 this);
@@ -54,6 +50,6 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
             request.setDeleteInterveningResults(restRequest
                     .paramAsBoolean(RevertModelSnapshotAction.Request.DELETE_INTERVENING.getPreferredName(), DELETE_INTERVENING_DEFAULT));
         }
-        return channel -> transportAction.execute(request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(RevertModelSnapshotAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
 }

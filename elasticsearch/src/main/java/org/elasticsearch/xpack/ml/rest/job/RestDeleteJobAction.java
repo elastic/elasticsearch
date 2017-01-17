@@ -20,12 +20,9 @@ import java.io.IOException;
 
 public class RestDeleteJobAction extends BaseRestHandler {
 
-    private final DeleteJobAction.TransportAction transportDeleteJobAction;
-
     @Inject
-    public RestDeleteJobAction(Settings settings, RestController controller, DeleteJobAction.TransportAction transportDeleteJobAction) {
+    public RestDeleteJobAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportDeleteJobAction = transportDeleteJobAction;
         controller.registerHandler(RestRequest.Method.DELETE, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
@@ -33,6 +30,6 @@ public class RestDeleteJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        return channel -> transportDeleteJobAction.execute(deleteJobRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteJobAction.INSTANCE, deleteJobRequest, new AcknowledgedRestListener<>(channel));
     }
 }

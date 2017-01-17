@@ -21,12 +21,9 @@ import java.io.IOException;
 
 public class RestPutJobAction extends BaseRestHandler {
 
-    private final PutJobAction.TransportAction transportPutJobAction;
-
     @Inject
-    public RestPutJobAction(Settings settings, RestController controller, PutJobAction.TransportAction transportPutJobAction) {
+    public RestPutJobAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportPutJobAction = transportPutJobAction;
         controller.registerHandler(RestRequest.Method.PUT,
                 MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
@@ -38,7 +35,7 @@ public class RestPutJobAction extends BaseRestHandler {
         PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser);
         boolean overwrite = restRequest.paramAsBoolean("overwrite", false);
         putJobRequest.setOverwrite(overwrite);
-        return channel -> transportPutJobAction.execute(putJobRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutJobAction.INSTANCE, putJobRequest, new RestToXContentListener<>(channel));
     }
 
 }

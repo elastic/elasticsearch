@@ -22,14 +22,9 @@ import java.io.IOException;
 
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
-    private final UpdateModelSnapshotAction.TransportAction transportAction;
-
     @Inject
-    public RestUpdateModelSnapshotAction(Settings settings, RestController controller,
-                                         UpdateModelSnapshotAction.TransportAction transportAction) {
+    public RestUpdateModelSnapshotAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
-
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshot.SNAPSHOT_ID +"}/_update",
                 this);
@@ -43,6 +38,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),
                 parser);
 
-        return channel -> transportAction.execute(getModelSnapshots, new RestStatusToXContentListener<>(channel));
+        return channel ->
+                client.execute(UpdateModelSnapshotAction.INSTANCE, getModelSnapshots, new RestStatusToXContentListener<>(channel));
     }
 }

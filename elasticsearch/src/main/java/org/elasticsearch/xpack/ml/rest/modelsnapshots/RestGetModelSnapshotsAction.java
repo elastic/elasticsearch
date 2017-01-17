@@ -31,13 +31,9 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     private final String DEFAULT_DESCRIPTION = null;
     private final boolean DEFAULT_DESC_ORDER = true;
 
-    private final GetModelSnapshotsAction.TransportAction transportGetModelSnapshotsAction;
-
     @Inject
-    public RestGetModelSnapshotsAction(Settings settings, RestController controller,
-            GetModelSnapshotsAction.TransportAction transportGetModelSnapshotsAction) {
+    public RestGetModelSnapshotsAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportGetModelSnapshotsAction = transportGetModelSnapshotsAction;
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/", this);
         // endpoints that support body parameters must also accept POST
@@ -70,6 +66,6 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
 
-        return channel -> transportGetModelSnapshotsAction.execute(getModelSnapshots, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, new RestToXContentListener<>(channel));
     }
 }

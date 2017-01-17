@@ -20,14 +20,9 @@ import java.io.IOException;
 
 public class RestGetJobsStatsAction extends BaseRestHandler {
 
-    private final GetJobsStatsAction.TransportAction transportGetJobsStatsAction;
-
     @Inject
-    public RestGetJobsStatsAction(Settings settings, RestController controller,
-                                  GetJobsStatsAction.TransportAction transportGetJobsStatsAction) {
+    public RestGetJobsStatsAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportGetJobsStatsAction = transportGetJobsStatsAction;
-
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
     }
@@ -35,6 +30,6 @@ public class RestGetJobsStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        return channel -> transportGetJobsStatsAction.execute(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -21,13 +21,9 @@ import java.io.IOException;
 
 public class RestPutSchedulerAction extends BaseRestHandler {
 
-    private final PutSchedulerAction.TransportAction transportPutSchedulerAction;
-
     @Inject
-    public RestPutSchedulerAction(Settings settings, RestController controller,
-                                  PutSchedulerAction.TransportAction transportPutSchedulerAction) {
+    public RestPutSchedulerAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportPutSchedulerAction = transportPutSchedulerAction;
         controller.registerHandler(RestRequest.Method.PUT, MlPlugin.BASE_PATH + "schedulers/{"
                 + SchedulerConfig.ID.getPreferredName() + "}", this);
     }
@@ -37,7 +33,7 @@ public class RestPutSchedulerAction extends BaseRestHandler {
         String schedulerId = restRequest.param(SchedulerConfig.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         PutSchedulerAction.Request putSchedulerRequest = PutSchedulerAction.Request.parseRequest(schedulerId, parser);
-        return channel -> transportPutSchedulerAction.execute(putSchedulerRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutSchedulerAction.INSTANCE, putSchedulerRequest, new RestToXContentListener<>(channel));
     }
 
 }

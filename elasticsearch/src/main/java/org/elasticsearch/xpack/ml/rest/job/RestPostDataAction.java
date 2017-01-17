@@ -24,12 +24,9 @@ public class RestPostDataAction extends BaseRestHandler {
     private static final String DEFAULT_RESET_START = "";
     private static final String DEFAULT_RESET_END = "";
 
-    private final PostDataAction.TransportAction transportPostDataAction;
-
     @Inject
-    public RestPostDataAction(Settings settings, RestController controller, PostDataAction.TransportAction transportPostDataAction) {
+    public RestPostDataAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportPostDataAction = transportPostDataAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", this);
     }
@@ -43,6 +40,6 @@ public class RestPostDataAction extends BaseRestHandler {
         request.setResetEnd(restRequest.param(PostDataAction.Request.RESET_END.getPreferredName(), DEFAULT_RESET_END));
         request.setContent(restRequest.content());
 
-        return channel -> transportPostDataAction.execute(request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(PostDataAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
 }

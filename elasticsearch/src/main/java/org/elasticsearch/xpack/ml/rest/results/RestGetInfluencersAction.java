@@ -23,12 +23,9 @@ import java.io.IOException;
 
 public class RestGetInfluencersAction extends BaseRestHandler {
 
-    private final GetInfluencersAction.TransportAction transportAction;
-
     @Inject
-    public RestGetInfluencersAction(Settings settings, RestController controller, GetInfluencersAction.TransportAction transportAction) {
+    public RestGetInfluencersAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
                 MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/influencers", this);
         // endpoints that support body parameters must also accept POST
@@ -59,6 +56,6 @@ public class RestGetInfluencersAction extends BaseRestHandler {
             request.setDecending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), true));
         }
 
-        return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetInfluencersAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -78,7 +78,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/common-grams-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/compound-word-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/elision-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/flatten-graph-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/hunspell-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/keep-types-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/keep-words-tokenfilter.asciidoc',

@@ -133,7 +133,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.generateFailureXContent(builder, params, failure.getCause());
+                ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();

@@ -333,8 +333,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Static toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent,
-     * delegating the rendering to {@link ElasticsearchException#toXContent(XContentBuilder, Params)}.
+     * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
+     * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Throwable)}.
+     *
+     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
@@ -348,9 +351,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     /**
      * Render any exception as a xcontent, encapsulated within a field or object named "error". The level of details that are rendered
-     * depends on the value of the "detailed" parameter: when it equals to false, only a simple message based on the type and message of the
-     * exception is rendered. When it equals to true, all detail are provided including guesses root causes, cause and potentially stack
+     * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
+     * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
+     *
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
      */
     public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
             throws IOException {
@@ -389,13 +394,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         builder.endObject();
-    }
-
-    /**
-     * Same as {@link ElasticsearchException#generateFailureXContent(XContentBuilder, Params, Exception, boolean)} with all details.
-     */
-    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e) throws IOException {
-        generateFailureXContent(builder, params, e, true);
     }
 
     /**

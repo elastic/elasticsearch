@@ -140,20 +140,4 @@ public class BytesRestResponse extends RestResponse {
         builder.endObject();
         return builder;
     }
-
-    /*
-     * Builds a simple error string from the message of the first ElasticsearchException
-     */
-    private static String simpleMessage(Throwable t) throws IOException {
-        int counter = 0;
-        Throwable next = t;
-        while (next != null && counter++ < 10) {
-            if (t instanceof ElasticsearchException) {
-                return next.getClass().getSimpleName() + "[" + next.getMessage() + "]";
-            }
-            next = next.getCause();
-        }
-
-        return "No ElasticsearchException found";
-    }
 }

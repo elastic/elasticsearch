@@ -60,8 +60,19 @@ public class ClientYamlSuiteRestSpec {
         return restApiMap.values();
     }
 
+    /**
+     * Returns whether the provided parameter is one of those parameters that are supported by all Elasticsearch api
+     */
     public boolean isGlobalParameter(String param) {
         return globalParameters.contains(param);
+    }
+
+    /**
+     * Returns whether the provided parameter is one of those parameters that are supported by the Elasticsearch language clients, meaning
+     * that they influence the client behaviour and don't get sent to Elasticsearch
+     */
+    public boolean isClientParameter(String name) {
+        return "ignore".equals(name);
     }
 
     /**

@@ -102,7 +102,7 @@ public class ClientYamlTestClient {
                 pathParts.put(entry.getKey(), entry.getValue());
             } else {
                 if (restApi.getParams().contains(entry.getKey()) || restSpec.isGlobalParameter(entry.getKey())
-                        || "ignore".equals(entry.getKey())) {
+                        || restSpec.isClientParameter(entry.getKey())) {
                     queryStringParams.put(entry.getKey(), entry.getValue());
                 } else {
                     throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in ["

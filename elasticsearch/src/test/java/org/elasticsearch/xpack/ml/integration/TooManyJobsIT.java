@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.DatafeedJobsIT;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Detector;
 import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.junit.After;
@@ -68,20 +69,21 @@ public class TooManyJobsIT extends ESIntegTestCase {
 
             try {
                 OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-                openJobRequest.setOpenTimeout(TimeValue.timeValueSeconds(10));
-                OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest)
-                        .get();
-                assertTrue(openJobResponse.isAcknowledged());
+                OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+                assertTrue(openJobResponse.isOpened());
+                assertBusy(() -> {
+                    GetJobsStatsAction.Response statsResponse =
+                            client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                    assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+                });
                 logger.info("Opened {}th job", i);
             } catch (Exception e) {
-                Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
-                if (ElasticsearchStatusException.class.equals(cause.getClass()) == false) {
+                Throwable cause = e.getCause().getCause();
+                if (IllegalArgumentException.class.equals(cause.getClass()) == false) {
                     logger.warn("Unexpected cause", e);
                 }
-                assertEquals(ElasticsearchStatusException.class, cause.getClass());
-                assertEquals(RestStatus.CONFLICT, ((ElasticsearchStatusException) cause).status());
-                assertEquals("[" + (maxRunningJobsPerNode + 1) + "] expected job status [OPENED], but got [FAILED], reason " +
-                        "[failed to open, max running job capacity [" + maxRunningJobsPerNode + "] reached]", cause.getMessage());
+                assertEquals(IllegalArgumentException.class, cause.getClass());
+                assertEquals("Timeout expired while waiting for job status to change to [OPENED]", cause.getMessage());
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // now manually clean things up and see if we can succeed to run one new job
@@ -90,7 +92,12 @@ public class TooManyJobsIT extends ESIntegTestCase {
                 assertTrue(putJobResponse.isAcknowledged());
                 OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()))
                         .get();
-                assertTrue(openJobResponse.isAcknowledged());
+                assertTrue(openJobResponse.isOpened());
+                assertBusy(() -> {
+                    GetJobsStatsAction.Response statsResponse =
+                            client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                    assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+                });
                 return;
             }
         }

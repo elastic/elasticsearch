@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -49,6 +49,6 @@ public class RestFlushJobAction extends BaseRestHandler {
             request.setAdvanceTime(restRequest.param(FlushJobAction.Request.ADVANCE_TIME.getPreferredName(), DEFAULT_ADVANCE_TIME));
         }
 
-        return channel -> client.execute(FlushJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(FlushJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

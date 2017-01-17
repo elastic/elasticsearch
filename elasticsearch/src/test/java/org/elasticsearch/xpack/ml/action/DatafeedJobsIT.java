@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.job.DataCounts;
 import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Detector;
 import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.datafeed.Datafeed;
@@ -82,8 +83,12 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
-        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
-        assertTrue(openJobResponse.isAcknowledged());
+        client().execute(InternalOpenJobAction.INSTANCE, new InternalOpenJobAction.Request(job.getId()));
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+        });
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data-*"));
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(datafeedConfig);
@@ -119,8 +124,12 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
-        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
-        assertTrue(openJobResponse.isAcknowledged());
+        client().execute(InternalOpenJobAction.INSTANCE, new InternalOpenJobAction.Request(job.getId()));
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+        });
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(datafeedConfig);
@@ -255,7 +264,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
             try {
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).get();
-                assertTrue(response.isAcknowledged());
+                assertTrue(response.isClosed());
             } catch (Exception e) {
                 // ignore
             }

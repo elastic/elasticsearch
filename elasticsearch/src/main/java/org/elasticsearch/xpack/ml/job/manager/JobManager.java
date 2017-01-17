@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.manager;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -17,11 +16,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
@@ -61,14 +58,13 @@ import java.util.stream.Collectors;
  */
 public class JobManager extends AbstractComponent {
 
-    private static final Logger LOGGER = Loggers.getLogger(JobManager.class);
-
     /**
      * Field name in which to store the API version in the usage info
      */
     public static final String APP_VER_FIELDNAME = "appVer";
 
     public static final String DEFAULT_RECORD_SORT_FIELD = AnomalyRecord.PROBABILITY.getPreferredName();
+
     private final JobProvider jobProvider;
     private final ClusterService clusterService;
     private final JobResultsPersister jobResultsPersister;
@@ -217,11 +213,9 @@ public class JobManager extends AbstractComponent {
 
 
     public void deleteJob(Client client, DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
-
         String jobId = request.getJobId();
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-        LOGGER.debug("Deleting job '" + jobId + "'");
-
+        logger.debug("Deleting job '" + jobId + "'");
 
         // Step 3. Listen for the Cluster State status change
         //         Chain acknowledged status onto original actionListener
@@ -368,28 +362,6 @@ public class JobManager extends AbstractComponent {
                 }
 
                 return updateClusterState(builder.build(), true, currentState);
-            }
-        });
-    }
-
-    public void openJob(OpenJobAction.Request request, ActionListener<OpenJobAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("open-job-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<OpenJobAction.Response>(request, actionListener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
-                builder.updateStatus(request.getJobId(), JobStatus.OPENING, null);
-                if (request.isIgnoreDowntime()) {
-                    builder.setIgnoreDowntime(request.getJobId());
-                }
-                return ClusterState.builder(currentState)
-                        .metaData(MetaData.builder(currentState.metaData()).putCustom(MlMetadata.TYPE, builder.build()))
-                        .build();
-            }
-
-            @Override
-            protected OpenJobAction.Response newResponse(boolean acknowledged) {
-                return new OpenJobAction.Response(acknowledged);
             }
         });
     }

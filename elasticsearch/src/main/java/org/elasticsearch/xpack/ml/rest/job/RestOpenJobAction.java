@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
@@ -33,11 +33,12 @@ public class RestOpenJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         OpenJobAction.Request request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.setIgnoreDowntime(restRequest.paramAsBoolean(PostDataAction.Request.IGNORE_DOWNTIME.getPreferredName(), false));
-        if (restRequest.hasParam(OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName())) {
-            request.setOpenTimeout(TimeValue.parseTimeValue(
-                    restRequest.param(OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()),
-                    OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()));
+        if (restRequest.hasParam("open_timeout")) {
+            TimeValue openTimeout = restRequest.paramAsTime("open_timeout", TimeValue.timeValueSeconds(30));
+            request.setOpenTimeout(openTimeout);
         }
-        return channel -> client.execute(OpenJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
+        return channel -> {
+            client.execute(OpenJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        };
     }
 }

@@ -12,26 +12,26 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.job.JobStatus;
+import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public class DatafeedStatusObserver {
+public class JobStatusObserver {
 
-    private static final Logger LOGGER = Loggers.getLogger(DatafeedStatusObserver.class);
+    private static final Logger LOGGER = Loggers.getLogger(JobStatusObserver.class);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    public DatafeedStatusObserver(ThreadPool threadPool, ClusterService clusterService) {
+    public JobStatusObserver(ThreadPool threadPool, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
     }
 
-    public void waitForStatus(String datafeedId, TimeValue waitTimeout, DatafeedStatus expectedStatus, Consumer<Exception> handler) {
+    public void waitForStatus(String jobId, TimeValue waitTimeout, JobStatus expectedStatus, Consumer<Exception> handler) {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -42,27 +42,27 @@ public class DatafeedStatusObserver {
 
             @Override
             public void onClusterServiceClose() {
-                Exception e = new IllegalArgumentException("Cluster service closed while waiting for datafeed status to change to ["
+                Exception e = new IllegalArgumentException("Cluster service closed while waiting for job status to change to ["
                         + expectedStatus + "]");
                 handler.accept(new IllegalStateException(e));
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                Exception e = new IllegalArgumentException("Timeout expired while waiting for datafeed status to change to ["
+                Exception e = new IllegalArgumentException("Timeout expired while waiting for job status to change to ["
                         + expectedStatus + "]");
                 handler.accept(e);
             }
-        }, new DatafeedPredicate(datafeedId, expectedStatus), waitTimeout);
+        }, new JobStatusPredicate(jobId, expectedStatus), waitTimeout);
     }
 
-    private static class DatafeedPredicate implements Predicate<ClusterState> {
+    private static class JobStatusPredicate implements Predicate<ClusterState> {
 
-        private final String datafeedId;
-        private final DatafeedStatus expectedStatus;
+        private final String jobId;
+        private final JobStatus expectedStatus;
 
-        DatafeedPredicate(String datafeedId, DatafeedStatus expectedStatus) {
-            this.datafeedId = datafeedId;
+        JobStatusPredicate(String jobId, JobStatus expectedStatus) {
+            this.jobId = jobId;
             this.expectedStatus = expectedStatus;
         }
 
@@ -70,9 +70,9 @@ public class DatafeedStatusObserver {
         public boolean test(ClusterState newState) {
             MlMetadata metadata = newState.getMetaData().custom(MlMetadata.TYPE);
             if (metadata != null) {
-                Datafeed datafeed = metadata.getDatafeed(datafeedId);
-                if (datafeed != null) {
-                    return datafeed.getStatus() == expectedStatus;
+                Allocation allocation = metadata.getAllocations().get(jobId);
+                if (allocation != null) {
+                    return allocation.getStatus() == expectedStatus;
                 }
             }
             return false;

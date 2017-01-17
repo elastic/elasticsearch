@@ -58,12 +58,12 @@ setup:
   - do:
       xpack.ml.flush_job:
         job_id: farequote
-  - match: { acknowledged: true }
+  - match: { flushed: true }
 
   - do:
       xpack.ml.close_job:
         job_id: farequote
-  - match: { acknowledged: true }
+  - match: { closed: true }
 
   - do:
       xpack.ml.get_job_stats:
@@ -91,12 +91,12 @@ setup:
   - do:
       xpack.ml.flush_job:
         job_id: farequote
-  - match: { acknowledged: true }
+  - match: { flushed: true }
 
   - do:
       xpack.ml.close_job:
         job_id: farequote
-  - match: { acknowledged: true }
+  - match: { closed: true }
 
   - do:
       xpack.ml.get_job_stats:
@@ -169,17 +169,17 @@ setup:
 ---
 "Test flushing, posting and closing a closed job":
   - do:
-      catch: /illegal_argument_exception/
+      catch: /status_exception/
       xpack.ml.flush_job:
         job_id: closed_job
 
   - do:
-      catch: /illegal_argument_exception/
+      catch: /status_exception/
       xpack.ml.close_job:
         job_id: closed_job
 
   - do:
-      catch: /illegal_argument_exception/
+      catch: /status_exception/
       xpack.ml.post_data:
         job_id: closed_job
         body: {}

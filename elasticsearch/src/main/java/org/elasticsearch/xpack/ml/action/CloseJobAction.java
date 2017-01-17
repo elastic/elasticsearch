@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -25,18 +27,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
-import org.elasticsearch.xpack.ml.job.manager.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.JobStatusObserver;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
@@ -57,7 +62,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends ActionRequest {
 
         private String jobId;
         private TimeValue closeTimeout = TimeValue.timeValueMinutes(30);
@@ -118,112 +123,127 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
     }
 
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Response() {
+        private boolean closed;
+
+        Response() {
         }
 
-        private Response(boolean acknowledged) {
-            super(acknowledged);
+        Response(boolean closed) {
+            this.closed = closed;
+        }
+
+        public boolean isClosed() {
+            return closed;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            closed = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            out.writeBoolean(closed);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("closed", closed);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return closed == response.closed;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(closed);
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobManager jobManager;
+        private final ClusterService clusterService;
+        private final JobStatusObserver jobStatusObserver;
+        private final TransportListTasksAction listTasksAction;
+        private final TransportCancelTasksAction cancelTasksAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager) {
-            super(settings, CloseJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
-            this.jobManager = jobManager;
+        public TransportAction(Settings settings, TransportService transportService,  ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               ClusterService clusterService, TransportCancelTasksAction cancelTasksAction,
+                               TransportListTasksAction listTasksAction) {
+            super(settings, CloseJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            this.clusterService = clusterService;
+            this.jobStatusObserver = new JobStatusObserver(threadPool, clusterService);
+            this.cancelTasksAction = cancelTasksAction;
+            this.listTasksAction = listTasksAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
+        protected void doExecute(Request request, ActionListener<Response> listener) {
+            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            validate(request.jobId, mlMetadata);
 
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            UpdateJobStatusAction.Request updateStatusRequest = new UpdateJobStatusAction.Request(request.getJobId(), JobStatus.CLOSING);
-            ActionListener<UpdateJobStatusAction.Response> delegateListener = ActionListener.wrap(
-                    response -> respondWhenJobIsClosed(request.getJobId(), listener), listener::onFailure);
-            jobManager.setJobStatus(updateStatusRequest, delegateListener);
-        }
-
-        private void respondWhenJobIsClosed(String jobId, ActionListener<Response> listener) {
-            ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(new Response(true));
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setActions(InternalOpenJobAction.NAME);
+            listTasksRequest.setDetailed(true);
+            listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
+                String expectedJobDescription = "job-" + request.jobId;
+                for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                    if (expectedJobDescription.equals(taskInfo.getDescription())) {
+                        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                        cancelTasksRequest.setTaskId(taskInfo.getTaskId());
+                        cancelTasksAction.execute(cancelTasksRequest, ActionListener.wrap(
+                            cancelTasksResponse -> {
+                                jobStatusObserver.waitForStatus(request.jobId, request.closeTimeout, JobStatus.CLOSED,
+                                    e -> {
+                                        if (e != null) {
+                                            listener.onFailure(e);
+                                        } else {
+                                            listener.onResponse(new CloseJobAction.Response(true));
+                                        }
+                                    }
+                                );
+                            },
+                            listener::onFailure)
+                        );
+                        return;
+                    }
                 }
-
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new IllegalStateException("Cluster service closed while waiting for job [" + jobId
-                            + "] status to change to [" + JobStatus.CLOSED + "]"));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new IllegalStateException(
-                            "Timeout expired while waiting for job [" + jobId + "] status to change to [" + JobStatus.CLOSED + "]"));
-                }
-            }, new JobClosedChangePredicate(jobId), TimeValue.timeValueMinutes(30));
+                listener.onFailure(new ResourceNotFoundException("No job [" + request.jobId + "] running"));
+            }, listener::onFailure));
         }
 
-        private class JobClosedChangePredicate implements Predicate<ClusterState> {
-
-            private final String jobId;
-
-            JobClosedChangePredicate(String jobId) {
-                this.jobId = jobId;
+        static void validate(String jobId, MlMetadata mlMetadata) {
+            Allocation allocation = mlMetadata.getAllocations().get(jobId);
+            if (allocation == null) {
+                throw ExceptionsHelper.missingJobException(jobId);
             }
 
-            @Override
-            public boolean test(ClusterState newState) {
-                MlMetadata metadata = newState.getMetaData().custom(MlMetadata.TYPE);
-                if (metadata != null) {
-                    Allocation allocation = metadata.getAllocations().get(jobId);
-                    return allocation != null && allocation.getStatus() == JobStatus.CLOSED;
-                }
-                return false;
+            if (allocation.getStatus() != JobStatus.OPENED) {
+                throw new ElasticsearchStatusException("job not opened, expected job status [{}], but got [{}]",
+                        RestStatus.CONFLICT, JobStatus.OPENED, allocation.getStatus());
             }
-
         }
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        }
-
     }
 }
 

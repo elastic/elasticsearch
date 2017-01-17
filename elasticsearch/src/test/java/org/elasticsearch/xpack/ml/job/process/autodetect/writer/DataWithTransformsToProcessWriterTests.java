@@ -68,7 +68,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         AbstractDataToProcessWriter writer = createWriter(true);
         writer.writeHeader();
-        writer.write(inputStream, () -> false);
+        writer.write(inputStream);
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field
@@ -91,7 +91,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         AbstractDataToProcessWriter writer = createWriter(false);
         writer.writeHeader();
-        writer.write(inputStream, () -> false);
+        writer.write(inputStream);
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field

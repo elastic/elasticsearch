@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.InternalOpenJobAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -58,11 +59,8 @@ import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformsAction;
-import org.elasticsearch.xpack.ml.job.data.DataProcessor;
 import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.manager.JobManager;
-import org.elasticsearch.xpack.ml.job.metadata.JobAllocator;
-import org.elasticsearch.xpack.ml.job.metadata.JobLifeCycleService;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -153,7 +151,10 @@ public class MlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.singletonList(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new));
+        return Arrays.asList(
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new)
+        );
     }
 
     @Override
@@ -188,7 +189,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 throw new ElasticsearchException("Failed to create native process factories", e);
             }
         } else {
-            autodetectProcessFactory = (jobDetails, ignoreDowntime, executorService) -> new BlackHoleAutodetectProcess();
+            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, lists, ignoreDowntime, executorService) ->
+                    new BlackHoleAutodetectProcess();
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
@@ -196,31 +198,15 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MlPlugin.THREAD_POOL_NAME));
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings);
-        DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
+        AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
                 autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
 
-        JobLifeCycleService jobLifeCycleService =
-                new JobLifeCycleService(settings, client, clusterService, dataProcessor, threadPool.generic());
-        // we hop on the lifecycle service of ResourceWatcherService, because
-        // that one is stopped before discovery is.
-        // (when discovery is stopped it will send a leave request to elected master node, which will then be removed
-        // from the cluster state, which then triggers other events)
-        resourceWatcherService.addLifecycleListener(new LifecycleListener() {
-
-            @Override
-            public void beforeStop() {
-                jobLifeCycleService.stop();
-            }
-        });
-
         return Arrays.asList(
                 jobProvider,
                 jobManager,
-                new JobAllocator(settings, clusterService, threadPool),
-                jobLifeCycleService,
                 new JobDataDeleterFactory(client), //NORELEASE: this should use Delete-by-query
                 dataProcessor,
                 new MlInitializationService(settings, threadPool, clusterService, jobProvider),
@@ -271,6 +257,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(PutJobAction.INSTANCE, PutJobAction.TransportAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
+                new ActionHandler<>(InternalOpenJobAction.INSTANCE, InternalOpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
                 new ActionHandler<>(UpdateDatafeedStatusAction.INSTANCE, UpdateDatafeedStatusAction.TransportAction.class),
                 new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),

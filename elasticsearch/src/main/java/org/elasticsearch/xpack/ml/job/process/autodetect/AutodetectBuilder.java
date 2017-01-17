@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelDebugConfig
 import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.ml.lists.ListDocument;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +28,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
@@ -47,7 +45,7 @@ public class AutodetectBuilder {
     private Logger logger;
     private boolean ignoreDowntime;
     private Set<ListDocument> referencedLists;
-    private Optional<Quantiles> quantiles;
+    private Quantiles quantiles;
     private Environment env;
     private Settings settings;
     private NativeController controller;
@@ -72,7 +70,6 @@ public class AutodetectBuilder {
         this.logger = Objects.requireNonNull(logger);
         ignoreDowntime = false;
         referencedLists = new HashSet<>();
-        quantiles = Optional.empty();
     }
 
     /**
@@ -94,9 +91,9 @@ public class AutodetectBuilder {
     /**
      * Set quantiles to restore the normalizer state if any.
      *
-     * @param quantiles the non-null quantiles
+     * @param quantiles the quantiles
      */
-    public AutodetectBuilder quantiles(Optional<Quantiles> quantiles) {
+    public AutodetectBuilder quantiles(Quantiles quantiles) {
         this.quantiles = quantiles;
         return this;
     }
@@ -157,8 +154,7 @@ public class AutodetectBuilder {
     }
 
     private void buildQuantiles(List<String> command) throws IOException {
-        if (quantiles.isPresent() && !quantiles.get().getQuantileState().isEmpty()) {
-            Quantiles quantiles = this.quantiles.get();
+        if (quantiles != null && !quantiles.getQuantileState().isEmpty()) {
             logger.info("Restoring quantiles for job '" + job.getId() + "'");
 
             Path normalizersStateFilePath = ProcessCtrl.writeNormalizerInitState(
@@ -170,7 +166,7 @@ public class AutodetectBuilder {
         }
     }
 
-    private void buildFieldConfig(List<String> command) throws IOException, FileNotFoundException {
+    private void buildFieldConfig(List<String> command) throws IOException {
         if (job.getAnalysisConfig() != null) {
             // write to a temporary field config file
             Path fieldConfigFile = Files.createTempFile(env.tmpFile(), "fieldconfig", CONF_EXTENSION);

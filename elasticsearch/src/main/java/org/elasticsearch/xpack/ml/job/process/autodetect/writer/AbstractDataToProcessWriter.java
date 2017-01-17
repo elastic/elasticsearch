@@ -94,7 +94,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Create the transforms. This must be called before
-     * {@linkplain DataToProcessWriter#write(java.io.InputStream, java.util.function.Supplier)}
+     * {@linkplain DataToProcessWriter#write(java.io.InputStream)}
      * even if no transforms are configured as it creates the
      * date transform and sets up the field mappings.<br>
      * <p>
@@ -212,7 +212,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * First all the transforms whose outputs the Date transform relies
      * on are executed then the date transform then the remaining transforms.
      *
-     * @param cancelled          Determines whether the process writting has been cancelled
      * @param input              The record the transforms should read their input from. The contents should
      *                           align with the header parameter passed to {@linkplain #buildTransforms(String[])}
      * @param output             The record that will be written to the length encoded writer.
@@ -220,12 +219,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      *                           the size of the map returned by {@linkplain #outputFieldIndexes()}
      * @param numberOfFieldsRead The total number read not just those included in the analysis
      */
-    protected boolean applyTransformsAndWrite(Supplier<Boolean> cancelled, String[] input, String[] output, long numberOfFieldsRead)
+    protected boolean applyTransformsAndWrite(String[] input, String[] output, long numberOfFieldsRead)
             throws IOException {
-        if (cancelled.get()) {
-            throw new TaskCancelledException("cancelled");
-        }
-
         readWriteArea[TransformFactory.INPUT_ARRAY_INDEX] = input;
         readWriteArea[TransformFactory.OUTPUT_ARRAY_INDEX] = output;
         Arrays.fill(readWriteArea[TransformFactory.SCRATCH_ARRAY_INDEX], "");

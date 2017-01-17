@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -34,6 +34,6 @@ public class RestCloseJobAction extends BaseRestHandler {
         if (restRequest.hasParam("close_timeout")) {
             request.setCloseTimeout(TimeValue.parseTimeValue(restRequest.param("close_timeout"), "close_timeout"));
         }
-        return channel -> client.execute(CloseJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

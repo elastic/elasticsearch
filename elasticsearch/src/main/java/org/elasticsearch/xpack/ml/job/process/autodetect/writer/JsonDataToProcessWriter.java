@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A writer for transforming and piping JSON data from an
@@ -46,11 +45,11 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JOSN inputIndex an exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException {
+    public DataCounts write(InputStream inputStream) throws IOException {
         statusReporter.startNewIncrementalCount();
 
         try (JsonParser parser = new JsonFactory().createParser(inputStream)) {
-            writeJson(parser, cancelled);
+            writeJson(parser);
 
             // this line can throw and will be propagated
             statusReporter.finishReporting();
@@ -59,7 +58,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         return statusReporter.incrementalStats();
     }
 
-    private void writeJson(JsonParser parser, Supplier<Boolean> cancelled) throws IOException {
+    private void writeJson(JsonParser parser) throws IOException {
         Collection<String> analysisFields = inputFields();
 
         buildTransforms(analysisFields.toArray(new String[0]));
@@ -88,7 +87,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 record[inOut.outputIndex] = (field == null) ? "" : field;
             }
 
-            applyTransformsAndWrite(cancelled, input, record, inputFieldCount);
+            applyTransformsAndWrite(input, record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);
         }

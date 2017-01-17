@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.ml.job.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.status.StatusReporter;
+import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,16 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.function.Supplier;
-
-import org.apache.logging.log4j.Logger;
-
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
 
 /**
  * This writer is used for reading inputIndex data that are unstructured and
@@ -44,7 +42,7 @@ public class SingleLineDataToProcessWriter extends AbstractDataToProcessWriter {
     }
 
     @Override
-    public DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException {
+    public DataCounts write(InputStream inputStream) throws IOException {
         statusReporter.startNewIncrementalCount();
 
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -57,7 +55,7 @@ public class SingleLineDataToProcessWriter extends AbstractDataToProcessWriter {
             for (String line = bufferedReader.readLine(); line != null;
                     line = bufferedReader.readLine()) {
                 Arrays.fill(record, "");
-                applyTransformsAndWrite(cancelled, new String[]{line}, record, 1);
+                applyTransformsAndWrite(new String[]{line}, record, 1);
             }
             statusReporter.finishReporting();
         }

@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.xpack.ml.job.DataCounts;
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.function.Supplier;
-
-import org.elasticsearch.xpack.ml.job.DataCounts;
 
 /**
  * A writer for transforming and piping data from an
@@ -33,7 +32,7 @@ public interface DataToProcessWriter {
      *
      * @return Counts of the records processed, bytes read etc
      */
-    DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException;
+    DataCounts write(InputStream inputStream) throws IOException;
 
     /**
      * Flush the outputstream

@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +56,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         return new Response();
     }
 
-    public static class Request extends MasterNodeRequest<Request> implements ToXContent {
+    public static class Request extends TransportJobTaskAction.JobTaskRequest<Request> implements ToXContent {
 
         public static final ParseField CALC_INTERIM = new ParseField("calc_interim");
         public static final ParseField START = new ParseField("start");
@@ -81,7 +81,6 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             return request;
         }
 
-        private String jobId;
         private boolean calcInterim = false;
         private String start;
         private String end;
@@ -129,14 +128,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobId = in.readString();
             calcInterim = in.readBoolean();
             start = in.readOptionalString();
             end = in.readOptionalString();
@@ -146,7 +139,6 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(jobId);
             out.writeBoolean(calcInterim);
             out.writeOptionalString(start);
             out.writeOptionalString(end);
@@ -200,69 +192,94 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private Response() {
+        private boolean flushed;
+
+        Response() {
         }
 
-        private Response(boolean acknowledged) {
-            super(acknowledged);
+        Response(boolean flushed) {
+            super(null, null);
+            this.flushed = flushed;
+        }
+
+        public boolean isFlushed() {
+            return flushed;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            flushed = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
-        }
-    }
-
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
-
-        // NORELEASE This should be a master node operation that updates the job's state
-        private final AutodetectProcessManager processManager;
-        private final JobManager jobManager;
-
-        @Inject
-        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, AutodetectProcessManager processManager, JobManager jobManager) {
-            super(settings, FlushJobAction.NAME, false, threadPool, transportService, actionFilters,
-                    indexNameExpressionResolver, FlushJobAction.Request::new);
-
-            this.processManager = processManager;
-            this.jobManager = jobManager;
+            out.writeBoolean(flushed);
         }
 
         @Override
-        protected final void doExecute(FlushJobAction.Request request, ActionListener<FlushJobAction.Response> listener) {
-            threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
-                try {
-                    jobManager.getJobOrThrowIfUnknown(request.getJobId());
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("flushed", flushed);
+            builder.endObject();
+            return builder;
+        }
 
-                    InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
-                    paramsBuilder.calcInterim(request.getCalcInterim());
-                    if (request.getAdvanceTime() != null) {
-                        paramsBuilder.advanceTime(request.getAdvanceTime());
-                    }
-                    TimeRange.Builder timeRangeBuilder = TimeRange.builder();
-                    if (request.getStart() != null) {
-                        timeRangeBuilder.startTime(request.getStart());
-                    }
-                    if (request.getEnd() != null) {
-                        timeRangeBuilder.endTime(request.getEnd());
-                    }
-                    paramsBuilder.forTimeRange(timeRangeBuilder.build());
-                    processManager.flushJob(request.getJobId(), paramsBuilder.build());
-                    listener.onResponse(new Response(true));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return flushed == response.flushed;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(flushed);
+        }
+    }
+
+    public static class TransportAction extends TransportJobTaskAction<InternalOpenJobAction.JobTask, Request, Response> {
+
+        @Inject
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               AutodetectProcessManager processManager, JobManager jobManager) {
+            super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                    indexNameExpressionResolver, FlushJobAction.Request::new, FlushJobAction.Response::new, MlPlugin.THREAD_POOL_NAME,
+                    jobManager, processManager, Request::getJobId);
+        }
+
+        @Override
+        protected FlushJobAction.Response readTaskResponse(StreamInput in) throws IOException {
+            Response response = new Response();
+            response.readFrom(in);
+            return response;
+        }
+
+        @Override
+        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task,
+                                     ActionListener<FlushJobAction.Response> listener) {
+            jobManager.getJobOrThrowIfUnknown(request.getJobId());
+
+            InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
+            paramsBuilder.calcInterim(request.getCalcInterim());
+            if (request.getAdvanceTime() != null) {
+                paramsBuilder.advanceTime(request.getAdvanceTime());
+            }
+            TimeRange.Builder timeRangeBuilder = TimeRange.builder();
+            if (request.getStart() != null) {
+                timeRangeBuilder.startTime(request.getStart());
+            }
+            if (request.getEnd() != null) {
+                timeRangeBuilder.endTime(request.getEnd());
+            }
+            paramsBuilder.forTimeRange(timeRangeBuilder.build());
+            processManager.flushJob(request.getJobId(), paramsBuilder.build());
+            listener.onResponse(new Response(true));
         }
     }
 }

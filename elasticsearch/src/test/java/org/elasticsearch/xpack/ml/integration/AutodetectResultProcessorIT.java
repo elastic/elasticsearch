@@ -138,11 +138,11 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         ModelSizeStats persistedModelSizeStats = getModelSizeStats();
         assertEquals(modelSizeStats, persistedModelSizeStats);
 
-        QueryPage<ModelSnapshot> persistedModelSnapshot = jobProvider.modelSnapshots(JOB_ID, 0, 100);
+        QueryPage<ModelSnapshot> persistedModelSnapshot = getModelSnapshots();
         assertEquals(1, persistedModelSnapshot.count());
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
 
-        Optional<Quantiles> persistedQuantiles = jobProvider.getQuantiles(JOB_ID);
+        Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
     }
@@ -515,12 +515,48 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }
         return resultHolder.get();
     }
+
     private QueryPage<AnomalyRecord> getRecords(RecordsQueryBuilder.RecordsQuery recordsQuery) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<AnomalyRecord>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         jobProvider.records(JOB_ID, recordsQuery, page -> {
             resultHolder.set(page);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
+    }
+
+    private QueryPage<ModelSnapshot> getModelSnapshots() throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<ModelSnapshot>> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.modelSnapshots(JOB_ID, 0, 100, page -> {
+            resultHolder.set(page);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
+    }
+    private Optional<Quantiles> getQuantiles() throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.getQuantiles(JOB_ID, q -> {
+            resultHolder.set(Optional.ofNullable(q));
             latch.countDown();
         }, e -> {
             errorHolder.set(e);

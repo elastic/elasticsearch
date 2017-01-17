@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.job.DataCounts;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.data.DataProcessor;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -39,8 +40,10 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
+import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.ml.job.status.StatusReporter;
 import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
+import org.elasticsearch.xpack.ml.lists.ListDocument;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -49,13 +52,14 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
 
@@ -107,7 +111,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     }
 
     @Override
-    public DataCounts processData(String jobId, InputStream input, DataLoadParams params, Supplier<Boolean> cancelled) {
+    public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
         Allocation allocation = jobManager.getJobAllocation(jobId);
         if (allocation.getStatus() != JobStatus.OPENED) {
             throw new IllegalArgumentException("job [" + jobId + "] status is [" + allocation.getStatus() + "], but must be ["
@@ -119,7 +123,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
             throw new IllegalStateException("job [" +  jobId + "] with status [" + allocation.getStatus() + "] hasn't been started");
         }
         try {
-            return communicator.writeToJob(input, params, cancelled);
+            return communicator.writeToJob(input, params);
             // TODO check for errors from autodetect
         } catch (IOException e) {
             String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);
@@ -163,22 +167,42 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     }
 
     @Override
-    public void openJob(String jobId, boolean ignoreDowntime) {
-        autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
-            AutodetectCommunicator communicator = create(id, ignoreDowntime);
-            try {
-                communicator.writeJobInputHeader();
-            } catch (IOException ioe) {
-                String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
-                logger.error(msg);
-                throw ExceptionsHelper.serverError(msg, ioe);
-            }
-            setJobStatus(jobId, JobStatus.OPENED);
-            return communicator;
-        });
+    public void openJob(String jobId, boolean ignoreDowntime, Consumer<Exception> handler) {
+        gatherRequiredInformation(jobId, (modelSnapshot, quantiles, lists) -> {
+            autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
+                AutodetectCommunicator communicator = create(id, modelSnapshot, quantiles, lists, ignoreDowntime, handler);
+                try {
+                    communicator.writeJobInputHeader();
+                } catch (IOException ioe) {
+                    String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
+                    logger.error(msg);
+                    throw ExceptionsHelper.serverError(msg, ioe);
+                }
+                setJobStatus(jobId, JobStatus.OPENED);
+                return communicator;
+            });
+        }, handler);
     }
 
-    AutodetectCommunicator create(String jobId, boolean ignoreDowntime) {
+    void gatherRequiredInformation(String jobId, TriConsumer handler, Consumer<Exception> errorHandler) {
+        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
+        jobProvider.modelSnapshots(jobId, 0, 1, page -> {
+            ModelSnapshot modelSnapshot = page.results().isEmpty() ? null : page.results().get(1);
+            jobProvider.getQuantiles(jobId, quantiles -> {
+                String[] ids = job.getAnalysisConfig().extractReferencedLists().toArray(new String[0]);
+                jobProvider.getLists(listDocument -> handler.accept(modelSnapshot, quantiles, listDocument), errorHandler, ids);
+            }, errorHandler);
+        }, errorHandler);
+    }
+
+    interface TriConsumer {
+
+        void accept(ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> lists);
+
+    }
+
+    AutodetectCommunicator create(String jobId, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> lists,
+                                  boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
                     RestStatus.CONFLICT);
@@ -200,8 +224,9 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
             AutodetectProcess process = null;
             try {
-                process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
-                return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor);
+                process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, lists,
+                        ignoreDowntime, executorService);
+                return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor, handler);
             } catch (Exception e) {
                 try {
                     IOUtils.close(process);
@@ -274,7 +299,11 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         client.execute(UpdateJobStatusAction.INSTANCE, request, new ActionListener<UpdateJobStatusAction.Response>() {
             @Override
             public void onResponse(UpdateJobStatusAction.Response response) {
-                logger.info("Successfully set job status to [{}] for job [{}]", status, jobId);
+                if (response.isAcknowledged()) {
+                    logger.info("Successfully set job status to [{}] for job [{}]", status, jobId);
+                } else {
+                    logger.info("Changing job status to [{}] for job [{}] wasn't acked", status, jobId);
+                }
             }
 
             @Override
@@ -282,6 +311,11 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
                 logger.error("Could not set job status to [" + status + "] for job [" + jobId +"]", e);
             }
         });
+    }
+
+    public void setJobStatus(String jobId, JobStatus status, Consumer<Void> handler, Consumer<Exception> errorHandler) {
+        UpdateJobStatusAction.Request request = new UpdateJobStatusAction.Request(jobId, status);
+        client.execute(UpdateJobStatusAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
     }
 
     public Optional<ModelSizeStats> getModelSizeStats(String jobId) {

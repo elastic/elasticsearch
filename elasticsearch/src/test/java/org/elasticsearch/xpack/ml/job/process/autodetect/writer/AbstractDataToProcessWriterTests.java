@@ -5,32 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.junit.Assert;
-import org.junit.Before;
-import org.mockito.Mockito;
-
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Detector;
 import org.elasticsearch.xpack.ml.job.condition.Condition;
 import org.elasticsearch.xpack.ml.job.condition.Operator;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
 import org.elasticsearch.xpack.ml.job.status.StatusReporter;
 import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
@@ -42,6 +24,23 @@ import org.elasticsearch.xpack.ml.transforms.RegexSplit;
 import org.elasticsearch.xpack.ml.transforms.StringTransform;
 import org.elasticsearch.xpack.ml.transforms.Transform;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
+import org.junit.Assert;
+import org.junit.Before;
+import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Testing methods of AbstractDataToProcessWriter but uses the concrete
@@ -343,7 +342,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         String[] input = { "1", "metricA", "0" };
         String[] output = new String[3];
 
-        assertFalse(writer.applyTransformsAndWrite(() -> false, input, output, 3));
+        assertFalse(writer.applyTransformsAndWrite(input, output, 3));
 
         verify(autodetectProcess, never()).writeRecord(output);
         verify(statusReporter, never()).reportRecordWritten(anyLong(), anyLong());
@@ -354,7 +353,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         // this is ok
         input = new String[] { "2", "metricB", "0" };
         String[] expectedOutput = { "2", null, null };
-        assertTrue(writer.applyTransformsAndWrite(() -> false, input, output, 3));
+        assertTrue(writer.applyTransformsAndWrite(input, output, 3));
 
         verify(autodetectProcess, times(1)).writeRecord(expectedOutput);
         verify(statusReporter, times(1)).reportRecordWritten(3, 2000);

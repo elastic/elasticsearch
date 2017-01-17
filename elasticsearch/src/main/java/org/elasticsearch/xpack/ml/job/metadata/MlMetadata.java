@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.ml.job.metadata;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
@@ -156,7 +159,7 @@ public class MlMetadata implements MetaData.Custom {
         builder.endArray();
     }
 
-    static class MlMetadataDiff implements Diff<MetaData.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, Allocation>> allocations;
@@ -166,6 +169,15 @@ public class MlMetadata implements MetaData.Custom {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.allocations = DiffableUtils.diff(before.allocations, after.allocations, DiffableUtils.getStringKeySerializer());
             this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
+        }
+
+        public MlMetadataDiff(StreamInput in) throws IOException {
+            this.jobs =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
+                    MlMetadataDiff::readJobDiffFrom);
+            this.allocations =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Allocation::new,
+                    MlMetadataDiff::readAllocationDiffFrom);
+            this.datafeeds =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Datafeed::new,
+                    MlMetadataDiff::readSchedulerDiffFrom);
         }
 
         @Override
@@ -182,6 +194,23 @@ public class MlMetadata implements MetaData.Custom {
             allocations.writeTo(out);
             datafeeds.writeTo(out);
         }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(Job::new, in);
+        }
+
+        static Diff<Allocation> readAllocationDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(Allocation::new, in);
+        }
+
+        static Diff<Datafeed> readSchedulerDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(Datafeed::new, in);
+        }
     }
 
     @Override
@@ -194,6 +223,21 @@ public class MlMetadata implements MetaData.Custom {
         return Objects.equals(jobs, that.jobs) &&
                 Objects.equals(allocations, that.allocations) &&
                 Objects.equals(datafeeds, that.datafeeds);
+    }
+
+    @Override
+    public final String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (Exception e) {
+            // So we have a stack trace logged somewhere
+            return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
+        }
     }
 
     @Override

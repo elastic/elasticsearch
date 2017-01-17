@@ -79,7 +79,7 @@ setup:
   - do:
       xpack.ml.flush_job:
         job_id: job-stats-test
-  - match: { acknowledged: true }
+  - match: { flushed: true }
 
 
   - do:

@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A writer for transforming and piping CSV data from an
@@ -63,7 +62,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      * header a exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream, Supplier<Boolean> cancelled) throws IOException {
+    public DataCounts write(InputStream inputStream) throws IOException {
         CsvPreference csvPref = new CsvPreference.Builder(
                 dataDescription.getQuoteCharacter(),
                 dataDescription.getFieldDelimiter(),
@@ -118,7 +117,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 }
 
                 fillRecordFromLine(line, inputRecord);
-                applyTransformsAndWrite(cancelled, inputRecord, record, inputFieldCount);
+                applyTransformsAndWrite(inputRecord, record, inputFieldCount);
             }
 
             // This function can throw

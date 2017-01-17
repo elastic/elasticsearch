@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -299,12 +300,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
-            QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), clusterService.state());
+            ClusterState clusterState = clusterService.state();
+            QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), clusterState);
             if (jobs.count() == 0) {
                 listener.onResponse(new GetJobsStatsAction.Response(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
+                return;
             }
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
 
+            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             AtomicInteger counter = new AtomicInteger(0);
             AtomicArray<Response.JobStats> jobsStats = new AtomicArray<>(jobs.results().size());
             for (int i  = 0; i < jobs.results().size(); i++) {

@@ -27,10 +27,8 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
@@ -54,14 +52,12 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job, boolean ignoreDowntime, ExecutorService executorService) {
+    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> list,
+                                                     boolean ignoreDowntime, ExecutorService executorService) {
         List<Path> filesToDelete = new ArrayList<>();
-        List<ModelSnapshot> modelSnapshots = jobProvider.modelSnapshots(job.getId(), 0, 1).results();
-        ModelSnapshot modelSnapshot = (modelSnapshots != null && !modelSnapshots.isEmpty()) ? modelSnapshots.get(0) : null;
-
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
                 true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
-        createNativeProcess(job, processPipes, ignoreDowntime, filesToDelete);
+        createNativeProcess(job, quantiles, list, processPipes, ignoreDowntime, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
 
         NativeAutodetectProcess autodetect = null;
@@ -91,16 +87,13 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
-    private void createNativeProcess(Job job, ProcessPipes processPipes, boolean ignoreDowntime, List<Path> filesToDelete) {
-
-        String jobId = job.getId();
-        Optional<Quantiles> quantiles = jobProvider.getQuantiles(jobId);
-
+    private void createNativeProcess(Job job, Quantiles quantiles, Set<ListDocument> lists, ProcessPipes processPipes,
+                                     boolean ignoreDowntime, List<Path> filesToDelete) {
         try {
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
                     settings, nativeController, processPipes)
                     .ignoreDowntime(ignoreDowntime)
-                    .referencedLists(resolveLists(job.getAnalysisConfig().extractReferencedLists()));
+                    .referencedLists(lists);
 
             // if state is null or empty it will be ignored
             // else it is used to restore the quantiles
@@ -115,19 +108,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }
-    }
-
-    private Set<ListDocument> resolveLists(Set<String> listIds) {
-        Set<ListDocument> resolved = new HashSet<>();
-        for (String listId : listIds) {
-            Optional<ListDocument> list = jobProvider.getList(listId);
-            if (list.isPresent()) {
-                resolved.add(list.get());
-            } else {
-                LOGGER.warn("List '" + listId + "' could not be retrieved.");
-            }
-        }
-        return resolved;
     }
 }
 

@@ -5,41 +5,35 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
-import org.elasticsearch.xpack.ml.job.manager.JobManager;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.JobStatusObserver;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
 
@@ -60,13 +54,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
-
-        public static final ParseField OPEN_TIMEOUT = new ParseField("open_timeout");
+    public static class Request extends ActionRequest {
 
         private String jobId;
         private boolean ignoreDowntime;
-        private TimeValue openTimeout = TimeValue.timeValueMinutes(30);
+        private TimeValue openTimeout = TimeValue.timeValueSeconds(30);
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -108,7 +100,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             super.readFrom(in);
             jobId = in.readString();
             ignoreDowntime = in.readBoolean();
-            openTimeout = new TimeValue(in);
+            openTimeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
         @Override
@@ -116,12 +108,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(ignoreDowntime);
-            openTimeout.writeTo(out);
+            out.writeVLong(openTimeout.millis());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, ignoreDowntime, openTimeout);
+            return Objects.hash(jobId, ignoreDowntime);
         }
 
         @Override
@@ -134,128 +126,108 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
             OpenJobAction.Request other = (OpenJobAction.Request) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
-                    Objects.equals(openTimeout, other.openTimeout);
+                    Objects.equals(ignoreDowntime, other.ignoreDowntime);
         }
     }
 
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
-        public Response(boolean acknowledged) {
-            super(acknowledged);
+        private boolean opened;
+
+        Response() {}
+
+        Response(boolean opened) {
+            this.opened = opened;
         }
 
-        private Response() {}
+        public boolean isOpened() {
+            return opened;
+        }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            opened = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            out.writeBoolean(opened);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("opened", opened);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return opened == response.opened;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(opened);
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobManager jobManager;
+        private final JobStatusObserver observer;
+        private final ClusterService clusterService;
+        private final InternalOpenJobAction.TransportAction internalOpenJobAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobManager jobManager) {
-            super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
-            this.jobManager = jobManager;
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               ClusterService clusterService, InternalOpenJobAction.TransportAction internalOpenJobAction) {
+            super(settings, OpenJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            this.clusterService = clusterService;
+            this.observer = new JobStatusObserver(threadPool, clusterService);
+            this.internalOpenJobAction = internalOpenJobAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
+        protected void doExecute(Request request, ActionListener<Response> listener) {
+            // This validation happens also in InternalOpenJobAction, the reason we do it here too is that if it fails there
+            // we are unable to provide the user immediate feedback. We would create the task and the validation would fail
+            // in the background, whereas now the validation failure is part of the response being returned.
+            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            validate(mlMetadata, request.getJobId());
 
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            ActionListener<Response> delegateListener = ActionListener.wrap(response -> respondWhenJobIsOpened(request, listener),
-                    listener::onFailure);
-            jobManager.openJob(request, delegateListener);
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        }
-
-        private void respondWhenJobIsOpened(Request request, ActionListener<Response> listener) {
-            ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    String jobId = request.getJobId();
-                    MlMetadata metadata = state.getMetaData().custom(MlMetadata.TYPE);
-                    Allocation allocation = metadata.getAllocations().get(jobId);
-                    if (allocation != null) {
-                        if (allocation.getStatus() == JobStatus.OPENED) {
-                            listener.onResponse(new Response(true));
-                        } else {
-                            String message = "[" +  jobId + "] expected job status [" + JobStatus.OPENED + "], but got [" +
-                                    allocation.getStatus() + "], reason [" + allocation.getStatusReason() + "]";
-                            listener.onFailure(new ElasticsearchStatusException(message, RestStatus.CONFLICT));
-                        }
-                    } else {
-                        listener.onFailure(new IllegalStateException("no allocation for job [" + jobId + "]"));
-                    }
+            InternalOpenJobAction.Request internalRequest = new InternalOpenJobAction.Request(request.jobId);
+            internalRequest.setIgnoreDowntime(internalRequest.isIgnoreDowntime());
+            internalOpenJobAction.execute(internalRequest, LoggingTaskListener.instance());
+            observer.waitForStatus(request.getJobId(), request.openTimeout, JobStatus.OPENED, e -> {
+                if (e != null) {
+                    listener.onFailure(e);
+                } else {
+                    listener.onResponse(new Response(true));
                 }
-
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new IllegalStateException("Cluster service closed while waiting for job [" + request
-                            + "] status to change to [" + JobStatus.OPENED + "]"));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new IllegalStateException(
-                            "Timeout expired while waiting for job [" + request + "] status to change to [" + JobStatus.OPENED + "]"));
-                }
-            }, new JobOpenedChangePredicate(request.getJobId()), request.openTimeout);
+            });
         }
 
-        private class JobOpenedChangePredicate implements Predicate<ClusterState> {
-
-            private final String jobId;
-
-            JobOpenedChangePredicate(String jobId) {
-                this.jobId = jobId;
-            }
-
-            @Override
-            public boolean test(ClusterState newState) {
-                MlMetadata metadata = newState.getMetaData().custom(MlMetadata.TYPE);
-                if (metadata != null) {
-                    Allocation allocation = metadata.getAllocations().get(jobId);
-                    if (allocation != null) {
-                        return allocation.getStatus().isAnyOf(JobStatus.OPENED, JobStatus.FAILED);
-                    }
-                }
-                return false;
-            }
+        /**
+         * Fail fast before trying to update the job status on master node if the job doesn't exist or its status
+         * is not what it should be.
+         */
+        public static void validate(MlMetadata mlMetadata, String jobId) {
+            MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
+            builder.updateStatus(jobId, JobStatus.OPENING, null);
         }
     }
 }

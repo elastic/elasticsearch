@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class AutodetectCommunicator implements Closeable {
@@ -47,16 +48,18 @@ public class AutodetectCommunicator implements Closeable {
     private final StatusReporter statusReporter;
     private final AutodetectProcess autodetectProcess;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
+    private final Consumer<Exception> handler;
 
     final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
     public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process,
                                   StatusReporter statusReporter, AutoDetectResultProcessor autoDetectResultProcessor,
-                                  StateProcessor stateProcessor) {
+                                  StateProcessor stateProcessor, Consumer<Exception> handler) {
         this.job = job;
         this.autodetectProcess = process;
         this.statusReporter = statusReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
+        this.handler = handler;
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         boolean usePerPartitionNormalization = analysisConfig.getUsePerPartitionNormalization();
@@ -77,7 +80,7 @@ public class AutodetectCommunicator implements Closeable {
                 job.getAnalysisConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
     }
 
-    public DataCounts writeToJob(InputStream inputStream, DataLoadParams params, Supplier<Boolean> cancelled) throws IOException {
+    public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {
         return checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPLOAD, job.getId()), () -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
@@ -85,7 +88,7 @@ public class AutodetectCommunicator implements Closeable {
             CountingInputStream countingStream = new CountingInputStream(inputStream, statusReporter);
 
             DataToProcessWriter autoDetectWriter = createProcessWriter(params.getDataDescription());
-            DataCounts results = autoDetectWriter.write(countingStream, cancelled);
+            DataCounts results = autoDetectWriter.write(countingStream);
             autoDetectWriter.flush();
             return results;
         }, false);
@@ -97,6 +100,7 @@ public class AutodetectCommunicator implements Closeable {
             statusReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
+            handler.accept(null);
             return null;
         }, true);
     }

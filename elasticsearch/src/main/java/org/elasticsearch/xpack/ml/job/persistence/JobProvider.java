@@ -15,14 +15,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -77,11 +77,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -287,13 +289,13 @@ public class JobProvider {
      * @param jobId The job id
      */
     public void dataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
-        get(jobId, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId), handler, errorHandler,
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        get(jobId, indexName, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId), handler, errorHandler,
                 DataCounts.PARSER, () -> new DataCounts(jobId));
     }
 
-    private <T, U> void get(String jobId, String type, String id, Consumer<T> handler, Consumer<Exception> errorHandler,
+    private <T, U> void get(String jobId, String indexName, String type, String id, Consumer<T> handler, Consumer<Exception> errorHandler,
                             BiFunction<XContentParser, U, T> objectParser, Supplier<T> notFoundSupplier) {
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         GetRequest getRequest = new GetRequest(indexName, type, id);
         client.get(getRequest, ActionListener.wrap(
                 response -> {
@@ -315,6 +317,38 @@ public class JobProvider {
                         errorHandler.accept(e);
                     }
                 }));
+    }
+
+    private <T, U> void mget(String indexName, String type, String[] ids, Consumer<Set<T>> handler, Consumer<Exception> errorHandler,
+                             BiFunction<XContentParser, U, T> objectParser) {
+        if (ids.length == 0) {
+            handler.accept(Collections.emptySet());
+            return;
+        }
+
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        for (String id : ids) {
+            multiGetRequest.add(indexName, type, id);
+        }
+        client.multiGet(multiGetRequest, ActionListener.wrap(
+                mresponse -> {
+                    Set<T> objects = new HashSet<>();
+                    for (MultiGetItemResponse item : mresponse) {
+                        GetResponse response = item.getResponse();
+                        if (response.isExists()) {
+                            BytesReference source = response.getSourceAsBytesRef();
+                            try (XContentParser parser = XContentFactory.xContent(source)
+                                    .createParser(NamedXContentRegistry.EMPTY, source)) {
+                                objects.add(objectParser.apply(parser, null));
+                            } catch (IOException e) {
+                                throw new ElasticsearchParseException("failed to parse " + type, e);
+                            }
+                        }
+                    }
+                    handler.accept(objects);
+                },
+                errorHandler)
+        );
     }
 
     private <T, U> Optional<T> getBlocking(String indexName, String type, String id, BiFunction<XContentParser, U, T> objectParser) {
@@ -797,17 +831,14 @@ public class JobProvider {
     /**
      * Get the persisted quantiles state for the job
      */
-    public Optional<Quantiles> getQuantiles(String jobId) {
+    public void getQuantiles(String jobId, Consumer<Quantiles> handler, Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         String quantilesId = Quantiles.documentId(jobId);
         LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
-
-        Optional<Quantiles> quantiles = getBlocking(indexName, Quantiles.TYPE.getPreferredName(), quantilesId, Quantiles.PARSER);
-        if (quantiles.isPresent() && quantiles.get().getQuantileState() == null) {
-            LOGGER.error("Inconsistency - no " + Quantiles.QUANTILE_STATE + " field in quantiles for job " + jobId);
-        }
-
-        return quantiles;
+        get(jobId, indexName, Quantiles.TYPE.getPreferredName(), quantilesId, handler, errorHandler, Quantiles.PARSER, () -> {
+            LOGGER.info("There are currently no quantiles for job " + jobId);
+            return null;
+        });
     }
 
     /**
@@ -816,12 +847,10 @@ public class JobProvider {
      * @param jobId the job id
      * @param from  number of snapshots to from
      * @param size  number of snapshots to retrieve
-     * @return page of model snapshots
      */
-    public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size) {
-        PlainActionFuture<QueryPage<ModelSnapshot>> future = PlainActionFuture.newFuture();
-        modelSnapshots(jobId, from, size, null, false, QueryBuilders.matchAllQuery(), future);
-        return future.actionGet();
+    public void modelSnapshots(String jobId, int from, int size, Consumer<QueryPage<ModelSnapshot>> handler,
+                                                   Consumer<Exception> errorHandler) {
+        modelSnapshots(jobId, from, size, null, false, QueryBuilders.matchAllQuery(), handler, errorHandler);
     }
 
     /**
@@ -846,7 +875,7 @@ public class JobProvider {
                                boolean sortDescending,
                                String snapshotId,
                                String description,
-                               CheckedConsumer<QueryPage<ModelSnapshot>, Exception> handler,
+                               Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
         boolean haveId = snapshotId != null && !snapshotId.isEmpty();
         boolean haveDescription = description != null && !description.isEmpty();
@@ -866,7 +895,7 @@ public class JobProvider {
         }
 
         QueryBuilder qb = fb.timeRange(Bucket.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
-        modelSnapshots(jobId, from, size, sortField, sortDescending, qb, ActionListener.wrap(handler, errorHandler));
+        modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
     private void modelSnapshots(String jobId,
@@ -875,7 +904,8 @@ public class JobProvider {
                                 String sortField,
                                 boolean sortDescending,
                                 QueryBuilder qb,
-                                ActionListener<QueryPage<ModelSnapshot>> listener) {
+                                Consumer<QueryPage<ModelSnapshot>> handler,
+                                Consumer<Exception> errorHandler) {
         if (Strings.isEmpty(sortField)) {
             sortField = ModelSnapshot.RESTORE_PRIORITY.getPreferredName();
         }
@@ -909,8 +939,8 @@ public class JobProvider {
 
             QueryPage<ModelSnapshot> result =
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
-            listener.onResponse(result);
-        }, listener::onFailure));
+            handler.accept(result);
+        }, errorHandler));
     }
 
     /**
@@ -1016,7 +1046,8 @@ public class JobProvider {
         LOGGER.trace("ES API CALL: get result type {} ID {} for job {}",
                 ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, jobId);
 
-        get(jobId, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        get(jobId, indexName, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
                 handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
                 () -> {
                     LOGGER.warn("No memory usage details for job with id {}", jobId);
@@ -1027,11 +1058,10 @@ public class JobProvider {
     /**
      * Retrieves the list with the given {@code listId} from the datastore.
      *
-     * @param listId the id of the requested list
-     * @return the matching list if it exists
+     * @param ids the id of the requested list
      */
-    public Optional<ListDocument> getList(String listId) {
-        return getBlocking(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId, ListDocument.PARSER);
+    public void getLists(Consumer<Set<ListDocument>> handler, Consumer<Exception> errorHandler, String... ids) {
+        mget(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), ids, handler, errorHandler, ListDocument.PARSER);
     }
 
     /**

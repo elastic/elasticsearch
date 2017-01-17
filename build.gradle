@@ -1,4 +1,4 @@
-description = 'Builds the Ml Engine native binaries and Java classes'
+description = 'Builds the Machine Learning Java classes and UI'
 
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
@@ -20,52 +20,24 @@ if (envMlAwsSecretKey != null) {
   project.ext.mlAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
 }
 
-String cppCrossCompile = System.env.CPP_CROSS_COMPILE
-if (cppCrossCompile != null) {
-  project.ext.cppCrossCompile = cppCrossCompile
-} else if (project.hasProperty("CPP_CROSS_COMPILE")) {
-  project.ext.cppCrossCompile = CPP_CROSS_COMPILE
+String envCppLocalDists = System.env.CPP_LOCAL_DISTS
+if (envCppLocalDists != null) {
+  project.ext.cppLocalDists = envCppLocalDists
+} else if (project.hasProperty("CPP_LOCAL_DISTS")) {
+  project.ext.cppLocalDists = CPP_LOCAL_DISTS
 } else {
-  project.ext.cppCrossCompile = ''
-}
-if (project.ext.cppCrossCompile != '' && project.ext.cppCrossCompile != 'macosx') {
-  throw new GradleException("CPP_CROSS_COMPILE property must be empty or 'macosx'")
+  project.ext.cppLocalDists = ''
 }
 
 project.ext.isWindows = OperatingSystem.current().isWindows()
 project.ext.isLinux = OperatingSystem.current().isLinux()
 project.ext.isMacOsX = OperatingSystem.current().isMacOsX()
 
-project.ext.bash = project.isWindows ? "C:\\Program Files\\Git\\bin\\bash" : "/bin/bash"
-
 String uploadEnabledStr = properties.get('upload', 'false')
 if (['true', 'false'].contains(uploadEnabledStr) == false) {
   throw new GradleException("upload must be true or false, got ${uploadEnabledStr}")
 }
 project.ext.uploadEnabled = uploadEnabledStr == 'true'
-
-// C++ build can be explicitly enabled or disabled, or if neither is chosen
-// it will be enabled if the necessary 3rd party dependencies are present
-String cppEnabledStr = properties.get('xpack.cpp.build', 'auto')
-if (['true', 'false', 'auto'].contains(cppEnabledStr) == false) {
-  throw new GradleException("xpack.cpp.build must be true or false, got ${cppEnabledStr}")
-}
-project.ext.cppEnabled = cppEnabledStr == 'true'
-if (cppEnabledStr == 'auto') {
-  // Disable the C++ build if the 3rd party tools/libraries aren't available
-  String[] cmdArray = [ project.ext.bash, '-c',
-    'export CPP_CROSS_COMPILE=' + project.ext.cppCrossCompile + ' && source cpp/set_env.sh && cpp/3rd_party/3rd_party.sh --check' ]
-  Process checkProcess = Runtime.getRuntime().exec(cmdArray, null, rootDir)
-  StringBuffer checkOutput = new StringBuffer()
-  checkProcess.consumeProcessOutputStream(checkOutput)
-  if (checkProcess.waitFor() == 0) {
-    project.ext.cppEnabled = true
-  } else {
-    println 'C++ dependencies not available - disabling C++ build'
-    println checkOutput
-    project.ext.cppEnabled = false
-  }
-}
 
 allprojects {
   group = 'org.elasticsearch.ml'
@@ -123,7 +95,7 @@ task assemble(dependsOn: bundlePack) {
   description = 'Assembles the outputs of this project.'
 }
 
-task test(dependsOn: [':elasticsearch:test', ':cpp:test', ':kibana:test']) {
+task test(dependsOn: [':elasticsearch:test', ':kibana:test']) {
   group = 'Build'
   description = 'Assembles and tests this project.'
 }
@@ -139,14 +111,14 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-task uploadPackToS3(type: UploadS3Task, dependsOn: [build]) {
+task uploadPackToS3(type: UploadS3Task, dependsOn: build) {
   enabled project.uploadEnabled
   description = 'upload pack zip to S3 Bucket'
   bucket 'prelert-artifacts'
   upload bundlePack.outputs.files.singleFile, "maven/${project.group}/${packArtifactName}/${project.version}/${bundlePack.outputs.files.singleFile.name}"
 }
 
-task deploy(dependsOn: [uploadPackToS3, ':cpp:upload']) {
+task deploy(dependsOn: uploadPackToS3) {
 
 }
 
@@ -199,7 +171,6 @@ allprojects {
   }
 }
 
-// intellij configuration
 allprojects {
   apply plugin: 'idea'
 

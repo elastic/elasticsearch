@@ -35,7 +35,7 @@ import java.security.PrivilegedExceptionAction;
  */
 public final class SocketAccess {
 
-    private static SpecialPermission specialPermission = new SpecialPermission();
+    private static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
 
     private SocketAccess() {}
 
@@ -56,7 +56,7 @@ public final class SocketAccess {
     private static void checkSpecialPermission() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(specialPermission);
+            sm.checkPermission(SPECIAL_PERMISSION);
         }
     }
 }

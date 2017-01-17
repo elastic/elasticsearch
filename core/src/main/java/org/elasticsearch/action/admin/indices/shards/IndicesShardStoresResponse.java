@@ -207,7 +207,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             builder.field(Fields.ALLOCATED, allocationStatus.value());
             if (storeException != null) {
                 builder.startObject(Fields.STORE_EXCEPTION);
-                ElasticsearchException.toXContent(builder, params, storeException);
+                ElasticsearchException.generateThrowableXContent(builder, params, storeException);
                 builder.endObject();
             }
             return builder;

@@ -63,7 +63,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             builder.field(Fields._ID, failure.getId());
             builder.field(Fields.STATUS, failure.getStatus().getStatus());
             builder.startObject(Fields.ERROR);
-            ElasticsearchException.toXContent(builder, params, failure.getCause());
+            ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
         builder.endObject();
@@ -173,7 +173,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
                 builder.field(ID_FIELD, id);
             }
             builder.startObject(CAUSE_FIELD);
-            ElasticsearchException.toXContent(builder, params, cause);
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;

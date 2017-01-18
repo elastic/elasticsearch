@@ -183,8 +183,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                         "Error parsing the response, remote is likely not an Elasticsearch instance", e);
                                 }
                             } catch (IOException e) {
-                                throw new ElasticsearchException("Error deserializing response, remote is likely not an Elasticsearch instance",
-                                    e);
+                                throw new ElasticsearchException(
+                                    "Error deserializing response, remote is likely not an Elasticsearch instance", e);
                             }
                             listener.accept(parsedResponse);
                         }

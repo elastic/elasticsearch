@@ -20,14 +20,9 @@ import java.io.IOException;
 
 public class RestGetSchedulersAction extends BaseRestHandler {
 
-    private final GetSchedulersAction.TransportAction transportGetSchedulersAction;
-
     @Inject
-    public RestGetSchedulersAction(Settings settings, RestController controller,
-                                   GetSchedulersAction.TransportAction transportGetSchedulersAction) {
+    public RestGetSchedulersAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportGetSchedulersAction = transportGetSchedulersAction;
-
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
                 + "schedulers/{" + SchedulerConfig.ID.getPreferredName() + "}", this);
     }
@@ -35,6 +30,6 @@ public class RestGetSchedulersAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetSchedulersAction.Request request = new GetSchedulersAction.Request(restRequest.param(SchedulerConfig.ID.getPreferredName()));
-        return channel -> transportGetSchedulersAction.execute(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetSchedulersAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

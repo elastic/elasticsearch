@@ -12,26 +12,26 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.ml.job.results.Bucket;
 
 import java.io.IOException;
 
-class ElasticsearchBatchedRecordsIterator extends ElasticsearchBatchedResultsIterator<AnomalyRecord> {
+class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
 
-    public ElasticsearchBatchedRecordsIterator(Client client, String jobId) {
-        super(client, jobId, AnomalyRecord.RESULT_TYPE_VALUE);
+    public BatchedBucketsIterator(Client client, String jobId) {
+        super(client, jobId, Bucket.RESULT_TYPE_VALUE);
     }
 
     @Override
-    protected ResultWithIndex<AnomalyRecord> map(SearchHit hit) {
+    protected ResultWithIndex<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
             parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse record", e);
+            throw new ElasticsearchParseException("failed to parse bucket", e);
         }
-        AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, null);
-        return new ResultWithIndex<>(hit.getIndex(), record);
+        Bucket bucket = Bucket.PARSER.apply(parser, null);
+        return new ResultWithIndex<>(hit.getIndex(), bucket);
     }
 }

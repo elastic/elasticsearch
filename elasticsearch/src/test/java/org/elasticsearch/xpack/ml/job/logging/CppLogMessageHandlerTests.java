@@ -27,8 +27,8 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 + "/var/folders/k5/5sqcdlps5sg3cvlp783gcz740000h0/T/controller_log_784\",\"class\":\"ml\","
                 + "\"method\":\"core::CLogger::reconfigureLogToNamedPipe\",\"file\":\"CLogger.cc\",\"line\":333}\n"
                 + "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\",\"pid\":10211,\"thread\":\"0x7fff7d2a8000\","
-                + "\"message\":\"controller (64 bit): Version based on 6.5.0 (Build DEVELOPMENT BUILD by dave) "
-                + "Copyright (c) 2016 Elasticsearch BV\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n"
+                + "\"message\":\"controller (64 bit): Version based on 6.0.0-alpha1 (Build b0d6ef8819418c) "
+                + "Copyright (c) 2017 Elasticsearch BV\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n"
                 + "{\"logger\":\"controller\",\"timestamp\":1478261169065,\"level\":\"ERROR\",\"pid\":10211,\"thread\":\"0x7fff7d2a8000\","
                 + "\"message\":\"Did not understand verb 'a'\",\"class\":\"ml\","
                 + "\"method\":\"controller::CCommandProcessor::handleCommand\",\"file\":\"CCommandProcessor.cc\",\"line\":100}\n"
@@ -43,6 +43,8 @@ public class CppLogMessageHandlerTests extends ESTestCase {
 
                 assertTrue(handler.hasLogStreamEnded());
                 assertEquals(10211L, handler.getPid(Duration.ofMillis(1)));
+                assertEquals("controller (64 bit): Version based on 6.0.0-alpha1 (Build b0d6ef8819418c) "
+                        + "Copyright (c) 2017 Elasticsearch BV", handler.getCppCopyright());
                 assertEquals("Did not understand verb 'a'\n", handler.getErrors());
                 assertFalse(handler.seenFatalError());
             }

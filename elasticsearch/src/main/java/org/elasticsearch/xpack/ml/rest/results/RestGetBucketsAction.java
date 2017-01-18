@@ -23,12 +23,9 @@ import java.io.IOException;
 
 public class RestGetBucketsAction extends BaseRestHandler {
 
-    private final GetBucketsAction.TransportAction transportAction;
-
     @Inject
-    public RestGetBucketsAction(Settings settings, RestController controller, GetBucketsAction.TransportAction transportAction) {
+    public RestGetBucketsAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
                 MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
                         + "}/results/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
@@ -90,6 +87,6 @@ public class RestGetBucketsAction extends BaseRestHandler {
             request.setIncludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
         }
 
-        return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetBucketsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

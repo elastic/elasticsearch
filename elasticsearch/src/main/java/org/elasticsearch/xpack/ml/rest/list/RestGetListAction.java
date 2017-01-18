@@ -22,12 +22,9 @@ import java.io.IOException;
 
 public class RestGetListAction extends BaseRestHandler {
 
-    private final GetListAction.TransportAction transportGetListAction;
-
     @Inject
-    public RestGetListAction(Settings settings, RestController controller, GetListAction.TransportAction transportGetListAction) {
+    public RestGetListAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportGetListAction = transportGetListAction;
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "lists/{" + ListDocument.ID.getPreferredName() + "}",
                 this);
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "lists/", this);
@@ -46,7 +43,7 @@ public class RestGetListAction extends BaseRestHandler {
             getListRequest.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> transportGetListAction.execute(getListRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(GetListAction.INSTANCE, getListRequest, new RestStatusToXContentListener<>(channel));
     }
 
 }

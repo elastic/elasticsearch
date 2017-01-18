@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.client.Client;
+import org.elasticsearch.search.SearchHit;
+
 import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
-public class MockBatchedDocumentsIterator<T> implements BatchedDocumentsIterator<T> {
+public class MockBatchedDocumentsIterator<T> extends BatchedDocumentsIterator<T> {
     private final List<Deque<T>> batches;
     private int index;
     private boolean wasTimeRangeCalled;
     private String interimFieldName;
 
     public MockBatchedDocumentsIterator(List<Deque<T>> batches) {
+        super(mock(Client.class), "foo");
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;
@@ -42,6 +46,16 @@ public class MockBatchedDocumentsIterator<T> implements BatchedDocumentsIterator
             throw new NoSuchElementException();
         }
         return batches.get(index++);
+    }
+
+    @Override
+    protected String getType() {
+        return null;
+    }
+
+    @Override
+    protected T map(SearchHit hit) {
+        return null;
     }
 
     @Override

@@ -21,12 +21,9 @@ import java.io.IOException;
 
 public class RestCloseJobAction extends BaseRestHandler {
 
-    private final CloseJobAction.TransportAction closeJobAction;
-
     @Inject
-    public RestCloseJobAction(Settings settings, RestController controller, CloseJobAction.TransportAction closeJobAction) {
+    public RestCloseJobAction(Settings settings, RestController controller) {
         super(settings);
-        this.closeJobAction = closeJobAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close", this);
     }
@@ -37,6 +34,6 @@ public class RestCloseJobAction extends BaseRestHandler {
         if (restRequest.hasParam("close_timeout")) {
             request.setCloseTimeout(TimeValue.parseTimeValue(restRequest.param("close_timeout"), "close_timeout"));
         }
-        return channel -> closeJobAction.execute(request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(CloseJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
 }

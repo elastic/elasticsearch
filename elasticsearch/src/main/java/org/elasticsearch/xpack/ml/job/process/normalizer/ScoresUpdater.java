@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchBatchedResultsIterator;
+import org.elasticsearch.xpack.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
@@ -101,7 +101,7 @@ public class ScoresUpdater {
 
     private void updateBuckets(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
                                long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> bucketsIterator =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> bucketsIterator =
                 jobProvider.newBatchedBucketsIterator(job.getId())
                         .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs);
 
@@ -119,13 +119,13 @@ public class ScoresUpdater {
         while (bucketsIterator.hasNext()) {
             // Get a batch of buckets without their records to calculate
             // how many buckets can be sensibly retrieved
-            Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> buckets = bucketsIterator.next();
+            Deque<BatchedResultsIterator.ResultWithIndex<Bucket>> buckets = bucketsIterator.next();
             if (buckets.isEmpty()) {
                 break;
             }
 
             while (!buckets.isEmpty()) {
-                ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket> current = buckets.removeFirst();
+                BatchedResultsIterator.ResultWithIndex<Bucket> current = buckets.removeFirst();
                 Bucket currentBucket = current.result;
                 if (currentBucket.isNormalizable()) {
                     BucketNormalizable bucketNormalizable = new BucketNormalizable(current.result, current.indexName);
@@ -156,13 +156,13 @@ public class ScoresUpdater {
     }
 
     private List<RecordNormalizable> bucketRecordsAsNormalizables(long bucketTimeStamp) {
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>
                 recordsIterator = jobProvider.newBatchedRecordsIterator(job.getId())
                 .timeRange(bucketTimeStamp, bucketTimeStamp + 1);
 
         List<RecordNormalizable> recordNormalizables = new ArrayList<>();
         while (recordsIterator.hasNext()) {
-            for (ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord> record : recordsIterator.next() ) {
+            for (BatchedResultsIterator.ResultWithIndex<AnomalyRecord> record : recordsIterator.next() ) {
                 recordNormalizables.add(new RecordNormalizable(record.result, record.indexName));
             }
         }
@@ -211,12 +211,12 @@ public class ScoresUpdater {
 
     private void updateInfluencers(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
                                    long windowExtensionMs, int[] counts) {
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>> influencersIterator =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>> influencersIterator =
                 jobProvider.newBatchedInfluencersIterator(job.getId())
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs);
 
         while (influencersIterator.hasNext()) {
-            Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>> influencers = influencersIterator.next();
+            Deque<BatchedResultsIterator.ResultWithIndex<Influencer>> influencers = influencersIterator.next();
             if (influencers.isEmpty()) {
                 LOGGER.debug("[{}] No influencers to renormalize for job", job.getId());
                 break;

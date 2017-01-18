@@ -20,12 +20,9 @@ import java.io.IOException;
 
 public class RestDeleteListAction extends BaseRestHandler {
 
-    private final DeleteListAction.TransportAction transportAction;
-
     @Inject
-    public RestDeleteListAction(Settings settings, RestController controller, DeleteListAction.TransportAction transportAction) {
+    public RestDeleteListAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.DELETE,
                 MlPlugin.BASE_PATH + "lists/{" + Request.LIST_ID.getPreferredName() + "}", this);
     }
@@ -33,7 +30,7 @@ public class RestDeleteListAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request(restRequest.param(Request.LIST_ID.getPreferredName()));
-        return channel -> transportAction.execute(request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteListAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
 
 }

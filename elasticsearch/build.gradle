@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
     name 'ml'
-    description 'Ml Plugin'
+    description 'Machine Learning Plugin'
     classname 'org.elasticsearch.xpack.ml.MlPlugin'
 }
 
@@ -32,8 +32,6 @@ check.dependsOn noBootstrapTest
 noBootstrapTest.mustRunAfter test
 
 integTest {
-    // Cannot run integration tests when cross compiling
-    enabled project.cppCrossCompile == ''
     cluster {
         //setting 'useNativeProcess', 'true'
         distribution = 'zip'
@@ -43,8 +41,8 @@ integTest {
 integTest.mustRunAfter noBootstrapTest
 
 task downloadCppDist(type: DownloadS3Task) {
-  enabled project.cppEnabled == false
-  description = 'download cpp zips from S3 Bucket'
+  enabled project.cppLocalDists == ''
+  description = 'Download C++ zips from S3 Bucket'
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
@@ -57,12 +55,17 @@ task downloadCppDist(type: DownloadS3Task) {
 }
 
 bundlePlugin {
-  if (project.cppEnabled) {
-    from { zipTree(project(':cpp').buildZip.outputs.files.singleFile) }
-    dependsOn ':cpp:buildZip'
+  if (project.cppLocalDists) {
+    String localZipFile = 'ml-cpp-' +
+      (project.isWindows ? "windows-x86_64" : (project.isMacOsX ? "darwin-x86_64" :
+      (project.isLinux ? "linux-x86_64" : "sunos-x86_64"))) +
+      "-${project.version}.zip"
+    from { zipTree(cppLocalDists + '/' + localZipFile) }
   } else {
     for (outputFile in downloadCppDist.outputs.files) {
-      from(zipTree(outputFile))
+      from(zipTree(outputFile)) {
+        duplicatesStrategy 'exclude'
+      }
     }
     dependsOn 'downloadCppDist'
   }

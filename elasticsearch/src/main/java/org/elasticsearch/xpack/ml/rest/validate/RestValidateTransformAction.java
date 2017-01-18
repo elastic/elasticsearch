@@ -20,13 +20,9 @@ import java.io.IOException;
 
 public class RestValidateTransformAction extends BaseRestHandler {
 
-    private ValidateTransformAction.TransportAction transportValidateAction;
-
     @Inject
-    public RestValidateTransformAction(Settings settings, RestController controller,
-            ValidateTransformAction.TransportAction transportValidateAction) {
+    public RestValidateTransformAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportValidateAction = transportValidateAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "_validate/transform", this);
     }
 
@@ -34,8 +30,8 @@ public class RestValidateTransformAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateTransformAction.Request validateDetectorRequest = ValidateTransformAction.Request.parseRequest(parser);
-        return channel -> transportValidateAction.execute(validateDetectorRequest,
-                new AcknowledgedRestListener<ValidateTransformAction.Response>(channel));
+        return channel ->
+                client.execute(ValidateTransformAction.INSTANCE, validateDetectorRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

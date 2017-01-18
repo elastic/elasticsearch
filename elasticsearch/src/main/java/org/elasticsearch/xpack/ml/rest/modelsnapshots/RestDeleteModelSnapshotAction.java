@@ -21,13 +21,9 @@ import java.io.IOException;
 
 public class RestDeleteModelSnapshotAction extends BaseRestHandler {
 
-    private final DeleteModelSnapshotAction.TransportAction transportAction;
-
     @Inject
-    public RestDeleteModelSnapshotAction(Settings settings, RestController controller,
-            DeleteModelSnapshotAction.TransportAction transportAction) {
+    public RestDeleteModelSnapshotAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.DELETE, MlPlugin.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshot.SNAPSHOT_ID.getPreferredName() + "}", this);
     }
@@ -38,6 +34,6 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
                 restRequest.param(Job.ID.getPreferredName()),
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()));
 
-        return channel -> transportAction.execute(deleteModelSnapshot, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteModelSnapshotAction.INSTANCE, deleteModelSnapshot, new AcknowledgedRestListener<>(channel));
     }
 }

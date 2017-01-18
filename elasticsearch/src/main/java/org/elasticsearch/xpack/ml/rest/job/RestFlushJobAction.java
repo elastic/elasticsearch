@@ -26,13 +26,9 @@ public class RestFlushJobAction extends BaseRestHandler {
     private final String DEFAULT_END = "";
     private final String DEFAULT_ADVANCE_TIME = "";
 
-    private final FlushJobAction.TransportAction flushJobAction;
-
     @Inject
-    public RestFlushJobAction(Settings settings, RestController controller,
-                              FlushJobAction.TransportAction flushJobAction) {
+    public RestFlushJobAction(Settings settings, RestController controller) {
         super(settings);
-        this.flushJobAction = flushJobAction;
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this);
     }
@@ -53,6 +49,6 @@ public class RestFlushJobAction extends BaseRestHandler {
             request.setAdvanceTime(restRequest.param(FlushJobAction.Request.ADVANCE_TIME.getPreferredName(), DEFAULT_ADVANCE_TIME));
         }
 
-        return channel -> flushJobAction.execute(request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(FlushJobAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
     }
 }

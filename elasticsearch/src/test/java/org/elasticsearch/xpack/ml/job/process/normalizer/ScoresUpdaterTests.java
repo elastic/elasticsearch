@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.Detector;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchBatchedResultsIterator;
+import org.elasticsearch.xpack.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.MockBatchedDocumentsIterator;
@@ -192,10 +192,10 @@ public class ScoresUpdaterTests extends ESTestCase {
         bucket1.setAnomalyScore(42.0);
         bucket1.addBucketInfluencer(createTimeBucketInfluencer(bucket1.getTimestamp(), 0.04, 42.0));
         bucket1.setMaxNormalizedProbability(50.0);
-        List<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>> records = new ArrayList<>();
+        List<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> records = new ArrayList<>();
         Date date = new Date();
         for (int i=0; i<100000; i++) {
-            records.add(new ElasticsearchBatchedResultsIterator.ResultWithIndex<>("foo", new AnomalyRecord("foo", date, 1, i)));
+            records.add(new BatchedResultsIterator.ResultWithIndex<>("foo", new AnomalyRecord("foo", date, 1, i)));
         }
 
         Bucket bucket2 = generateBucket(new Date(10000 * 1000));
@@ -209,9 +209,9 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(batch);
 
 
-        List<Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> recordBatches = new ArrayList<>();
+        List<Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> recordBatches = new ArrayList<>();
         recordBatches.add(new ArrayDeque<>(records));
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
                 new MockBatchedDocumentsIterator<>(recordBatches);
         when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
 
@@ -341,29 +341,29 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     private void givenBuckets(List<Deque<Bucket>> batches) {
-        List<Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>>> batchesWithIndex = new ArrayList<>();
+        List<Deque<BatchedResultsIterator.ResultWithIndex<Bucket>>> batchesWithIndex = new ArrayList<>();
         for (Deque<Bucket> deque : batches) {
-            Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> queueWithIndex = new ArrayDeque<>();
+            Deque<BatchedResultsIterator.ResultWithIndex<Bucket>> queueWithIndex = new ArrayDeque<>();
             for (Bucket bucket : deque) {
-                queueWithIndex.add(new ElasticsearchBatchedResultsIterator.ResultWithIndex<>("foo", bucket));
+                queueWithIndex.add(new BatchedResultsIterator.ResultWithIndex<>("foo", bucket));
             }
             batchesWithIndex.add(queueWithIndex);
         }
 
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Bucket>> bucketIter =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Bucket>> bucketIter =
                 new MockBatchedDocumentsIterator<>(batchesWithIndex);
         when(jobProvider.newBatchedBucketsIterator(JOB_ID)).thenReturn(bucketIter);
     }
 
     private void givenProviderReturnsRecords(Deque<AnomalyRecord> records) {
-        Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>> batch = new ArrayDeque<>();
-        List<Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> batches = new ArrayList<>();
+        Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> batch = new ArrayDeque<>();
+        List<Deque<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>>> batches = new ArrayList<>();
         for (AnomalyRecord record : records) {
-            batch.add(new ElasticsearchBatchedResultsIterator.ResultWithIndex<>("foo", record));
+            batch.add(new BatchedResultsIterator.ResultWithIndex<>("foo", record));
         }
         batches.add(batch);
 
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> recordIter =
                 new MockBatchedDocumentsIterator<>(batches);
         when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
     }
@@ -373,13 +373,13 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     private void givenProviderReturnsInfluencers(Deque<Influencer> influencers) {
-        List<Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>>> batches = new ArrayList<>();
-        Deque<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>> queue = new ArrayDeque<>();
+        List<Deque<BatchedResultsIterator.ResultWithIndex<Influencer>>> batches = new ArrayList<>();
+        Deque<BatchedResultsIterator.ResultWithIndex<Influencer>> queue = new ArrayDeque<>();
         for (Influencer inf : influencers) {
-            queue.add(new ElasticsearchBatchedResultsIterator.ResultWithIndex<>("foo", inf));
+            queue.add(new BatchedResultsIterator.ResultWithIndex<>("foo", inf));
         }
         batches.add(queue);
-        BatchedDocumentsIterator<ElasticsearchBatchedResultsIterator.ResultWithIndex<Influencer>> iterator =
+        BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<Influencer>> iterator =
                 new MockBatchedDocumentsIterator<>(batches);
         when(jobProvider.newBatchedInfluencersIterator(JOB_ID)).thenReturn(iterator);
     }

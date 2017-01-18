@@ -20,13 +20,9 @@ import java.io.IOException;
 
 public class RestDeleteSchedulerAction extends BaseRestHandler {
 
-    private final DeleteSchedulerAction.TransportAction transportDeleteSchedulerAction;
-
     @Inject
-    public RestDeleteSchedulerAction(Settings settings, RestController controller,
-                                     DeleteSchedulerAction.TransportAction transportDeleteSchedulerAction) {
+    public RestDeleteSchedulerAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportDeleteSchedulerAction = transportDeleteSchedulerAction;
         controller.registerHandler(RestRequest.Method.DELETE, MlPlugin.BASE_PATH + "schedulers/{"
                 + SchedulerConfig.ID.getPreferredName() + "}", this);
     }
@@ -35,7 +31,7 @@ public class RestDeleteSchedulerAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String schedulerId = restRequest.param(SchedulerConfig.ID.getPreferredName());
         DeleteSchedulerAction.Request deleteSchedulerRequest = new DeleteSchedulerAction.Request(schedulerId);
-        return channel -> transportDeleteSchedulerAction.execute(deleteSchedulerRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteSchedulerAction.INSTANCE, deleteSchedulerRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

@@ -50,6 +50,7 @@ public class CppLogMessageHandler implements Closeable {
     private volatile boolean hasLogStreamEnded;
     private volatile boolean seenFatalError;
     private volatile long pid;
+    private volatile String cppCopyright;
 
     /**
      * @param jobId May be null or empty if the logs are from a process not associated with a job.
@@ -132,6 +133,10 @@ public class CppLogMessageHandler implements Closeable {
         return pid;
     }
 
+    public String getCppCopyright() {
+        return cppCopyright;
+    }
+
     /**
      * Expected to be called very infrequently.
      */
@@ -185,12 +190,15 @@ public class CppLogMessageHandler implements Closeable {
                 pid = latestPid;
                 pidLatch.countDown();
             }
+            String latestMessage = msg.getMessage();
+            if (cppCopyright == null && latestMessage.contains("Copyright")) {
+                cppCopyright = latestMessage;
+            }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
             if (jobId != null) {
-                LOGGER.log(level, "[{}] {}/{} {}@{} {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(),
-                        msg.getMessage());
+                LOGGER.log(level, "[{}] {}/{} {}@{} {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             } else {
-                LOGGER.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), msg.getMessage());
+                LOGGER.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
             // TODO: Could send the message for indexing instead of or as well as logging it
         } catch (IOException e) {

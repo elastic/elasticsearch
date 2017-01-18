@@ -25,13 +25,9 @@ import java.io.IOException;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
 
-    private final GetCategoriesDefinitionAction.TransportAction transportAction;
-
     @Inject
-    public RestGetCategoriesAction(Settings settings, RestController controller,
-                                   GetCategoriesDefinitionAction.TransportAction transportAction) {
+    public RestGetCategoriesAction(Settings settings, RestController controller) {
         super(settings);
-        this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
                 MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);
@@ -73,7 +69,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
             }
         }
 
-        return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetCategoriesDefinitionAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
 }

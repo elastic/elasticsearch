@@ -91,7 +91,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return false;
+                }
+            };
         }
     }
 
@@ -126,7 +131,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return true;
+                }
+            };
         }
     }
 

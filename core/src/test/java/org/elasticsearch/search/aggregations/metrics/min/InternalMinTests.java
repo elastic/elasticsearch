@@ -19,24 +19,20 @@
 
 package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class InternalMinTests extends AbstractWireSerializingTestCase<InternalMin> {
-
+public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     @Override
-    protected InternalMin createTestInstance() {
-        return new InternalMin(randomAsciiOfLengthBetween(1, 20), randomDouble(),
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), Collections.emptyList(),
-                new HashMap<>());
+    protected InternalMin createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalMin(name, randomDouble(),
+                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
+                metaData);
     }
 
     @Override
@@ -45,18 +41,7 @@ public class InternalMinTests extends AbstractWireSerializingTestCase<InternalMi
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<Entry> entries = new ArrayList<>();
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(),
-                in -> DocValueFormat.BOOLEAN));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(),
-                in -> DocValueFormat.GEOHASH));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
-        entries.add(
-                new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
-        return new NamedWriteableRegistry(entries);
+    protected void assertReduced(InternalMin reduced, List<InternalMin> inputs) {
+        assertEquals(inputs.stream().mapToDouble(InternalMin::value).min().getAsDouble(), reduced.value(), 0);
     }
-
 }

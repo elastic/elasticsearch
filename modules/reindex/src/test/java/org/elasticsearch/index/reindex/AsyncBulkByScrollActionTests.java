@@ -150,7 +150,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             client.close();
         }
         client = new MyMockClient(new NoOpClient(threadPool));
-        client.threadPool().getThreadContext().newStoredContext();
         client.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
@@ -604,7 +603,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                  * that good stuff.
                  */
                 if (delay.nanos() > 0) {
-                    generic().execute(() -> taskManager.cancel(testTask, reason, (Set<String> s) -> {}));
+                    generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
                 return super.schedule(delay, name, command);
             }
@@ -637,7 +636,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             action.setScroll(scrollId());
         }
         String reason = randomSimpleString(random());
-        taskManager.cancel(testTask, reason, (Set<String> s) -> {});
+        taskManager.cancel(testTask, reason, () -> {});
         testMe.accept(action);
         assertEquals(reason, listener.get().getReasonCancelled());
         if (previousScrollSet) {

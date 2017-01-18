@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -43,15 +45,15 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.hamcrest.Matchers;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESExceptionTests extends ESTestCase {
@@ -286,18 +288,21 @@ public class ESExceptionTests extends ESTestCase {
             assertEquals("{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}", builder.string());
         }
 
-        { // render header
+        { // render header and metadata
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            ex.addMetadata("es.test1", "value1");
+            ex.addMetadata("es.test2", "value2");
             ex.addHeader("test", "some value");
             ex.addHeader("test_multi", "some value", "another value");
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ElasticsearchException.generateThrowableXContent(builder, PARAMS, ex);
             builder.endObject();
-            assertThat(builder.string(), Matchers.anyOf( // iteration order depends on platform
-                            equalTo("{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),
-                            equalTo("{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,\"header\":{\"test\":\"some value\",\"test_multi\":[\"some value\",\"another value\"]}}")
-            ));
+            String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2," +
+                    "\"test1\":\"value1\",\"test2\":\"value2\"," +
+                    "\"header\":{\"test_multi\":" +
+                    "[\"some value\",\"another value\"],\"test\":\"some value\"}}";
+            assertToXContentEquivalent(new BytesArray(expected), builder.bytes(), XContentType.JSON);
         }
     }
 
@@ -371,9 +376,9 @@ public class ESExceptionTests extends ESTestCase {
             }
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), cause);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), e);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), cause);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), e);
         }
     }
 

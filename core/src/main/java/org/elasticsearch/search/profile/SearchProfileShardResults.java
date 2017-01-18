@@ -34,9 +34,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -88,15 +88,17 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
-        for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
+        TreeSet<String> sortedKeys = new TreeSet<>(shardResults.keySet());
+        for (String key : sortedKeys) {
             builder.startObject();
-            builder.field(ID_FIELD, entry.getKey());
+            builder.field(ID_FIELD, key);
             builder.startArray(SEARCHES_FIELD);
-            for (QueryProfileShardResult result : entry.getValue().getQueryProfileResults()) {
+            ProfileShardResult profileShardResult = shardResults.get(key);
+            for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
                 result.toXContent(builder, params);
             }
             builder.endArray();
-            entry.getValue().getAggregationProfileResults().toXContent(builder, params);
+            profileShardResult.getAggregationProfileResults().toXContent(builder, params);
             builder.endObject();
         }
         builder.endArray().endObject();
@@ -106,7 +108,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        Map<String, ProfileShardResult> searchProfileResults = new LinkedHashMap<>();
+        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
         ensureFieldName(parser, parser.nextToken(), SHARDS_FIELD);
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

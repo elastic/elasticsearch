@@ -199,6 +199,7 @@ public class RecoverySourceHandler {
      */
     boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) throws IOException {
         final long startingSeqNo = request.startingSeqNo();
+        assert startingSeqNo >= 0;
         final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
         logger.trace("starting: [{}], ending: [{}}", startingSeqNo, endingSeqNo);
         if (startingSeqNo - 1 <= endingSeqNo) {

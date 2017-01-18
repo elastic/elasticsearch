@@ -448,7 +448,8 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
                         threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
-                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings, transportService));
+                    b.bind(SearchTransportService.class).toInstance(new SearchTransportService(settings,
+                            settingsModule.getClusterSettings(), transportService));
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
                             scriptModule.getScriptService()));
                     b.bind(Transport.class).toInstance(transport);
@@ -643,12 +644,16 @@ public class Node implements Closeable {
             }
         }
 
+
         if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServerTransport.class).start();
         }
 
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
+        // starts connecting to remote clusters if any cluster is configured
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.start();
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
@@ -692,6 +697,7 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
+        injector.getInstance(SearchTransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
@@ -753,6 +759,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(() -> stopWatch.stop().start("search_transport_service"));
+        toClose.add(injector.getInstance(SearchTransportService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

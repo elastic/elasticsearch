@@ -63,6 +63,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -163,9 +164,6 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    /**
-     * Returns the local node representation
-     */
     public DiscoveryNode getLocalNode() {
         return localNode;
     }
@@ -341,6 +339,25 @@ public class TransportService extends AbstractLifecycleComponent {
     public DiscoveryNode handshake(
             final Transport.Connection connection,
             final long handshakeTimeout) throws ConnectTransportException {
+        return handshake(connection, handshakeTimeout, clusterName::equals);
+    }
+
+    /**
+     * Executes a high-level handshake using the given connection
+     * and returns the discovery node of the node the connection
+     * was established with. The handshake will fail if the cluster
+     * name on the target node doesn't match the local cluster name.
+     *
+     * @param connection       the connection to a specific node
+     * @param handshakeTimeout handshake timeout
+     * @param clusterNamePredicate cluster name validation predicate
+     * @return the connected node
+     * @throws ConnectTransportException if the connection failed
+     * @throws IllegalStateException if the handshake failed
+     */
+    public DiscoveryNode handshake(
+        final Transport.Connection connection,
+        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate) throws ConnectTransportException {
         final HandshakeResponse response;
         final DiscoveryNode node = connection.getNode();
         try {
@@ -358,7 +375,7 @@ public class TransportService extends AbstractLifecycleComponent {
             throw new IllegalStateException("handshake failed with " + node, e);
         }
 
-        if (!Objects.equals(clusterName, response.clusterName)) {
+        if (!clusterNamePredicate.test(response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
         } else if (response.version.isCompatible(localNode.getVersion()) == false) {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
@@ -486,19 +503,18 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {
-        sendChildRequest(node, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
+        sendChildRequest(connection, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
-            final Transport.Connection connection = getConnection(node);
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {
             // The parent task is already cancelled - just fail the request
@@ -1132,6 +1148,13 @@ public class TransportService extends AbstractLifecycleComponent {
         public String getChannelType() {
             return "direct";
         }
+    }
+
+    /**
+     * Returns the internal thread pool
+     */
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     private boolean isLocalNode(DiscoveryNode discoveryNode) {

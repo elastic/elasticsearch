@@ -115,7 +115,7 @@ public class StartRecoveryRequest extends TransportRequest {
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             startingSeqNo = in.readLong();
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            assert false : "a start recovery request should not be received from an old replica but was [" + targetNode.getVersion() + "]";
         }
     }
 

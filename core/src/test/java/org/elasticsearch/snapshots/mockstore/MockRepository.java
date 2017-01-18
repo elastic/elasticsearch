@@ -166,7 +166,7 @@ public class MockRepository extends FsRepository {
 
     @Override
     public RepositoryData getRepositoryData() {
-        final int numIterations = 5;
+        final int numIterations = 10;
         int count = 0;
         NotXContentException ex = null;
         RepositoryData repositoryData = null;
@@ -186,6 +186,8 @@ public class MockRepository extends FsRepository {
             }
         }
         if (ex != null) {
+            logger.info("--> [{}] repository failed to read x-content from index file, on iteration [{}] the repository data was [{}]",
+                metadata.name(), count, repositoryData);
             throw ex;
         }
         return repositoryData;

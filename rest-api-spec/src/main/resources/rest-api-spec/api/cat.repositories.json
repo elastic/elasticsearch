@@ -1,6 +1,6 @@
 {
   "cat.repositories": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-repositories.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.2/cat-repositories.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/repositories",

@@ -93,7 +93,7 @@ setup:
                   "privileges": ["all"],
                   "query" : {
                     "template" : {
-                      "id" : "1"
+                      "stored" : "1"
                     }
                   }
                 }

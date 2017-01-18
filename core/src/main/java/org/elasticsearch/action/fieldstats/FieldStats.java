@@ -126,7 +126,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
             case 5:
                 return "geo_point";
             default:
-                throw new IllegalArgumentException("Unknown type 1. " + type);
+                throw new IllegalArgumentException("Unknown type.");
         }
     }
 
@@ -769,7 +769,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                     isSearchable, isAggregatable, min, max);
             }
             default:
-                throw new IllegalArgumentException("Unknown type 2. " + type);
+                throw new IllegalArgumentException("Unknown type.");
         }
     }
 

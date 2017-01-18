@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ProjectDependency
@@ -33,12 +34,10 @@ import org.gradle.api.tasks.Copy
  * also add the plugin-metadata and properties files for each plugin project
  * dependency.
  */
-class RestTestWithDependenciesPlugin extends StandaloneRestTestPlugin {
+class TestWithDependenciesPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        super.apply(project)
-
         project.configurations.testCompile.dependencies.all { Dependency dep ->
             // this closure is run every time a compile dependency is added
             if (dep instanceof ProjectDependency && dep.dependencyProject.plugins.hasPlugin(PluginBuildPlugin)) {

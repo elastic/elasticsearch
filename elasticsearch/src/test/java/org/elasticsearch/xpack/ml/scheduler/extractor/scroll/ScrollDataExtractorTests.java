@@ -14,7 +14,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -48,12 +47,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private List<String> capturedContinueScrollIds;
     private List<String> capturedClearScrollIds;
     private String jobId;
-    private List<String> jobFields;
-    private String timeField;
+    private ExtractedFields extractedFields;
     private List<String> types;
     private List<String> indexes;
     private QueryBuilder query;
-    private AggregatorFactories.Builder aggregations;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
     private int scrollSize;
 
@@ -93,13 +90,13 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedContinueScrollIds = new ArrayList<>();
         capturedClearScrollIds = new ArrayList<>();
-        timeField = "time";
         jobId = "test-job";
-        jobFields = Arrays.asList(timeField, "field_1");
+        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        extractedFields = new ExtractedFields(timeField,
+                Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
         indexes = Arrays.asList("index-1", "index-2");
         types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
-        aggregations = null;
         scriptFields = Collections.emptyList();
         scrollSize = 1000;
     }
@@ -253,8 +250,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, jobFields, timeField, indexes, types, query, aggregations, scriptFields, scrollSize,
-                start, end);
+        return new ScrollDataExtractorContext(jobId, extractedFields, indexes, types, query, scriptFields, scrollSize, start, end);
     }
 
     private SearchResponse createEmptySearchResponse() {
@@ -270,7 +266,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         for (int i = 0; i < timestamps.size(); i++) {
             InternalSearchHit hit = new InternalSearchHit(randomInt());
             Map<String, SearchHitField> fields = new HashMap<>();
-            fields.put(timeField, new InternalSearchHitField("time", Arrays.asList(timestamps.get(i))));
+            fields.put(extractedFields.timeField(), new InternalSearchHitField("time", Arrays.asList(timestamps.get(i))));
             fields.put("field_1", new InternalSearchHitField("field_1", Arrays.asList(field1Values.get(i))));
             fields.put("field_2", new InternalSearchHitField("field_2", Arrays.asList(field2Values.get(i))));
             hit.fields(fields);

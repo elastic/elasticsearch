@@ -18,24 +18,23 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final Client client;
     private final SchedulerConfig schedulerConfig;
     private final Job job;
+    private final ExtractedFields extractedFields;
 
     public ScrollDataExtractorFactory(Client client, SchedulerConfig schedulerConfig, Job job) {
         this.client = Objects.requireNonNull(client);
         this.schedulerConfig = Objects.requireNonNull(schedulerConfig);
         this.job = Objects.requireNonNull(job);
+        this.extractedFields = ExtractedFields.build(job, schedulerConfig);
     }
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        String timeField = job.getDataDescription().getTimeField();
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
                 job.getId(),
-                job.allFields(),
-                timeField,
+                extractedFields,
                 schedulerConfig.getIndexes(),
                 schedulerConfig.getTypes(),
                 schedulerConfig.getQuery(),
-                schedulerConfig.getAggregations(),
                 schedulerConfig.getScriptFields(),
                 schedulerConfig.getScrollSize(),
                 start,

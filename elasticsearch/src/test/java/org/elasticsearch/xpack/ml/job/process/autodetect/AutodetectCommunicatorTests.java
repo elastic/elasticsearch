@@ -24,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.when;
 public class AutodetectCommunicatorTests extends ESTestCase {
 
     public void testWriteResetBucketsControlMessage() throws IOException {
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build());
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), false, Optional.empty());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
             communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params, () -> false);
@@ -147,7 +148,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                 () -> communicator.writeToJob(in, mock(DataLoadParams.class), () -> false));
 
         communicator.inUse.set(null);
-        communicator.writeToJob(in, mock(DataLoadParams.class), () -> false);
+        communicator.writeToJob(in, new DataLoadParams(TimeRange.builder().build(), false, Optional.empty()), () -> false);
     }
 
     public void testFlushInUse() throws IOException {

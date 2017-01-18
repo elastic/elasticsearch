@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.transforms.date;
 
-import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
-import java.util.List;
-import java.util.Locale;
-
 import org.apache.logging.log4j.Logger;
-
 import org.elasticsearch.xpack.ml.transforms.TransformException;
 import org.elasticsearch.xpack.ml.utils.time.DateTimeFormatterTimestampConverter;
 import org.elasticsearch.xpack.ml.utils.time.TimestampConverter;
+
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * A transform that attempts to parse a String timestamp
@@ -25,12 +24,11 @@ public class DateFormatTransform extends DateTransform {
     private final String timeFormat;
     private final TimestampConverter dateToEpochConverter;
 
-    public DateFormatTransform(String timeFormat, ZoneId defaultTimezone,
-            List<TransformIndex> readIndexes, List<TransformIndex> writeIndexes, Logger logger) {
+    public DateFormatTransform(String timeFormat, List<TransformIndex> readIndexes, List<TransformIndex> writeIndexes, Logger logger) {
         super(readIndexes, writeIndexes, logger);
 
         this.timeFormat = timeFormat;
-        dateToEpochConverter = DateTimeFormatterTimestampConverter.ofPattern(timeFormat, defaultTimezone);
+        dateToEpochConverter = DateTimeFormatterTimestampConverter.ofPattern(timeFormat, ZoneOffset.systemDefault());
     }
 
     @Override
@@ -38,9 +36,7 @@ public class DateFormatTransform extends DateTransform {
         try {
             return dateToEpochConverter.toEpochMillis(field);
         } catch (DateTimeParseException pe) {
-            String message = String.format(Locale.ROOT, "Cannot parse date '%s' with format string '%s'",
-                    field, timeFormat);
-
+            String message = String.format(Locale.ROOT, "Cannot parse date '%s' with format string '%s'", field, timeFormat);
             throw new ParseTimestampException(message);
         }
     }

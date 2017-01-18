@@ -5,19 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.transforms.date;
 
-import static org.elasticsearch.xpack.ml.transforms.TransformTestUtils.createIndexArray;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
+import org.elasticsearch.xpack.ml.transforms.TransformException;
 
-import static org.mockito.Mockito.mock;
-
-import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-
-import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
-import org.elasticsearch.xpack.ml.transforms.TransformException;
+import static org.elasticsearch.xpack.ml.transforms.TransformTestUtils.createIndexArray;
+import static org.mockito.Mockito.mock;
 
 public class DateFormatTransformTests extends ESTestCase {
 
@@ -26,7 +23,7 @@ public class DateFormatTransformTests extends ESTestCase {
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
         DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ss.SSSXXX",
-                ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class));
+                readIndexes, writeIndexes, mock(Logger.class));
 
         String[] input = {"2014-01-01 13:42:56.500Z"};
         String[] scratch = {};
@@ -42,8 +39,7 @@ public class DateFormatTransformTests extends ESTestCase {
     public void testTransform_GivenInvalidFormat() throws TransformException {
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> new DateFormatTransform("yyyy-MM HH:mm:ss", ZoneOffset.systemDefault(),
-                        Collections.emptyList(), Collections.emptyList(), mock(Logger.class)));
+                () -> new DateFormatTransform("yyyy-MM HH:mm:ss", Collections.emptyList(), Collections.emptyList(), mock(Logger.class)));
 
         assertEquals("Timestamp cannot be derived from pattern: yyyy-MM HH:mm:ss", e.getMessage());
 
@@ -54,8 +50,7 @@ public class DateFormatTransformTests extends ESTestCase {
         List<TransformIndex> readIndexes = createIndexArray(new TransformIndex(0, 0));
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
-        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ss",
-                ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class));
+        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ss", readIndexes, writeIndexes, mock(Logger.class));
 
         String[] input = {"invalid"};
         String[] scratch = {};
@@ -73,8 +68,7 @@ public class DateFormatTransformTests extends ESTestCase {
         List<TransformIndex> readIndexes = createIndexArray(new TransformIndex(1, 0));
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
-        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ss",
-                ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class));
+        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ss", readIndexes, writeIndexes, mock(Logger.class));
 
         String[] input = {};
         String[] scratch = {null};
@@ -90,15 +84,14 @@ public class DateFormatTransformTests extends ESTestCase {
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
         ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> new DateFormatTransform("e", ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class)));
+                () -> new DateFormatTransform("e", readIndexes, writeIndexes, mock(Logger.class)));
     }
 
     public void testTransform_FromScratchArea() throws TransformException {
         List<TransformIndex> readIndexes = createIndexArray(new TransformIndex(1, 0));
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
-        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ssXXX",
-                ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class));
+        DateFormatTransform transformer = new DateFormatTransform("yyyy-MM-dd HH:mm:ssXXX", readIndexes, writeIndexes, mock(Logger.class));
 
         String[] input = {};
         String[] scratch = {"2014-01-01 00:00:00Z"};
@@ -116,7 +109,7 @@ public class DateFormatTransformTests extends ESTestCase {
         List<TransformIndex> writeIndexes = createIndexArray(new TransformIndex(2, 0));
 
         DateFormatTransform transformer = new DateFormatTransform("'['yyyy-MM-dd HH:mm:ssX']'",
-                ZoneOffset.systemDefault(), readIndexes, writeIndexes, mock(Logger.class));
+                readIndexes, writeIndexes, mock(Logger.class));
 
         String[] input = {"[2014-06-23 00:00:00Z]"};
         String[] scratch = {};

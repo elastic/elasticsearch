@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.JobTests;
@@ -43,7 +42,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         int numJobs = randomIntBetween(0, 10);
         for (int i = 0; i < numJobs; i++) {
             Job job = JobTests.createRandomizedJob();
-            if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.ELASTICSEARCH) {
+            if (randomBoolean()) {
                 SchedulerConfig schedulerConfig = SchedulerConfigTests.createRandomizedSchedulerConfig(job.getId());
                 if (schedulerConfig.getAggregations() != null) {
                     AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig().getDetectors());
@@ -238,9 +237,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     public void testPutScheduler_failBecauseJobIsNotCompatibleForScheduler() {
         Job.Builder job1 = createScheduledJob();
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.DELIMITED);
-        job1.setDataDescription(dataDescription);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job1.build().getAnalysisConfig());
+        analysisConfig.setLatency(3600L);
+        job1.setAnalysisConfig(analysisConfig);
         SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1.build(), false);

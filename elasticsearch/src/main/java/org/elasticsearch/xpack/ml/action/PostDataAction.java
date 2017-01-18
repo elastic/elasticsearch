@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class PostDataAction extends Action<PostDataAction.Request, PostDataAction.Response, PostDataAction.RequestBuilder> {
 
@@ -148,6 +150,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         private boolean ignoreDowntime = false;
         private String resetStart = "";
         private String resetEnd = "";
+        private DataDescription dataDescription;
         private BytesReference content;
 
         Request() {
@@ -186,6 +189,14 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             this.resetEnd = resetEnd;
         }
 
+        public DataDescription getDataDescription() {
+            return dataDescription;
+        }
+
+        public void setDataDescription(DataDescription dataDescription) {
+            this.dataDescription = dataDescription;
+        }
+
         public BytesReference getContent() { return content; }
 
         public void setContent(BytesReference content) {
@@ -209,6 +220,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             ignoreDowntime = in.readBoolean();
             resetStart = in.readOptionalString();
             resetEnd = in.readOptionalString();
+            dataDescription = in.readOptionalWriteable(DataDescription::new);
             content = in.readBytesReference();
         }
 
@@ -219,13 +231,14 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             out.writeBoolean(ignoreDowntime);
             out.writeOptionalString(resetStart);
             out.writeOptionalString(resetEnd);
+            out.writeOptionalWriteable(dataDescription);
             out.writeBytesReference(content);
         }
 
         @Override
         public int hashCode() {
             // content stream not included
-            return Objects.hash(jobId, ignoreDowntime, resetStart, resetEnd);
+            return Objects.hash(jobId, ignoreDowntime, resetStart, resetEnd, dataDescription);
         }
 
         @Override
@@ -242,7 +255,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
                     Objects.equals(resetStart, other.resetStart) &&
-                    Objects.equals(resetEnd, other.resetEnd);
+                    Objects.equals(resetEnd, other.resetEnd) &&
+                    Objects.equals(dataDescription, other.dataDescription);
         }
     }
 
@@ -263,7 +277,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             PostDataTask postDataTask = (PostDataTask) task;
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
-            DataLoadParams params = new DataLoadParams(timeRange, request.isIgnoreDowntime());
+            DataLoadParams params = new DataLoadParams(timeRange, request.isIgnoreDowntime(),
+                    Optional.ofNullable(request.getDataDescription()));
             threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
                     DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params,

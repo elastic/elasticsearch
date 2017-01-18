@@ -97,7 +97,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs + numDocs2));
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
             MlMetadata mlMetadata = client().admin().cluster().prepareState().all().get()
@@ -139,7 +139,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         t.start();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1));
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
 
@@ -148,7 +148,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         indexDocs("data", numDocs2, now + 5000, now + 6000);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1 + numDocs2));
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 30, TimeUnit.SECONDS);
 
@@ -182,8 +182,8 @@ public class ScheduledJobsIT extends ESIntegTestCase {
 
     private Job.Builder createJob() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
-        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
 
         Detector.Builder d = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));

@@ -62,6 +62,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
+    public static final ParseField SOURCE = new ParseField("_source");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("scheduler_config", Builder::new);
 
@@ -86,6 +87,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
+        PARSER.declareBoolean(Builder::setSource, SOURCE);
     }
 
     private final String id;
@@ -107,10 +109,11 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     private final AggregatorFactories.Builder aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
+    private final boolean source;
 
     private SchedulerConfig(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
                             QueryBuilder query, AggregatorFactories.Builder aggregations,
-                            List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize) {
+                            List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize, boolean source) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -121,6 +124,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         this.aggregations = aggregations;
         this.scriptFields = scriptFields;
         this.scrollSize = scrollSize;
+        this.source = source;
     }
 
     public SchedulerConfig(StreamInput in) throws IOException {
@@ -146,6 +150,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
+        this.source = in.readBoolean();
     }
 
     public String getId() {
@@ -171,7 +176,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
      * @return The indexes to search, or <code>null</code> if not set.
      */
     public List<String> getIndexes() {
-        return this.indexes;
+        return indexes;
     }
 
     /**
@@ -181,11 +186,15 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
      * @return The types to search, or <code>null</code> if not set.
      */
     public List<String> getTypes() {
-        return this.types;
+        return types;
     }
 
     public Integer getScrollSize() {
-        return this.scrollSize;
+        return scrollSize;
+    }
+
+    public boolean isSource() {
+        return source;
     }
 
     public QueryBuilder getQuery() {
@@ -227,6 +236,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
+        out.writeBoolean(source);
     }
 
     @Override
@@ -258,6 +268,9 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             builder.endObject();
         }
         builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
+        if (source) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
         return builder;
     }
 
@@ -287,12 +300,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
-                && Objects.equals(this.scriptFields, that.scriptFields);
+                && Objects.equals(this.scriptFields, that.scriptFields)
+                && Objects.equals(this.source, that.source);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, aggregations, scriptFields);
+        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, aggregations, scriptFields, source);
     }
 
     public static class Builder {
@@ -310,6 +324,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         private AggregatorFactories.Builder aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
+        private boolean source = false;
 
         public Builder() {
         }
@@ -331,6 +346,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.aggregations = config.aggregations;
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
+            this.source = config.source;
         }
 
         public void setId(String schedulerId) {
@@ -390,6 +406,10 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.scrollSize = scrollSize;
         }
 
+        public void setSource(boolean enabled) {
+            this.source = enabled;
+        }
+
         public SchedulerConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -402,7 +422,8 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
-            return new SchedulerConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize);
+            return new SchedulerConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize,
+                    source);
         }
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {

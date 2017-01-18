@@ -44,6 +44,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -162,7 +163,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
         assertEquals(0, manager.numberOfOpenJobs());
 
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().build());
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().build(), false, Optional.empty());
         manager.openJob("foo", false);
         manager.processData("foo", createInputStream(""), params, () -> false);
         assertEquals(1, manager.numberOfOpenJobs());
@@ -202,7 +203,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
 
         Supplier<Boolean> cancellable = () -> false;
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), true);
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), true, Optional.empty());
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", false);
         manager.processData("foo", inputStream, params, cancellable);

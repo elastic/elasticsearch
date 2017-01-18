@@ -459,7 +459,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             this.detectors = detectors;
         }
 
-        Builder(AnalysisConfig analysisConfig) {
+        public Builder(AnalysisConfig analysisConfig) {
             this.detectors = analysisConfig.detectors;
             this.bucketSpan = analysisConfig.bucketSpan;
             this.batchSpan = analysisConfig.batchSpan;

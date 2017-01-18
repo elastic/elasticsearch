@@ -5,9 +5,25 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.ml.job.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.status.StatusReporter;
+import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.transforms.DependencySorter;
+import org.elasticsearch.xpack.ml.transforms.Transform;
+import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
+import org.elasticsearch.xpack.ml.transforms.Transform.TransformResult;
+import org.elasticsearch.xpack.ml.transforms.TransformException;
+import org.elasticsearch.xpack.ml.transforms.TransformFactory;
+import org.elasticsearch.xpack.ml.transforms.date.DateFormatTransform;
+import org.elasticsearch.xpack.ml.transforms.date.DateTransform;
+import org.elasticsearch.xpack.ml.transforms.date.DoubleDateTransform;
+
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,26 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
-
-import org.apache.logging.log4j.Logger;
-
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.transforms.DependencySorter;
-import org.elasticsearch.xpack.ml.transforms.Transform;
-import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
-import org.elasticsearch.xpack.ml.transforms.Transform.TransformResult;
-import org.elasticsearch.xpack.ml.transforms.TransformException;
-import org.elasticsearch.xpack.ml.transforms.TransformFactory;
-import org.elasticsearch.xpack.ml.transforms.date.DateFormatTransform;
-import org.elasticsearch.xpack.ml.transforms.date.DateTransform;
-import org.elasticsearch.xpack.ml.transforms.date.DoubleDateTransform;
 
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
 
@@ -175,9 +171,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     }
 
     protected void buildDateTransform(Map<String, Integer> scratchAreaIndexes, Map<String, Integer> outFieldIndexes) {
-        boolean isDateFormatString = dataDescription.isTransformTime()
-                && !dataDescription.isEpochMs();
-
         List<TransformIndex> readIndexes = new ArrayList<>();
 
         Integer index = inFieldIndexes.get(dataDescription.getTimeField());
@@ -202,15 +195,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         writeIndexes.add(new TransformIndex(TransformFactory.OUTPUT_ARRAY_INDEX,
                 outFieldIndexes.get(dataDescription.getTimeField())));
 
+        boolean isDateFormatString = dataDescription.isTransformTime() && !dataDescription.isEpochMs();
         if (isDateFormatString) {
-            // Elasticsearch assumes UTC for dates without timezone information.
-            ZoneId defaultTimezone = dataDescription.getFormat() == DataFormat.ELASTICSEARCH
-                    ? ZoneOffset.UTC : ZoneOffset.systemDefault();
-            dateTransform = new DateFormatTransform(dataDescription.getTimeFormat(),
-                    defaultTimezone, readIndexes, writeIndexes, logger);
+            dateTransform = new DateFormatTransform(dataDescription.getTimeFormat(), readIndexes, writeIndexes, logger);
         } else {
-            dateTransform = new DoubleDateTransform(dataDescription.isEpochMs(),
-                    readIndexes, writeIndexes, logger);
+            dateTransform = new DoubleDateTransform(dataDescription.isEpochMs(), readIndexes, writeIndexes, logger);
         }
     }
 

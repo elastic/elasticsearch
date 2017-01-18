@@ -34,7 +34,6 @@ public class DataFormatTests extends ESTestCase {
         assertThat(DataFormat.JSON.ordinal(), equalTo(0));
         assertThat(DataFormat.DELIMITED.ordinal(), equalTo(1));
         assertThat(DataFormat.SINGLE_LINE.ordinal(), equalTo(2));
-        assertThat(DataFormat.ELASTICSEARCH.ordinal(), equalTo(3));
     }
 
     public void testwriteTo() throws Exception {
@@ -58,13 +57,6 @@ public class DataFormatTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(2));
             }
         }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFormat.ELASTICSEARCH.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(in.readVInt(), equalTo(3));
-            }
-        }
     }
 
     public void testReadFrom() throws Exception {
@@ -84,12 +76,6 @@ public class DataFormatTests extends ESTestCase {
             out.writeVInt(2);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.SINGLE_LINE));
-            }
-        }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(3);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.ELASTICSEARCH));
             }
         }
     }

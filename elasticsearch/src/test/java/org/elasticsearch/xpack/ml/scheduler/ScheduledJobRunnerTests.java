@@ -146,10 +146,19 @@ public class ScheduledJobRunnerTests extends ESTestCase {
 
         verify(threadPool, times(1)).executor(MlPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
-        verify(client).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
+        verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
         verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STARTED)), any());
         verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STOPPED)), any());
+    }
+
+    private static PostDataAction.Request createExpectedPostDataRequest(Job job) {
+        DataDescription.Builder expectedDataDescription = new DataDescription.Builder();
+        expectedDataDescription.setTimeFormat("epoch_ms");
+        expectedDataDescription.setFormat(DataDescription.DataFormat.JSON);
+        PostDataAction.Request expectedPostDataRequest = new PostDataAction.Request(job.getId());
+        expectedPostDataRequest.setDataDescription(expectedDataDescription.build());
+        return expectedPostDataRequest;
     }
 
     public void testStart_extractionProblem() throws Exception {
@@ -213,7 +222,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
             task.stop();
             verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STOPPED)), any());
         } else {
-            verify(client).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
+            verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MlPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME), any());
         }
@@ -233,9 +242,6 @@ public class ScheduledJobRunnerTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("foo");
         builder.setAnalysisConfig(acBuilder);
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
-        builder.setDataDescription(dataDescription);
         return builder;
     }
 

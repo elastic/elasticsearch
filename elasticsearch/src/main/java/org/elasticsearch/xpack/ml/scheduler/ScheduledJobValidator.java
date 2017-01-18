@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.scheduler;
 
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
@@ -27,10 +26,6 @@ public final class ScheduledJobValidator {
         if (schedulerConfig.getAggregations() != null && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
             throw new IllegalArgumentException(
                     Messages.getMessage(Messages.SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, SchedulerConfig.DOC_COUNT));
-        }
-        DataDescription dataDescription = job.getDataDescription();
-        if (dataDescription == null || dataDescription.getFormat() != DataDescription.DataFormat.ELASTICSEARCH) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.SCHEDULER_REQUIRES_JOB_WITH_DATAFORMAT_ELASTICSEARCH));
         }
     }
 }

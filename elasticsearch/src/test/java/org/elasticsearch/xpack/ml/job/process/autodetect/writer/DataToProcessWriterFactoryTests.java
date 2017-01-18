@@ -24,13 +24,6 @@ public class DataToProcessWriterFactoryTests extends ESTestCase {
         assertTrue(createWriter(dataDescription.build()) instanceof JsonDataToProcessWriter);
     }
 
-    public void testCreate_GivenDataFormatIsElasticsearch() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataFormat.ELASTICSEARCH);
-
-        assertTrue(createWriter(dataDescription.build()) instanceof JsonDataToProcessWriter);
-    }
-
     public void testCreate_GivenDataFormatIsCsv() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataFormat.DELIMITED);

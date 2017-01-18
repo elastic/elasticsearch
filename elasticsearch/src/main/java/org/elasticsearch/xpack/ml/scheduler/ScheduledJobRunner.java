@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.StartSchedulerAction;
 import org.elasticsearch.xpack.ml.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.audit.Auditor;
@@ -189,7 +190,7 @@ public class ScheduledJobRunner extends AbstractComponent {
         Duration frequency = getFrequencyOrDefault(scheduler, job);
         Duration queryDelay = Duration.ofSeconds(scheduler.getConfig().getQueryDelay());
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(scheduler.getConfig(), job);
-        ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
+        ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
         Holder holder = new Holder(scheduler, scheduledJob, new ProblemTracker(() -> auditor), handler);
         task.setHolder(holder);
@@ -198,6 +199,16 @@ public class ScheduledJobRunner extends AbstractComponent {
 
     DataExtractorFactory createDataExtractorFactory(SchedulerConfig schedulerConfig, Job job) {
         return new ScrollDataExtractorFactory(client, schedulerConfig, job);
+    }
+
+    private static DataDescription buildDataDescription(Job job) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        if (job.getDataDescription() != null) {
+            dataDescription.setTimeField(job.getDataDescription().getTimeField());
+        }
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        return dataDescription.build();
     }
 
     private void gatherInformation(String jobId, BiConsumer<QueryPage<Bucket>, DataCounts> handler, Consumer<Exception> errorHandler) {

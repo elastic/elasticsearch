@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
@@ -36,7 +35,6 @@ public final class DataToProcessWriterFactory {
                                              TransformConfigs transforms, StatusReporter statusReporter, Logger logger) {
         switch (dataDescription.getFormat()) {
         case JSON:
-        case ELASTICSEARCH:
             return new JsonDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
                     transforms, statusReporter, logger);
         case DELIMITED:

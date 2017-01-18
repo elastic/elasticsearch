@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.audit.Auditor;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.scheduler.extractor.DataExtractor;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.ml.scheduler.extractor.DataExtractorFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +36,7 @@ class ScheduledJob {
 
     private final Auditor auditor;
     private final String jobId;
+    private final DataDescription dataDescription;
     private final long frequencyMs;
     private final long queryDelayMs;
     private final Client client;
@@ -44,10 +47,11 @@ class ScheduledJob {
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
 
-    ScheduledJob(String jobId, long frequencyMs, long queryDelayMs, DataExtractorFactory dataExtractorFactory,
-                 Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
+    ScheduledJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
+                 DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
                  long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
         this.jobId = jobId;
+        this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
         this.dataExtractorFactory = dataExtractorFactory;
@@ -187,6 +191,7 @@ class ScheduledJob {
 
     private DataCounts postData(InputStream inputStream) throws IOException, ExecutionException, InterruptedException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
+        request.setDataDescription(dataDescription);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Streams.copy(inputStream, outputStream);
         request.setContent(new BytesArray(outputStream.toByteArray()));

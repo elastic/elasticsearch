@@ -33,7 +33,7 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "format" : "ELASTICSEARCH",
+                "format" : "JSON",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
             }

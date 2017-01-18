@@ -196,8 +196,6 @@ public final class Messages {
     public static final String SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "scheduler.does.not.support.job.with.latency";
     public static final String SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
             "scheduler.aggregations.requires.job.with.summary.count.field";
-    public static final String SCHEDULER_REQUIRES_JOB_WITH_DATAFORMAT_ELASTICSEARCH =
-            "scheduler.requires.job.with.dataformat.elasticsearch";
 
     public static final String SCHEDULER_CANNOT_START = "scheduler.cannot.start";
     public static final String SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE = "scheduler.cannot.stop.in.current.state";

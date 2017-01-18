@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import org.elasticsearch.test.ESTestCase;
@@ -127,7 +128,8 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     public void testWriteResetBucketsMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
-        writer.writeResetBucketsMessage(new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build()));
+        writer.writeResetBucketsMessage(
+                new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), false, Optional.empty()));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);

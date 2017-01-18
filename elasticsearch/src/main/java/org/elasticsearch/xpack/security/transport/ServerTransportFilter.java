@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.User;
 

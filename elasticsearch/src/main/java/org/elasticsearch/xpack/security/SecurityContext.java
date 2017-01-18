@@ -90,7 +90,7 @@ public class SecurityContext {
      * returns, the original context is restored.
      */
     public void executeAsUser(User user, Consumer<StoredContext> consumer) {
-        final StoredContext original = threadContext.newStoredContext();
+        final StoredContext original = threadContext.newStoredContext(true);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             setUser(user);
             consumer.accept(original);

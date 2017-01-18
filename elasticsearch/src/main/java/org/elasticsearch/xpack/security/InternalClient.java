@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
@@ -72,12 +73,12 @@ public class InternalClient extends FilterClient {
         }
 
         final ThreadContext threadContext = threadPool().getThreadContext();
-        final ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
+        final Supplier<ThreadContext.StoredContext> storedContext = threadContext.newRestorableContext(true);
         // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
         // since we expect the callback to run with the authenticated user calling the doExecute method
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             processContext(threadContext);
-            super.doExecute(action, request, new ContextPreservingActionListener<>(threadContext, storedContext, listener));
+            super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
         }
     }
 

@@ -92,14 +92,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
+                                new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                        , handler), sender));
                     } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
                             KibanaUser.NAME.equals(securityContext.getUser().principal())) {
                         final User kibanaUser = securityContext.getUser();
                         final User bwcKibanaUser = new User(kibanaUser.principal(), new String[] { "kibana" }, kibanaUser.fullName(),
                                 kibanaUser.email(), kibanaUser.metadata(), kibanaUser.enabled());
                         securityContext.executeAsUser(bwcKibanaUser, (original) -> sendWithUser(connection, action, request, options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
+                                new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
+                                        handler), sender));
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
@@ -212,7 +214,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     RequestContext.removeCurrent();
                 }
             };
-            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
+            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
                 if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
@@ -265,56 +267,4 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new UnsupportedOperationException("task parameter is required for this operation");
         }
     }
-
-    /**
-     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the handle methods
-     * are invoked we restore the context.
-     */
-    static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
-
-        private final TransportResponseHandler<T> delegate;
-        private final ThreadContext.StoredContext context;
-        private final ThreadContext threadContext;
-
-        // pkg private for testing
-        ContextRestoreResponseHandler(ThreadContext threadContext, ThreadContext.StoredContext context,
-                                      TransportResponseHandler<T> delegate) {
-            this.delegate = delegate;
-            this.context = context;
-            this.threadContext = threadContext;
-        }
-
-        @Override
-        public T newInstance() {
-            return delegate.newInstance();
-        }
-
-        @Override
-        public void handleResponse(T response) {
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                context.restore();
-                delegate.handleResponse(response);
-            }
-        }
-
-        @Override
-        public void handleException(TransportException exp) {
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                context.restore();
-                delegate.handleException(exp);
-            }
-        }
-
-        @Override
-        public String executor() {
-            return delegate.executor();
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getName() + "/" + delegate.toString();
-        }
-
-    }
-
 }

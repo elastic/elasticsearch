@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.common;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.util.function.Supplier;
+
 /**
  * Restores the given {@link org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
@@ -15,27 +17,23 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 public final class ContextPreservingActionListener<R> implements ActionListener<R> {
 
     private final ActionListener<R> delegate;
-    private final ThreadContext.StoredContext context;
-    private final ThreadContext threadContext;
+    private final Supplier<ThreadContext.StoredContext> context;
 
-    public ContextPreservingActionListener(ThreadContext threadContext, ThreadContext.StoredContext context, ActionListener<R> delegate) {
+    public ContextPreservingActionListener(Supplier<ThreadContext.StoredContext> contextSupplier, ActionListener<R> delegate) {
         this.delegate = delegate;
-        this.context = context;
-        this.threadContext = threadContext;
+        this.context = contextSupplier;
     }
 
     @Override
     public void onResponse(R r) {
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-            context.restore();
+        try (ThreadContext.StoredContext ignore = context.get()) {
             delegate.onResponse(r);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-            context.restore();
+        try (ThreadContext.StoredContext ignore = context.get()) {
             delegate.onFailure(e);
         }
     }

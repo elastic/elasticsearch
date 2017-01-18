@@ -22,6 +22,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -254,8 +254,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         try (ThreadContext.StoredContext storedContext = threadContext.stashContext()) {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
-            TransportResponseHandler<Empty> handler = new ContextRestoreResponseHandler<>(threadContext, storedContext,
-                    new TransportResponseHandler<Empty>() {
+            TransportResponseHandler<Empty> handler = new TransportService.ContextRestoreResponseHandler<>(
+                    threadContext.wrapRestorable(storedContext), new TransportResponseHandler<Empty>() {
 
                 @Override
                 public Empty newInstance() {
@@ -293,8 +293,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 threadContext.putTransient("foo", "different_bar");
                 threadContext.putHeader("key", "value2");
-                handler = new ContextRestoreResponseHandler<>(threadContext,
-                        threadContext.newStoredContext(),
+                handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
                         new TransportResponseHandler<Empty>() {
 
                             @Override

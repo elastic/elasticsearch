@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
@@ -101,8 +102,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
         if (licenseState.isAuthAllowed()) {
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            final ThreadContext.StoredContext toRestore = threadContext.newStoredContext();
-            final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(threadContext, toRestore,
+            final Supplier<ThreadContext.StoredContext> toRestore = threadContext.newRestorableContext(true);
+            final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore,
                     ActionListener.wrap(r -> {
                         try {
                             listener.onResponse(sign(r));
@@ -122,7 +123,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                         }
                     });
                 } else {
-                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
                         applyInternal(action, request, authenticatedListener);
                     }
                 }

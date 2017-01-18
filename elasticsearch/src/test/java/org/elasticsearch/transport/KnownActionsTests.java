@@ -75,7 +75,7 @@ public class KnownActionsTests extends SecurityIntegTestCase {
     public void testAllTransportHandlersAreKnown() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.requestHandlers.keySet()) {
-            if (!knownActions.contains(handler)) {
+            if (!knownHandlers.contains(handler)) {
                 assertThat("elasticsearch core transport handler [" + handler + "] is unknown to security", knownHandlers,
                         hasItem(handler));
             }

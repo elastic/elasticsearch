@@ -44,6 +44,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -56,7 +57,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -75,20 +75,19 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    // kick jackson to do some static caching of declared members info
-                    Jackson.jsonNodeOf("{}");
-                    // ClientConfiguration clinit has some classloader problems
-                    // TODO: fix that
-                    Class.forName("com.amazonaws.ClientConfiguration");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
+        // Initializing Jackson requires RuntimePermission accessDeclaredMembers
+        // The ClientConfiguration class requires RuntimePermission getClassLoader
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                // kick jackson to do some static caching of declared members info
+                Jackson.jsonNodeOf("{}");
+                // ClientConfiguration clinit has some classloader problems
+                // TODO: fix that
+                Class.forName("com.amazonaws.ClientConfiguration");
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 
@@ -194,14 +193,14 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = url.openConnection();
+            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
         } catch (IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
         }
 
-        try (InputStream in = urlConnection.getInputStream();
+        try (InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
              BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
             String metadataResult = urlReader.readLine();

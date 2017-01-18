@@ -2,7 +2,9 @@
 "Script upsert":
 
   - skip:
-      features: groovy_scripting
+      features:
+        - groovy_scripting
+        - warnings
 
   - do:
       update:
@@ -26,6 +28,8 @@
 
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       update:
           index:    test_1
           type:     test
@@ -46,6 +50,8 @@
   - match:  { _source.foo: xxx }
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       update:
           index:    test_1
           type:     test
@@ -65,5 +71,3 @@
           id:     2
 
   - match:  { _source.foo: xxx }
-
-

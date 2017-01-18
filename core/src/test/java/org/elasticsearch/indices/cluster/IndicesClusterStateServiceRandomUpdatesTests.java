@@ -76,6 +76,15 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     private final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry());
 
+    /**
+     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
+     * shadow replicas are removed.
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();

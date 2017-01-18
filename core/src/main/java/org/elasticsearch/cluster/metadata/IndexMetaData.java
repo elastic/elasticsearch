@@ -192,7 +192,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, Property.Dynamic, Property.IndexScope);
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
     public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING =
-        Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope);
+        Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope, Property.Deprecated);
 
     public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
@@ -200,7 +200,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING =
-        Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, Property.IndexScope);
+        Setting.boolSetting(SETTING_SHARED_FILESYSTEM, INDEX_SHADOW_REPLICAS_SETTING, Property.IndexScope, Property.Deprecated);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
@@ -241,7 +241,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final Setting<Boolean> INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING =
-        Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, Property.Dynamic, Property.IndexScope);
+        Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false,
+            Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
@@ -1263,6 +1264,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
      */
     public static boolean isOnSharedFilesystem(Settings settings) {
+        // don't use the setting directly, not to trigger verbose deprecation logging
         return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
     }
 
@@ -1272,6 +1274,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * setting for this is <code>false</code>.
      */
     public static boolean isIndexUsingShadowReplicas(Settings settings) {
+        // don't use the setting directly, not to trigger verbose deprecation logging
         return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
     }
 

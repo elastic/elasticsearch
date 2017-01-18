@@ -62,3 +62,7 @@ Please use the non-`source` methods instead (like `settings` and `type`).
 ==== Timestamp meta-data field type for ingest processors has changed
 
 The type of the "timestamp" meta-data field for ingest processors has changed from `java.lang.String` to `java.util.Date`.
+
+=== Shadow Replicas are deprecated
+
+<<indices-shadow-replicas,Shadow Replicas>> don't see much usage and we are planning to remove them.

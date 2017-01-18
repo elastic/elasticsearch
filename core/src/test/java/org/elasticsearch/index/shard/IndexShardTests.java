@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
@@ -545,9 +546,9 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl,
+    private ParsedDocument testParsedDocument(String id, String type, String routing, long timestamp, long ttl,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
-        Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
@@ -605,9 +606,9 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         recoveryShardFromStore(shard);
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
+        ParsedDocument doc = testParsedDocument("1", "test", null, -1, -1, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
         shard.index(index);
         assertEquals(1, preIndex.get());
         assertEquals(1, postIndexCreate.get());
@@ -626,7 +627,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
         shard.delete(delete);
 
         assertEquals(2, preIndex.get());
@@ -643,7 +644,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             shard.index(index);
             fail();
-        } catch (IllegalIndexShardStateException e) {
+        } catch (AlreadyClosedException e) {
 
         }
 
@@ -657,7 +658,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             shard.delete(delete);
             fail();
-        } catch (IllegalIndexShardStateException e) {
+        } catch (AlreadyClosedException e) {
 
         }
 
@@ -1362,10 +1363,10 @@ public class IndexShardTests extends IndexShardTestCase {
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
                 final ParsedDocument doc =
-                    testParsedDocument(id, id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
+                    testParsedDocument(id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", id),
+                        new Term("_uid", doc.uid()),
                         doc,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
@@ -1390,10 +1391,10 @@ public class IndexShardTests extends IndexShardTestCase {
             for (final Integer i : ids) {
                 final String id = Integer.toString(i);
                 final ParsedDocument doc =
-                    testParsedDocument(id, id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
+                    testParsedDocument(id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
-                        new Term("_uid", id),
+                        new Term("_uid", doc.uid()),
                         doc,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,

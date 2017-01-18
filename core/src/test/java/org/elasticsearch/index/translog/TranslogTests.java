@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
@@ -556,8 +557,12 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    private Term newUid(String id) {
-        return new Term("_uid", id);
+    private Term newUid(ParsedDocument doc) {
+        return new Term("_uid", doc.uid());
+    }
+
+    private Term newUid(String uid) {
+        return new Term("_uid", uid);
     }
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {

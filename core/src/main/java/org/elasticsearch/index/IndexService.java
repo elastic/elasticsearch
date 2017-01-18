@@ -44,7 +44,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -668,7 +667,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     if (translog.syncNeeded()) {
                         translog.sync();
                     }
-                } catch (EngineClosedException | AlreadyClosedException ex) {
+                } catch (AlreadyClosedException ex) {
                     // fine - continue;
                 } catch (IOException e) {
                     logger.warn("failed to sync translog", e);

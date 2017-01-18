@@ -61,7 +61,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -415,7 +414,11 @@ public class InternalEngine extends Engine {
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
-            throw new IndexFailedEngineException(shardId, index.type(), index.id(), e);
+            if (e instanceof AlreadyClosedException) {
+                throw (AlreadyClosedException)e;
+            } else {
+                throw new IndexFailedEngineException(shardId, index.type(), index.id(), e);
+            }
         }
     }
 
@@ -579,7 +582,11 @@ public class InternalEngine extends Engine {
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
-            throw new DeleteFailedEngineException(shardId, delete, e);
+            if (e instanceof AlreadyClosedException) {
+                throw (AlreadyClosedException)e;
+            } else {
+                throw new DeleteFailedEngineException(shardId, delete, e);
+            }
         }
 
         maybePruneDeletedTombstones();
@@ -647,8 +654,6 @@ public class InternalEngine extends Engine {
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
             throw e;
-        } catch (EngineClosedException e) {
-            throw e;
         } catch (Exception e) {
             try {
                 failEngine("refresh failed", e);
@@ -694,8 +699,6 @@ public class InternalEngine extends Engine {
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
-            throw e;
-        } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
             try {
@@ -875,7 +878,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -961,7 +964,8 @@ public class InternalEngine extends Engine {
     }
 
     @SuppressWarnings("finally")
-    private void failOnTragicEvent(AlreadyClosedException ex) {
+    private boolean failOnTragicEvent(AlreadyClosedException ex) {
+        final boolean engineFailed;
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
@@ -974,14 +978,19 @@ public class InternalEngine extends Engine {
                 }
             } else {
                 failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+                engineFailed = true;
             }
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
-        } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?
+            engineFailed = true;
+        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
+        } else {
+            engineFailed = false;
         }
+        return engineFailed;
     }
 
     @Override
@@ -994,8 +1003,7 @@ public class InternalEngine extends Engine {
         // exception that should only be thrown in a tragic event. we pass on the checks to failOnTragicEvent which will
         // throw and AssertionError if the tragic event condition is not met.
         if (e instanceof AlreadyClosedException) {
-            failOnTragicEvent((AlreadyClosedException)e);
-            return true;
+            return failOnTragicEvent((AlreadyClosedException)e);
         } else if (e != null &&
             ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
                 || (translog.isOpen() == false && translog.getTragicException() == e))) {

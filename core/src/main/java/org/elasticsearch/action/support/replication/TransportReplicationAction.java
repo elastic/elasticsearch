@@ -664,7 +664,6 @@ public abstract class TransportReplicationAction<
                 return;
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
-            taskManager.registerChildTask(task, node.getId());
             if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
                 performLocalAction(state, primary, node);
             } else {

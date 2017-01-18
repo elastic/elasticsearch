@@ -1163,7 +1163,8 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void execute() throws Exception {
-            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<>(null, new Response()));
+            // Using the diamond operator (<>) prevents Eclipse from being able to compile this code
+            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<Request, Response>(null, new Response()));
         }
     }
 

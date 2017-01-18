@@ -515,7 +515,6 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                final TransportResponseHandler<T> handler) {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
-            taskManager.registerChildTask(parentTask, connection.getNode().getId());
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {
             // The parent task is already cancelled - just fail the request

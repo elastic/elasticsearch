@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -306,5 +307,32 @@ public class CreateIndexIT extends ESIntegTestCase {
                        .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1))
                        .build();
         assertFalse(client().admin().indices().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcked());
+    }
+
+    public void testInvalidPartitionSize() {
+        BiFunction<Integer, Integer, Boolean> createPartitionedIndex = (shards, partitionSize) -> {
+            CreateIndexResponse response;
+
+            try {
+                response = prepareCreate("test_" + shards + "_" + partitionSize)
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", shards)
+                        .put("index.routing_partition_size", partitionSize))
+                    .execute().actionGet();
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                return false;
+            }
+
+            return response.isAcknowledged();
+        };
+
+        assertFalse(createPartitionedIndex.apply(3, 6));
+        assertFalse(createPartitionedIndex.apply(3, 0));
+        assertFalse(createPartitionedIndex.apply(3, 3));
+
+        assertTrue(createPartitionedIndex.apply(3, 1));
+        assertTrue(createPartitionedIndex.apply(3, 2));
+
+        assertTrue(createPartitionedIndex.apply(1, 1));
     }
 }

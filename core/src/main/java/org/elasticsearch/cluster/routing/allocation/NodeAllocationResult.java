@@ -262,7 +262,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");
-                    ElasticsearchException.toXContent(builder, params, storeException);
+                    ElasticsearchException.generateThrowableXContent(builder, params, storeException);
                     builder.endObject();
                 }
             }

@@ -39,12 +39,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.integration.TooManyJobsIT.ensureClusterStateConsistencyWorkAround;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class ScheduledJobsIT extends ESIntegTestCase {
@@ -94,7 +92,9 @@ public class ScheduledJobsIT extends ESIntegTestCase {
 
         StartSchedulerAction.Request startSchedulerRequest = new StartSchedulerAction.Request(schedulerConfig.getId(), 0L);
         startSchedulerRequest.setEndTime(now);
-        client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
+        StartSchedulerAction.Response  startSchedulerResponse =
+                client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
+        assertTrue(startSchedulerResponse.isStarted());
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
@@ -127,16 +127,10 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         PutSchedulerAction.Response putSchedulerResponse = client().execute(PutSchedulerAction.INSTANCE, putSchedulerRequest).get();
         assertTrue(putSchedulerResponse.isAcknowledged());
 
-        AtomicReference<Throwable> errorHolder = new AtomicReference<>();
-        Thread t = new Thread(() -> {
-            try {
-                StartSchedulerAction.Request startSchedulerRequest = new StartSchedulerAction.Request(schedulerConfig.getId(), 0L);
+        StartSchedulerAction.Request startSchedulerRequest = new StartSchedulerAction.Request(schedulerConfig.getId(), 0L);
+        StartSchedulerAction.Response  startSchedulerResponse =
                 client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
-            } catch (Exception | AssertionError e) {
-                errorHolder.set(e);
-            }
-        });
-        t.start();
+        assertTrue(startSchedulerResponse.isStarted());
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));
@@ -160,7 +154,6 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                     .getState().metaData().custom(MlMetadata.TYPE);
             assertThat(mlMetadata.getScheduler(schedulerConfig.getId()).get().getStatus(), equalTo(SchedulerStatus.STOPPED));
         });
-        assertThat(errorHolder.get(), nullValue());
     }
 
     private void indexDocs(String index, long numDocs, long start, long end) {

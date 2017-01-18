@@ -150,7 +150,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         Response response = client().performRequest("post",
                 MlPlugin.BASE_PATH + "schedulers/" + schedulerId + "/_start?start=2016-06-01T00:00:00Z");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(response), containsString("{\"task\":\""));
+        assertThat(responseEntityToString(response), equalTo("{\"started\":true}"));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest("get",
@@ -246,7 +246,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         Response startSchedulerRequest = client().performRequest("post",
                 MlPlugin.BASE_PATH + "schedulers/" + schedulerId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
         assertThat(startSchedulerRequest.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
+        assertThat(responseEntityToString(startSchedulerRequest), equalTo("{\"started\":true}"));
         assertBusy(() -> {
             try {
                 Response schedulerStatsResponse = client().performRequest("get",

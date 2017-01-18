@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.StartSchedulerAction;
+import org.elasticsearch.xpack.ml.action.InternalStartSchedulerAction;
 import org.elasticsearch.xpack.ml.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.ml.job.DataCounts;
 import org.elasticsearch.xpack.ml.job.DataDescription;
@@ -61,7 +61,7 @@ public class ScheduledJobRunner extends AbstractComponent {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
-    public void run(String schedulerId, long startTime, Long endTime, StartSchedulerAction.SchedulerTask task,
+    public void run(String schedulerId, long startTime, Long endTime, InternalStartSchedulerAction.SchedulerTask task,
                     Consumer<Exception> handler) {
         MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
         validate(schedulerId, mlMetadata);
@@ -185,7 +185,7 @@ public class ScheduledJobRunner extends AbstractComponent {
     }
 
     private Holder createJobScheduler(Scheduler scheduler, Job job, long finalBucketEndMs, long latestRecordTimeMs,
-                                      Consumer<Exception> handler, StartSchedulerAction.SchedulerTask task) {
+                                      Consumer<Exception> handler, InternalStartSchedulerAction.SchedulerTask task) {
         Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(scheduler, job);
         Duration queryDelay = Duration.ofSeconds(scheduler.getConfig().getQueryDelay());

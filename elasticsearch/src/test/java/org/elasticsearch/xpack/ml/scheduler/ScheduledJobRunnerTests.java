@@ -20,8 +20,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.ml.action.InternalStartSchedulerAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
-import org.elasticsearch.xpack.ml.action.StartSchedulerAction;
 import org.elasticsearch.xpack.ml.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.DataCounts;
@@ -141,7 +141,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenReturn(Optional.of(in));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartSchedulerAction.SchedulerTask task = mock(StartSchedulerAction.SchedulerTask.class);
+        InternalStartSchedulerAction.SchedulerTask task = mock(InternalStartSchedulerAction.SchedulerTask.class);
         scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
@@ -181,7 +181,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartSchedulerAction.SchedulerTask task = mock(StartSchedulerAction.SchedulerTask.class);
+        InternalStartSchedulerAction.SchedulerTask task = mock(InternalStartSchedulerAction.SchedulerTask.class);
         scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
@@ -214,7 +214,8 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
-        StartSchedulerAction.SchedulerTask task = new StartSchedulerAction.SchedulerTask(1, "type", "action", null, "scheduler1");
+        InternalStartSchedulerAction.SchedulerTask task =
+                new InternalStartSchedulerAction.SchedulerTask(1, "type", "action", null, "scheduler1");
         scheduledJobRunner.run("scheduler1", 0L, null, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);

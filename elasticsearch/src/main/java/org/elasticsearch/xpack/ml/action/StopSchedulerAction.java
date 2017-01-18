@@ -33,11 +33,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.ml.scheduler.Scheduler;
+import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.SchedulerStatusObserver;
 
@@ -170,7 +170,7 @@ public class StopSchedulerAction
             validate(schedulerId, mlMetadata);
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setActions(StartSchedulerAction.NAME);
+            listTasksRequest.setActions(InternalStartSchedulerAction.NAME);
             listTasksRequest.setDetailed(true);
             listTasksAction.execute(listTasksRequest, new ActionListener<ListTasksResponse>() {
                 @Override

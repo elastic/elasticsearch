@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.GetSchedulersAction;
 import org.elasticsearch.xpack.ml.action.GetSchedulersStatsAction;
+import org.elasticsearch.xpack.ml.action.InternalStartSchedulerAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -293,6 +294,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(PutSchedulerAction.INSTANCE, PutSchedulerAction.TransportAction.class),
                 new ActionHandler<>(DeleteSchedulerAction.INSTANCE, DeleteSchedulerAction.TransportAction.class),
                 new ActionHandler<>(StartSchedulerAction.INSTANCE, StartSchedulerAction.TransportAction.class),
+                new ActionHandler<>(InternalStartSchedulerAction.INSTANCE, InternalStartSchedulerAction.TransportAction.class),
                 new ActionHandler<>(StopSchedulerAction.INSTANCE, StopSchedulerAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class)
                 );

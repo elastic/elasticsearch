@@ -31,6 +31,27 @@
           - '{"f1": "v5_mixed", "f2": 9}'
 
  - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d10
+       body: {"f1": "v6_mixed", "f2": 10}
+
+ - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d11
+       body: {"f1": "v7_mixed", "f2": 11}
+
+ - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d12
+       body: {"f1": "v8_mixed", "f2": 12}
+
+ - do:
      indices.flush:
         index: test_index
 
@@ -38,4 +59,26 @@
      search:
         index: test_index
 
- - match: { hits.total: 10 } # 5 docs from old cluster, 5 docs from mixed cluster
+ - match: { hits.total: 13 } # 5 docs from old cluster, 8 docs from mixed cluster
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d10
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d11
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d12
+
+ - do:
+     indices.flush:
+        index: test_index

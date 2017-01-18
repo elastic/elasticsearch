@@ -166,7 +166,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
-    private final SetOnce<TransportInterceptor> securityIntercepter = new SetOnce<>();
+    private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
 
@@ -334,7 +334,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
+        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext, destructiveOperations));
         return components;
     }
@@ -686,7 +686,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     @Override
-    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
@@ -695,14 +695,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                             TransportRequestHandler<T> actualHandler) {
-                assert securityIntercepter.get() != null;
-                return securityIntercepter.get().interceptHandler(action, executor, actualHandler);
+                assert securityInterceptor.get() != null;
+                return securityInterceptor.get().interceptHandler(action, executor, actualHandler);
             }
 
             @Override
             public AsyncSender interceptSender(AsyncSender sender) {
-                assert securityIntercepter.get() != null;
-                return securityIntercepter.get().interceptSender(sender);
+                assert securityInterceptor.get() != null;
+                return securityInterceptor.get().interceptSender(sender);
             }
         });
     }
@@ -721,13 +721,16 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService) {
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NamedXContentRegistry xContentRegistry,
+                                                                        NetworkService networkService,
+                                                                        HttpServerTransport.Dispatcher dispatcher) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
         return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-                ipFilter.get(), sslService, threadPool, xContentRegistry));
+                ipFilter.get(), sslService, threadPool, xContentRegistry, dispatcher));
     }
 
     @Override

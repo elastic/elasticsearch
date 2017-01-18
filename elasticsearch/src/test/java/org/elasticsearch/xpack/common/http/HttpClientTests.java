@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -400,7 +401,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatHttpClientFailsOnNonHttpResponse() throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         AtomicReference<Exception> hasExceptionHappened = new AtomicReference();
-        try (ServerSocket serverSocket = new ServerSocket(0, 50, InetAddress.getByName("localhost"))) {
+        try (ServerSocket serverSocket = new MockServerSocket(0, 50, InetAddress.getByName("localhost"))) {
             executor.execute(() -> {
                 try (Socket socket = serverSocket.accept()) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));

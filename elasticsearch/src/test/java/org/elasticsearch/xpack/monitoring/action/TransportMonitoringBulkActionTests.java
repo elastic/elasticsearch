@@ -91,11 +91,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         Set<Setting<?>>  clusterSettings = new HashSet<>();
         clusterSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.add(MonitoringSettings.EXPORTERS_SETTINGS);
+        final DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
+                Version.CURRENT);
         clusterService =  new ClusterService(Settings.builder().put("cluster.name",
                 TransportMonitoringBulkActionTests.class.getName()).build(),
-                new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool);
-        clusterService.setLocalNode(new DiscoveryNode("node", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
-                Version.CURRENT));
+                new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool, () -> node);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
@@ -113,7 +113,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService.start();
 
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> node, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         exportService = new CapturingExporters();

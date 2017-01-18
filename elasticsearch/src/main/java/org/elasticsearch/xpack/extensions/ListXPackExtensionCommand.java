@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.extensions;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -19,7 +17,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;

@@ -24,6 +24,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -52,7 +55,11 @@ public abstract class LdapTestCase extends ESTestCase {
                     new Attribute("objectClass", "top", "domain", "extensibleObject"));
             ldapServer.importFromLDIF(false,
                     getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/seven-seas.ldif").toString());
-            ldapServer.startListening();
+            // Must have privileged access because underlying server will accept socket connections
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                ldapServer.startListening();
+                return null;
+            });
             ldapServers[i] = ldapServer;
         }
     }

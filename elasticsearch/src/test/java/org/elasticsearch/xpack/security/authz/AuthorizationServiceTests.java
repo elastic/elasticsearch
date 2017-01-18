@@ -557,9 +557,9 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .build());
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(BulkAction.NAME + "[s]", new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+        requests.add(new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
@@ -642,8 +642,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (User user : Arrays.asList(XPackUser.INSTANCE, superuser)) {
             List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
             requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(BulkAction.NAME + "[s]",
+                    new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
             requests.add(new Tuple<>(TermVectorsAction.NAME,
                     new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
@@ -770,7 +773,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testCompositeActionsIndicesAreCheckedAtTheShardLevel() {
         String action;
-        switch(randomIntBetween(0, 5)) {
+        switch(randomIntBetween(0, 4)) {
             case 0:
                 action = MultiGetAction.NAME + "[shard]";
                 break;
@@ -787,13 +790,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 4:
                 action = "indices:data/read/mpercolate[s]";
                 break;
-            case 5:
-                //reindex delegates to index, other than search covered above
-                action = IndexAction.NAME;
-                break;
             default:
                 throw new UnsupportedOperationException();
         }
+        logger.info("--> action: {}", action);
 
         TransportRequest request = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
         User userAllowed = new User("userAllowed", "roleAllowed");

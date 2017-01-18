@@ -116,7 +116,7 @@ public class MonitoringBulkResponse extends ActionResponse {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, cause);
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             return builder;
         }

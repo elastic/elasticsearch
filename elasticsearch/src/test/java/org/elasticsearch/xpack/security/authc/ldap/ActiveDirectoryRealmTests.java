@@ -34,6 +34,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +101,11 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             directoryServer.add("dc=ad,dc=test,dc=elasticsearch,dc=com", new Attribute("dc", "UnboundID"),
                     new Attribute("objectClass", "top", "domain", "extensibleObject"));
             directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
-            directoryServer.startListening();
+            // Must have privileged access because underlying server will accept socket connections
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                directoryServer.startListening();
+                return null;
+            });
             directoryServers[i] = directoryServer;
         }
         threadPool = new TestThreadPool("active directory realm tests");

@@ -166,8 +166,8 @@ public final class AnalysisRegistry implements Closeable {
          * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
          * hide internal data-structures as much as possible.
          */
-        tokenFilters.put("synonym", requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
-        tokenFilters.put("synonym_graph", requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
         return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.tokenFilterFactories);
     }
 
@@ -229,9 +229,9 @@ public final class AnalysisRegistry implements Closeable {
              * hide internal data-structures as much as possible.
              */
             if ("synonym".equals(typeName)) {
-                return requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
+                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
             } else if ("synonym_graph".equals(typeName)) {
-                return requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
+                return requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
             } else {
                 return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
             }
@@ -258,7 +258,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
-    private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
+    private static <T> AnalysisModule.AnalysisProvider<T> requiresAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {
         return new AnalysisModule.AnalysisProvider<T>() {
             @Override
             public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {

@@ -210,9 +210,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
+    /**
+     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
+     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * externally as it is not stored in the commit point.
+     *
+     * @param globalCheckpoint the provided global checkpoint
+     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
+     */
     public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
-        final IndexCommit indexCommit = DirectoryReader.listCommits(directory).get(0);
-        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, indexCommit.getUserData().entrySet());
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
     }
 
     final void ensureOpen() {

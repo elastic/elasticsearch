@@ -81,7 +81,7 @@ public class UpdateResponseTests extends ESTestCase {
 
     public void testToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
-        final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse();
+        final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
 
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
@@ -90,16 +90,17 @@ public class UpdateResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        final UpdateResponse updateResponse = tuple.v2();
+        final UpdateResponse expectedUpdateResponse = tuple.v2();
         try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType))) {
-            IndexResponseTests.assertDocWriteResponse(updateResponse, parser.map());
+            IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parser.map());
         }
-        assertEquals(updateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
+        assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
     }
 
-    private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse() {
-        Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(randomFrom(XContentType.values()));
+    private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
+        Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(xContentType);
         GetResult actualGetResult = getResults.v1();
+        GetResult expectedGetResult = getResults.v2();
 
         ShardId shardId = new ShardId(actualGetResult.getIndex(), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = actualGetResult.getType();
@@ -112,20 +113,21 @@ public class UpdateResponseTests extends ESTestCase {
         UpdateResponse actual, expected;
         if (seqNo != null) {
             ReplicationResponse.ShardInfo shardInfo = RandomObjects.randomShardInfo(random(), true);
-
             actual = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
-            actual.setGetResult(actualGetResult);
-
             expected = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
 
-            // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
-            // by the toXContentEmbedded method.
-            GetResult expectedGetResult = new GetResult(null, null, null, -1,
-                    getResults.v2().isExists(), getResults.v2().sourceRef(), getResults.v2().getFields());
-            expected.setGetResult(expectedGetResult);
         } else {
             actual = new UpdateResponse(shardId, type, id, version, result);
             expected = new UpdateResponse(shardId, type, id, version, result);
+        }
+
+        if (actualGetResult.isExists()) {
+            actual.setGetResult(actualGetResult);
+        }
+
+        if (expectedGetResult.isExists()) {
+            expected.setGetResult(new GetResult(shardId.getIndexName(), type, id, version,
+                    expectedGetResult.isExists(), expectedGetResult.internalSourceRef(), expectedGetResult.getFields()));
         }
 
         boolean forcedRefresh = randomBoolean();

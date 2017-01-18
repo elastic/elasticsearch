@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.function.BiConsumer;
 
 public class UpdateResponse extends DocWriteResponse {
 
@@ -144,10 +145,13 @@ public class UpdateResponse extends DocWriteResponse {
                 });
 
         DocWriteResponse.declareParserFields(PARSER);
-        PARSER.declareObject(UpdateResponse::setGetResult, (p, c) -> GetResult.fromXContentEmbedded(p), new ParseField(GET));
+        BiConsumer<UpdateResponse, GetResult> setGetResult = (update, get) ->
+            update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
+                    get.isExists(), get.internalSourceRef(), get.getFields()));
+        PARSER.declareObject(setGetResult, (parser, context) -> GetResult.fromXContentEmbedded(parser), new ParseField(GET));
     }
 
-    public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
+    public static UpdateResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

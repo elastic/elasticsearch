@@ -23,8 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -215,11 +214,6 @@ public class GetResultTests extends ESTestCase {
     }
 
     private static BytesReference toXContentEmbedded(GetResult getResult, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            getResult.toXContentEmbedded(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return builder.bytes();
-        }
+        return XContentHelper.toXContent(getResult::toXContentEmbedded, xContentType);
     }
 }

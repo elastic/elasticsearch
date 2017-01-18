@@ -119,7 +119,7 @@ public class ClusterStateObserver {
      * @param timeOutValue    a timeout for waiting. If null the global observer timeout will be used.
      */
     public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate, @Nullable TimeValue timeOutValue) {
-
+        listener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
         if (observingContext.get() != null) {
             throw new ElasticsearchException("already waiting for a cluster state change");
         }
@@ -158,8 +158,7 @@ public class ClusterStateObserver {
             listener.onNewClusterState(newState);
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
-            ObservingContext context =
-                new ObservingContext(new ContextPreservingListener(listener, contextHolder.newRestorableContext(false)), statePredicate);
+            final ObservingContext context = new ObservingContext(listener, statePredicate);
             if (!observingContext.compareAndSet(null, context)) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }

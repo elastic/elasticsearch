@@ -514,28 +514,23 @@ public abstract class TransportReplicationAction<
                             request),
                     e);
                 request.onRetry();
-                final Supplier<ThreadContext.StoredContext> context = threadPool.getThreadContext().newRestorableContext(false);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        try (ThreadContext.StoredContext ctx = context.get()) {
-                            // Forking a thread on local node via transport service so that custom transport service have an
-                            // opportunity to execute custom logic before the replica operation begins
-                            String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
-                            TransportChannelResponseHandler<TransportResponse.Empty> handler =
-                                new TransportChannelResponseHandler<>(logger, channel, extraMessage,
-                                    () -> TransportResponse.Empty.INSTANCE);
-                            transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                                new ConcreteShardRequest<>(request, targetAllocationID),
-                                handler);
-                        }
+                        // Forking a thread on local node via transport service so that custom transport service have an
+                        // opportunity to execute custom logic before the replica operation begins
+                        String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
+                        TransportChannelResponseHandler<TransportResponse.Empty> handler =
+                            new TransportChannelResponseHandler<>(logger, channel, extraMessage,
+                                () -> TransportResponse.Empty.INSTANCE);
+                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
+                            new ConcreteShardRequest<>(request, targetAllocationID),
+                            handler);
                     }
 
                     @Override
                     public void onClusterServiceClose() {
-                        try (ThreadContext.StoredContext ctx = context.get()) {
-                            responseWithFailure(new NodeClosedException(clusterService.localNode()));
-                        }
+                        responseWithFailure(new NodeClosedException(clusterService.localNode()));
                     }
 
                     @Override
@@ -813,13 +808,10 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            final Supplier<ThreadContext.StoredContext> context = threadPool.getThreadContext().newRestorableContext(false);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    try (ThreadContext.StoredContext ctx = context.get()) {
-                        run();
-                    }
+                    run();
                 }
 
                 @Override
@@ -829,10 +821,8 @@ public abstract class TransportReplicationAction<
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    try (ThreadContext.StoredContext ctx = context.get()) {
-                        // Try one more time...
-                        run();
-                    }
+                    // Try one more time...
+                    run();
                 }
             });
         }

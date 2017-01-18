@@ -115,6 +115,7 @@ public class ThreadContextTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("ctx.foo", 1);
+        threadContext.addResponseHeader("resp.header", "baaaam");
         Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
 
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
@@ -125,19 +126,20 @@ public class ThreadContextTests extends ESTestCase {
                 assertEquals("bar", threadContext.getHeader("foo"));
                 assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
                 assertEquals("1", threadContext.getHeader("default"));
-                assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+                assertEquals(2, threadContext.getResponseHeaders().get("resp.header").size());
                 assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
+                assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(1));
             }
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+            assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
         }
-
-
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        assertNull(threadContext.getResponseHeaders().get("resp.header"));
-
+        assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+        assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
 
         contextSupplier = threadContext.newRestorableContext(false);
 
@@ -149,16 +151,20 @@ public class ThreadContextTests extends ESTestCase {
                 assertEquals("bar", threadContext.getHeader("foo"));
                 assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
                 assertEquals("1", threadContext.getHeader("default"));
-                assertNull(threadContext.getResponseHeaders().get("resp.header"));
+                assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+                assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
             }
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+            assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
         }
 
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        assertNull(threadContext.getResponseHeaders().get("resp.header"));
+        assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+        assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
     }
 
     public void testResponseHeaders() {

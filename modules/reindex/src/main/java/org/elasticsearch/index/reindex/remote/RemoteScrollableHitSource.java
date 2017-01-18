@@ -153,6 +153,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         // Restore the thread context to get the precious headers
                         try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
+                            assert ctx != null; // eliminates compiler warning
                             T parsedResponse;
                             try {
                                 HttpEntity responseEntity = response.getEntity();
@@ -192,6 +193,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                     @Override
                     public void onFailure(Exception e) {
                         try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
+                            assert ctx != null; // eliminates compiler warning
                             if (e instanceof ResponseException) {
                                 ResponseException re = (ResponseException) e;
                                 if (RestStatus.TOO_MANY_REQUESTS.getStatus() == re.getResponse().getStatusLine().getStatusCode()) {

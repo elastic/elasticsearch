@@ -85,6 +85,7 @@ GET test/_search
 }
 ----
 // CONSOLE
+// TEST[skip:deprecated and no easy way in the docs test to mark warnings properly]
 
 [[lang-python-stored]]
 [float]
@@ -132,6 +133,7 @@ GET test/_search
 
 ----
 // CONSOLE
+// TEST[skip:deprecated and no easy way in the docs test to mark warnings properly]
 
 <1> We store the script under the id `my_script`.
 <2> The function score query retrieves the script with id `my_script`.
@@ -185,5 +187,6 @@ GET test/_search
 }
 ----
 // CONSOLE
+// TEST[skip:deprecated and no easy way in the docs test to mark warnings properly]
 
 <1> The function score query retrieves the script with filename `my_script.py`.

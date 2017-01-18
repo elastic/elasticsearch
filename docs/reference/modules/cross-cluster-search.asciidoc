@@ -13,10 +13,10 @@ has remote clusters configured connects to one or more _gateway nodes_ and uses 
 the remote cluster.
 
 Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via
-the <<cluster settings API, cluster-update-settings>>. If a remote cluster is configured via `elasticsearch.yml` only
+the <<cluster-update-settings,cluster settings API>>. If a remote cluster is configured via `elasticsearch.yml` only
 the nodes with the configuration set will be connecting to the remote cluster in which case federated search requests
 will have to be sent specifically to those nodes. Remote clusters set via the
-<<cluster settings API, cluster-update-settings>> will be available on every node in the cluster.
+<<cluster-update-settings,cluster settings API>> will be available on every node in the cluster.
 
 The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
 remote clusters that should be connected to, for instance:
@@ -108,10 +108,18 @@ will be prefixed with their remote cluster name:
 [float]
 === Cross cluster search settings
 
-* `search.remote.connections_per_cluster` - the number of nodes to connect to per remote cluster. The default is `3`
-* `search.remote.initial_connect_timeout` - the time to wait for remote connections to be established when the node
-starts. The default is `30s`.
-* `search.remote.node.attr` - a node attribute to filter out nodes that are eligible as a gateway node in the
-remote cluster. For instance a node can have a node attribute `node.attr.gateway: true`  such that only nodes with this
- attribute will be connected to if `search.remote.node.attr` is set to `gateway`
+`search.remote.connections_per_cluster`::
+
+  The number of nodes to connect to per remote cluster. The default is `3`.
+
+`search.remote.initial_connect_timeout`::
+
+  The time to wait for remote connections to be established when the node starts. The default is `30s`.
+
+`search.remote.node.attr`::
+
+  A node attribute to filter out nodes that are eligible as a gateway node in
+  the remote cluster. For instance a node can have a node attribute
+  `node.attr.gateway: true`such that only nodes with this attribute will be
+  connected to if `search.remote.node.attr` is set to `gateway`.
 

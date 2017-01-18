@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -40,7 +39,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,25 +60,25 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (randomBoolean()) {
+//        if (randomBoolean()) {
             // Configure using path.repo
             return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
                     .put(Environment.PATH_REPO_SETTING.getKey(), getBwcIndicesPath())
                     .build();
-        } else {
-            // Configure using url white list
-            try {
-                URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
-                return Settings.builder()
-                        .put(super.nodeSettings(nodeOrdinal))
-                        .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
-                        .build();
-            } catch (URISyntaxException ex) {
-                throw new IllegalArgumentException(ex);
-            }
-
-        }
+//        } else {
+//            // Configure using url white list
+//            try {
+//                URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
+//                return Settings.builder()
+//                        .put(super.nodeSettings(nodeOrdinal))
+//                        .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
+//                        .build();
+//            } catch (URISyntaxException ex) {
+//                throw new IllegalArgumentException(ex);
+//            }
+//
+//        }
     }
 
     public void testRestoreOldSnapshots() throws Exception {

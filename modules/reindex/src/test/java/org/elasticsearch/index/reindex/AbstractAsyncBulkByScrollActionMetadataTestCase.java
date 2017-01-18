@@ -23,10 +23,10 @@ import org.elasticsearch.action.index.IndexRequest;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
+public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
                 Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
+        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScrollableHitSource.BasicHit doc() {
         return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
@@ -34,15 +34,15 @@ public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
 
     public void testTimestampIsCopied() {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setTimestamp(10L));
+        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setTimestamp(10L));
         assertEquals("10", index.timestamp());
     }
 
     public void testTTL() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setTTL(10L));
+        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setTTL(10L));
         assertEquals(timeValueMillis(10), index.ttl());
     }
 
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
 }

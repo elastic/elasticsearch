@@ -27,7 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
+public abstract class AbstractAsyncBulkByScrollActionTestCase<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
                 Response extends BulkIndexByScrollResponse>
         extends ESTestCase {

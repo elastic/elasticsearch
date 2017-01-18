@@ -2,7 +2,9 @@
 "Update Script":
 
   - skip:
-      features: groovy_scripting
+      features:
+        - groovy_scripting
+        - warnings
 
   - do:
       index:
@@ -14,6 +16,8 @@
               count:  1
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       update:
           index:  test_1
           type:   test
@@ -39,6 +43,8 @@
   - match: { _source.count:      1   }
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       update:
           index:  test_1
           type:   test
@@ -84,4 +90,3 @@
             script:
                 lang:   doesnotexist
                 inline: "1"
-

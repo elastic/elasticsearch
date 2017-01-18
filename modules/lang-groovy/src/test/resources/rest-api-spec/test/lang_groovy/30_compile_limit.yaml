@@ -21,6 +21,11 @@ teardown:
 ---
 "circuit breaking with too many scripts":
 
+  - skip:
+      features:
+        - groovy_scripting
+        - warnings
+
   - do:
       cluster.put_settings:
         body:
@@ -28,6 +33,8 @@ teardown:
             script.max_compilations_per_minute: 1
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       search:
         index: test
         type:  test

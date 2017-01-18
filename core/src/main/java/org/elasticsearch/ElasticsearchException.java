@@ -281,49 +281,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-
-        String type = null, reason = null, stack = null;
-        ElasticsearchException cause = null;
-        Map<String, Object> headers = new HashMap<>();
-
-        do {
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
-            if (token.isValue()) {
-                if (TYPE.equals(currentFieldName)) {
-                    type = parser.text();
-                } else if (REASON.equals(currentFieldName)) {
-                    reason = parser.text();
-                } else if (STACK_TRACE.equals(currentFieldName)) {
-                    stack = parser.text();
-                } else {
-                    // Everything else is considered as a header
-                    headers.put(currentFieldName, parser.text());
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
-                    cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
-                    headers.putAll(parser.map());
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            }
-        } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
-
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-
-        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
-        for (Map.Entry<String, Object> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), String.valueOf(header.getValue()));
-        }
-        return e;
+        return innerFromXContent(parser);
     }
 
     protected static void innerToXContent(XContentBuilder builder, Params params,
@@ -366,6 +324,56 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
+    }
+
+    private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
+        String type = null, reason = null, stack = null;
+        ElasticsearchException cause = null;
+        Map<String, Object> headers = new HashMap<>();
+
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+        do {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                token = parser.nextToken();
+            }
+
+            if ( token != null && token.isValue()) {
+                if (TYPE.equals(currentFieldName)) {
+                    type = parser.text();
+                } else if (REASON.equals(currentFieldName)) {
+                    reason = parser.text();
+                } else if (STACK_TRACE.equals(currentFieldName)) {
+                    stack = parser.text();
+                } else {
+                    // Everything else is considered as a header
+                    headers.put(currentFieldName, parser.text());
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (CAUSED_BY.equals(currentFieldName)) {
+                    cause = fromXContent(parser);
+                } else if (HEADER.equals(currentFieldName)) {
+                    headers.putAll(parser.map());
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            }
+        } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
+
+        StringBuilder message = new StringBuilder("Elasticsearch exception [");
+        message.append(TYPE).append('=').append(type).append(", ");
+        message.append(REASON).append('=').append(reason);
+        if (stack != null) {
+            message.append(", ").append(STACK_TRACE).append('=').append(stack);
+        }
+        message.append(']');
+
+        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
+        for (Map.Entry<String, Object> header : headers.entrySet()) {
+            e.addHeader(header.getKey(), String.valueOf(header.getValue()));
+        }
+        return e;
     }
 
     private static void headerToXContent(XContentBuilder builder, String key, List<String> values) throws IOException {

@@ -81,10 +81,10 @@ dependencies {
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // logging
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}", optional
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
   // to bridge dependencies that are still on Log4j 1 to Log4j 2
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
   compile "net.java.dev.jna:jna:${versions.jna}"
 

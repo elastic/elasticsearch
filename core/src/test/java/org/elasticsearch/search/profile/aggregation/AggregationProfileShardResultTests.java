@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.ESTestCase;
@@ -53,20 +50,20 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         AggregationProfileShardResult profileResult = createTestItem(2);
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder.startObject();
-        builder = profileResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
 
-        XContentParser parser = createParser(builder);
-        XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
-        XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
-        XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_ARRAY, parser::getTokenLocation);
-        AggregationProfileShardResult parsed = AggregationProfileShardResult.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+        AggregationProfileShardResult parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
+            XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_ARRAY, parser::getTokenLocation);
+            parsed = AggregationProfileShardResult.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {
@@ -77,17 +74,14 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", timings, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        aggProfileResults.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
+        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON);
         assertEquals("{\"aggregations\":["
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
                             + "\"time_in_nanos\":6000,"
                             + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
                         + "}"
-                   + "]}", builder.string());
+                   + "]}", xContent.utf8ToString());
     }
 
 }

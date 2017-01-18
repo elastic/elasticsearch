@@ -119,7 +119,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         String currentFieldName = null;
         List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
-        CollectorResult profileCollector = null;
+        CollectorResult collector = null;
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -136,7 +136,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                     }
                 } else if (COLLECTOR.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        profileCollector = CollectorResult.fromXContent(parser);
+                        collector = CollectorResult.fromXContent(parser);
                     }
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
@@ -145,6 +145,6 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                 throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector);
     }
 }

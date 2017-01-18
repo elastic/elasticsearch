@@ -66,24 +66,21 @@ public class ProfileResultTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
+        ProfileResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ProfileResult parsed = ProfileResult.fromXContent(parser);
-            assertEquals(profileResult.getTime(), parsed.getTime());
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            parsed = ProfileResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
+        assertEquals(profileResult.getTime(), parsed.getTime());
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {
-        Map<String, Long> timings1 = new HashMap<>();
-        timings1.put("key1", 100L);
-        Map<String, Long> timings2 = new HashMap<>();
-        timings2.put("key1", 123356L);
         List<ProfileResult> children = new ArrayList<>();
-        children.add(new ProfileResult("child1", "desc1", timings1, Collections.emptyList()));
-        children.add(new ProfileResult("child2", "desc2", timings2, Collections.emptyList()));
+        children.add(new ProfileResult("child1", "desc1", Collections.singletonMap("key1", 100L), Collections.emptyList()));
+        children.add(new ProfileResult("child2", "desc2", Collections.singletonMap("key1", 123356L), Collections.emptyList()));
         Map<String, Long> timings3 = new HashMap<>();
         timings3.put("key1", 123456L);
         timings3.put("key2", 100000L);
@@ -151,9 +148,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  ]\n" +
           "}", builder.string());
 
-        timings1 = new HashMap<>();
-        timings1.put("key1", 12345678L);
-        result = new ProfileResult("profileName", "some description", timings1, Collections.emptyList());
+        result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 12345678L), Collections.emptyList());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\n" +
@@ -166,9 +161,8 @@ public class ProfileResultTests extends ESTestCase {
                 "  }\n" +
               "}", builder.string());
 
-        timings1 = new HashMap<>();
-        timings1.put("key1", 1234567890L);
-        result = new ProfileResult("profileName", "some description", timings1, Collections.emptyList());
+        result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 1234567890L),
+                Collections.emptyList());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\n" +

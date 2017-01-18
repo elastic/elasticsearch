@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,21 +44,25 @@ public class QueryProfileShardResultTests extends ESTestCase {
         }
         CollectorResult profileCollector = CollectorResultTests.createTestItem(2);
         long rewriteTime = randomNonNegativeLong();
+        if (randomBoolean()) {
+            rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too
+        }
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
     }
 
     public void testFromXContent() throws IOException {
         QueryProfileShardResult profileResult = createTestItem();
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder = profileResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toXContent(profileResult, xContentType);
 
-        XContentParser parser = createParser(builder);
-        XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
-        QueryProfileShardResult parsed = QueryProfileShardResult.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        QueryProfileShardResult parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+            parsed = QueryProfileShardResult.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType), xContentType);
     }
 
 }

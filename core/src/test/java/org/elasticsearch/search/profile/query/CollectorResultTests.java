@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,20 +56,19 @@ public class CollectorResultTests extends ESTestCase {
         return new CollectorResult(name, reason, time, children);
     }
 
-
     public void testFromXContent() throws IOException {
         CollectorResult collectorResult = createTestItem(1);
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        builder.humanReadable(humanReadable);
-        builder = collectorResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference originalBytes = toXContent(collectorResult, xContentType, humanReadable);
 
-        XContentParser parser = createParser(builder);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        CollectorResult parsed = CollectorResult.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType, humanReadable), xcontentType);
-        assertNull(parser.nextToken());
+        CollectorResult parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            parsed = CollectorResult.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {

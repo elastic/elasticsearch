@@ -68,7 +68,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.description = description;
         this.timings = Objects.requireNonNull(timings, "required timings argument missing");
         this.children = children;
-        this.nodeTime = getNodeTime(timings);
+        this.nodeTime = getTotalTime(timings);
     }
 
     /**
@@ -182,10 +182,10 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                 } else if (DESCRIPTION.match(currentFieldName)) {
                     description = parser.text();
                 } else if (NODE_TIME.match(currentFieldName)) {
-                    // we need to consume this value, but we use the raw nanosecond value
+                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
                     parser.text();
                 } else if (NODE_TIME_RAW.match(currentFieldName)) {
-                    // the total time is calculate by adding up all timings internally, so we skip it
+                    // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
                     parser.longValue();
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
@@ -216,13 +216,10 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     }
 
     /**
-     * Internal helper to calculate the time of a node, inclusive of children
-     *
-     * @param timings
-     *            A map of breakdown timing for the node
-     * @return The total time at this node, inclusive of children
+     * @param timings a map of breakdown timing for the node
+     * @return The total time at this node
      */
-    private static long getNodeTime(Map<String, Long> timings) {
+    private static long getTotalTime(Map<String, Long> timings) {
         long nodeTime = 0;
         for (long time : timings.values()) {
             nodeTime += time;

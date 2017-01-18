@@ -514,24 +514,28 @@ public abstract class TransportReplicationAction<
                             request),
                     e);
                 request.onRetry();
-                final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
+                final Supplier<ThreadContext.StoredContext> context = threadPool.getThreadContext().newRestorableContext(false);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        context.close();
-                        // Forking a thread on local node via transport service so that custom transport service have an
-                        // opportunity to execute custom logic before the replica operation begins
-                        String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
-                        TransportChannelResponseHandler<TransportResponse.Empty> handler =
-                            new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
-                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new ConcreteShardRequest<>(request, targetAllocationID),
-                            handler);
+                        try (ThreadContext.StoredContext ctx = context.get()) {
+                            // Forking a thread on local node via transport service so that custom transport service have an
+                            // opportunity to execute custom logic before the replica operation begins
+                            String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
+                            TransportChannelResponseHandler<TransportResponse.Empty> handler =
+                                new TransportChannelResponseHandler<>(logger, channel, extraMessage,
+                                    () -> TransportResponse.Empty.INSTANCE);
+                            transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
+                                new ConcreteShardRequest<>(request, targetAllocationID),
+                                handler);
+                        }
                     }
 
                     @Override
                     public void onClusterServiceClose() {
-                        responseWithFailure(new NodeClosedException(clusterService.localNode()));
+                        try (ThreadContext.StoredContext ctx = context.get()) {
+                            responseWithFailure(new NodeClosedException(clusterService.localNode()));
+                        }
                     }
 
                     @Override
@@ -809,12 +813,13 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
+            final Supplier<ThreadContext.StoredContext> context = threadPool.getThreadContext().newRestorableContext(false);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    context.close();
-                    run();
+                    try (ThreadContext.StoredContext ctx = context.get()) {
+                        run();
+                    }
                 }
 
                 @Override
@@ -824,9 +829,10 @@ public abstract class TransportReplicationAction<
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    context.close();
-                    // Try one more time...
-                    run();
+                    try (ThreadContext.StoredContext ctx = context.get()) {
+                        // Try one more time...
+                        run();
+                    }
                 }
             });
         }

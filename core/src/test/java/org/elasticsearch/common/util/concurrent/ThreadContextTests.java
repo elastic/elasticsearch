@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -86,7 +87,7 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(false);
         threadContext.putHeader("foo.bar", "baz");
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
@@ -107,6 +108,57 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         assertNull(threadContext.getHeader("foo.bar"));
+    }
+
+    public void testRestorableContext() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("ctx.foo", 1);
+        Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            threadContext.addResponseHeader("resp.header", "boom");
+            try (ThreadContext.StoredContext tmp = contextSupplier.get()) {
+                assertEquals("bar", threadContext.getHeader("foo"));
+                assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+                assertEquals("1", threadContext.getHeader("default"));
+                assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+                assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
+            }
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+        }
+
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        assertNull(threadContext.getResponseHeaders().get("resp.header"));
+
+
+        contextSupplier = threadContext.newRestorableContext(false);
+
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            threadContext.addResponseHeader("resp.header", "boom");
+            try (ThreadContext.StoredContext tmp = contextSupplier.get()) {
+                assertEquals("bar", threadContext.getHeader("foo"));
+                assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+                assertEquals("1", threadContext.getHeader("default"));
+                assertNull(threadContext.getResponseHeaders().get("resp.header"));
+            }
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        assertNull(threadContext.getResponseHeaders().get("resp.header"));
     }
 
     public void testResponseHeaders() {

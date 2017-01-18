@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * A utility class which simplifies interacting with the cluster state in cases where
@@ -158,7 +159,7 @@ public class ClusterStateObserver {
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
             ObservingContext context =
-                new ObservingContext(new ContextPreservingListener(listener, contextHolder.newStoredContext()), statePredicate);
+                new ObservingContext(new ContextPreservingListener(listener, contextHolder.newRestorableContext(false)), statePredicate);
             if (!observingContext.compareAndSet(null, context)) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
@@ -279,30 +280,33 @@ public class ClusterStateObserver {
 
     private static final class ContextPreservingListener implements Listener {
         private final Listener delegate;
-        private final ThreadContext.StoredContext tempContext;
+        private final Supplier<ThreadContext.StoredContext> contextSupplier;
 
 
-        private ContextPreservingListener(Listener delegate, ThreadContext.StoredContext storedContext) {
-            this.tempContext = storedContext;
+        private ContextPreservingListener(Listener delegate, Supplier<ThreadContext.StoredContext> contextSupplier) {
+            this.contextSupplier = contextSupplier;
             this.delegate = delegate;
         }
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            tempContext.restore();
-            delegate.onNewClusterState(state);
+            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+                delegate.onNewClusterState(state);
+            }
         }
 
         @Override
         public void onClusterServiceClose() {
-            tempContext.restore();
-            delegate.onClusterServiceClose();
+            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+                delegate.onClusterServiceClose();
+            }
         }
 
         @Override
         public void onTimeout(TimeValue timeout) {
-            tempContext.restore();
-            delegate.onTimeout(timeout);
+            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+                delegate.onTimeout(timeout);
+            }
         }
     }
 }

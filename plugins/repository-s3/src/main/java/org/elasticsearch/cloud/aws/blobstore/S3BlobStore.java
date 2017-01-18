@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
@@ -71,7 +72,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         this.numberOfRetries = maxRetries;
         this.storageClass = initStorageClass(storageClass);
 
-        // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
+        // Note: the method client.doesBucketExist() may return 'true' if the bucket exists
         // but we don't have access to it (ie, 403 Forbidden response code)
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
@@ -81,10 +82,10 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             try {
                 if (!client.doesBucketExist(bucket)) {
                     CreateBucketRequest request = null;
-                    if (region != null) {
-                        request = new CreateBucketRequest(bucket, region);
-                    } else {
+                    if (region == null ||  Regions.US_EAST_1.getName().equals(region)) {
                         request = new CreateBucketRequest(bucket);
+                    } else {
+                        request = new CreateBucketRequest(bucket, region);
                     }
                     request.setCannedAcl(this.cannedACL);
                     client.createBucket(request);

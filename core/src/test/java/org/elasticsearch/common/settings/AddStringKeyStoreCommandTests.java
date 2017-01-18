@@ -127,6 +127,14 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertEquals("String value must contain only ASCII", e.getMessage());
     }
 
+    public void testNpe() throws Exception {
+        createKeystore("");
+        terminal.addTextInput("");
+        UserException e = expectThrows(UserException.class, this::execute);
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertThat(e.getMessage(), containsString("The setting name can not be null"));
+    }
+
     void setInput(String inputStr) {
         input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }

@@ -76,6 +76,15 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
     private final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry());
 
+    /**
+     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
+     * shadow replicas are removed.
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
@@ -368,7 +377,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null);

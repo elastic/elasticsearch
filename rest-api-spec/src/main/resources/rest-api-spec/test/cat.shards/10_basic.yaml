@@ -169,6 +169,13 @@
       $body: |
                /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
 
+---
+"Test cat shards with shadow replicas":
+  - skip:
+      version: " - 6.99.99"
+      reason: deprecation was added in 5.2.0 (but this is disable now due to a bug in ThreadContext, Boaz is on it)
+      features: "warnings"
+
   - do:
       indices.create:
         index: index3
@@ -178,6 +185,9 @@
             number_of_replicas: "1"
             shadow_replicas: true
             shared_filesystem: false
+      warnings:
+        - "[index.shadow_replicas] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
+        - "[index.shared_filesystem] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
 
   - do:
       cat.shards:

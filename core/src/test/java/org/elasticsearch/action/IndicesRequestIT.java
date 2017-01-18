@@ -80,6 +80,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -201,7 +202,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        String[] indexShardActions = new String[]{IndexAction.NAME, IndexAction.NAME + "[p]", IndexAction.NAME + "[r]"};
+        String[] indexShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(indexShardActions);
 
         IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
@@ -212,7 +213,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testDelete() {
-        String[] deleteShardActions = new String[]{DeleteAction.NAME, DeleteAction.NAME + "[p]", DeleteAction.NAME + "[r]"};
+        String[] deleteShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(deleteShardActions);
 
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
@@ -224,7 +225,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdate() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -239,7 +240,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdateUpsert() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -253,7 +254,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdateDelete() {
         //update action goes to the primary, delete op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", DeleteAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -743,7 +744,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         public static class TestPlugin extends Plugin implements NetworkPlugin {
             public final InterceptingTransportService instance = new InterceptingTransportService();
             @Override
-            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
                 return Collections.singletonList(instance);
             }
         }

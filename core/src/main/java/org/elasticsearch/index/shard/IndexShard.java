@@ -75,7 +75,6 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -553,17 +552,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.IndexResult index(Engine engine, Engine.Index index) {
         active.set(true);
         final Engine.IndexResult result;
-        index = indexingOperationListeners.preIndex(index);
+        index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
             result = engine.index(index);
         } catch (Exception e) {
-            indexingOperationListeners.postIndex(index, e);
+            indexingOperationListeners.postIndex(shardId, index, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(index, result);
+        indexingOperationListeners.postIndex(shardId, index, result);
         return result;
     }
 
@@ -602,17 +601,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) {
         active.set(true);
         final Engine.DeleteResult result;
-        delete = indexingOperationListeners.preDelete(delete);
+        delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
             result = engine.delete(delete);
         } catch (Exception e) {
-            indexingOperationListeners.postDelete(delete, e);
+            indexingOperationListeners.postDelete(shardId, delete, e);
             throw e;
         }
-        indexingOperationListeners.postDelete(delete, result);
+        indexingOperationListeners.postDelete(shardId, delete, result);
         return result;
     }
 
@@ -622,7 +621,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}.
+     * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
     public void refresh(String source) {
         verifyNotClosed();
@@ -1265,7 +1264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 Translog translog = engine.getTranslog();
                 return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().getBytes();
-            } catch (AlreadyClosedException | EngineClosedException ex) {
+            } catch (AlreadyClosedException ex) {
                 // that's fine we are already close - no need to flush
             }
         }
@@ -1304,7 +1303,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void activateThrottling() {
         try {
             getEngine().activateThrottling();
-        } catch (EngineClosedException ex) {
+        } catch (AlreadyClosedException ex) {
             // ignore
         }
     }
@@ -1312,13 +1311,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void deactivateThrottling() {
         try {
             getEngine().deactivateThrottling();
-        } catch (EngineClosedException ex) {
+        } catch (AlreadyClosedException ex) {
             // ignore
         }
     }
 
     private void handleRefreshException(Exception e) {
-        if (e instanceof EngineClosedException) {
+        if (e instanceof AlreadyClosedException) {
             // ignore
         } else if (e instanceof RefreshFailedEngineException) {
             RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
@@ -1530,7 +1529,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     Engine getEngine() {
         Engine engine = getEngineOrNull();
         if (engine == null) {
-            throw new EngineClosedException(shardId);
+            throw new AlreadyClosedException("engine is closed");
         }
         return engine;
     }
@@ -1667,7 +1666,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
-                throw new EngineClosedException(shardId);
+                throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
             assert this.currentEngineReference.get() == null;
             Engine engine = newEngine(config);
@@ -1769,7 +1768,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 final Engine engine = getEngine();
                 engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
-            } catch (EngineClosedException ex) {
+            } catch (AlreadyClosedException ex) {
                 // that's fine since we already synced everything on engine close - this also is conform with the methods
                 // documentation
             } catch (IOException ex) { // if this fails we are in deep shit - fail the request
@@ -1884,8 +1883,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * refresh listeners.
      * Otherwise <code>false</code>.
      *
-     * @throws EngineClosedException  if the engine is already closed
-     * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
+     * @throws AlreadyClosedException if the engine or internal indexwriter in the engine is already closed
      */
     public boolean isRefreshNeeded() {
         return getEngine().refreshNeeded() || (refreshListeners != null && refreshListeners.refreshNeeded());

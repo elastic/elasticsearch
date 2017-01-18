@@ -48,6 +48,7 @@ import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -297,7 +298,7 @@ public class RefreshListenersTests extends ESTestCase {
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, new Term("_uid", "test:"+threadId));
+                        Engine.Get get = new Engine.Get(false, new Term("_uid",  Uid.createUid("test", threadId)));
                         try (Engine.GetResult getResult = engine.get(get)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
@@ -328,7 +329,7 @@ public class RefreshListenersTests extends ESTestCase {
         String uid = type + ":" + id;
         Document document = new Document();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field uidField = new Field("_uid", type + ":" + id, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
         document.add(uidField);
@@ -338,7 +339,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, type, null, Arrays.asList(document), source, null);
-        Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
+        Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
         return engine.index(index);
     }
 

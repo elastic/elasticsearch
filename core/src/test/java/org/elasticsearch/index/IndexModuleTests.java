@@ -48,7 +48,9 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -232,7 +234,7 @@ public class IndexModuleTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean(false);
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
                 executed.set(true);
                 return operation;
             }
@@ -247,9 +249,11 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
+        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
+        Engine.Index index = new Engine.Index(new Term("_uid",  doc.uid()), doc);
+        ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
-            l.preIndex(index);
+            l.preIndex(shardId, index);
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);

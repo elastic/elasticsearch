@@ -17,14 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.synonym.FlattenGraphFilter;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
-public interface HttpServerAdapter {
+public class FlattenGraphTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext context);
+    public FlattenGraphTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+    }
 
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new FlattenGraphFilter(tokenStream);
+    }
 }

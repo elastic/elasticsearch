@@ -607,7 +607,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                         builder.prettyPrint();
                         builder.startObject();
-                        ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, e);
+                        ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, e);
                         builder.endObject();
                         logger.warn("failed to load/compile script [{}]: {}", scriptNameExt.v1(), builder.string());
                     } catch (IOException ioe) {

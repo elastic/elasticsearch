@@ -31,8 +31,6 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +39,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -49,11 +49,15 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -153,11 +157,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                try {
-                                    executeBulk(task, bulkRequest, startTime, listener, responses);
-                                } catch (Exception e) {
-                                    listener.onFailure(e);
-                                }
+                                executeBulk(task, bulkRequest, startTime, listener, responses);
                             }
                         }
 
@@ -173,12 +173,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                try {
-                                    executeBulk(task, bulkRequest, startTime, listener, responses);
-                                } catch (Exception inner) {
+                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
-                                }
+                                }), responses);
                             }
                         }
                     });
@@ -209,132 +207,201 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return false;
     }
 
-    /**
-     * This method executes the {@link BulkRequest} and calls the given listener once the request returns.
-     * This method will not create any indices even if auto-create indices is enabled.
-     *
-     * @see #doExecute(BulkRequest, org.elasticsearch.action.ActionListener)
-     */
-    public void executeBulk(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        final long startTimeNanos = relativeTime();
-        executeBulk(null, bulkRequest, startTimeNanos, listener, new AtomicArray<>(bulkRequest.requests.size()));
-    }
-
     private long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
-        final ClusterState clusterState = clusterService.state();
-        // TODO use timeout to wait here if its blocked...
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
+    /**
+     * retries on retryable cluster blocks, resolves item requests,
+     * constructs shard bulk requests and delegates execution to shard bulk action
+     * */
+    private final class BulkOperation extends AbstractRunnable {
+        private final Task task;
+        private final BulkRequest bulkRequest;
+        private final ActionListener<BulkResponse> listener;
+        private final AtomicArray<BulkItemResponse> responses;
+        private final long startTimeNanos;
+        private final ClusterStateObserver observer;
 
-        final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
-        MetaData metaData = clusterState.metaData();
-        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocWriteRequest docWriteRequest = bulkRequest.requests.get(i);
-            //the request can only be null because we set it to null in the previous step, so it gets ignored
-            if (docWriteRequest == null) {
-                continue;
+        BulkOperation(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener,
+                      AtomicArray<BulkItemResponse> responses, long startTimeNanos) {
+            this.task = task;
+            this.bulkRequest = bulkRequest;
+            this.listener = listener;
+            this.responses = responses;
+            this.startTimeNanos = startTimeNanos;
+            this.observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            final ClusterState clusterState = observer.setAndGetObservedState();
+            if (handleBlockExceptions(clusterState)) {
+                return;
             }
-            if (addFailureIfIndexIsUnavailable(docWriteRequest, bulkRequest, responses, i, concreteIndices, metaData)) {
-                continue;
+            final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
+            MetaData metaData = clusterState.metaData();
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest docWriteRequest = bulkRequest.requests.get(i);
+                //the request can only be null because we set it to null in the previous step, so it gets ignored
+                if (docWriteRequest == null) {
+                    continue;
+                }
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, bulkRequest, responses, i, concreteIndices, metaData)) {
+                    continue;
+                }
+                Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+                try {
+                    switch (docWriteRequest.opType()) {
+                        case CREATE:
+                        case INDEX:
+                            IndexRequest indexRequest = (IndexRequest) docWriteRequest;
+                            MappingMetaData mappingMd = null;
+                            final IndexMetaData indexMetaData = metaData.index(concreteIndex);
+                            if (indexMetaData != null) {
+                                mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                            }
+                            indexRequest.resolveRouting(metaData);
+                            indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
+                            break;
+                        case UPDATE:
+                            TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);
+                            break;
+                        case DELETE:
+                            docWriteRequest.routing(metaData.resolveIndexRouting(docWriteRequest.parent(), docWriteRequest.routing(), docWriteRequest.index()));
+                            // check if routing is required, if so, throw error if routing wasn't specified
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(), docWriteRequest.type())) {
+                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
+                            }
+                            break;
+                        default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
+                    }
+                } catch (ElasticsearchParseException | RoutingMissingException e) {
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id(), e);
+                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
+                    responses.set(i, bulkItemResponse);
+                    // make sure the request gets never processed again
+                    bulkRequest.requests.set(i, null);
+                }
             }
-            Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
-            try {
-                switch (docWriteRequest.opType()) {
-                    case CREATE:
-                    case INDEX:
-                        IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                        MappingMetaData mappingMd = null;
-                        final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                        if (indexMetaData != null) {
-                            mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+
+            // first, go over all the requests and create a ShardId -> Operations mapping
+            Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest request = bulkRequest.requests.get(i);
+                if (request == null) {
+                    continue;
+                }
+                String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(), request.routing()).shardId();
+                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
+                shardRequests.add(new BulkItemRequest(i, request));
+            }
+
+            if (requestsByShard.isEmpty()) {
+                listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                return;
+            }
+
+            final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+            String nodeId = clusterService.localNode().getId();
+            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                final ShardId shardId = entry.getKey();
+                final List<BulkItemRequest> requests = entry.getValue();
+                BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[requests.size()]));
+                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                bulkShardRequest.timeout(bulkRequest.timeout());
+                if (task != null) {
+                    bulkShardRequest.setParentTask(nodeId, task.getId());
+                }
+                shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkShardResponse) {
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                            // we may have no response if item failed
+                            if (bulkItemResponse.getResponse() != null) {
+                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                            }
+                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-                        indexRequest.resolveRouting(metaData);
-                        indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
-                        break;
-                    case UPDATE:
-                        TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);
-                        break;
-                    case DELETE:
-                        TransportDeleteAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (DeleteRequest) docWriteRequest);
-                        break;
-                    default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
-                }
-            } catch (ElasticsearchParseException | RoutingMissingException e) {
-                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id(), e);
-                BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
-                responses.set(i, bulkItemResponse);
-                // make sure the request gets never processed again
-                bulkRequest.requests.set(i, null);
-            }
-        }
-
-        // first, go over all the requests and create a ShardId -> Operations mapping
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocWriteRequest request = bulkRequest.requests.get(i);
-            if (request == null) {
-                continue;
-            }
-            String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
-            ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(), request.routing()).shardId();
-            List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
-            shardRequests.add(new BulkItemRequest(i, request));
-        }
-
-        if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
-            return;
-        }
-
-        final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
-        String nodeId = clusterService.localNode().getId();
-        for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-            final ShardId shardId = entry.getKey();
-            final List<BulkItemRequest> requests = entry.getValue();
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()]));
-            bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-            bulkShardRequest.timeout(bulkRequest.timeout());
-            if (task != null) {
-                bulkShardRequest.setParentTask(nodeId, task.getId());
-            }
-            shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
-                @Override
-                public void onResponse(BulkShardResponse bulkShardResponse) {
-                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                        // we may have no response if item failed
-                        if (bulkItemResponse.getResponse() != null) {
-                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
                         }
-                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // create failures for all relevant requests
+                        for (BulkItemRequest request : requests) {
+                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            DocWriteRequest docWriteRequest = request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
+                                    new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
                     }
+
+                    private void finishHim() {
+                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                    }
+                });
+            }
+        }
+
+        private boolean handleBlockExceptions(ClusterState state) {
+            ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+            if (blockException != null) {
+                if (blockException.retryable()) {
+                    logger.trace("cluster is blocked, scheduling a retry", blockException);
+                    retry(blockException);
+                } else {
+                    onFailure(blockException);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        void retry(Exception failure) {
+            assert failure != null;
+            if (observer.isTimedOut()) {
+                // we running as a last attempt after a timeout has happened. don't retry
+                onFailure(failure);
+                return;
+            }
+            final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    context.close();
+                    run();
                 }
 
                 @Override
-                public void onFailure(Exception e) {
-                    // create failures for all relevant requests
-                    for (BulkItemRequest request : requests) {
-                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                        DocWriteRequest docWriteRequest = request.request();
-                        responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
-                            new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
-                    }
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                public void onClusterServiceClose() {
+                    onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
-                private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    context.close();
+                    // Try one more time...
+                    run();
                 }
             });
         }
+    }
+
+    void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
+        new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos).run();
     }
 
     private boolean addFailureIfIndexIsUnavailable(DocWriteRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,

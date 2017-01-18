@@ -169,9 +169,9 @@ the query need to be matched exactly while other parts should still take
 stemming into account?
 
 Fortunately, the `query_string` and `simple_query_string` queries have a feature
-that allows to solve exactly this problem: `quote_field_suffix`. It allows to
-tell Elasticsearch that words that appear in between quotes should be redirected
-to a different field, see below:
+that solve this exact problem: `quote_field_suffix`. This tell Elasticsearch
+that the words that appear in between quotes are to be redirected to a different
+field, see below:
 
 [source,js]
 --------------------------------------------------
@@ -218,7 +218,7 @@ GET index/_search
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
-In that case, since `ski` was in-between quotes, it was searched on the
+In the above case, since `ski` was in-between quotes, it was searched on the
 `body.exact` field due to the `quote_field_suffix` parameter, so only document
 `1` matched. This allows users to mix exact search with stemmed search as they
 like.

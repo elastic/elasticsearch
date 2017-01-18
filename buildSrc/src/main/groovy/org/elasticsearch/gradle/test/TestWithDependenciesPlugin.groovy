@@ -27,12 +27,10 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.tasks.Copy
 
 /**
- * A plugin to run messy REST tests. Messy tests are tests that depend on another
- * plugin or module.
+ * A plugin to run tests that depend on other plugins or modules.
  *
- * This plugin will add the same test configuration as standalone rest tests, except
- * also add the plugin-metadata and properties files for each plugin project
- * dependency.
+ * This plugin will add the plugin-metadata and properties files for each 
+ * dependency to the test source set.
  */
 class TestWithDependenciesPlugin implements Plugin<Project> {
 

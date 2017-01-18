@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
@@ -39,6 +40,10 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,26 +82,30 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator shardsIter = getShardsIter("idx", randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null) {
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(RemoteClusterService.REMOTE_CLUSTERS_SEEDS)), null) {
             @Override
-            public void sendFreeContext(DiscoveryNode node, long contextId, SearchRequest request) {
+            public void sendFreeContext(Transport.Connection connection, long contextId, SearchRequest request) {
                 numFreedContext.incrementAndGet();
-                assertTrue(nodeToContextMap.containsKey(node));
-                assertTrue(nodeToContextMap.get(node).remove(contextId));
+                assertTrue(nodeToContextMap.containsKey(connection.getNode()));
+                assertTrue(nodeToContextMap.get(connection.getNode()).remove(contextId));
             }
         };
-        Map<String, DiscoveryNode> lookup = new HashMap<>();
-        lookup.put(primaryNode.getId(), primaryNode);
+        Map<String, Transport.Connection> lookup = new HashMap<>();
+        lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
+        lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(logger, transportService, lookup::get,
             aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, ActionListener listener) {
+            protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
+                                                 ActionListener listener) {
                 assertTrue("shard: " + request.shardId() + " has been queried twice", response.queried.add(request.shardId()));
-                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(), node);
-                Set<Long> ids = nodeToContextMap.computeIfAbsent(node, (n) -> new HashSet<>());
+                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
+                    connection.getNode());
+                Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> new HashSet<>());
                 ids.add(testSearchPhaseResult.id);
                 if (randomBoolean()) {
                     listener.onResponse(testSearchPhaseResult);
@@ -110,7 +119,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 for (int i = 0; i < firstResults.length(); i++) {
                     TestSearchPhaseResult result = firstResults.get(i);
                     assertEquals(result.node.getId(), result.shardTarget().getNodeId());
-                    sendReleaseSearchContext(result.id(), result.node);
+                    sendReleaseSearchContext(result.id(), new MockConnection(result.node));
                 }
                 responseListener.onResponse(response);
                 latch.countDown();
@@ -131,10 +140,13 @@ public class SearchAsyncActionTests extends ESTestCase {
         latch.await();
         assertNotNull(response.get());
         assertFalse(nodeToContextMap.isEmpty());
-        assertTrue(nodeToContextMap.containsKey(primaryNode));
+        assertTrue(nodeToContextMap.toString(), nodeToContextMap.containsKey(primaryNode) || nodeToContextMap.containsKey(replicaNode));
         assertEquals(shardsIter.size(), numFreedContext.get());
-        assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
-
+        if (nodeToContextMap.containsKey(primaryNode)) {
+            assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
+        } else {
+            assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
+        }
     }
 
     private GroupShardsIterator getShardsIter(String index, int numShards, boolean doReplicas, DiscoveryNode primaryNode,
@@ -210,6 +222,31 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
 
+        }
+    }
+
+    public final class MockConnection implements Transport.Connection {
+
+        private final DiscoveryNode node;
+
+        public MockConnection(DiscoveryNode node) {
+            this.node = node;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return node;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() throws IOException {
+            throw new UnsupportedOperationException();
         }
     }
 }

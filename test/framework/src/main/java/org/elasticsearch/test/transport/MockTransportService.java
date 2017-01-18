@@ -35,8 +35,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -45,6 +47,7 @@ import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -94,7 +97,7 @@ public final class MockTransportService extends TransportService {
     }
 
     public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool,
-            @Nullable ClusterSettings clusterSettings) {
+                                             @Nullable ClusterSettings clusterSettings) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
             @Override
@@ -104,6 +107,38 @@ public final class MockTransportService extends TransportService {
         };
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
     }
+
+    public static MockTransportService mockTcp(Settings settings, Version version, ThreadPool threadPool,
+                                             @Nullable ClusterSettings clusterSettings) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,  new NoneCircuitBreakerService(),
+            namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
+        if (version.equals(Version.CURRENT)) {
+            return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
+        } else {
+            return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, (boundAddress) ->
+                createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
+                    UUIDs.randomBase64UUID()), version), clusterSettings);
+        }
+    }
+
+    /** Creates a DiscoveryNode representing the local node. */
+    private static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId, Version version) {
+        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        if (Node.NODE_INGEST_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.INGEST);
+        }
+        if (Node.NODE_MASTER_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.MASTER);
+        }
+        if (Node.NODE_DATA_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.DATA);
+        }
+
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, version);
+    }
+
 
     private final Transport original;
 
@@ -770,5 +805,9 @@ public final class MockTransportService extends TransportService {
         synchronized (openConnections) {
             assert openConnections.size() == 0 : "still open connections: " + openConnections;
         }
+    }
+
+    public DiscoveryNode getLocalDiscoNode() {
+        return this.getLocalNode();
     }
 }

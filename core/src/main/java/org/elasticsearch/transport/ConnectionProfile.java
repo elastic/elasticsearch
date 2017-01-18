@@ -201,7 +201,7 @@ public final class ConnectionProfile {
          */
         <T> T getChannel(T[] channels) {
             if (length == 0) {
-                throw new IllegalStateException("can't select channel size is 0");
+                throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }
             assert channels.length >= offset + length : "illegal size: " + channels.length + " expected >= " + (offset + length);
             return channels[offset + Math.floorMod(counter.incrementAndGet(), length)];

@@ -129,4 +129,13 @@ public final class AliasFilter implements Writeable {
     public int hashCode() {
         return Objects.hash(aliases, filter, reparseAliases);
     }
+
+    @Override
+    public String toString() {
+        return "AliasFilter{" +
+            "aliases=" + Arrays.toString(aliases) +
+            ", filter=" + filter +
+            ", reparseAliases=" + reparseAliases +
+            '}';
+    }
 }

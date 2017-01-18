@@ -1,0 +1,60 @@
+---
+"Index data and search on the old cluster":
+
+  - do:
+    indices.create:
+      index: test_index
+      body:
+        settings:
+          index:
+            number_of_shards: 3
+            number_of_replicas: 0
+        aliases:
+          aliased_test_index: # we use this alias in the multi cluster test to very filtered aliases work
+            filter:
+              term:
+                filter_field : 1
+
+  - do:
+    bulk:
+       refresh: true
+       body:
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 0}'
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 1}'
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 0}'
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 1}'
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 0}'
+         - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+         - '{"f1": "remote_cluster", "filter_field": 0}'
+
+
+  - do:
+    search:
+      index: test_index
+      body:
+        aggs:
+          cluster:
+            terms:
+              field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+    search:
+      index: aliased_test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "test_index" }
+
+

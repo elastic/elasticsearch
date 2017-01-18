@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collections;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -52,13 +53,9 @@ import static org.hamcrest.Matchers.lessThan;
 @ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
     public void testNoMasterActions() throws Exception {
-        // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
-        boolean autoCreateIndex = randomBoolean();
-        logger.info("auto_create_index set to {}", autoCreateIndex);
-
         Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
-                .put("action.auto_create_index", autoCreateIndex)
+                .put("action.auto_create_index", true)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -121,7 +118,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
         checkWriteAction(
-                autoCreateIndex, timeout,
+                true, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
                         .setScript(new Script(
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
@@ -130,7 +127,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkWriteAction(false, timeout,
                 client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        checkWriteAction(autoCreateIndex, timeout,
+        checkWriteAction(true, timeout,
                 client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -141,7 +138,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
+        checkBulkAction(true, bulkRequestBuilder);
 
         internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();

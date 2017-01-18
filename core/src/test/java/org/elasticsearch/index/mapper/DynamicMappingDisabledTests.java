@@ -52,7 +52,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
-    private static ThreadPool THREAD_POOL;
+    private static ThreadPool threadPool;
     private ClusterService clusterService;
     private LocalTransport transport;
     private TransportService transportService;
@@ -65,7 +65,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        THREAD_POOL = new TestThreadPool("DynamicMappingDisabledTests");
+        threadPool = new TestThreadPool("DynamicMappingDisabledTests");
     }
 
     @Override
@@ -74,13 +74,13 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         settings = Settings.builder()
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
                 .build();
-        clusterService = createClusterService(THREAD_POOL);
-        transport = new LocalTransport(settings, THREAD_POOL, new NamedWriteableRegistry(Collections.emptyList()),
+        clusterService = createClusterService(threadPool);
+        transport = new LocalTransport(settings, threadPool, new NamedWriteableRegistry(Collections.emptyList()),
                     new NoneCircuitBreakerService());
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         indicesService = getInstanceFromNode(IndicesService.class);
-        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
+        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, threadPool);
         actionFilters = new ActionFilters(Collections.emptySet());
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -97,14 +97,14 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     @AfterClass
     public static void destroyThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         // since static must set to null to be eligible for collection
-        THREAD_POOL = null;
+        threadPool = null;
     }
 
     public void testDynamicDisabled() {
         TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
-                indicesService, null, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
+                indicesService, null, threadPool, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
                 autoCreateIndex);
 
         IndexRequest request = new IndexRequest("index", "type", "1");
@@ -114,14 +114,14 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         action.execute(request, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                fail("Indexing request should have failed");
+                fail("onResponse shouldn't be called");
             }
 
             @Override
             public void onFailure(Exception e) {
                 onFailureCalled.set(true);
                 assertThat(e, instanceOf(IndexNotFoundException.class));
-                assertEquals(e.getMessage(), "no such index");
+                assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
             }
         });
 

@@ -539,8 +539,8 @@ public class TransportService extends AbstractLifecycleComponent {
             } else {
                 timeoutHandler = new TimeoutHandler(requestId);
             }
-            TransportResponseHandler<T> responseHandler =
-                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().newStoredContext(), handler);
+            Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
+            TransportResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
             clientHandlers.put(requestId, new RequestHolder<>(responseHandler, connection.getNode(), action, timeoutHandler));
             if (lifecycle.stoppedOrClosed()) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify
@@ -996,14 +996,14 @@ public class TransportService extends AbstractLifecycleComponent {
      * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
      * are invoked we restore the context.
      */
-    private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    public static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final TransportResponseHandler<T> delegate;
-        private final ThreadContext.StoredContext threadContext;
+        private final Supplier<ThreadContext.StoredContext> contextSupplier;
 
-        private ContextRestoreResponseHandler(ThreadContext.StoredContext threadContext, TransportResponseHandler<T> delegate) {
+        public ContextRestoreResponseHandler(Supplier<ThreadContext.StoredContext> contextSupplier, TransportResponseHandler<T> delegate) {
             this.delegate = delegate;
-            this.threadContext = threadContext;
+            this.contextSupplier = contextSupplier;
         }
 
         @Override
@@ -1013,14 +1013,16 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void handleResponse(T response) {
-            threadContext.restore();
-            delegate.handleResponse(response);
+            try (ThreadContext.StoredContext ignore = contextSupplier.get()) {
+                delegate.handleResponse(response);
+            }
         }
 
         @Override
         public void handleException(TransportException exp) {
-            threadContext.restore();
-            delegate.handleException(exp);
+            try (ThreadContext.StoredContext ignore = contextSupplier.get()) {
+                delegate.handleException(exp);
+            }
         }
 
         @Override
@@ -1077,13 +1079,7 @@ public class TransportService extends AbstractLifecycleComponent {
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
                 } else {
-                    threadPool.executor(executor).execute(new Runnable() {
-                        @SuppressWarnings({"unchecked"})
-                        @Override
-                        public void run() {
-                            processResponse(handler, response);
-                        }
-                    });
+                    threadPool.executor(executor).execute(() -> processResponse(handler, response));
                 }
             }
         }

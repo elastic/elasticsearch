@@ -486,16 +486,15 @@ public abstract class TransportReplicationAction<
                             request),
                     e);
                 request.onRetry();
-                final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        context.close();
                         // Forking a thread on local node via transport service so that custom transport service have an
                         // opportunity to execute custom logic before the replica operation begins
                         String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
-                            new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
+                            new TransportChannelResponseHandler<>(logger, channel, extraMessage,
+                                () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             new ConcreteShardRequest<>(request, targetAllocationID),
                             handler);
@@ -776,11 +775,9 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    context.close();
                     run();
                 }
 
@@ -791,7 +788,6 @@ public abstract class TransportReplicationAction<
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    context.close();
                     // Try one more time...
                     run();
                 }

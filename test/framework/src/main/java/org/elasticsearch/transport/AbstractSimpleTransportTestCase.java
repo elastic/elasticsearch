@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
@@ -1965,4 +1966,68 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             t.join();
         }
     }
+
+    public void testResponseHeadersArePreserved() throws InterruptedException {
+        List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
+        CollectionUtil.timSort(executors); // makes sure it's reproducible
+        serviceA.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+            (request, channel) -> {
+
+                threadPool.getThreadContext().putTransient("boom", new Object());
+                threadPool.getThreadContext().addResponseHeader("foo.bar", "baz");
+                if ("fail".equals(request.info)) {
+                    throw new RuntimeException("boom");
+                } else {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                }
+            });
+
+        CountDownLatch latch = new CountDownLatch(2);
+
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse newInstance() {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                try {
+                    assertSame(response, TransportResponse.Empty.INSTANCE);
+                    assertTrue(threadPool.getThreadContext().getResponseHeaders().containsKey("foo.bar"));
+                    assertEquals(1, threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size());
+                    assertEquals("baz", threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0));
+                    assertNull(threadPool.getThreadContext().getTransient("boom"));
+                } finally {
+                    latch.countDown();
+                }
+
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                try {
+                    assertTrue(threadPool.getThreadContext().getResponseHeaders().containsKey("foo.bar"));
+                    assertEquals(1, threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size());
+                    assertEquals("baz", threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0));
+                    assertNull(threadPool.getThreadContext().getTransient("boom"));
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public String executor() {
+                if (1 == 1)
+                    return "same";
+
+                return randomFrom(executors);
+            }
+        };
+
+        serviceB.sendRequest(nodeA, "action",  new TestRequest(randomFrom("fail", "pass")), transportResponseHandler);
+        serviceA.sendRequest(nodeA, "action",  new TestRequest(randomFrom("fail", "pass")), transportResponseHandler);
+        latch.await();
+    }
+
 }

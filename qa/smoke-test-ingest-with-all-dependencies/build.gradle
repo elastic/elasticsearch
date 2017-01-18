@@ -17,7 +17,7 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.messy-rest-test'
+apply plugin: 'elasticsearch.rest-test-with-dependencies'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {

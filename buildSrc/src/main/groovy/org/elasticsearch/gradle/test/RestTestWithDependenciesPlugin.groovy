@@ -33,7 +33,7 @@ import org.gradle.api.tasks.Copy
  * also add the plugin-metadata and properties files for each plugin project
  * dependency.
  */
-class MessyRestTestPlugin extends StandaloneRestTestPlugin {
+class RestTestWithDependenciesPlugin extends StandaloneRestTestPlugin {
 
     @Override
     void apply(Project project) {

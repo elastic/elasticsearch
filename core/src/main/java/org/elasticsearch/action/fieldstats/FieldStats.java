@@ -124,6 +124,8 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                 return "string";
             case 4:
                 return "ip";
+            case 5:
+                return "geo_point";
             default:
                 throw new IllegalArgumentException("Unknown type.");
         }
@@ -276,7 +278,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
-    private void updateMinMax(T min, T max) {
+    protected void updateMinMax(T min, T max) {
         if (compare(minValue, min) > 0) {
             minValue = min;
         }
@@ -643,6 +645,55 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
+    public static class GeoPoint extends FieldStats<org.elasticsearch.common.geo.GeoPoint> {
+        public GeoPoint(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                  boolean isSearchable, boolean isAggregatable) {
+            super((byte) 5, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                isSearchable, isAggregatable);
+        }
+
+        public GeoPoint(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
+                        boolean isSearchable, boolean isAggregatable,
+                        org.elasticsearch.common.geo.GeoPoint minValue, org.elasticsearch.common.geo.GeoPoint maxValue) {
+            super((byte) 5, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+                minValue, maxValue);
+        }
+
+        @Override
+        public org.elasticsearch.common.geo.GeoPoint valueOf(String value, String fmt) {
+            return org.elasticsearch.common.geo.GeoPoint.parseFromLatLon(value);
+        }
+
+        @Override
+        protected void updateMinMax(org.elasticsearch.common.geo.GeoPoint min, org.elasticsearch.common.geo.GeoPoint max) {
+            minValue.reset(Math.min(min.lat(), minValue.lat()), Math.min(min.lon(), minValue.lon()));
+            maxValue.reset(Math.max(max.lat(), maxValue.lat()), Math.max(max.lon(), maxValue.lon()));
+        }
+
+        @Override
+        public int compare(org.elasticsearch.common.geo.GeoPoint p1, org.elasticsearch.common.geo.GeoPoint p2) {
+            throw new IllegalArgumentException("compare is not supported for geo_point field stats");
+        }
+
+        @Override
+        public void writeMinMax(StreamOutput out) throws IOException {
+            out.writeDouble(minValue.lat());
+            out.writeDouble(minValue.lon());
+            out.writeDouble(maxValue.lat());
+            out.writeDouble(maxValue.lon());
+        }
+
+        @Override
+        public String getMinValueAsString() {
+            return minValue.toString();
+        }
+
+        @Override
+        public String getMaxValueAsString() {
+            return maxValue.toString();
+        }
+    }
+
     public static FieldStats readFrom(StreamInput in) throws IOException {
         byte type = in.readByte();
         long maxDoc = in.readLong();
@@ -690,7 +741,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                         isSearchable, isAggregatable);
                 }
 
-            case 4:
+            case 4: {
                 if (hasMinMax == false) {
                     return new Ip(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                         isSearchable, isAggregatable);
@@ -705,7 +756,17 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                 InetAddress max = InetAddressPoint.decode(b2);
                 return new Ip(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                     isSearchable, isAggregatable, min, max);
-
+            }
+            case 5: {
+                if (hasMinMax == false) {
+                    return new GeoPoint(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                        isSearchable, isAggregatable);
+                }
+                org.elasticsearch.common.geo.GeoPoint min = new org.elasticsearch.common.geo.GeoPoint(in.readDouble(), in.readDouble());
+                org.elasticsearch.common.geo.GeoPoint max = new org.elasticsearch.common.geo.GeoPoint(in.readDouble(), in.readDouble());
+                return new GeoPoint(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
+                    isSearchable, isAggregatable, min, max);
+            }
             default:
                 throw new IllegalArgumentException("Unknown type.");
         }

@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
@@ -212,8 +213,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             return connection;
         };
+
+        final ActionListener<SearchResponse> wrapper;
+        if (searchPhaseController.getSearchResponseListener().size() > 0) {
+            wrapper = ActionListener.wrap(searchResponse -> {
+                List<BiConsumer<SearchRequest, SearchResponse>> responseListeners =
+                    searchPhaseController.getSearchResponseListener();
+                for (BiConsumer<SearchRequest, SearchResponse> respListener : responseListeners) {
+                    respListener.accept(searchRequest, searchResponse);
+                }
+                listener.onResponse(searchResponse);
+
+            }, listener::onFailure);
+        } else {
+            wrapper = listener;
+        }
         searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, connectionLookup, clusterState.version(),
-            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, wrapper).start();
     }
 
     private static GroupShardsIterator mergeShardsIterators(GroupShardsIterator localShardsIterator,

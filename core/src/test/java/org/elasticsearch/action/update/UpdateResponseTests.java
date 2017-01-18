@@ -108,7 +108,9 @@ public class UpdateResponseTests extends ESTestCase {
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
 
-        Long seqNo = randomBoolean() ? null : randomNonNegativeLong();
+        // We also want small number values (randomNonNegativeLong() tend to generate high numbers)
+        // in order to catch some conversion error that happen between int/long after parsing.
+        Long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
 
         UpdateResponse actual, expected;
         if (seqNo != null) {

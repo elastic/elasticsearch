@@ -140,7 +140,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
 
                 if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
-                    IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false && // see #20650
+                    indexMetaData.isIndexUsingShadowReplicas() == false && // see #20650
                     shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
                     RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)

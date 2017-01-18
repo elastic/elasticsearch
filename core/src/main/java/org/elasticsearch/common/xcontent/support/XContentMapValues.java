@@ -417,12 +417,12 @@ public class XContentMapValues {
         try {
             return nodeBooleanValue(node, defaultValue);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean.", ex);
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
     }
 
     public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
-        String nodeValue = node != null ? node.toString() : null;
+        String nodeValue = node == null ? null : node.toString();
         return Booleans.parseBoolean(nodeValue, defaultValue);
     }
 
@@ -430,7 +430,7 @@ public class XContentMapValues {
         try {
             return nodeBooleanValue(node);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean.", ex);
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
     }
 

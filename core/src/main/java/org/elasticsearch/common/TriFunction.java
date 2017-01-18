@@ -27,8 +27,6 @@ package org.elasticsearch.common;
  * @param <T> the type of the second argument
  * @param <U> the type of the third argument
  * @param <R> the return type
- *
- * @since 1.8
  */
 @FunctionalInterface
 public interface TriFunction<S, T, U, R> {

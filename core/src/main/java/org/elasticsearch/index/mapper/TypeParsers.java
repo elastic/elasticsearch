@@ -80,8 +80,8 @@ public class TypeParsers {
     }
 
 
-    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper
-        .TypeParser.ParserContext parserContext) {
+    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                                     Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;
         NamedAnalyzer searchAnalyzer = null;
         NamedAnalyzer searchQuoteAnalyzer = null;
@@ -135,8 +135,8 @@ public class TypeParsers {
         }
 
         if (searchAnalyzer == null && searchQuoteAnalyzer != null) {
-            throw new MapperParsingException("analyzer and search_analyzer on field [" + name + "] must be set when search_quote_analyzer" +
-                " is set");
+            throw new MapperParsingException("analyzer and search_analyzer on field [" + name +
+                "] must be set when search_quote_analyzer is set");
         }
 
         if (searchAnalyzer == null) {

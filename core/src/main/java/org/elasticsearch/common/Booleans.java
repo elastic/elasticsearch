@@ -80,17 +80,17 @@ public final class Booleans {
      * @return see {@link #parseBoolean(String)}
      */
     public static boolean parseBoolean(String value, boolean defaultValue) {
-        if (value == null || value.length() == 0) {
-            return defaultValue;
+        if (Strings.hasText(value)) {
+            return parseBoolean(value);
         }
-        return parseBoolean(value);
+        return defaultValue;
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {
-        if (value == null || value.length() == 0) {
-            return defaultValue;
+        if (Strings.hasText(value)) {
+            return parseBoolean(value);
         }
-        return parseBoolean(value);
+        return defaultValue;
     }
 
     /**

@@ -37,7 +37,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -307,7 +306,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 "get template with " + Arrays.toString(names));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/8802")
     public void testBrokenMapping() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
@@ -723,4 +721,62 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates().get(0).getOrder(), equalTo(order));
     }
 
+    public void testPartitionedTemplate() throws Exception {
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        // provide more partitions than shards
+        IllegalArgumentException eBadSettings = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setSettings(Settings.builder()
+                    .put("index.number_of_shards", "5")
+                    .put("index.routing_partition_size", "6"))
+                .get());
+        assertThat(eBadSettings.getMessage(), containsString("partition size [6] should be a positive number "
+                + "less than the number of shards [5]"));
+
+        // provide an invalid mapping for a partitioned index
+        IllegalArgumentException eBadMapping = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("te*")
+                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}")
+                .setSettings(Settings.builder()
+                    .put("index.number_of_shards", "6")
+                    .put("index.routing_partition_size", "3"))
+                .get());
+        assertThat(eBadMapping.getMessage(), containsString("must have routing required for partitioned index"));
+
+        // no templates yet
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertEquals(0, response.getIndexTemplates().size());
+
+        // a valid configuration that only provides the partition size
+        assertAcked(client().admin().indices().preparePutTemplate("just_partitions")
+            .setTemplate("te*")
+            .setSettings(Settings.builder()
+                .put("index.routing_partition_size", "6"))
+            .get());
+
+        // create an index with too few shards
+        IllegalArgumentException eBadIndex = expectThrows(IllegalArgumentException.class,
+                () -> prepareCreate("test_bad").setSettings(Settings.builder()
+            .put("index.number_of_shards", 5))
+            .get());
+
+        assertThat(eBadIndex.getMessage(), containsString("partition size [6] should be a positive number "
+                + "less than the number of shards [5]"));
+
+        // finally, create a valid index
+        prepareCreate("test_good").setSettings(Settings.builder()
+            .put("index.number_of_shards", 7))
+            .get();
+
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();
+        assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").getAsMap().get("index.routing_partition_size"));
+    }
 }

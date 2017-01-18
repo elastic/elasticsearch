@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -367,20 +368,20 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 }
 
                 switch (item.getOpType()) {
-                case "index":
-                case "create":
-                    IndexResponse ir = item.getResponse();
-                    if (ir.getResult() == DocWriteResponse.Result.CREATED) {
-                        task.countCreated();
-                    } else {
-                        task.countUpdated();
-                    }
-                    break;
-                case "delete":
-                    task.countDeleted();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
+                    case CREATE:
+                    case INDEX:
+                        if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
+                            task.countCreated();
+                        } else {
+                            task.countUpdated();
+                        }
+                        break;
+                    case UPDATE:
+                         task.countUpdated();
+                         break;
+                    case DELETE:
+                        task.countDeleted();
+                        break;
                 }
                 // Track the indexes we've seen so we can refresh them if requested
                 destinationIndicesThisBatch.add(item.getIndex());
@@ -512,7 +513,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Wrapper for the {@link IndexRequest} or {@link DeleteRequest} that are used in this action class.
      */
-    interface RequestWrapper<Self extends ActionRequest> {
+    interface RequestWrapper<Self extends DocWriteRequest<?>> {
 
         void setIndex(String index);
 

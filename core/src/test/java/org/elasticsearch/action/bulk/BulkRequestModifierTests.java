@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,12 +113,12 @@ public class BulkRequestModifierTests extends ESTestCase {
         });
 
         List<BulkItemResponse> originalResponses = new ArrayList<>();
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
             IndexResponse indexResponse =
                 new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(), indexRequest.id(), 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()),
-                indexRequest.opType().lowercase(), indexResponse));
+                indexRequest.opType(), indexResponse));
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
 

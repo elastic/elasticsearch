@@ -21,7 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -320,7 +320,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            ActionRequest request;
+            DocWriteRequest request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_type", "_id");

@@ -28,6 +28,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteResponse.Result;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -47,7 +49,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -259,35 +260,36 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             BulkItemResponse[] responses = new BulkItemResponse[randomIntBetween(0, 100)];
             for (int i = 0; i < responses.length; i++) {
                 ShardId shardId = new ShardId(new Index("name", "uid"), 0);
-                String opType;
                 if (rarely()) {
-                    opType = randomSimpleString(random());
                     versionConflicts++;
-                    responses[i] = new BulkItemResponse(i, opType, new Failure(shardId.getIndexName(), "type", "id" + i,
-                            new VersionConflictEngineException(shardId, "type", "id", "test")));
+                    responses[i] = new BulkItemResponse(i, randomFrom(DocWriteRequest.OpType.values()),
+                            new Failure(shardId.getIndexName(), "type", "id" + i,
+                                        new VersionConflictEngineException(shardId, "type", "id", "test")));
                     continue;
                 }
                 boolean createdResponse;
+                DocWriteRequest.OpType opType;
                 switch (randomIntBetween(0, 2)) {
                 case 0:
-                    opType = randomFrom("index", "create");
                     createdResponse = true;
+                    opType = DocWriteRequest.OpType.CREATE;
                     created++;
                     break;
                 case 1:
-                    opType = randomFrom("index", "create");
                     createdResponse = false;
+                    opType = randomFrom(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.UPDATE);
                     updated++;
                     break;
                 case 2:
-                    opType = "delete";
                     createdResponse = false;
+                    opType = DocWriteRequest.OpType.DELETE;
                     deleted++;
                     break;
                 default:
                     throw new RuntimeException("Bad scenario");
                 }
-                responses[i] = new BulkItemResponse(i, opType, new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
+                responses[i] = new BulkItemResponse(i, opType,
+                        new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
             }
             new DummyAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
@@ -360,7 +362,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testBulkFailuresAbortRequest() throws Exception {
         Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong());
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]
+            {new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, failure)}, randomLong());
         action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse);
         BulkIndexByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), contains(failure));
@@ -779,33 +782,29 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 }
                 BulkItemResponse[] responses = new BulkItemResponse[bulk.requests().size()];
                 for (int i = 0; i < bulk.requests().size(); i++) {
-                    ActionRequest item = bulk.requests().get(i);
-                    String opType;
+                    DocWriteRequest<?> item = bulk.requests().get(i);
                     DocWriteResponse response;
-                    ShardId shardId = new ShardId(new Index(((ReplicationRequest<?>) item).index(), "uuid"), 0);
+                    ShardId shardId = new ShardId(new Index(item.index(), "uuid"), 0);
                     if (item instanceof IndexRequest) {
                         IndexRequest index = (IndexRequest) item;
-                        opType = index.opType().lowercase();
                         response = new IndexResponse(shardId, index.type(), index.id(), randomIntBetween(0, Integer.MAX_VALUE),
                                 true);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
-                        opType = "update";
                         response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Result.CREATED);
+                                randomIntBetween(0, Integer.MAX_VALUE), Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
-                        opType = "delete";
                         response = new DeleteResponse(shardId, delete.type(), delete.id(), randomIntBetween(0, Integer.MAX_VALUE),
                                 true);
                     } else {
                         throw new RuntimeException("Unknown request:  " + item);
                     }
                     if (i == toReject) {
-                        responses[i] = new BulkItemResponse(i, opType,
+                        responses[i] = new BulkItemResponse(i, item.opType(),
                                 new Failure(response.getIndex(), response.getType(), response.getId(), new EsRejectedExecutionException()));
                     } else {
-                        responses[i] = new BulkItemResponse(i, opType, response);
+                        responses[i] = new BulkItemResponse(i, item.opType(), response);
                     }
                 }
                 listener.onResponse((Response) new BulkResponse(responses, 1));

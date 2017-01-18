@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -68,7 +68,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
         });
     }
 
-    public void executeBulkRequest(Iterable<ActionRequest> actionRequests,
+    public void executeBulkRequest(Iterable<DocWriteRequest> actionRequests,
                                    BiConsumer<IndexRequest, Exception> itemFailureHandler,
                                    Consumer<Exception> completionHandler) {
         threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {
@@ -80,7 +80,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
 
             @Override
             protected void doRun() throws Exception {
-                for (ActionRequest actionRequest : actionRequests) {
+                for (DocWriteRequest actionRequest : actionRequests) {
                     if ((actionRequest instanceof IndexRequest)) {
                         IndexRequest indexRequest = (IndexRequest) actionRequest;
                         if (Strings.hasText(indexRequest.getPipeline())) {

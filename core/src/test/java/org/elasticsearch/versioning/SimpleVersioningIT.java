@@ -21,9 +21,9 @@ package org.elasticsearch.versioning;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -719,7 +719,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client()
                 .prepareIndex("test", "type", "id")
                 .setSource("foo", "bar")
-                .setOpType(IndexRequest.OpType.INDEX)
+                .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()
@@ -788,7 +788,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client()
                 .prepareIndex("test", "type", "id")
                 .setSource("foo", "bar")
-                .setOpType(IndexRequest.OpType.INDEX)
+                .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()

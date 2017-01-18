@@ -20,8 +20,8 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -113,7 +113,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest> requests = new ArrayList<>();
+        List<DocWriteRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -53,7 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
@@ -470,29 +470,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this.retryOnConflict;
     }
 
-    /**
-     * Sets the version, which will cause the index operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public UpdateRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
-    /**
-     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
-     */
+    @Override
     public UpdateRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.UPDATE;
     }
 
     @Override

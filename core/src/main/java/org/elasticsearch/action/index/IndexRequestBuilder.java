@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -172,7 +173,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the type of operation to perform.
      */
-    public IndexRequestBuilder setOpType(IndexRequest.OpType opType) {
+    public IndexRequestBuilder setOpType(DocWriteRequest.OpType opType) {
         request.opType(opType);
         return this;
     }

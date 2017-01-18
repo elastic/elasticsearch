@@ -84,7 +84,7 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         if (sOpType != null) {
-            indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+            indexRequest.opType(sOpType);
         }
 
         return channel ->

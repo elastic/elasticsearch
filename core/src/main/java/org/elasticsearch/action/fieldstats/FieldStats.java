@@ -329,10 +329,8 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                 writeMinMax(out);
             }
         } else {
-            if (hasMinMax == false) {
-                throw new IllegalArgumentException("cannot serialize null min/max fieldstats in a mixed-cluster " +
-                    "with pre-" + Version.V_5_2_0_UNRELEASED + " nodes, node version [" + out.getVersion() + "]");
-            }
+            assert hasMinMax : "cannot serialize null min/max fieldstats in a mixed-cluster " +
+                    "with pre-" + Version.V_5_2_0_UNRELEASED + " nodes, remote version [" + out.getVersion() + "]";
             writeMinMax(out);
         }
     }

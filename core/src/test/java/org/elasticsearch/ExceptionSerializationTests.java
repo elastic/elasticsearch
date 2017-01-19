@@ -18,6 +18,11 @@
  */
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -81,6 +86,8 @@ import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.AccessDeniedException;
@@ -108,6 +115,7 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -546,6 +554,61 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
     }
 
+    public void testUnknownException() throws IOException {
+        ParsingException parsingException = new ParsingException(1, 2, "foobar", null);
+        final Exception ex = new UnknownException("eggplant", parsingException);
+        Exception exception = serialize(ex);
+        assertEquals("unknown_exception: eggplant", exception.getMessage());
+        assertTrue(exception instanceof ElasticsearchException);
+        ParsingException e = (ParsingException)exception.getCause();
+        assertEquals(parsingException.getIndex(), e.getIndex());
+        assertEquals(parsingException.getMessage(), e.getMessage());
+        assertEquals(parsingException.getLineNumber(), e.getLineNumber());
+        assertEquals(parsingException.getColumnNumber(), e.getColumnNumber());
+    }
+
+    public void testWriteThrowable() throws IOException {
+        final QueryShardException queryShardException = new QueryShardException(new Index("foo", "_na_"), "foobar", null);
+        final UnknownException unknownException = new UnknownException("this exception is unknown", queryShardException);
+
+        final Exception[] causes = new Exception[]{
+                new IllegalStateException("foobar"),
+                new IllegalArgumentException("alalaal"),
+                new NullPointerException("boom"),
+                new EOFException("dadada"),
+                new ElasticsearchSecurityException("nono!"),
+                new NumberFormatException("not a number"),
+                new CorruptIndexException("baaaam booom", "this is my resource"),
+                new IndexFormatTooNewException("tooo new", 1, 2, 3),
+                new IndexFormatTooOldException("tooo new", 1, 2, 3),
+                new IndexFormatTooOldException("tooo new", "very old version"),
+                new ArrayIndexOutOfBoundsException("booom"),
+                new StringIndexOutOfBoundsException("booom"),
+                new FileNotFoundException("booom"),
+                new NoSuchFileException("booom"),
+                new AlreadyClosedException("closed!!", new NullPointerException()),
+                new LockObtainFailedException("can't lock directory", new NullPointerException()),
+                unknownException};
+        for (final Exception cause : causes) {
+            ElasticsearchException ex = new ElasticsearchException("topLevel", cause);
+            ElasticsearchException deserialized = serialize(ex);
+            assertEquals(deserialized.getMessage(), ex.getMessage());
+            assertTrue("Expected: " + deserialized.getCause().getMessage() + " to contain: " +
+                            ex.getCause().getClass().getName() + " but it didn't",
+                    deserialized.getCause().getMessage().contains(ex.getCause().getMessage()));
+            if (ex.getCause().getClass() != UnknownException.class) { // unknown exception is not directly mapped
+                assertEquals(deserialized.getCause().getClass(), ex.getCause().getClass());
+            } else {
+                assertEquals(deserialized.getCause().getClass(), NotSerializableExceptionWrapper.class);
+            }
+            assertArrayEquals(deserialized.getStackTrace(), ex.getStackTrace());
+            assertTrue(deserialized.getStackTrace().length > 1);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), cause);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
+            assertVersionSerializable(VersionUtils.randomVersion(random()), deserialized);
+        }
+    }
+
     public void testWithRestHeadersException() throws IOException {
         {
             ElasticsearchException ex = new ElasticsearchException("msg");
@@ -918,6 +981,12 @@ public class ExceptionSerializationTests extends ESTestCase {
             assertEquals(2, exception.getMetadataKeys().size());
             assertEquals("value3", exception.getMetadata("es.header3").get(0));
             assertEquals("value4", exception.getMetadata("es.header4").get(0));
+        }
+    }
+
+    private static class UnknownException extends Exception {
+        UnknownException(final String message, final Exception cause) {
+            super(message, cause);
         }
     }
 }

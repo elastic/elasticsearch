@@ -138,6 +138,10 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             super(id, type, action, jobId + "_post_data", parentTaskId);
         }
 
+        @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            return true;
+        }
     }
 
     public static class Request extends ActionRequest {

@@ -84,6 +84,11 @@ public class InternalStartDatafeedAction extends
         }
 
         @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            return true;
+        }
+
+        @Override
         protected void onCancelled() {
             stop();
         }

@@ -81,7 +81,7 @@ import static java.util.Collections.unmodifiableMap;
 
 public class Analysis {
 
-    static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Analysis.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Analysis.class));
 
     public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
         // check for explicit version on the specific analyzer component

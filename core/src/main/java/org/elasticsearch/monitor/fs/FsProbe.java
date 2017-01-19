@@ -51,7 +51,7 @@ public class FsProbe extends AbstractComponent {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats(FsInfo previous, ClusterInfo clusterInfo) throws IOException {
+    public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
         if (!nodeEnv.hasNodeFile()) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }

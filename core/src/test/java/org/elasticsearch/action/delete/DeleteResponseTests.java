@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class DeleteResponseTests extends ESTestCase {
@@ -61,12 +62,12 @@ public class DeleteResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         // Create a random DeleteResponse and converts it to XContent in bytes
-        DeleteResponse response = randomDeleteResponse();
-        BytesReference responseBytes = toXContent(response, xContentType);
+        DeleteResponse deleteResponse = randomDeleteResponse();
+        BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType);
 
         // Parse the XContent bytes to obtain a parsed
         DeleteResponse parsedDeleteResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), responseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
             parsedDeleteResponse = DeleteResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
@@ -78,77 +79,7 @@ public class DeleteResponseTests extends ESTestCase {
         // Print the parsed object out and test that the output is the same as the original output
         BytesReference parsedDeleteResponseBytes = toXContent(parsedDeleteResponse, xContentType);
         try (XContentParser parser = createParser(xContentType.xContent(), parsedDeleteResponseBytes)) {
-            assertDeleteResponse(response, parser.map());
-        }
-    }
-
-    private static void assertDeleteResponse(DeleteResponse expected, Map<String, Object> actual) {
-        assertEquals(expected.getIndex(), actual.get("_index"));
-        assertEquals(expected.getType(), actual.get("_type"));
-        assertEquals(expected.getId(), actual.get("_id"));
-        assertEquals(expected.getVersion(), ((Integer) actual.get("_version")).longValue());
-        assertEquals(expected.getResult().getLowercase(), actual.get("result"));
-        if (expected.forcedRefresh()) {
-            assertTrue((Boolean) actual.get("forced_refresh"));
-        } else {
-            assertFalse(actual.containsKey("forced_refresh"));
-        }
-        if (expected.getSeqNo() >= 0) {
-            assertEquals(expected.getSeqNo(), ((Integer) actual.get("_seq_no")).longValue());
-        } else {
-            assertFalse(actual.containsKey("_seq_no"));
-        }
-
-        Map<String, Object> actualShards = (Map<String, Object>) actual.get("_shards");
-        assertNotNull(actualShards);
-        assertEquals(expected.getShardInfo().getTotal(), actualShards.get("total"));
-        assertEquals(expected.getShardInfo().getSuccessful(), actualShards.get("successful"));
-        assertEquals(expected.getShardInfo().getFailed(), actualShards.get("failed"));
-
-        List<Map<String, Object>> actualFailures = (List<Map<String, Object>>) actualShards.get("failures");
-        if (CollectionUtils.isEmpty(expected.getShardInfo().getFailures())) {
-            assertNull(actualFailures);
-        } else {
-            assertEquals(expected.getShardInfo().getFailures().length, actualFailures.size());
-            for (int i = 0; i < expected.getShardInfo().getFailures().length; i++) {
-                ReplicationResponse.ShardInfo.Failure failure = expected.getShardInfo().getFailures()[i];
-                Map<String, Object> actualFailure = actualFailures.get(i);
-
-                assertEquals(failure.index(), actualFailure.get("_index"));
-                assertEquals(failure.shardId(), actualFailure.get("_shard"));
-                assertEquals(failure.nodeId(), actualFailure.get("_node"));
-                assertEquals(failure.status(), RestStatus.valueOf((String) actualFailure.get("status")));
-                assertEquals(failure.primary(), actualFailure.get("primary"));
-
-                Throwable cause = failure.getCause();
-                Map<String, Object> actualClause = (Map<String, Object>) actualFailure.get("reason");
-                assertNotNull(actualClause);
-                while (cause != null) {
-                    // The expected IndexResponse has been converted in XContent, then the resulting bytes have been
-                    // parsed to create a new parsed IndexResponse. During this process, the type of the exceptions
-                    // have been lost.
-                    assertEquals("exception", actualClause.get("type"));
-                    String expectedMessage = "Elasticsearch exception [type=" + ElasticsearchException.getExceptionName(cause)
-                            + ", reason=" + cause.getMessage() + "]";
-                    assertEquals(expectedMessage, actualClause.get("reason"));
-
-                    if (cause instanceof ElasticsearchException) {
-                        ElasticsearchException ex = (ElasticsearchException) cause;
-                        Map<String, Object> actualHeaders = (Map<String, Object>) actualClause.get("header");
-
-                        // When a DeleteResponse is converted to XContent, the exception headers that start with "es."
-                        // are added to the XContent as fields with the prefix removed. Other headers are added under
-                        // a "header" root object.
-                        // In the test, the "es." prefix is lost when the XContent is generating, so when the parsed
-                        // IndexResponse is converted back to XContent all exception headers are under the "header" object.
-                        for (String name : ex.getHeaderKeys()) {
-                            assertEquals(ex.getHeader(name).get(0), actualHeaders.get(name.replaceFirst("es.", "")));
-                        }
-                    }
-                    actualClause = (Map<String, Object>) actualClause.get("caused_by");
-                    cause = cause.getCause();
-                }
-            }
+            assertDocWriteResponse(deleteResponse, parser.map());
         }
     }
 
@@ -158,9 +89,9 @@ public class DeleteResponseTests extends ESTestCase {
         String id = randomAsciiOfLength(5);
         long seqNo = randomIntBetween(-2, 5);
         long version = (long) randomIntBetween(0, 5);
-        boolean created = randomBoolean();
+        boolean found = randomBoolean();
 
-        DeleteResponse response = new DeleteResponse(shardId, type, id, seqNo, version, created);
+        DeleteResponse response = new DeleteResponse(shardId, type, id, seqNo, version, found);
         response.setForcedRefresh(randomBoolean());
         response.setShardInfo(RandomObjects.randomShardInfo(random(), randomBoolean()));
         return response;

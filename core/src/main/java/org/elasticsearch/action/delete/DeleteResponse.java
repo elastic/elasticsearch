@@ -65,12 +65,6 @@ public class DeleteResponse extends DocWriteResponse {
         return builder;
     }
 
-    /**
-     * ConstructingObjectParser used to parse the {@link IndexResponse}. We use a ObjectParser here
-     * because most fields are parsed by the parent abstract class {@link DocWriteResponse} and it's
-     * not easy to parse part of the fields in the parent class and other fields in the children class
-     * using the usual streamed parsing method.
-     */
     private static final ConstructingObjectParser<DeleteResponse, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(DeleteResponse.class.getName(),
@@ -80,9 +74,12 @@ public class DeleteResponse extends DocWriteResponse {
                 String type = (String) args[1];
                 String id = (String) args[2];
                 long version = (long) args[3];
-                long seqNo = (args[5] != null) ? (long) args[5] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                boolean found = (boolean) args[6];
-                return new DeleteResponse(shardId, type, id, seqNo, version, found);
+                ShardInfo shardInfo = (ShardInfo) args[5];
+                long seqNo = (args[6] != null) ? (long) args[6] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                boolean found = (boolean) args[7];
+                DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, version, found);
+                deleteResponse.setShardInfo(shardInfo);
+                return deleteResponse;
             });
         DocWriteResponse.declareParserFields(PARSER);
         PARSER.declareBoolean(constructorArg(), new ParseField(FOUND));

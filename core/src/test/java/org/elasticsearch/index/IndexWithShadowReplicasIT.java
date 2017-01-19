@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -34,7 +33,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
@@ -58,9 +56,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -91,7 +86,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "fix this fails intermittently")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
@@ -459,7 +453,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, numPhase1Docs + numPhase2Docs);
     }
 
-    @AwaitsFix(bugUrl = "uncaught exception")
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()

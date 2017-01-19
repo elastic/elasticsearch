@@ -45,8 +45,9 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
 
     public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
+        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
+        this.removeTrailing = settings
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "remove_trailing", true);
         this.stopWords = Analysis.parseWords(env, settings, "stopwords", JapaneseAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
     }
 

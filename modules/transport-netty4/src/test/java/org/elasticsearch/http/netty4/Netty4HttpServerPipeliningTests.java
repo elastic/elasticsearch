@@ -160,7 +160,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
-                xContentRegistry());
+                xContentRegistry(), (request, channel, context) -> {});
         }
 
         @Override

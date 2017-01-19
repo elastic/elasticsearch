@@ -42,6 +42,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -51,6 +52,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -162,6 +164,35 @@ public class MockRepository extends FsRepository {
         blockOnDataFiles = blocked;
     }
 
+    @Override
+    public RepositoryData getRepositoryData() {
+        final int numIterations = 10;
+        int count = 0;
+        NotXContentException ex = null;
+        RepositoryData repositoryData = null;
+        while (count < numIterations) {
+            try {
+                repositoryData = super.getRepositoryData();
+            } catch (NotXContentException e) {
+                ex = e;
+            }
+            if (repositoryData != null) {
+                break;
+            }
+            count++;
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+            }
+        }
+        if (ex != null) {
+            logger.info("--> [{}] repository failed to read x-content from index file, on iteration [{}] the repository data was [{}]",
+                metadata.name(), count, repositoryData);
+            throw ex;
+        }
+        return repositoryData;
+    }
+
     public void blockOnControlFiles(boolean blocked) {
         blockOnControlFiles = blocked;
     }
@@ -269,7 +300,9 @@ public class MockRepository extends FsRepository {
                             }
                         }
                     }
-                } else {
+                }
+                // don't block on the index-N files, as getRepositoryData depends on it
+                else if (blobName.startsWith("index-") == false) {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");

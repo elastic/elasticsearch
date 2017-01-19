@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -585,17 +586,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 ensureGreen("test");
 
                 logger.info("validating successful docs");
-                for (String node : nodes) {
-                    try {
-                        logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
-                        for (String id : ackedDocs.keySet()) {
-                            assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                assertBusy(() -> {
+                    for (String node : nodes) {
+                        try {
+                            logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
+                            for (String id : ackedDocs.keySet()) {
+                                assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
+                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                            }
+                        } catch (AssertionError | NoShardAvailableActionException e) {
+                            throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                         }
-                    } catch (AssertionError e) {
-                        throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                     }
-                }
+                }, 30, TimeUnit.SECONDS);
 
                 logger.info("done validating (iteration [{}])", iter);
             }

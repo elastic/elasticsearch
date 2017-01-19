@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -384,6 +385,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
             checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
             checkObjectsCompatibility(objectMappers, updateAllTypes, fullPathObjectMappers);
+            checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types
@@ -595,6 +597,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (depth > maxDepth) {
             throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
                     + "] has been exceeded due to object field [" + objectPath + "]");
+        }
+    }
+
+    private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
+        if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            if (newMapper.parentFieldMapper().active()) {
+                throw new IllegalArgumentException("mapping type name [" + newMapper.type() + "] cannot have a "
+                        + "_parent field for the partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
+
+            if (!newMapper.routingFieldMapper().required()) {
+                throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
+                        + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
         }
     }
 

@@ -22,9 +22,7 @@ package org.elasticsearch.plugins;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -33,7 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.

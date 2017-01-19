@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public class UpdateByQueryWithScriptTests
-        extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        extends AbstractAsyncBulkByScrollActionScriptTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
 
     public void testModifyingCtxNotAllowed() {
         /*
@@ -53,8 +53,8 @@ public class UpdateByQueryWithScriptTests
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> action(ScriptService scriptService, UpdateByQueryRequest request) {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, listener(),
-                scriptService, null);
+    protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
+                listener());
     }
 }

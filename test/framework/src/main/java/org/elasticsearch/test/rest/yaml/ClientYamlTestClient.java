@@ -32,7 +32,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -40,13 +39,10 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -55,11 +51,6 @@ import java.util.Set;
  */
 public class ClientYamlTestClient {
     private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
-    /**
-     * Query params that don't need to be declared in the spec, they are supported by default.
-     */
-    private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet(
-            "error_trace", "filter_path", "human", "pretty", "source");
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
@@ -101,35 +92,17 @@ public class ClientYamlTestClient {
             }
         }
 
-        List<Integer> ignores = new ArrayList<>();
-        Map<String, String> requestParams;
-        if (params == null) {
-            requestParams = Collections.emptyMap();
-        } else {
-            requestParams = new HashMap<>(params);
-            if (params.isEmpty() == false) {
-                //ignore is a special parameter supported by the clients, shouldn't be sent to es
-                String ignoreString = requestParams.remove("ignore");
-                if (ignoreString != null) {
-                    try {
-                        ignores.add(Integer.valueOf(ignoreString));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead");
-                    }
-                }
-            }
-        }
-
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
-        for (Map.Entry<String, String> entry : requestParams.entrySet()) {
+        for (Map.Entry<String, String> entry : params.entrySet()) {
             if (restApi.getPathParts().contains(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
             } else {
-                if (restApi.getParams().contains(entry.getKey()) || ALWAYS_ACCEPTED_QUERY_STRING_PARAMS.contains(entry.getKey())) {
+                if (restApi.getParams().contains(entry.getKey()) || restSpec.isGlobalParameter(entry.getKey())
+                        || restSpec.isClientParameter(entry.getKey())) {
                     queryStringParams.put(entry.getKey(), entry.getValue());
                 } else {
                     throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in ["
@@ -197,9 +170,6 @@ public class ClientYamlTestClient {
             Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {
-            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new ClientYamlTestResponse(e.getResponse());
-            }
             throw new ClientYamlTestResponseException(e);
         }
     }

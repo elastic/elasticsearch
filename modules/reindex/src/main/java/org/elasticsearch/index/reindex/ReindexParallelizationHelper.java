@@ -47,9 +47,6 @@ public class ReindexParallelizationHelper {
                     r -> task.onSliceResponse(listener, slice.source().slice().getId(), r),
                     e -> task.onSliceFailure(listener, slice.source().slice().getId(), e));
             client.execute(action, requestForSlice, sliceListener);
-            /* Explicitly tell the task manager that we're running child tasks on the local node so it will cancel them when the parent is
-             * cancelled. */
-            taskManager.registerChildTask(task, localNodeId);
         }
     }
 

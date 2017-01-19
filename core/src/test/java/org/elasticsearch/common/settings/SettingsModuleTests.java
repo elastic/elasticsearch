@@ -118,7 +118,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                 new SettingsModule(settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+                assertEquals("Failed to parse value [BOOM] as only [true] or [false] are allowed.",
                         ex.getMessage());
             }
         }

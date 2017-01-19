@@ -26,7 +26,7 @@
           index:    test_1
           type:     test
           id:       1
-          realtime: 0
+          realtime: false
 
  - is_false: found
 
@@ -35,6 +35,6 @@
           index:    test_1
           type:     test
           id:       1
-          realtime: 1
+          realtime: true
 
  - is_true: found

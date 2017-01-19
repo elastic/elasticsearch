@@ -379,7 +379,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
                     } else if ("_source".equals(currentFieldName)) {
-                        if (parser.isBooleanValue()) {
+                        // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
+                        if (parser.isBooleanValueLenient()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
                         } else if (token == XContentParser.Token.VALUE_STRING) {

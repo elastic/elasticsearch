@@ -85,10 +85,10 @@ public class AggregatedDfs implements Streamable {
         out.writeVInt(termStatistics.size());
 
         for (ObjectObjectCursor<Term, TermStatistics> c : termStatistics()) {
-            Term term = (Term) c.key;
+            Term term = c.key;
             out.writeString(term.field());
             out.writeBytesRef(term.bytes());
-            TermStatistics stats = (TermStatistics) c.value;
+            TermStatistics stats = c.value;
             out.writeBytesRef(stats.term());
             out.writeVLong(stats.docFreq());
             out.writeVLong(DfsSearchResult.addOne(stats.totalTermFreq()));

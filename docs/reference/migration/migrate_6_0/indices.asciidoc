@@ -27,3 +27,8 @@ PUT _template/template_2
 }
 --------------------------------------------------
 // CONSOLE
+
+
+=== Shadow Replicas are deprecated
+
+<<indices-shadow-replicas,Shadow Replicas>> don't see much usage and we are planning to remove them.

@@ -138,4 +138,41 @@ public class NodeTests extends ESTestCase {
 
     }
 
+    public void testNodeAttributes() throws IOException {
+        String attr = randomAsciiOfLength(5);
+        Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+            final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
+            assertEquals(attr, Node.NODE_ATTRIBUTES.get(nodeSettings).getAsMap().get("test_attr"));
+        }
+
+        // leading whitespace not allowed
+        attr = " leading";
+        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+            fail("should not allow a node attribute with leading whitespace");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [ leading]", e.getMessage());
+        }
+
+        // trailing whitespace not allowed
+        attr = "trailing ";
+        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+            fail("should not allow a node attribute with trailing whitespace");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
+        }
+    }
+
+    private static Settings.Builder baseSettings() {
+        final Path tempDir = createTempDir();
+        return Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put("transport.type", "mock-socket-network")
+            .put(Node.NODE_DATA_SETTING.getKey(), true);
+    }
+
 }

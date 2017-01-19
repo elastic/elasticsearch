@@ -20,6 +20,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +53,7 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -119,6 +122,15 @@ public interface SearchPlugin {
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
+        return emptyList();
+    }
+    /**
+     * The new search response listeners in the form of {@link BiConsumer}s added by this plugin.
+     * The listeners are invoked on the coordinating node, at the very end of the search request.
+     * This provides a convenient location if you wish to inspect/modify the final response (took time, etc).
+     * The BiConsumers are passed the original {@link SearchRequest} and the final {@link SearchResponse}
+     */
+    default List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
         return emptyList();
     }
 

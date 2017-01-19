@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -87,6 +88,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -1251,7 +1253,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        ShardSearchRequest.FilterParser filterParser = bytes -> {
+        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
                 return new QueryParseContext(parser).parseInnerQueryBuilder();
             }

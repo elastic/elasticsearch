@@ -161,7 +161,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         if (cause != null) {
             builder.field("reason");
             builder.startObject();
-            ElasticsearchException.toXContent(builder, params, cause);
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

@@ -71,6 +71,11 @@ public abstract class BulkByScrollTask extends CancellableTask {
      */
     public abstract TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo);
 
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        return true;
+    }
+
     public static class Status implements Task.Status, SuccessfullyProcessed {
         public static final String NAME = "bulk-by-scroll";
 
@@ -486,7 +491,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
                 status.toXContent(builder, params);
             } else {
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, exception);
+                ElasticsearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
             }
             return builder;

@@ -70,8 +70,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         } else {
             ClusterState state = clusterService.state();
             ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
-                    state).start();
+            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+                    listener).start();
         }
     }
 
@@ -83,12 +83,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> {
-
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
         public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
+                ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
+                ActionListener<BulkIndexByScrollResponse> listener) {
+            super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
         }
 
         @Override

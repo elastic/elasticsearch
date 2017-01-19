@@ -37,8 +37,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.queryMode = settings.getAsBoolean("query_mode", false);
+        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
+        this.queryMode = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "query_mode", false);
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -196,6 +195,7 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -205,6 +205,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
@@ -332,7 +333,8 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
-                        ClusterSettings clusterSettings, ThreadPool threadPool, List<ActionPlugin> actionPlugins) {
+                        ClusterSettings clusterSettings, ThreadPool threadPool, List<ActionPlugin> actionPlugins,
+                        NodeClient nodeClient, CircuitBreakerService circuitBreakerService) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.actionPlugins = actionPlugins;
@@ -352,8 +354,13 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
-        restController = new RestController(settings, headers, restWrapper);
+        if (transportClient) {
+            restController = null;
+        } else {
+            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService);
+        }
     }
+
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -648,8 +655,10 @@ public class ActionModule extends AbstractModule {
                 }
             }
 
-            // Bind the RestController which is required (by Node) even if rest isn't enabled.
-            bind(RestController.class).toInstance(restController);
+            if (restController != null) {
+                // Bind the RestController which is required (by Node) even if rest isn't enabled.
+                bind(RestController.class).toInstance(restController);
+            }
 
             // Setup the RestHandlers
             if (NetworkModule.HTTP_ENABLED.get(settings)) {

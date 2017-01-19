@@ -42,8 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
 public class ObjectMapper extends Mapper implements Cloneable {
 
     public static final String CONTENT_TYPE = "object";
@@ -167,7 +165,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
-            parseNested(name, node, builder);
+            parseNested(name, node, builder, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -185,11 +183,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else {
-                    builder.dynamic(lenientNodeBooleanValue(fieldNode) ? Dynamic.TRUE : Dynamic.FALSE);
+                    boolean dynamic = TypeParsers.nodeBooleanValue(fieldName, "dynamic", fieldNode, parserContext);
+                    builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(lenientNodeBooleanValue(fieldNode));
+                builder.enabled(TypeParsers.nodeBooleanValue(fieldName, "enabled", fieldNode, parserContext));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -201,13 +200,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(lenientNodeBooleanValue(fieldNode));
+                builder.includeInAll(TypeParsers.nodeBooleanValue(fieldName, "include_in_all", fieldNode, parserContext));
                 return true;
             }
             return false;
         }
 
-        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
+        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder,
+                                          ParserContext parserContext) {
             boolean nested = false;
             boolean nestedIncludeInParent = false;
             boolean nestedIncludeInRoot = false;
@@ -224,12 +224,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = lenientNodeBooleanValue(fieldNode);
+                nestedIncludeInParent = TypeParsers.nodeBooleanValue(name, "include_in_parent", fieldNode, parserContext);
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = lenientNodeBooleanValue(fieldNode);
+                nestedIncludeInRoot = TypeParsers.nodeBooleanValue(name, "include_in_root", fieldNode, parserContext);
                 node.remove("include_in_root");
             }
             if (nested) {

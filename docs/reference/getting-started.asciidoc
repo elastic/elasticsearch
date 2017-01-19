@@ -216,6 +216,7 @@ And the response:
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
+// TESTRESPONSE[s/0             0/0             [01]/]
 // TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
@@ -551,7 +552,7 @@ POST /customer/external/_bulk?pretty
 
 Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
 
-The bulk API executes all the actions sequentially and in order. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
+The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
 == Exploring Your Data
 

@@ -56,6 +56,7 @@ import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -625,8 +626,12 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    private Term newUid(String id) {
-        return new Term("_uid", id);
+    private Term newUid(ParsedDocument doc) {
+        return new Term("_uid", doc.uid());
+    }
+
+    private Term newUid(String uid) {
+        return new Term("_uid", uid);
     }
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {
@@ -2014,7 +2019,7 @@ public class TranslogTests extends ESTestCase {
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field uidField = new Field("_uid", "1", UidFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_uid", Uid.createUid("test", "1"), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 1);
         Document document = new Document();
         document.add(new TextField("value", "test", Field.Store.YES));
@@ -2025,7 +2030,7 @@ public class TranslogTests extends ESTestCase {
         document.add(seqID.primaryTerm);
         ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", "type", null, Arrays.asList(document), B_1, null);
 
-        Engine.Index eIndex = new Engine.Index(newUid("1"), doc, randomSeqNum, randomPrimaryTerm,
+        Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
                 1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
@@ -2036,7 +2041,7 @@ public class TranslogTests extends ESTestCase {
         Translog.Index serializedIndex = new Translog.Index(in);
         assertEquals(index, serializedIndex);
 
-        Engine.Delete eDelete = new Engine.Delete("type", "1", newUid("1"), randomSeqNum, randomPrimaryTerm,
+        Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
                 2, VersionType.INTERNAL, Origin.PRIMARY, 0);
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);

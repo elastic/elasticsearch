@@ -48,10 +48,12 @@ integTest.mustRunAfter noBootstrapTest
 
 bundlePlugin {
   if (project.cppLocalDists) {
-    String localZipFile = 'ml-cpp-${project.version}-' +
-      (project.isWindows ? "windows-x86_64" : (project.isMacOsX ? "darwin-x86_64" :
-      (project.isLinux ? "linux-x86_64" : "sunos-x86_64"))) + ".zip"
-    from { zipTree(cppLocalDists + '/' + localZipFile) }
+    def localCppBundles = fileTree(dir: cppLocalDists).matching { include "ml-cpp-${project.version}-*.zip" }
+    for (outputFile in localCppBundles) {
+      from(zipTree(outputFile)) {
+        duplicatesStrategy 'exclude'
+      }
+    }
   } else {
     for (outputFile in configurations.nativeBundle) {
       from(zipTree(outputFile)) {

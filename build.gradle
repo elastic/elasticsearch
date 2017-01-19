@@ -1,23 +1,18 @@
 description = 'Builds the Machine Learning Java classes and UI'
 
-import org.gradle.internal.os.OperatingSystem
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elastic.gradle.UploadS3Task
+import org.apache.tools.ant.taskdefs.condition.Os
 
-String envMlAwsAccessKey = System.env.PRELERT_AWS_ACCESS_KEY_ID
-if (envMlAwsAccessKey != null) {
-  project.ext.mlAwsAccessKey = envMlAwsAccessKey
-} else if (project.hasProperty("PRELERT_AWS_ACCESS_KEY_ID")) {
-  project.ext.mlAwsAccessKey = PRELERT_AWS_ACCESS_KEY_ID
+String mlAwsAccessKey = System.env.PRELERT_AWS_ACCESS_KEY_ID
+if (mlAwsAccessKey == null && project.hasProperty("PRELERT_AWS_ACCESS_KEY_ID")) {
+  mlAwsAccessKey = PRELERT_AWS_ACCESS_KEY_ID
 }
 
-String envMlAwsSecretKey = System.env.PRELERT_AWS_SECRET_ACCESS_KEY
-if (envMlAwsSecretKey != null) {
-  project.ext.mlAwsSecretKey = envMlAwsSecretKey
-} else if (project.hasProperty("PRELERT_AWS_SECRET_ACCESS_KEY")) {
-  project.ext.mlAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
+String mlAwsSecretKey = System.env.PRELERT_AWS_SECRET_ACCESS_KEY
+if (mlAwsSecretKey == null && project.hasProperty("PRELERT_AWS_SECRET_ACCESS_KEY")) {
+  mlAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
 }
 
 String envCppLocalDists = System.env.CPP_LOCAL_DISTS
@@ -29,22 +24,10 @@ if (envCppLocalDists != null) {
   project.ext.cppLocalDists = ''
 }
 
-project.ext.isWindows = OperatingSystem.current().isWindows()
-project.ext.isLinux = OperatingSystem.current().isLinux()
-project.ext.isMacOsX = OperatingSystem.current().isMacOsX()
-
-String uploadEnabledStr = properties.get('upload', 'false')
-if (['true', 'false'].contains(uploadEnabledStr) == false) {
-  throw new GradleException("upload must be true or false, got ${uploadEnabledStr}")
-}
-project.ext.uploadEnabled = uploadEnabledStr == 'true'
-
 allprojects {
   group = 'org.elasticsearch.ml'
   version = VersionProperties.elasticsearch
 }
-
-String packArtifactName = 'ml'
 
 configurations.all {
     // check for updates every build
@@ -86,7 +69,7 @@ task bundlePack(type: Zip) {
   from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
-  baseName = packArtifactName
+  baseName = 'ml'
   version = project.version
 }
 
@@ -109,19 +92,6 @@ task clean(type: Delete) {
   group = 'Build'
   description = 'Deletes the build directory'
   delete 'build'
-}
-
-String projectGroupPath = project.group.replaceAll("\\.", "/")
-
-task uploadPackToS3(type: UploadS3Task, dependsOn: build) {
-  enabled project.uploadEnabled
-  description = 'upload pack zip to S3 Bucket'
-  bucket 'prelert-artifacts'
-  upload bundlePack.outputs.files.singleFile, "maven/${projectGroupPath}/${packArtifactName}/${project.version}/${bundlePack.outputs.files.singleFile.name}"
-}
-
-task deploy(dependsOn: uploadPackToS3) {
-
 }
 
 subprojects {
@@ -153,8 +123,8 @@ subprojects {
         maven {
             url "s3://prelert-artifacts/maven"
             credentials(AwsCredentials) {
-                accessKey "${project.mlAwsAccessKey}"
-                secretKey "${project.mlAwsSecretKey}"
+                accessKey "${mlAwsAccessKey}"
+                secretKey "${mlAwsSecretKey}"
             }
         }
         mavenCentral()
@@ -229,7 +199,7 @@ allprojects {
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
-    if (isWindows) {
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       eclipse.project.name = eclipse.project.name.replace(':', '_')
     }
   }

@@ -202,6 +202,7 @@ public class RecoverySourceHandler {
         assert startingSeqNo >= 0;
         final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
         logger.trace("{} starting: [{}], ending: [{}}", shardId, startingSeqNo, endingSeqNo);
+        // the start recovery request is initialized with the starting sequence number set to the target shard's local checkpoint plus one
         if (startingSeqNo - 1 <= endingSeqNo) {
             logger.trace(
                 "{} waiting for all operations in the range [{}, {}] to complete",

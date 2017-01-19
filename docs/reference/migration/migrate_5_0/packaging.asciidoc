@@ -49,7 +49,7 @@ the environment variable `ES_JVM_OPTIONS` to the path to the file.
 Previously when installing the Windows service, the installation script
 would configure the thread stack size (this is required for the service
 daemon). As a result of moving all JVM configuration to the
-<<jvm-options,jvm.options file>>, the service installation script no
+<<es-java-opts,jvm.options file>>, the service installation script no
 longer configures the thread stack size. When installing the Windows
 service, you must configure thread stack size. For additional details,
 see the <<windows-service,installation docs>>.

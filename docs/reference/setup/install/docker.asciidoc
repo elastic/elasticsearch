@@ -220,7 +220,7 @@ Log messages go to the console and are handled by the configured Docker logging 
 [[docker-configuration-methods]]
 ==== Configuring Elasticsearch with Docker
 
-Elasticsearch loads its configuration from files under `/usr/share/elasticsearch/config/`. These configuration files are documented in <<settings>> and <<jvm-options>>.
+Elasticsearch loads its configuration from files under `/usr/share/elasticsearch/config/`. These configuration files are documented in <<settings>> and <<es-java-opts>>.
 
 The image offers several methods for configuring Elasticsearch settings with the conventional approach being to provide customized files, i.e. `elasticsearch.yml`, but it's also possible to use environment variables to set options:
 

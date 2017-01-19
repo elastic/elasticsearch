@@ -445,10 +445,25 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "text").field("store", "yes").endObject()
-            .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
-            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        assertThat(client.admin().indices()
+            .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+            .get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices().setWaitForCompletion(true).get();
@@ -486,10 +501,25 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if(testTemplate) {
             logger.info("-->  creating test template");
-            assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-                .startObject("field1").field("type", "text").field("store", "yes").endObject()
-                .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
-                .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+            assertThat(client.admin().indices()
+                .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+                .get().isAcknowledged(), equalTo(true));
         }
 
         if(testPipeline) {

@@ -763,4 +763,8 @@ public final class MockTransportService extends TransportService {
             assert openConnections.size() == 0 : "still open connections: " + openConnections;
         }
     }
+
+    public DiscoveryNode getLocalDiscoNode() {
+        return this.getLocalNode();
+    }
 }

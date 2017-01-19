@@ -21,9 +21,8 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -45,24 +43,32 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
     public void testDetermineShadowEngineShouldBeUsed() {
-        Settings regularSettings = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+        IndexSettings regularSettings = new IndexSettings(
+            IndexMetaData
+                .builder("regular")
+                .settings(Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build())
+                .build(),
+            Settings.EMPTY);
 
-        Settings shadowSettings = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                .build();
+        IndexSettings shadowSettings = new IndexSettings(
+            IndexMetaData
+                .builder("shadow")
+                .settings(Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build())
+                .build(),
+            Settings.EMPTY);
 
         assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(true, regularSettings));
         assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(false, regularSettings));

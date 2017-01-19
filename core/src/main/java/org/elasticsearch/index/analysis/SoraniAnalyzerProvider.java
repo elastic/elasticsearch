@@ -34,8 +34,10 @@ public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<Sorani
 
     public SoraniAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new SoraniAnalyzer(Analysis.parseStopWords(env, settings, SoraniAnalyzer.getDefaultStopSet()),
-                                      Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new SoraniAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, SoraniAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

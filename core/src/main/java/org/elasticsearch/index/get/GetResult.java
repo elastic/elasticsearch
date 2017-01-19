@@ -266,10 +266,11 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
         return builder;
     }
 
-    public static GetResult fromXContent(XContentParser parser) throws IOException {
+    public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        String currentFieldName = null;
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
         String index = null, type = null, id = null;
         long version = -1;
         boolean found = false;
@@ -311,6 +312,13 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
             }
         }
         return new GetResult(index, type, id, version, found, source, fields);
+    }
+
+    public static GetResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        return fromXContentEmbedded(parser);
     }
 
     public static GetResult readGetResult(StreamInput in) throws IOException {

@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -481,7 +482,7 @@ public class Setting<T> extends ToXContentToBytes {
                 public Map<AbstractScopedSettings.SettingUpdater<T>, T> getValue(Settings current, Settings previous) {
                     // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
                     final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
-                    Stream.concat(matchStream(current), matchStream(previous)).forEach(aKey -> {
+                    Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
                             getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
@@ -506,6 +507,18 @@ public class Setting<T> extends ToXContentToBytes {
         }
 
         @Override
+        public T get(Settings settings) {
+            throw new UnsupportedOperationException("affix settings can't return values" +
+                " use #getConcreteSetting to obtain a concrete setting");
+        }
+
+        @Override
+        public String getRaw(Settings settings) {
+            throw new UnsupportedOperationException("affix settings can't return values" +
+                " use #getConcreteSetting to obtain a concrete setting");
+        }
+
+        @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
                 return delegateFactory.apply(key);
@@ -517,6 +530,22 @@ public class Setting<T> extends ToXContentToBytes {
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
             matchStream(defaultSettings).forEach((key) -> getConcreteSetting(key).diff(builder, source, defaultSettings));
+        }
+
+        /**
+         * Returns the namespace for a concrete settting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
+         * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
+         */
+        public String getNamespace(Setting<T> concreteSetting) {
+            return key.getNamespace(concreteSetting.getKey());
+        }
+
+        /**
+         * Returns a stream of all concrete setting instances for the given settings. AffixSetting is only a specification, concrete
+         * settings depend on an actual set of setting keys.
+         */
+        public Stream<Setting<T>> getAllConcreteSettings(Settings settings) {
+            return matchStream(settings).distinct().map(this::getConcreteSetting);
         }
     }
 
@@ -639,15 +668,15 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBoolean, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, fallbackSetting, Booleans::parseBoolean, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, defaultValueFn, Booleans::parseBoolean, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {

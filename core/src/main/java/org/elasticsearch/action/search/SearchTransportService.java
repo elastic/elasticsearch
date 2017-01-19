@@ -25,9 +25,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -44,19 +45,23 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractComponent {
+public class SearchTransportService extends AbstractLifecycleComponent {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -72,15 +77,19 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
+    private final RemoteClusterService remoteClusterService;
 
-    public SearchTransportService(Settings settings, TransportService transportService) {
+    public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
+        this.remoteClusterService = new RemoteClusterService(settings, transportService);
+        clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
+            (namespace, value) -> {});
     }
 
-    public void sendFreeContext(DiscoveryNode node, final long contextId, SearchRequest request) {
-        transportService.sendRequest(node, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(request, contextId),
-            new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
+    public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
+        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(request, contextId),
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
                 public void onResponse(SearchFreeContextResponse response) {
                     // no need to respond if it was freed or not
@@ -103,62 +112,66 @@ public class SearchTransportService extends AbstractComponent {
             new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
     }
 
-    public void sendExecuteDfs(DiscoveryNode node, final ShardSearchTransportRequest request, SearchTask task,
+    public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                final ActionListener<DfsSearchResult> listener) {
-        transportService.sendChildRequest(node, DFS_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, DFS_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, DfsSearchResult::new));
     }
 
-    public void sendExecuteQuery(DiscoveryNode node, final ShardSearchTransportRequest request, SearchTask task,
+    public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final ActionListener<QuerySearchResultProvider> listener) {
-        transportService.sendChildRequest(node, QUERY_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
     }
 
-    public void sendExecuteQuery(DiscoveryNode node, final QuerySearchRequest request, SearchTask task,
+    public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
                                  final ActionListener<QuerySearchResult> listener) {
-        transportService.sendChildRequest(node, QUERY_ID_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_ID_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
     }
 
     public void sendExecuteQuery(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
                                  final ActionListener<ScrollQuerySearchResult> listener) {
-        transportService.sendChildRequest(node, QUERY_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
     }
 
-    public void sendExecuteFetch(DiscoveryNode node, final ShardSearchTransportRequest request, SearchTask task,
+    public void sendExecuteFetch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(node, QUERY_FETCH_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
     }
 
-    public void sendExecuteFetch(DiscoveryNode node, final QuerySearchRequest request, SearchTask task,
+    public void sendExecuteFetch(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
                                  final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(node, QUERY_QUERY_FETCH_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_QUERY_FETCH_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
     }
 
     public void sendExecuteFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
                                  final ActionListener<ScrollQueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(node, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(transportService.getConnection(node), QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQueryFetchSearchResult::new));
     }
 
-    public void sendExecuteFetch(DiscoveryNode node, final ShardFetchSearchRequest request, SearchTask task,
+    public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
                                  final ActionListener<FetchSearchResult> listener) {
-        sendExecuteFetch(node, FETCH_ID_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
     public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, SearchTask task,
                                        final ActionListener<FetchSearchResult> listener) {
-        sendExecuteFetch(node, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(transportService.getConnection(node), FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
-    private void sendExecuteFetch(DiscoveryNode node, String action, final ShardFetchRequest request, SearchTask task,
+    private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
                                   final ActionListener<FetchSearchResult> listener) {
-        transportService.sendChildRequest(node, action, request, task,
+        transportService.sendChildRequest(connection, action, request, task,
             new ActionListenerResponseHandler<>(listener, FetchSearchResult::new));
+    }
+
+    public RemoteClusterService getRemoteClusterService() {
+        return remoteClusterService;
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
@@ -265,6 +278,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<SearchFreeContextRequest>() {
                 @Override
@@ -273,6 +287,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new SearchFreeContextResponse(freed));
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
             ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
@@ -282,6 +297,9 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+            () -> TransportResponse.Empty.INSTANCE);
+
         transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
@@ -291,6 +309,8 @@ public class SearchTransportService extends AbstractComponent {
 
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
+
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
@@ -299,6 +319,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME, QuerySearchResult::new);
+
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
@@ -307,6 +329,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
+
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
@@ -315,6 +339,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
+
         transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
@@ -323,6 +349,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
+
         transportService.registerRequestHandler(QUERY_QUERY_FETCH_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
@@ -331,6 +359,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
+
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
@@ -339,6 +369,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
+
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
                 @Override
@@ -347,6 +379,8 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
+
         transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
@@ -355,6 +389,24 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(result);
                 }
             });
+        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
+    }
 
+    Transport.Connection getConnection(DiscoveryNode node) {
+        return transportService.getConnection(node);
+    }
+
+    @Override
+    protected void doStart() {
+        // here we start to connect to the remote clusters
+        remoteClusterService.initializeRemoteClusters();
+    }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {
+        remoteClusterService.close();
     }
 }

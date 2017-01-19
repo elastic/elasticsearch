@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -229,7 +230,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);
+        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -327,16 +328,7 @@ public final class IndexSettings {
      * filesystem.
      */
     public boolean isOnSharedFilesystem() {
-        return IndexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
-     * Returns <code>true</code> iff the given settings indicate that the index associated
-     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
-     * setting for this is <code>false</code>.
-     */
-    public boolean isIndexUsingShadowReplicas() {
-        return IndexMetaData.isOnSharedFilesystem(getSettings());
+        return indexMetaData.isOnSharedFilesystem(getSettings());
     }
 
     /**

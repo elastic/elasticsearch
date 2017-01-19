@@ -41,6 +41,8 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
@@ -59,7 +61,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private final GroupShardsIterator shardsIts;
     protected final SearchRequest request;
     /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
-    protected final Function<String, DiscoveryNode> nodeIdToDiscoveryNode;
+    protected final Function<String, Transport.Connection> nodeIdToConnection;
     protected final SearchTask task;
     protected final int expectedSuccessfulOps;
     private final int expectedTotalOps;
@@ -74,7 +76,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected volatile ScoreDoc[] sortedShardDocs;
 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                        Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                        Function<String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
                                         GroupShardsIterator shardsIts, long startTime, long clusterStateVersion, SearchTask task) {
@@ -85,7 +87,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         this.request = request;
         this.task = task;
         this.listener = listener;
-        this.nodeIdToDiscoveryNode = nodeIdToDiscoveryNode;
+        this.nodeIdToConnection = nodeIdToConnection;
         this.clusterStateVersion = clusterStateVersion;
         this.shardsIts = shardsIts;
         expectedSuccessfulOps = shardsIts.size();
@@ -119,30 +121,34 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     void performFirstPhase(final int shardIndex, final ShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {
+            // TODO upgrade this to an assert...
             // no more active shards... (we should not really get here, but just for safety)
             onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
-            final DiscoveryNode node = nodeIdToDiscoveryNode.apply(shard.currentNodeId());
-            if (node == null) {
-                onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
-            } else {
+            try {
+                final Transport.Connection connection = nodeIdToConnection.apply(shard.currentNodeId());
                 AliasFilter filter = this.aliasFilter.get(shard.index().getUUID());
                 assert filter != null;
 
                 float indexBoost = concreteIndexBoosts.getOrDefault(shard.index().getUUID(), DEFAULT_INDEX_BOOST);
                 ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
                     filter, indexBoost, startTime());
-                sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
-                        @Override
-                        public void onResponse(FirstResult result) {
-                            onFirstPhaseResult(shardIndex, shard.currentNodeId(), result, shardIt);
-                        }
+                sendExecuteFirstPhase(connection, transportRequest, new ActionListener<FirstResult>() {
+                    @Override
+                    public void onResponse(FirstResult result) {
+                        onFirstPhaseResult(shardIndex, shard.currentNodeId(), result, shardIt);
+                    }
 
-                        @Override
-                        public void onFailure(Exception t) {
-                            onFirstPhaseResult(shardIndex, shard, node.getId(), shardIt, t);
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception t) {
+                        onFirstPhaseResult(shardIndex, shard, connection.getNode().getId(), shardIt, t);
+                    }
+                });
+            } catch (ConnectTransportException | IllegalArgumentException ex) {
+                // we are getting the connection early here so we might run into nodes that are not connected. in that case we move on to
+                // the next shard. previously when using discovery nodes here we had a special case for null when a node was not connected
+                // at all which is not not needed anymore.
+                onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, ex);
             }
         }
     }
@@ -292,8 +298,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().getNodeId());
-                sendReleaseSearchContext(entry.value.id(), node);
+                Transport.Connection connection = nodeIdToConnection.apply(entry.value.shardTarget().getNodeId());
+                sendReleaseSearchContext(entry.value.id(), connection);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.trace("failed to release context", inner);
@@ -317,8 +323,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().getNodeId());
-                        sendReleaseSearchContext(entry.value.queryResult().id(), node);
+                        Transport.Connection connection = nodeIdToConnection.apply(entry.value.queryResult().shardTarget().getNodeId());
+                        sendReleaseSearchContext(entry.value.queryResult().id(), connection);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);
                     }
@@ -327,9 +333,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
     }
 
-    protected void sendReleaseSearchContext(long contextId, DiscoveryNode node) {
-        if (node != null) {
-            searchTransportService.sendFreeContext(node, contextId, request);
+    protected void sendReleaseSearchContext(long contextId, Transport.Connection connection) {
+        if (connection != null) {
+            searchTransportService.sendFreeContext(connection, contextId, request);
         }
     }
 
@@ -339,7 +345,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
     }
 
-    protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
+    protected abstract void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
                                                   ActionListener<FirstResult> listener);
 
     protected final void processFirstPhaseResult(int shardIndex, FirstResult result) {

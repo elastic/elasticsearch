@@ -23,16 +23,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 
 public class UpdateByQueryMetadataTests
-        extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     public void testRoutingIsCopied() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), listener(), null, null);
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), null, null, listener());
     }
 
     @Override

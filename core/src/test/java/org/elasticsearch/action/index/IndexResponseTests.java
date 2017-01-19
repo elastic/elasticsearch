@@ -20,6 +20,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -81,11 +82,11 @@ public class IndexResponseTests extends ESTestCase {
         }
     }
 
-    private static void assertIndexResponse(IndexResponse expected, Map<String, Object> actual) {
+    public static void assertDocWriteResponse(DocWriteResponse expected, Map<String, Object> actual) {
         assertEquals(expected.getIndex(), actual.get("_index"));
         assertEquals(expected.getType(), actual.get("_type"));
         assertEquals(expected.getId(), actual.get("_id"));
-        assertEquals(expected.getVersion(), ((Integer) actual.get("_version")).longValue());
+        assertEquals(expected.getVersion(), ((Number) actual.get("_version")).longValue());
         assertEquals(expected.getResult().getLowercase(), actual.get("result"));
         if (expected.forcedRefresh()) {
             assertTrue((Boolean) actual.get("forced_refresh"));
@@ -93,7 +94,7 @@ public class IndexResponseTests extends ESTestCase {
             assertFalse(actual.containsKey("forced_refresh"));
         }
         if (expected.getSeqNo() >= 0) {
-            assertEquals(expected.getSeqNo(), ((Integer) actual.get("_seq_no")).longValue());
+            assertEquals(expected.getSeqNo(), ((Number) actual.get("_seq_no")).longValue());
         } else {
             assertFalse(actual.containsKey("_seq_no"));
         }
@@ -148,6 +149,15 @@ public class IndexResponseTests extends ESTestCase {
                     cause = cause.getCause();
                 }
             }
+        }
+    }
+
+    private static void assertIndexResponse(IndexResponse expected, Map<String, Object> actual) {
+        assertDocWriteResponse(expected, actual);
+        if (expected.getResult() == DocWriteResponse.Result.CREATED) {
+            assertTrue((boolean) actual.get("created"));
+        } else {
+            assertFalse((boolean) actual.get("created"));
         }
     }
 

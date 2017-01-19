@@ -540,7 +540,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (failedShard.primary()) {
                     // promote active replica to primary if active replica exists (only the case for shadow replicas)
                     ShardRouting activeReplica = activeReplica(failedShard.shardId());
-                    assert activeReplica == null || IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) :
+                    assert activeReplica == null || indexMetaData.isIndexUsingShadowReplicas() :
                         "initializing primary [" + failedShard + "] with active replicas [" + activeReplica + "] only expected when " +
                             "using shadow replicas";
                     if (activeReplica == null) {
@@ -599,7 +599,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
         ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
         routingChangesObserver.replicaPromoted(activeReplica);
-        if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings())) {
+        if (indexMetaData.isIndexUsingShadowReplicas()) {
             ShardRouting initializedShard = reinitShadowPrimary(primarySwappedCandidate);
             routingChangesObserver.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
         }

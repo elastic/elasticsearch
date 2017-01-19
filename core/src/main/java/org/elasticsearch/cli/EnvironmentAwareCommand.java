@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.util.HashMap;
 import java.util.Locale;

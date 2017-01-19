@@ -19,7 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -485,5 +487,20 @@ public class Augmentation {
      */
     private static int initialBufferForReplaceWith(CharSequence seq) {
         return seq.length() + 16;
+    }
+
+    /**
+     * Encode a String in Base64. Use {@link Base64.Encoder#encodeToString(byte[])} if you have to encode bytes rather than a string.
+     */
+    public static String encodeBase64(String receiver) {
+        return Base64.getEncoder().encodeToString(receiver.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Decode some Base64 bytes and build a UTF-8 encoded string. Use {@link Base64.Decoder#decode(String)} if you'd prefer bytes to work
+     * with bytes.
+     */
+    public static String decodeBase64(String receiver) {
+        return new String(Base64.getDecoder().decode(receiver.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
     }
 }

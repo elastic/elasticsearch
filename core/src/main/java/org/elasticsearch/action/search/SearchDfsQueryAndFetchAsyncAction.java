@@ -34,6 +34,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,12 +47,12 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
     private final AtomicArray<QueryFetchSearchResult> queryFetchResults;
     private final SearchPhaseController searchPhaseController;
     SearchDfsQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                      Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                      Function<String, Transport.Connection> nodeIdToConnection,
                                       Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                       SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
                                       ActionListener<SearchResponse> listener,  GroupShardsIterator shardsIts,
                                       long startTime, long clusterStateVersion, SearchTask task) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, concreteIndexBoosts, executor,
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
         queryFetchResults = new AtomicArray<>(firstResults.length());
@@ -63,9 +64,9 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
     }
 
     @Override
-    protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
+    protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
                                          ActionListener<DfsSearchResult> listener) {
-        searchTransportService.sendExecuteDfs(node, request, task, listener);
+        searchTransportService.sendExecuteDfs(connection, request, task, listener);
     }
 
     @Override
@@ -75,15 +76,15 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
 
         for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
             DfsSearchResult dfsResult = entry.value;
-            DiscoveryNode node = nodeIdToDiscoveryNode.apply(dfsResult.shardTarget().getNodeId());
+            Transport.Connection connection = nodeIdToConnection.apply(dfsResult.shardTarget().getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-            executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
+            executeSecondPhase(entry.index, dfsResult, counter, connection, querySearchRequest);
         }
     }
 
     void executeSecondPhase(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter,
-                            final DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
-        searchTransportService.sendExecuteFetch(node, querySearchRequest, task, new ActionListener<QueryFetchSearchResult>() {
+                            final Transport.Connection connection, final QuerySearchRequest querySearchRequest) {
+        searchTransportService.sendExecuteFetch(connection, querySearchRequest, task, new ActionListener<QueryFetchSearchResult>() {
             @Override
             public void onResponse(QueryFetchSearchResult result) {
                 result.shardTarget(dfsResult.shardTarget());
@@ -101,7 +102,7 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
                     // the query might not have been executed at all (for example because thread pool rejected execution)
                     // and the search context that was created in dfs phase might not be released.
                     // release it again to be in the safe side
-                    sendReleaseSearchContext(querySearchRequest.id(), node);
+                    sendReleaseSearchContext(querySearchRequest.id(), connection);
                 }
             }
         });

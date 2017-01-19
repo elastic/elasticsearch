@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,6 +35,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -115,12 +119,57 @@ public final class ThreadContext implements Closeable, Writeable {
         return () -> threadLocal.set(context);
     }
 
+
     /**
      * Just like {@link #stashContext()} but no default context is set.
+     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext() {
+    public StoredContext newStoredContext(boolean preserveResponseHeaders) {
         final ThreadContextStruct context = threadLocal.get();
-        return () -> threadLocal.set(context);
+        return ()  -> {
+            if (preserveResponseHeaders && threadLocal.get() != context) {
+                threadLocal.set(context.putResponseHeaders(threadLocal.get().responseHeaders));
+            } else {
+                threadLocal.set(context);
+            }
+        };
+    }
+
+    /**
+     * Returns a supplier that gathers a {@link #newStoredContext(boolean)} and restores it once the
+     * returned supplier is invoked. The context returned from the supplier is a stored version of the
+     * suppliers callers context that should be restored once the originally gathered context is not needed anymore.
+     * For instance this method should be used like this:
+     *
+     * <pre>
+     *     Supplier&lt;ThreadContext.StoredContext&gt; restorable = context.newRestorableContext(true);
+     *     new Thread() {
+     *         public void run() {
+     *             try (ThreadContext.StoredContext ctx = restorable.get()) {
+     *                 // execute with the parents context and restore the threads context afterwards
+     *             }
+     *         }
+     *
+     *     }.start();
+     * </pre>
+     *
+     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
+     * @return a restorable context supplier
+     */
+    public Supplier<StoredContext> newRestorableContext(boolean preserveResponseHeaders) {
+        return wrapRestorable(newStoredContext(preserveResponseHeaders));
+    }
+
+    /**
+     * Same as {@link #newRestorableContext(boolean)} but wraps an existing context to restore.
+     * @param storedContext the context to restore
+     */
+    public Supplier<StoredContext> wrapRestorable(StoredContext storedContext) {
+        return () -> {
+            StoredContext context = newStoredContext(false);
+            storedContext.restore();
+            return context;
+        };
     }
 
     @Override
@@ -327,6 +376,26 @@ public final class ThreadContext implements Closeable, Writeable {
             }
         }
 
+        private ThreadContextStruct putResponseHeaders(Map<String, List<String>> headers) {
+            assert headers != null;
+            if (headers.isEmpty()) {
+                return this;
+            }
+            final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                String key = entry.getKey();
+                final List<String> existingValues = newResponseHeaders.get(key);
+                if (existingValues != null) {
+                    List<String> newValues = Stream.concat(entry.getValue().stream(),
+                        existingValues.stream()).distinct().collect(Collectors.toList());
+                    newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
+                } else {
+                    newResponseHeaders.put(key, entry.getValue());
+                }
+            }
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
+        }
+
         private ThreadContextStruct putResponse(String key, String value) {
             assert value != null;
 
@@ -445,7 +514,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private final ThreadContext.StoredContext ctx;
 
         private ContextPreservingRunnable(Runnable in) {
-            ctx = newStoredContext();
+            ctx = newStoredContext(false);
             this.in = in;
         }
 
@@ -487,7 +556,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private ThreadContext.StoredContext threadsOriginalContext = null;
 
         private ContextPreservingAbstractRunnable(AbstractRunnable in) {
-            creatorsContext = newStoredContext();
+            creatorsContext = newStoredContext(false);
             this.in = in;
         }
 

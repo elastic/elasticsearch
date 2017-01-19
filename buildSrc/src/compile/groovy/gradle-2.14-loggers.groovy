@@ -17,16 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+import org.codehaus.groovy.control.customizers.ImportCustomizer
 
-public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
-
-    protected ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
-    }
-
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
-}
+def imports = new ImportCustomizer()
+imports.addImports(
+        'org.gradle.internal.logging.progress.ProgressLogger',
+        'org.gradle.internal.logging.progress.ProgressLoggerFactory')
+configuration.addCompilationCustomizers(imports)

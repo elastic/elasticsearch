@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.gce.network;
 
 import org.elasticsearch.cloud.gce.GceMetadataService;
+import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -28,6 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 /**
  * <p>Resolves certain GCE related 'meta' hostnames into an actual hostname
@@ -106,13 +110,13 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
         }
 
         try {
-            String metadataResult = gceMetadataService.metadata(gceMetadataPath);
+            String metadataResult = Access.doPrivilegedIOException(() -> gceMetadataService.metadata(gceMetadataPath));
             if (metadataResult == null || metadataResult.length() == 0) {
                 throw new IOException("no gce metadata returned from [" + gceMetadataPath + "] for [" + value + "]");
             }
             // only one address: because we explicitly ask for only one via the GceHostnameType
             return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (IOException | URISyntaxException e) {
+        } catch (IOException e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + gceMetadataPath + "]", e);
         }
     }

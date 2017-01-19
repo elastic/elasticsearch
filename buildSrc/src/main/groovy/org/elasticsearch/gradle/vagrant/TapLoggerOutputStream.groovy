@@ -23,7 +23,6 @@ import groovy.transform.PackageScope
 import org.gradle.api.GradleScriptException
 import org.gradle.api.logging.Logger
 import org.gradle.logging.ProgressLogger
-import org.gradle.logging.ProgressLoggerFactory
 
 import java.util.regex.Matcher
 

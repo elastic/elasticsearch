@@ -93,9 +93,13 @@ public class IndexResponse extends DocWriteResponse {
                     String type = (String) args[1];
                     String id = (String) args[2];
                     long version = (long) args[3];
-                    long seqNo = (args[5] != null) ? (long) args[5] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    boolean created = (boolean) args[6];
-                    return new IndexResponse(shardId, type, id, seqNo, version, created);
+                    ShardInfo shardInfo = (ShardInfo) args[5];
+                    long seqNo = (args[6] != null) ? (long) args[6] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                    boolean created = (boolean) args[7];
+
+                    IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
+                    indexResponse.setShardInfo(shardInfo);
+                    return indexResponse;
                 });
         DocWriteResponse.declareParserFields(PARSER);
         PARSER.declareBoolean(constructorArg(), new ParseField(CREATED));

@@ -377,11 +377,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 onFailure(failure);
                 return;
             }
-            final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    context.close();
                     run();
                 }
 
@@ -392,7 +390,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    context.close();
                     // Try one more time...
                     run();
                 }

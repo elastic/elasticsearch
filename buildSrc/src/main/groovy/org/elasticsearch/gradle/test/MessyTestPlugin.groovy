@@ -48,7 +48,7 @@ class MessyTestPlugin extends StandaloneTestPlugin {
     }
 
     private static addPluginResources(Project project, Project pluginProject) {
-        String outputDir = "generated-resources/${pluginProject.name}"
+        String outputDir = "${project.buildDir}/generated-resources/${pluginProject.name}"
         String taskName = ClusterFormationTasks.pluginTaskName("copy", pluginProject.name, "Metadata")
         Copy copyPluginMetadata = project.tasks.create(taskName, Copy.class)
         copyPluginMetadata.into(outputDir)

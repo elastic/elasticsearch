@@ -56,6 +56,7 @@ List projects = [
   'qa:evil-tests',
   'qa:no-bootstrap-tests',
   'qa:rolling-upgrade',
+  'qa:multi-cluster-search',
   'qa:smoke-test-client',
   'qa:smoke-test-http',
   'qa:smoke-test-ingest-with-all-dependencies',

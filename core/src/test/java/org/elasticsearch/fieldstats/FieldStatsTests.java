@@ -609,12 +609,16 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)), version);
             }
         }
+        FieldStats.Long stats = new FieldStats.Long(0, -1, -1,-1, false, true);
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> assertSerialization(stats, Version.V_5_0_1));
+        assertThat(exc.getMessage(), containsString("cannot serialize null min/max fieldstats"));
     }
 
     /**
      * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
      **/
-    private FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
+    public static FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
         int type = randomInt(5);
         switch (type) {
             case 0:

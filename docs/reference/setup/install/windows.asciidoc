@@ -119,6 +119,11 @@ Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
 
+NOTE: The service installer requires that the thread stack size setting
+be configured in jvm.options *before* you install the service. On
+32-bit Windows, you should add `-Xss320k` to the jvm.options file, and
+on 64-bit Windows you should add `-Xss1m` to the jvm.options file.
+
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
 NOTE: Upgrading (or downgrading) JVM versions does not require the service to be reinstalled. However, upgrading across JVM types (e.g. JRE versus SE) is not supported, and does require the service to be reinstalled.

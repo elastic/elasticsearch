@@ -242,7 +242,7 @@ Security Policy either:
 
 * system wide: `$JAVA_HOME/lib/security/java.policy`,
 * for just the `elasticsearch` user: `/home/elasticsearch/.java.policy`
-* by adding a system property to the <<jvm-options,jvm.options>> configuration: `-Djava.security.policy=someURL`, or
+* by adding a system property to the <<sysconfig,es-java-opts>> configuration: `-Djava.security.policy=someURL`, or
 * via the `ES_JAVA_OPTS` environment variable with `-Djava.security.policy=someURL`:
 +
 [source,js]

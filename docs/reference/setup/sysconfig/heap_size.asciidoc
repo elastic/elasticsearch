@@ -6,7 +6,7 @@ and maximum size of 2 GB. When moving to production, it is
 important to configure heap size to ensure that Elasticsearch has enough
 heap available.
 
-Elasticsearch will assign the entire heap specified in <<jvm-options,jvm.options>>
+Elasticsearch will assign the entire heap specified in <<sysconfig,es-java-opts>>
 via the Xms (minimum heap size) and Xmx (maximum heap size) settings.
 
 The value for these setting depends on the amount of RAM available on

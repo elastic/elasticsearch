@@ -47,11 +47,8 @@
 
 ## basic
 
-# force the server VM (remove on 32-bit client JVMs)
+# force the server VM
 -server
-
-# explicitly set the stack size (reduce to 320k on 32-bit client JVMs)
--Xss1m
 
 # set to headless, just in case
 -Djava.awt.headless=true

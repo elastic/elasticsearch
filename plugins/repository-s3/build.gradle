@@ -54,9 +54,21 @@ bundlePlugin {
   }
 }
 
+additionalTest('testEnvCreds'){
+  include '**/EnvironmentCredentialsTests.class'
+  environment 'AWS_ACCESS_KEY_ID', 'env_access'
+  environment 'AWS_SECRET_ACCESS_KEY', 'env_secret'
+}
+
+additionalTest('testSyspropCreds'){
+  include '**/SyspropCredentialsTests.class'
+  systemProperty 'aws.accessKeyId', 'sysprop_access'
+  systemProperty 'aws.secretKey', 'sysprop_secret'
+}
+
 test {
-  // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name
+  // these are tested explicitly in separate test tasks
+  exclude '**/*CredentialsTests.class'
 }
 
 thirdPartyAudit.excludes = [

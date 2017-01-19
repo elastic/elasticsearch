@@ -5,6 +5,9 @@
 # Update request that uses python script with no parameters fails with NullPointerException
 #
 "Python Update With Empty Parameters":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -12,6 +15,8 @@
             id: 1
             body: { "myfield": "foo" }
     - do:
+        warnings:
+          - '[python] scripts are deprecated, use [painless] scripts instead'
         update:
             index: test
             type: test
@@ -34,6 +39,9 @@
 # Multi-line or multi-statement Python scripts raise NullPointerException
 #
 "Python Update With Multi Lines":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -41,6 +49,8 @@
             id: 1
             body: { "myfield": "foo" }
     - do:
+        warnings:
+          - '[python] scripts are deprecated, use [painless] scripts instead'
         update:
             index: test
             type: test

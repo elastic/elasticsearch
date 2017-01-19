@@ -1,6 +1,9 @@
 # Integration tests for Lang JavaScript components
 #
 "JavaScript Query":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -23,6 +26,8 @@
         indices.refresh: {}
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -45,6 +50,8 @@
     - match: { hits.hits.1.fields.sNum1.0: 3.0 }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -70,6 +77,8 @@
     - match: { hits.hits.1.fields.sNum1.0: 3.0 }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -97,8 +106,10 @@
 
 
 ---
-
 "JavaScript Script Field Using Source":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -116,6 +127,8 @@
         indices.refresh: {}
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -146,8 +159,10 @@
     - match: { hits.hits.0.fields.s_obj2_arr2.1: arr_value2 }
 
 ---
-
 "JavaScript Custom Script Boost":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -164,6 +179,8 @@
         indices.refresh: {}
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -186,6 +203,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -208,6 +227,8 @@
     - match: { hits.hits.1._id: "2" }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -230,6 +251,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -252,6 +275,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -274,6 +299,8 @@
     - match: { hits.hits.1._id: "1" }
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -299,8 +326,10 @@
     - match: { hits.total: 2 }
 
 ---
-
 "JavaScript Scores Nested":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -311,6 +340,8 @@
         indices.refresh: {}
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -349,8 +380,10 @@
 
 
 ---
-
 "JavaScript Scores With Agg":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -360,8 +393,9 @@
     - do:
         indices.refresh: {}
 
-
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:
@@ -388,8 +422,10 @@
     - match: { aggregations.score_agg.buckets.0.doc_count: 1 }
 
 ---
-
 "JavaScript Use List Length In Scripts":
+    - skip:
+      features:
+        - warnings
     - do:
         index:
             index: test
@@ -401,6 +437,8 @@
 
 
     - do:
+        warnings:
+          - '[javascript] scripts are deprecated, use [painless] scripts instead'
         index: test
         search:
             body:

@@ -1,6 +1,3 @@
-import oracle.jrockit.jfr.parser.EventData
-import org.elasticsearch.gradle.LoggedExec
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -58,14 +55,19 @@ dependencies {
   compile "com.squareup.retrofit2:adapter-rxjava:${versions.retrofit}"
   compile "io.reactivex:rxjava:1.1.8"
   compile "com.squareup.okio:okio:1.8.0"
+  // TODO should we declare jackson version ${versions.jackson} instead? but warning we have a 2.8.x in global settings
   compile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
   compile "com.fasterxml.jackson.datatype:jackson-datatype-joda:2.7.2"
+  // TODO should we declare jackson version ${versions.jackson} instead? but warning we have a 2.8.x in global settings
+  // Note that there is a bug to be reported at MS Azure project as they are not using a consistent version
   compile "com.fasterxml.jackson.core:jackson-annotations:2.7.0"
   compile "com.nimbusds:nimbus-jose-jwt:3.1.2"
   compile "com.nimbusds:oauth2-oidc-sdk:4.5"
+  // TODO should we declare slf4j version ${versions.slf4j} instead? but warning we have a 1.6.2 in global settings
   compile "org.slf4j:slf4j-api:1.7.5"
   compile "net.minidev:json-smart:1.1.1"
   compile "org.apache.commons:commons-lang3:3.3.1"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "javax.mail:mail:1.4.7"
   compile "com.google.code.gson:gson:2.2.4"
   compile "com.google.guava:guava:18.0"
@@ -97,7 +99,6 @@ thirdPartyAudit.excludes = [
   'com.nimbusds.langtag.LangTagUtils',
   'javax.servlet.http.HttpServletRequest',
   'javax.servlet.http.HttpServletResponse',
-  'org.apache.commons.codec.binary.Base64',
   'org.bouncycastle.asn1.sec.SECNamedCurves',
   'org.bouncycastle.asn1.sec.SECObjectIdentifiers',
   'org.bouncycastle.asn1.x9.X9ECParameters',

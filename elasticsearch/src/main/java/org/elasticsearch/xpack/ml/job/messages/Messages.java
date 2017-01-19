@@ -44,16 +44,16 @@ public final class Messages {
     public static final String JOB_AUDIT_REVERTED = "job.audit.reverted";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "job.audit.old.results.deleted";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "job.audit.snapshot.deleted";
-    public static final String JOB_AUDIT_SCHEDULER_STARTED_FROM_TO = "job.audit.scheduler.started.from.to";
-    public static final String JOB_AUDIT_SCHEDULER_CONTINUED_REALTIME = "job.audit.scheduler.continued.realtime";
-    public static final String JOB_AUDIT_SCHEDULER_STARTED_REALTIME = "job.audit.scheduler.started.realtime";
-    public static final String JOB_AUDIT_SCHEDULER_LOOKBACK_COMPLETED = "job.audit.scheduler.lookback.completed";
-    public static final String JOB_AUDIT_SCHEDULER_STOPPED = "job.audit.scheduler.stopped";
-    public static final String JOB_AUDIT_SCHEDULER_NO_DATA = "job.audit.scheduler.no.data";
-    public static final String JOB_AUDIR_SCHEDULER_DATA_SEEN_AGAIN = "job.audit.scheduler.data.seen.again";
-    public static final String JOB_AUDIT_SCHEDULER_DATA_ANALYSIS_ERROR = "job.audit.scheduler.data.analysis.error";
-    public static final String JOB_AUDIT_SCHEDULER_DATA_EXTRACTION_ERROR = "job.audit.scheduler.data.extraction.error";
-    public static final String JOB_AUDIT_SCHEDULER_RECOVERED = "job.audit.scheduler.recovered";
+    public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "job.audit.datafeed.started.from.to";
+    public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "job.audit.datafeed.continued.realtime";
+    public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "job.audit.datafeed.started.realtime";
+    public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "job.audit.datafeed.lookback.completed";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED = "job.audit.datafeed.stopped";
+    public static final String JOB_AUDIT_DATAFEED_NO_DATA = "job.audit.datafeed.no.data";
+    public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "job.audit.datafeed.data.seen.again";
+    public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "job.audit.datafeed.data.analysis.error";
+    public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "job.audit.datafeed.data.extraction.error";
+    public static final String JOB_AUDIT_DATAFEED_RECOVERED = "job.audit.datafeed.recovered";
 
     public static final String SYSTEM_AUDIT_STARTED = "system.audit.started";
     public static final String SYSTEM_AUDIT_SHUTDOWN = "system.audit.shutdown";
@@ -155,8 +155,8 @@ public final class Messages {
     public static final String JOB_CONFIG_UPDATE_MODEL_SNAPSHOT_RETENTION_DAYS_INVALID = "job.config.update.model.snapshot.retention.days."
             + "invalid";
     public static final String JOB_CONFIG_UPDATE_RESULTS_RETENTION_DAYS_INVALID = "job.config.update.results.retention.days.invalid";
-    public static final String JOB_CONFIG_UPDATE_SCHEDULE_CONFIG_PARSE_ERROR = "job.config.update.scheduler.config.parse.error";
-    public static final String JOB_CONFIG_UPDATE_SCHEDULE_CONFIG_CANNOT_BE_NULL = "job.config.update.scheduler.config.cannot.be.null";
+    public static final String JOB_CONFIG_UPDATE_DATAFEED_CONFIG_PARSE_ERROR = "job.config.update.datafeed.config.parse.error";
+    public static final String JOB_CONFIG_UPDATE_DATAFEED_CONFIG_CANNOT_BE_NULL = "job.config.update.datafeed.config.cannot.be.null";
 
     public static final String JOB_CONFIG_TRANSFORM_CIRCULAR_DEPENDENCY = "job.config.transform.circular.dependency";
     public static final String JOB_CONFIG_TRANSFORM_CONDITION_REQUIRED = "job.config.transform.condition.required";
@@ -185,18 +185,18 @@ public final class Messages {
     public static final String JOB_DATA_CONCURRENT_USE_UPDATE = "job.data.concurrent.use.update";
     public static final String JOB_DATA_CONCURRENT_USE_UPLOAD = "job.data.concurrent.use.upload";
 
-    public static final String SCHEDULER_CONFIG_INVALID_OPTION_VALUE = "scheduler.config.invalid.option.value";
+    public static final String DATAFEED_CONFIG_INVALID_OPTION_VALUE = "datafeed.config.invalid.option.value";
 
-    public static final String SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "scheduler.does.not.support.job.with.latency";
-    public static final String SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
-            "scheduler.aggregations.requires.job.with.summary.count.field";
+    public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "datafeed.does.not.support.job.with.latency";
+    public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
+            "datafeed.aggregations.requires.job.with.summary.count.field";
 
-    public static final String SCHEDULER_CANNOT_START = "scheduler.cannot.start";
-    public static final String SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE = "scheduler.cannot.stop.in.current.state";
-    public static final String SCHEDULER_CANNOT_UPDATE_IN_CURRENT_STATE = "scheduler.cannot.update.in.current.state";
-    public static final String SCHEDULER_CANNOT_DELETE_IN_CURRENT_STATE = "scheduler.cannot.delete.in.current.state";
-    public static final String SCHEDULER_FAILED_TO_STOP = "scheduler.failed.to.stop";
-    public static final String SCHEDULER_NOT_FOUND = "scheduler.not.found";
+    public static final String DATAFEED_CANNOT_START = "datafeed.cannot.start";
+    public static final String DATAFEED_CANNOT_STOP_IN_CURRENT_STATE = "datafeed.cannot.stop.in.current.state";
+    public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "datafeed.cannot.update.in.current.state";
+    public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "datafeed.cannot.delete.in.current.state";
+    public static final String DATAFEED_FAILED_TO_STOP = "datafeed.failed.to.stop";
+    public static final String DATAFEED_NOT_FOUND = "datafeed.not.found";
 
     public static final String JOB_MISSING_QUANTILES = "job.missing.quantiles";
     public static final String JOB_UNKNOWN_ID = "job.unknown.id";
@@ -213,7 +213,7 @@ public final class Messages {
     public static final String JSON_TRANSFORM_CONFIG_MAPPING = "json.transform.config.mapping.error";
     public static final String JSON_TRANSFORM_CONFIG_PARSE = "json.transform.config.parse.error";
 
-    public static final String REST_ACTION_NOT_ALLOWED_FOR_SCHEDULED_JOB = "rest.action.not.allowed.for.scheduled.job";
+    public static final String REST_ACTION_NOT_ALLOWED_FOR_DATAFEED_JOB = "rest.action.not.allowed.for.datafeed.job";
 
     public static final String REST_INVALID_DATETIME_PARAMS = "rest.invalid.datetime.params";
     public static final String REST_INVALID_FLUSH_PARAMS_MISSING = "rest.invalid.flush.params.missing.argument";

@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteListAction;
 import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.DeleteSchedulerAction;
+import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
@@ -41,20 +41,20 @@ import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetListAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.action.GetSchedulersAction;
-import org.elasticsearch.xpack.ml.action.GetSchedulersStatsAction;
-import org.elasticsearch.xpack.ml.action.InternalStartSchedulerAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.PutListAction;
-import org.elasticsearch.xpack.ml.action.PutSchedulerAction;
+import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.StartSchedulerAction;
-import org.elasticsearch.xpack.ml.action.StopSchedulerAction;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.UpdateSchedulerStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformsAction;
@@ -101,16 +101,16 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestDeleteSchedulerAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestGetSchedulersAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestGetSchedulersStatsAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestPutSchedulerAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestStartSchedulerAction;
-import org.elasticsearch.xpack.ml.rest.schedulers.RestStopSchedulerAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformsAction;
-import org.elasticsearch.xpack.ml.scheduler.ScheduledJobRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String THREAD_POOL_NAME = NAME;
-    public static final String SCHEDULED_RUNNER_THREAD_POOL_NAME = NAME + "_scheduled_runner";
+    public static final String DATAFEED_RUNNER_THREAD_POOL_NAME = NAME + "_datafeed_runner";
     public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
     // NORELEASE - temporary solution
@@ -199,7 +199,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
                 autodetectProcessFactory, normalizerFactory);
-        ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
+        DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
 
         JobLifeCycleService jobLifeCycleService =
@@ -225,7 +225,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 dataProcessor,
                 new MlInitializationService(settings, threadPool, clusterService, jobProvider),
                 jobDataCountsPersister,
-                scheduledJobRunner
+                datafeedJobRunner
                 );
     }
 
@@ -253,12 +253,12 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 RestGetModelSnapshotsAction.class,
                 RestRevertModelSnapshotAction.class,
                 RestUpdateModelSnapshotAction.class,
-                RestGetSchedulersAction.class,
-                RestGetSchedulersStatsAction.class,
-                RestPutSchedulerAction.class,
-                RestDeleteSchedulerAction.class,
-                RestStartSchedulerAction.class,
-                RestStopSchedulerAction.class,
+                RestGetDatafeedsAction.class,
+                RestGetDatafeedsStatsAction.class,
+                RestPutDatafeedAction.class,
+                RestDeleteDatafeedAction.class,
+                RestStartDatafeedAction.class,
+                RestStopDatafeedAction.class,
                 RestDeleteModelSnapshotAction.class
                 );
     }
@@ -272,7 +272,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
-                new ActionHandler<>(UpdateSchedulerStatusAction.INSTANCE, UpdateSchedulerStatusAction.TransportAction.class),
+                new ActionHandler<>(UpdateDatafeedStatusAction.INSTANCE, UpdateDatafeedStatusAction.TransportAction.class),
                 new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),
                 new ActionHandler<>(PutListAction.INSTANCE, PutListAction.TransportAction.class),
                 new ActionHandler<>(DeleteListAction.INSTANCE, DeleteListAction.TransportAction.class),
@@ -289,13 +289,13 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(UpdateModelSnapshotAction.INSTANCE, UpdateModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(GetSchedulersAction.INSTANCE, GetSchedulersAction.TransportAction.class),
-                new ActionHandler<>(GetSchedulersStatsAction.INSTANCE, GetSchedulersStatsAction.TransportAction.class),
-                new ActionHandler<>(PutSchedulerAction.INSTANCE, PutSchedulerAction.TransportAction.class),
-                new ActionHandler<>(DeleteSchedulerAction.INSTANCE, DeleteSchedulerAction.TransportAction.class),
-                new ActionHandler<>(StartSchedulerAction.INSTANCE, StartSchedulerAction.TransportAction.class),
-                new ActionHandler<>(InternalStartSchedulerAction.INSTANCE, InternalStartSchedulerAction.TransportAction.class),
-                new ActionHandler<>(StopSchedulerAction.INSTANCE, StopSchedulerAction.TransportAction.class),
+                new ActionHandler<>(GetDatafeedsAction.INSTANCE, GetDatafeedsAction.TransportAction.class),
+                new ActionHandler<>(GetDatafeedsStatsAction.INSTANCE, GetDatafeedsStatsAction.TransportAction.class),
+                new ActionHandler<>(PutDatafeedAction.INSTANCE, PutDatafeedAction.TransportAction.class),
+                new ActionHandler<>(DeleteDatafeedAction.INSTANCE, DeleteDatafeedAction.TransportAction.class),
+                new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
+                new ActionHandler<>(InternalStartDatafeedAction.INSTANCE, InternalStartDatafeedAction.TransportAction.class),
+                new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class)
                 );
     }
@@ -310,15 +310,15 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         FixedExecutorBuilder ml = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
                 maxNumberOfJobs * 2, 1000, "xpack.ml.thread_pool");
 
-        // fail quick to run autodetect process / scheduler, so no queues
+        // fail quick to run autodetect process / datafeed, so no queues
         // 4 threads: for c++ logging, result processing, state processing and restore state
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
                 maxNumberOfJobs * 4, 4, "xpack.ml.autodetect_process_thread_pool");
 
-        // TODO: if scheduled and non scheduled jobs are considered more equal and the scheduler and
+        // TODO: if datafeed and non datafeed jobs are considered more equal and the datafeed and
         // autodetect process are created at the same time then these two different TPs can merge.
-        FixedExecutorBuilder scheduler = new FixedExecutorBuilder(settings, SCHEDULED_RUNNER_THREAD_POOL_NAME,
-                maxNumberOfJobs, 1, "xpack.ml.scheduler_thread_pool");
-        return Arrays.asList(ml, autoDetect, scheduler);
+        FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_RUNNER_THREAD_POOL_NAME,
+                maxNumberOfJobs, 1, "xpack.ml.datafeed_thread_pool");
+        return Arrays.asList(ml, autoDetect, datafeed);
     }
 }

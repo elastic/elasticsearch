@@ -23,11 +23,11 @@ setup:
 
   - do:
       xpack.ml.put_job:
-        job_id: scheduled-job
+        job_id: datafeed-job
         body:  >
           {
-            "job_id":"scheduled-job",
-            "description":"A job with a scheduler",
+            "job_id":"datafeed-job",
+            "description":"A job with a datafeed",
             "analysis_config" : {
                 "bucket_span":3600,
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
@@ -40,14 +40,14 @@ setup:
           }
   - do:
       xpack.ml.open_job:
-        job_id: scheduled-job
+        job_id: datafeed-job
 
   - do:
-      xpack.ml.put_scheduler:
-        scheduler_id: scheduler-1
+      xpack.ml.put_datafeed:
+        datafeed_id: datafeed-1
         body:  >
           {
-            "job_id":"scheduled-job",
+            "job_id":"datafeed-job",
             "indexes":["farequote"],
             "types":["response"]
           }
@@ -93,12 +93,12 @@ setup:
   - match: { jobs.0.status: OPENED }
 
 ---
-"Test get job stats of scheduled job that has not received and data":
+"Test get job stats of datafeed job that has not received and data":
 
   - do:
       xpack.ml.get_job_stats:
-        job_id: scheduled-job
-  - match: { jobs.0.job_id : scheduled-job }
+        job_id: datafeed-job
+  - match: { jobs.0.job_id : datafeed-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - is_false: jobs.0.model_size_stats
   - match: { jobs.0.status: OPENED }

@@ -23,10 +23,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.scheduler.ScheduledJobValidator;
-import org.elasticsearch.xpack.ml.scheduler.Scheduler;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.ml.datafeed.Datafeed;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class MlMetadata implements MetaData.Custom {
 
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField ALLOCATIONS_FIELD = new ParseField("allocations");
-    private static final ParseField SCHEDULERS_FIELD = new ParseField("schedulers");
+    private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
 
     public static final String TYPE = "ml";
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(),
@@ -56,18 +56,18 @@ public class MlMetadata implements MetaData.Custom {
     static {
         ML_METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.PARSER.apply(p, c).build(), JOBS_FIELD);
         ML_METADATA_PARSER.declareObjectArray(Builder::putAllocations, Allocation.PARSER, ALLOCATIONS_FIELD);
-        ML_METADATA_PARSER.declareObjectArray(Builder::putSchedulers, Scheduler.PARSER, SCHEDULERS_FIELD);
+        ML_METADATA_PARSER.declareObjectArray(Builder::putDatafeeds, Datafeed.PARSER, DATAFEEDS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, Allocation> allocations;
-    private final SortedMap<String, Scheduler> schedulers;
+    private final SortedMap<String, Datafeed> datafeeds;
 
     private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, Allocation> allocations,
-                            SortedMap<String, Scheduler> schedulers) {
+                            SortedMap<String, Datafeed> datafeeds) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.allocations = Collections.unmodifiableSortedMap(allocations);
-        this.schedulers = Collections.unmodifiableSortedMap(schedulers);
+        this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
     }
 
     public Map<String, Job> getJobs() {
@@ -78,12 +78,12 @@ public class MlMetadata implements MetaData.Custom {
         return allocations;
     }
 
-    public SortedMap<String, Scheduler> getSchedulers() {
-        return schedulers;
+    public SortedMap<String, Datafeed> getDatafeeds() {
+        return datafeeds;
     }
 
-    public Scheduler getScheduler(String schedulerId) {
-        return schedulers.get(schedulerId);
+    public Datafeed getDatafeed(String datafeedId) {
+        return datafeeds.get(datafeedId);
     }
 
     @Override
@@ -117,18 +117,18 @@ public class MlMetadata implements MetaData.Custom {
         }
         this.allocations = allocations;
         size = in.readVInt();
-        TreeMap<String, Scheduler> schedulers = new TreeMap<>();
+        TreeMap<String, Datafeed> datafeeds = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            schedulers.put(in.readString(), new Scheduler(in));
+            datafeeds.put(in.readString(), new Datafeed(in));
         }
-        this.schedulers = schedulers;
+        this.datafeeds = datafeeds;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeMap(jobs, out);
         writeMap(allocations, out);
-        writeMap(schedulers, out);
+        writeMap(datafeeds, out);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -143,7 +143,7 @@ public class MlMetadata implements MetaData.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         mapValuesToXContent(JOBS_FIELD, jobs, builder, params);
         mapValuesToXContent(ALLOCATIONS_FIELD, allocations, builder, params);
-        mapValuesToXContent(SCHEDULERS_FIELD, schedulers, builder, params);
+        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, params);
         return builder;
     }
 
@@ -160,27 +160,27 @@ public class MlMetadata implements MetaData.Custom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, Allocation>> allocations;
-        final Diff<Map<String, Scheduler>> schedulers;
+        final Diff<Map<String, Datafeed>> datafeeds;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.allocations = DiffableUtils.diff(before.allocations, after.allocations, DiffableUtils.getStringKeySerializer());
-            this.schedulers = DiffableUtils.diff(before.schedulers, after.schedulers, DiffableUtils.getStringKeySerializer());
+            this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, Allocation> newAllocations = new TreeMap<>(allocations.apply(((MlMetadata) part).allocations));
-            TreeMap<String, Scheduler> newSchedulers = new TreeMap<>(schedulers.apply(((MlMetadata) part).schedulers));
-            return new MlMetadata(newJobs, newAllocations, newSchedulers);
+            TreeMap<String, Datafeed> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
+            return new MlMetadata(newJobs, newAllocations, newDatafeeds);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             allocations.writeTo(out);
-            schedulers.writeTo(out);
+            datafeeds.writeTo(out);
         }
     }
 
@@ -193,30 +193,30 @@ public class MlMetadata implements MetaData.Custom {
         MlMetadata that = (MlMetadata) o;
         return Objects.equals(jobs, that.jobs) &&
                 Objects.equals(allocations, that.allocations) &&
-                Objects.equals(schedulers, that.schedulers);
+                Objects.equals(datafeeds, that.datafeeds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, allocations, schedulers);
+        return Objects.hash(jobs, allocations, datafeeds);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, Allocation> allocations;
-        private TreeMap<String, Scheduler> schedulers;
+        private TreeMap<String, Datafeed> datafeeds;
 
         public Builder() {
             this.jobs = new TreeMap<>();
             this.allocations = new TreeMap<>();
-            this.schedulers = new TreeMap<>();
+            this.datafeeds = new TreeMap<>();
         }
 
         public Builder(MlMetadata previous) {
             jobs = new TreeMap<>(previous.jobs);
             allocations = new TreeMap<>(previous.allocations);
-            schedulers = new TreeMap<>(previous.schedulers);
+            datafeeds = new TreeMap<>(previous.datafeeds);
         }
 
         public Builder putJob(Job job, boolean overwrite) {
@@ -241,10 +241,10 @@ public class MlMetadata implements MetaData.Custom {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
 
-            Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
-            if (scheduler.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while scheduler ["
-                        + scheduler.get().getId() + "] refers to it");
+            Optional<Datafeed> datafeed = getDatafeedByJobId(jobId);
+            if (datafeed.isPresent()) {
+                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
+                        + datafeed.get().getId() + "] refers to it");
             }
 
             Allocation previousAllocation = this.allocations.remove(jobId);
@@ -260,45 +260,45 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder putScheduler(SchedulerConfig schedulerConfig) {
-            if (schedulers.containsKey(schedulerConfig.getId())) {
-                throw new ResourceAlreadyExistsException("A scheduler with id [" + schedulerConfig.getId() + "] already exists");
+        public Builder putDatafeed(DatafeedConfig datafeedConfig) {
+            if (datafeeds.containsKey(datafeedConfig.getId())) {
+                throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
-            String jobId = schedulerConfig.getJobId();
+            String jobId = datafeedConfig.getJobId();
             Job job = jobs.get(jobId);
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
-            Optional<Scheduler> existingScheduler = getSchedulerByJobId(jobId);
-            if (existingScheduler.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("A scheduler [" + existingScheduler.get().getId()
+            Optional<Datafeed> existingDatafeed = getDatafeedByJobId(jobId);
+            if (existingDatafeed.isPresent()) {
+                throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
                         + "] already exists for job [" + jobId + "]");
             }
-            ScheduledJobValidator.validate(schedulerConfig, job);
+            DatafeedJobValidator.validate(datafeedConfig, job);
 
-            return putScheduler(new Scheduler(schedulerConfig, SchedulerStatus.STOPPED));
+            return putDatafeed(new Datafeed(datafeedConfig, DatafeedStatus.STOPPED));
         }
 
-        private Builder putScheduler(Scheduler scheduler) {
-            schedulers.put(scheduler.getId(), scheduler);
+        private Builder putDatafeed(Datafeed datafeed) {
+            datafeeds.put(datafeed.getId(), datafeed);
             return this;
         }
 
-        public Builder removeScheduler(String schedulerId) {
-            Scheduler scheduler = schedulers.get(schedulerId);
-            if (scheduler == null) {
-                throw ExceptionsHelper.missingSchedulerException(schedulerId);
+        public Builder removeDatafeed(String datafeedId) {
+            Datafeed datafeed = datafeeds.get(datafeedId);
+            if (datafeed == null) {
+                throw ExceptionsHelper.missingDatafeedException(datafeedId);
             }
-            if (scheduler.getStatus() != SchedulerStatus.STOPPED) {
-                String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_DELETE_IN_CURRENT_STATE, schedulerId, scheduler.getStatus());
+            if (datafeed.getStatus() != DatafeedStatus.STOPPED) {
+                String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId, datafeed.getStatus());
                 throw ExceptionsHelper.conflictStatusException(msg);
             }
-            schedulers.remove(schedulerId);
+            datafeeds.remove(datafeedId);
             return this;
         }
 
-        private Optional<Scheduler> getSchedulerByJobId(String jobId) {
-            return schedulers.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+        private Optional<Datafeed> getDatafeedByJobId(String jobId) {
+            return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
         }
 
         // only for parsing
@@ -317,15 +317,15 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        private Builder putSchedulers(Collection<Scheduler> schedulers) {
-            for (Scheduler scheduler : schedulers) {
-                putScheduler(scheduler);
+        private Builder putDatafeeds(Collection<Datafeed> datafeeds) {
+            for (Datafeed datafeed : datafeeds) {
+                putDatafeed(datafeed);
             }
             return this;
         }
 
         public MlMetadata build() {
-            return new MlMetadata(jobs, allocations, schedulers);
+            return new MlMetadata(jobs, allocations, datafeeds);
         }
 
         public Builder assignToNode(String jobId, String nodeId) {
@@ -349,12 +349,12 @@ public class MlMetadata implements MetaData.Custom {
                 throw new IllegalStateException("[" + jobId + "] no allocation exist to update the status to [" + jobStatus + "]");
             }
 
-            // Cannot update the status to DELETING if there are schedulers attached
+            // Cannot update the status to DELETING if there are datafeeds attached
             if (jobStatus.equals(JobStatus.DELETING)) {
-                Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
-                if (scheduler.isPresent()) {
-                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while scheduler ["
-                            + scheduler.get().getId() + "] refers to it");
+                Optional<Datafeed> datafeed = getDatafeedByJobId(jobId);
+                if (datafeed.isPresent()) {
+                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
+                            + datafeed.get().getId() + "] refers to it");
                 }
             }
 
@@ -397,30 +397,30 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder updateSchedulerStatus(String schedulerId, SchedulerStatus newStatus) {
-            Scheduler scheduler = schedulers.get(schedulerId);
-            if (scheduler == null) {
-                throw ExceptionsHelper.missingSchedulerException(schedulerId);
+        public Builder updateDatafeedStatus(String datafeedId, DatafeedStatus newStatus) {
+            Datafeed datafeed = datafeeds.get(datafeedId);
+            if (datafeed == null) {
+                throw ExceptionsHelper.missingDatafeedException(datafeedId);
             }
 
-            SchedulerStatus currentStatus = scheduler.getStatus();
+            DatafeedStatus currentStatus = datafeed.getStatus();
             switch (newStatus) {
                 case STARTED:
-                    if (currentStatus != SchedulerStatus.STOPPED) {
-                        String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_START, schedulerId, newStatus);
+                    if (currentStatus != DatafeedStatus.STOPPED) {
+                        String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_START, datafeedId, newStatus);
                         throw ExceptionsHelper.conflictStatusException(msg);
                     }
                     break;
                 case STOPPED:
-                    if (currentStatus != SchedulerStatus.STARTED) {
-                        String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, schedulerId, newStatus);
+                    if (currentStatus != DatafeedStatus.STARTED) {
+                        String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_STOP_IN_CURRENT_STATE, datafeedId, newStatus);
                         throw ExceptionsHelper.conflictStatusException(msg);
                     }
                     break;
                 default:
-                    throw new IllegalArgumentException("[" + schedulerId + "] requested invalid scheduler status [" + newStatus + "]");
+                    throw new IllegalArgumentException("[" + datafeedId + "] requested invalid datafeed status [" + newStatus + "]");
             }
-            schedulers.put(schedulerId, new Scheduler(scheduler.getConfig(), newStatus));
+            datafeeds.put(datafeedId, new Datafeed(datafeed.getConfig(), newStatus));
             return this;
         }
     }

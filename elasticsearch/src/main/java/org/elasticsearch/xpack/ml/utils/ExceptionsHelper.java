@@ -25,8 +25,8 @@ public class ExceptionsHelper {
         throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_CONFIG_ID_ALREADY_TAKEN, jobId));
     }
 
-    public static ResourceNotFoundException missingSchedulerException(String schedulerId) {
-        throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+    public static ResourceNotFoundException missingDatafeedException(String datafeedId) {
+        throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
     }
 
     public static ElasticsearchException serverError(String msg) {

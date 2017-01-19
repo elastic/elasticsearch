@@ -19,16 +19,16 @@ import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.JobTests;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerConfigTests;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.ml.job.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.scheduler.ScheduledJobRunnerTests.createScheduledJob;
-import static org.elasticsearch.xpack.ml.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,8 +43,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         for (int i = 0; i < numJobs; i++) {
             Job job = JobTests.createRandomizedJob();
             if (randomBoolean()) {
-                SchedulerConfig schedulerConfig = SchedulerConfigTests.createRandomizedSchedulerConfig(job.getId());
-                if (schedulerConfig.getAggregations() != null) {
+                DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(job.getId());
+                if (datafeedConfig.getAggregations() != null) {
                     AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig().getDetectors());
                     analysisConfig.setSummaryCountFieldName("doc_count");
                     Job.Builder jobBuilder = new Job.Builder(job);
@@ -52,9 +52,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                     job = jobBuilder.build();
                 }
                 builder.putJob(job, false);
-                builder.putScheduler(schedulerConfig);
+                builder.putDatafeed(datafeedConfig);
                 if (randomBoolean()) {
-                    builder.updateSchedulerStatus(schedulerConfig.getId(), SchedulerStatus.STARTED);
+                    builder.updateDatafeedStatus(datafeedConfig.getId(), DatafeedStatus.STARTED);
                 }
             } else {
                 builder.putJob(job, false);
@@ -107,10 +107,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("1"), nullValue());
+        assertThat(result.getDatafeeds().get("1"), nullValue());
         assertThat(result.getJobs().get("2"), sameInstance(job2));
         assertThat(result.getAllocations().get("2").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("2"), nullValue());
+        assertThat(result.getDatafeeds().get("2"), nullValue());
 
         builder = new MlMetadata.Builder(result);
 
@@ -134,19 +134,19 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("1"), nullValue());
+        assertThat(result.getDatafeeds().get("1"), nullValue());
 
         builder = new MlMetadata.Builder(result);
         builder.updateStatus("1", JobStatus.DELETING, null);
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("1"), nullValue());
+        assertThat(result.getDatafeeds().get("1"), nullValue());
 
         builder.deleteJob("1");
         result = builder.build();
         assertThat(result.getJobs().get("1"), nullValue());
         assertThat(result.getAllocations().get("1"), nullValue());
-        assertThat(result.getSchedulers().get("1"), nullValue());
+        assertThat(result.getDatafeeds().get("1"), nullValue());
     }
 
     public void testRemoveJob_failBecauseJobIsOpen() {
@@ -159,23 +159,23 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata result = builder1.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.OPENED));
-        assertThat(result.getSchedulers().get("1"), nullValue());
+        assertThat(result.getDatafeeds().get("1"), nullValue());
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.deleteJob("1"));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
-    public void testRemoveJob_failSchedulerRefersToJob() {
-        Job job1 = createScheduledJob().build();
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+    public void testRemoveJob_failDatafeedRefersToJob() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putScheduler(schedulerConfig1);
+        builder.putDatafeed(datafeedConfig1);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.deleteJob(job1.getId()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-        String expectedMsg = "Cannot delete job [" + job1.getId() + "] while scheduler [" + schedulerConfig1.getId() + "] refers to it";
+        String expectedMsg = "Cannot delete job [" + job1.getId() + "] while datafeed [" + datafeedConfig1.getId() + "] refers to it";
         assertThat(e.getMessage(), equalTo(expectedMsg));
     }
 
@@ -184,87 +184,87 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         expectThrows(ResourceNotFoundException.class, () -> builder1.deleteJob("1"));
     }
 
-    public void testCrudScheduler() {
-        Job job1 = createScheduledJob().build();
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+    public void testCrudDatafeed() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putScheduler(schedulerConfig1);
+        builder.putDatafeed(datafeedConfig1);
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("scheduler1").getConfig(), sameInstance(schedulerConfig1));
-        assertThat(result.getSchedulers().get("scheduler1").getStatus(), equalTo(SchedulerStatus.STOPPED));
+        assertThat(result.getDatafeeds().get("datafeed1").getConfig(), sameInstance(datafeedConfig1));
+        assertThat(result.getDatafeeds().get("datafeed1").getStatus(), equalTo(DatafeedStatus.STOPPED));
 
         builder = new MlMetadata.Builder(result);
-        builder.removeScheduler("scheduler1");
+        builder.removeDatafeed("datafeed1");
         result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulers().get("scheduler1"), nullValue());
+        assertThat(result.getDatafeeds().get("datafeed1"), nullValue());
     }
 
-    public void testPutScheduler_failBecauseJobDoesNotExist() {
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", "missing-job").build();
+    public void testPutDatafeed_failBecauseJobDoesNotExist() {
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", "missing-job").build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
 
-        expectThrows(ResourceNotFoundException.class, () -> builder.putScheduler(schedulerConfig1));
+        expectThrows(ResourceNotFoundException.class, () -> builder.putDatafeed(datafeedConfig1));
     }
 
-    public void testPutScheduler_failBecauseSchedulerIdIsAlreadyTaken() {
-        Job job1 = createScheduledJob().build();
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
-        MlMetadata.Builder builder = new MlMetadata.Builder();
-        builder.putJob(job1, false);
-        builder.putScheduler(schedulerConfig1);
-
-        expectThrows(ResourceAlreadyExistsException.class, () -> builder.putScheduler(schedulerConfig1));
-    }
-
-    public void testPutScheduler_failBecauseJobAlreadyHasScheduler() {
-        Job job1 = createScheduledJob().build();
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
-        SchedulerConfig schedulerConfig2 = createSchedulerConfig("scheduler2", job1.getId()).build();
+    public void testPutDatafeed_failBecauseDatafeedIdIsAlreadyTaken() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putScheduler(schedulerConfig1);
+        builder.putDatafeed(datafeedConfig1);
+
+        expectThrows(ResourceAlreadyExistsException.class, () -> builder.putDatafeed(datafeedConfig1));
+    }
+
+    public void testPutDatafeed_failBecauseJobAlreadyHasDatafeed() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        DatafeedConfig datafeedConfig2 = createDatafeedConfig("datafeed2", job1.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putDatafeed(datafeedConfig1);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder.putScheduler(schedulerConfig2));
+                () -> builder.putDatafeed(datafeedConfig2));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
-    public void testPutScheduler_failBecauseJobIsNotCompatibleForScheduler() {
-        Job.Builder job1 = createScheduledJob();
+    public void testPutDatafeed_failBecauseJobIsNotCompatibleForDatafeed() {
+        Job.Builder job1 = createDatafeedJob();
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job1.build().getAnalysisConfig());
         analysisConfig.setLatency(3600L);
         job1.setAnalysisConfig(analysisConfig);
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1.build(), false);
 
-        expectThrows(IllegalArgumentException.class, () -> builder.putScheduler(schedulerConfig1));
+        expectThrows(IllegalArgumentException.class, () -> builder.putDatafeed(datafeedConfig1));
     }
 
-    public void testRemoveScheduler_failBecauseSchedulerStarted() {
-        Job job1 = createScheduledJob().build();
-        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+    public void testRemoveDatafeed_failBecauseDatafeedStarted() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putScheduler(schedulerConfig1);
+        builder.putDatafeed(datafeedConfig1);
         builder.updateStatus("foo", JobStatus.OPENING, null);
         builder.updateStatus("foo", JobStatus.OPENED, null);
-        builder.updateSchedulerStatus("scheduler1", SchedulerStatus.STARTED);
+        builder.updateDatafeedStatus("datafeed1", DatafeedStatus.STARTED);
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.OPENED));
-        assertThat(result.getSchedulers().get("scheduler1").getConfig(), sameInstance(schedulerConfig1));
-        assertThat(result.getSchedulers().get("scheduler1").getStatus(), equalTo(SchedulerStatus.STARTED));
+        assertThat(result.getDatafeeds().get("datafeed1").getConfig(), sameInstance(datafeedConfig1));
+        assertThat(result.getDatafeeds().get("datafeed1").getStatus(), equalTo(DatafeedStatus.STARTED));
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeScheduler("scheduler1"));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeDatafeed("datafeed1"));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 

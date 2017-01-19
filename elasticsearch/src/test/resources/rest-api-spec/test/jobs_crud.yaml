@@ -182,13 +182,13 @@
           }
 
 ---
-"Test delete job that is referred by a scheduler":
+"Test delete job that is referred by a datafeed":
   - do:
       xpack.ml.put_job:
-        job_id: scheduler-job
+        job_id: datafeed-job
         body:  >
           {
-            "job_id":"scheduler-job",
+            "job_id":"datafeed-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span":3600,
@@ -200,20 +200,20 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - match: { job_id: "scheduler-job" }
+  - match: { job_id: "datafeed-job" }
 
   - do:
-      xpack.ml.put_scheduler:
-        scheduler_id: test-scheduler-1
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
         body:  >
           {
-            "job_id":"scheduler-job",
+            "job_id":"datafeed-job",
             "indexes":["index-foo"],
             "types":["type-bar"]
           }
-  - match: { scheduler_id: "test-scheduler-1" }
+  - match: { datafeed_id: "test-datafeed-1" }
 
   - do:
-      catch: /Cannot delete job \[scheduler-job\] while scheduler \[test-scheduler-1\] refers to it/
+      catch: /Cannot delete job \[datafeed-job\] while datafeed \[test-datafeed-1\] refers to it/
       xpack.ml.delete_job:
-        job_id: scheduler-job
+        job_id: datafeed-job

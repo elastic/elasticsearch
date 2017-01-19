@@ -38,9 +38,9 @@ import java.util.function.Function;
  * changes when each of the reporting stages are passed. If the
  * function returns {@code true} the usage is logged.
  *
- * DataCounts are persisted periodically in a scheduled task via
+ * DataCounts are persisted periodically in a datafeed task via
  * {@linkplain JobDataCountsPersister},  {@link #close()} must be called to
- * cancel the scheduled task.
+ * cancel the datafeed task.
  */
 public class StatusReporter extends AbstractComponent implements Closeable {
     /**
@@ -78,7 +78,7 @@ public class StatusReporter extends AbstractComponent implements Closeable {
     private Function<Long, Boolean> reportingBoundaryFunction;
 
     private volatile boolean persistDataCountsOnNextRecord;
-    private final ThreadPool.Cancellable persistDataCountsScheduledAction;
+    private final ThreadPool.Cancellable persistDataCountsDatafeedAction;
 
     public StatusReporter(ThreadPool threadPool, Settings settings, String jobId, DataCounts counts, UsageReporter usageReporter,
                           JobDataCountsPersister dataCountsPersister) {
@@ -97,7 +97,7 @@ public class StatusReporter extends AbstractComponent implements Closeable {
 
         reportingBoundaryFunction = this::reportEvery100Records;
 
-        persistDataCountsScheduledAction = threadPool.scheduleWithFixedDelay(() -> persistDataCountsOnNextRecord = true,
+        persistDataCountsDatafeedAction = threadPool.scheduleWithFixedDelay(() -> persistDataCountsOnNextRecord = true,
                 PERSIST_INTERVAL, ThreadPool.Names.GENERIC);
     }
 
@@ -353,7 +353,7 @@ public class StatusReporter extends AbstractComponent implements Closeable {
 
     @Override
     public void close() {
-        persistDataCountsScheduledAction.cancel();
+        persistDataCountsDatafeedAction.cancel();
     }
 
     /**

@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.ScheduledJobsIT;
+import org.elasticsearch.xpack.ml.action.DatafeedJobsIT;
 import org.elasticsearch.xpack.ml.job.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.DataDescription;
 import org.elasticsearch.xpack.ml.job.Detector;
@@ -54,7 +54,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
 
     @After
     public void clearMlMetadata() throws Exception {
-        ScheduledJobsIT.clearMlMetadata(client());
+        DatafeedJobsIT.clearMlMetadata(client());
     }
 
     public void testCannotStartTooManyAnalyticalProcesses() throws Exception {

@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
-import org.elasticsearch.xpack.ml.action.UpdateSchedulerStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.job.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.util.Collections;
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  * <li>creation</li>
  * <li>deletion</li>
  * <li>updating</li>
- * <li>starting/stopping of scheduled jobs</li>
+ * <li>starting/stopping of datafeed jobs</li>
  * </ul>
  */
 public class JobManager extends AbstractComponent {
@@ -305,23 +305,23 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-    public void updateSchedulerStatus(UpdateSchedulerStatusAction.Request request,
-                                      ActionListener<UpdateSchedulerStatusAction.Response> actionListener) {
-        String schedulerId = request.getSchedulerId();
-        SchedulerStatus newStatus = request.getSchedulerStatus();
-        clusterService.submitStateUpdateTask("update-scheduler-status-" + schedulerId,
-                new AckedClusterStateUpdateTask<UpdateSchedulerStatusAction.Response>(request, actionListener) {
+    public void updateDatafeedStatus(UpdateDatafeedStatusAction.Request request,
+                                      ActionListener<UpdateDatafeedStatusAction.Response> actionListener) {
+        String datafeedId = request.getDatafeedId();
+        DatafeedStatus newStatus = request.getDatafeedStatus();
+        clusterService.submitStateUpdateTask("update-datafeed-status-" + datafeedId,
+                new AckedClusterStateUpdateTask<UpdateDatafeedStatusAction.Response>(request, actionListener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                builder.updateSchedulerStatus(schedulerId, newStatus);
+                builder.updateDatafeedStatus(datafeedId, newStatus);
                 return buildNewClusterState(currentState, builder);
             }
 
             @Override
-            protected UpdateSchedulerStatusAction.Response newResponse(boolean acknowledged) {
-                return new UpdateSchedulerStatusAction.Response(acknowledged);
+            protected UpdateDatafeedStatusAction.Response newResponse(boolean acknowledged) {
+                return new UpdateDatafeedStatusAction.Response(acknowledged);
             }
         });
     }

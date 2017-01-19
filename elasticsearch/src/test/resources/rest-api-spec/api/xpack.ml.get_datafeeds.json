@@ -1,0 +1,19 @@
+{
+  "xpack.ml.get_datafeeds": {
+    "methods": [ "GET"],
+    "url": {
+      "path": "/_xpack/ml/datafeeds/{datafeed_id}",
+      "paths": [
+        "/_xpack/ml/datafeeds/{datafeed_id}"
+      ],
+      "parts": {
+        "datafeed_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the datafeeds to fetch"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,87 @@
+setup:
+  - do:
+      xpack.ml.put_job:
+        job_id: job-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-2
+        body:  >
+          {
+            "job_id":"job-2",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: datafeed-1
+        body: >
+          {
+            "job_id":"job-1",
+            "indexes":["index-1"],
+            "types":["type-1"]
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: datafeed-2
+        body: >
+          {
+            "job_id":"job-2",
+            "indexes":["index-2"],
+            "types":["type-2"]
+          }
+
+---
+"Test get datafeed stats given missing datafeed_id":
+
+  - do:
+      catch: missing
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: missing-datafeed
+
+---
+"Test get single datafeed stats":
+
+  - do:
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: datafeed-1
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.status: "STOPPED"}
+
+  - do:
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: datafeed-2
+  - match: { datafeeds.0.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.0.status: "STOPPED"}
+
+---
+"Test get all datafeeds stats":
+
+  - do:
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: _all
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.status: "STOPPED"}
+  - match: { datafeeds.1.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.1.status: "STOPPED"}

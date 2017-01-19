@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import java.time.Duration;
 
 /**
- * Factory methods for a sensible default for the scheduler frequency
+ * Factory methods for a sensible default for the datafeed frequency
  */
 public final class DefaultFrequency {
     private static final int SECONDS_IN_MINUTE = 60;

@@ -25,29 +25,29 @@ public class MlRestTestStateCleaner {
     }
 
     public void clearMlMetadata() throws IOException {
-        deleteAllSchedulers();
+        deleteAllDatafeeds();
         deleteAllJobs();
     }
 
     @SuppressWarnings("unchecked")
-    private void deleteAllSchedulers() throws IOException {
+    private void deleteAllDatafeeds() throws IOException {
         Map<String, Object> clusterStateAsMap = testCase.entityAsMap(client.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.schedulers")));
-        List<Map<String, Object>> schedulers =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.schedulers", clusterStateAsMap);
-        if (schedulers == null) {
+                Collections.singletonMap("filter_path", "metadata.ml.datafeeds")));
+        List<Map<String, Object>> datafeeds =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", clusterStateAsMap);
+        if (datafeeds == null) {
             return;
         }
 
-        for (Map<String, Object> scheduler : schedulers) {
-            Map<String, Object> schedulerMap = (Map<String, Object>) scheduler.get("config");
-            String schedulerId = (String) schedulerMap.get("scheduler_id");
+        for (Map<String, Object> datafeed : datafeeds) {
+            Map<String, Object> datafeedMap = (Map<String, Object>) datafeed.get("config");
+            String datafeedId = (String) datafeedMap.get("datafeed_id");
             try {
-                client.performRequest("POST", "/_xpack/ml/schedulers/" + schedulerId + "/_stop");
+                client.performRequest("POST", "/_xpack/ml/datafeeds/" + datafeedId + "/_stop");
             } catch (Exception e) {
                 // ignore
             }
-            client.performRequest("DELETE", "/_xpack/ml/schedulers/" + schedulerId);
+            client.performRequest("DELETE", "/_xpack/ml/datafeeds/" + datafeedId);
         }
     }
 

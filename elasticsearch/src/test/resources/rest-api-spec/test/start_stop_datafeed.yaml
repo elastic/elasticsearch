@@ -1,0 +1,116 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            response:
+              properties:
+                time:
+                  type: date
+
+  - do:
+      xpack.ml.put_job:
+        job_id: datafeed-job
+        body:  >
+          {
+            "job_id":"datafeed-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: datafeed-1
+        body:  >
+          {
+            "job_id":"datafeed-job",
+            "indexes":"airline-data",
+            "types":"response"
+          }
+---
+"Test start and stop datafeed happy path":
+  - do:
+      xpack.ml.open_job:
+        job_id: "datafeed-job"
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+  - do:
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: "datafeed-1"
+  - match: { datafeeds.0.status: STARTED }
+  - do:
+      xpack.ml.stop_datafeed:
+        "datafeed_id": "datafeed-1"
+  - do:
+      xpack.ml.get_datafeeds_stats:
+        datafeed_id: "datafeed-1"
+  - match: { datafeeds.0.status: STOPPED }
+---
+"Test start non existing datafeed":
+    - do:
+        catch: missing
+        xpack.ml.start_datafeed:
+          "datafeed_id": "non-existing-datafeed"
+          "start": 0
+
+---
+"Test start datafeed job, but not open":
+    - do:
+        catch: conflict
+        xpack.ml.start_datafeed:
+          "datafeed_id": "datafeed-1"
+          "start": 0
+    - do:
+        catch: /cannot start datafeed, expected job status \[OPENED\], but got \[CLOSED\]/
+        xpack.ml.start_datafeed:
+          "datafeed_id": "datafeed-1"
+          "start": 0
+
+---
+"Test start already started datafeed job":
+  - do:
+      xpack.ml.open_job:
+        job_id: "datafeed-job"
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+  - do:
+      catch: conflict
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+
+  - do:
+      catch: /datafeed already started, expected datafeed status \[STOPPED\], but got \[STARTED\]/
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+
+---
+"Test stop non existing datafeed":
+    - do:
+        catch: missing
+        xpack.ml.stop_datafeed:
+          "datafeed_id": "non-existing-datafeed"
+
+---
+"Test stop already stopped datafeed job":
+  - do:
+      catch: conflict
+      xpack.ml.stop_datafeed:
+        "datafeed_id": "datafeed-1"
+  - do:
+      catch: /datafeed already stopped, expected datafeed status \[STARTED\], but got \[STOPPED\]/
+      xpack.ml.stop_datafeed:
+        "datafeed_id": "datafeed-1"

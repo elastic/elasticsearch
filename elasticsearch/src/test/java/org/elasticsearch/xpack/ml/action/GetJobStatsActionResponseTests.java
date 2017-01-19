@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
-import org.elasticsearch.xpack.ml.scheduler.SchedulerStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 

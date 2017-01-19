@@ -28,7 +28,7 @@ public class DateFormatTransform extends DateTransform {
         super(readIndexes, writeIndexes, logger);
 
         this.timeFormat = timeFormat;
-        dateToEpochConverter = DateTimeFormatterTimestampConverter.ofPattern(timeFormat, ZoneOffset.systemDefault());
+        dateToEpochConverter = DateTimeFormatterTimestampConverter.ofPattern(timeFormat, ZoneOffset.UTC);
     }
 
     @Override

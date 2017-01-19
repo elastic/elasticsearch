@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.DateTimeFormatterTimestampConverter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -331,7 +332,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
                     break;
                 default:
                     try {
-                        DateTimeFormatterTimestampConverter.ofPattern(format);
+                        DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format));
                     }

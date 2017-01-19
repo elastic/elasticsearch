@@ -37,19 +37,6 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
     }
 
     /**
-     * Creates a formatter according to the given pattern. The system's default timezone
-     * is used for dates without timezone information.
-     * @param pattern the pattern to be used by the formatter, not null.
-     * See {@link DateTimeFormatter} for the syntax of the accepted patterns
-     * @return a {@code TimestampConverter}
-     * @throws IllegalArgumentException if the pattern is invalid or cannot produce a full timestamp
-     * (e.g. contains a date but not a time)
-     */
-    public static TimestampConverter ofPattern(String pattern) {
-        return ofPattern(pattern, ZoneOffset.systemDefault());
-    }
-
-    /**
      * Creates a formatter according to the given pattern
      * @param pattern the pattern to be used by the formatter, not null.
      * See {@link DateTimeFormatter} for the syntax of the accepted patterns

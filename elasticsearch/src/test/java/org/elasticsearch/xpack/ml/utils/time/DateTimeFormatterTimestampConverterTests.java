@@ -18,44 +18,44 @@ import java.time.format.DateTimeParseException;
 public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
     public void testOfPattern_GivenPatternIsOnlyYear() {
 
-        ESTestCase.expectThrows(IllegalArgumentException.class, () -> DateTimeFormatterTimestampConverter.ofPattern("y"));
+        ESTestCase.expectThrows(IllegalArgumentException.class, () -> DateTimeFormatterTimestampConverter.ofPattern("y", ZoneOffset.UTC));
     }
 
     public void testOfPattern_GivenPatternIsOnlyDate() {
 
-        ESTestCase.expectThrows(IllegalArgumentException.class, () -> DateTimeFormatterTimestampConverter.ofPattern("y-M-d"));
+        ESTestCase.expectThrows(IllegalArgumentException.class,
+                () -> DateTimeFormatterTimestampConverter.ofPattern("y-M-d", ZoneOffset.UTC));
     }
 
     public void testOfPattern_GivenPatternIsOnlyTime() {
 
-        ESTestCase.expectThrows(IllegalArgumentException.class, () -> DateTimeFormatterTimestampConverter.ofPattern("HH:mm:ss"));
+        ESTestCase.expectThrows(IllegalArgumentException.class,
+                () -> DateTimeFormatterTimestampConverter.ofPattern("HH:mm:ss", ZoneOffset.UTC));
     }
 
     public void testOfPattern_GivenPatternIsUsingYearInsteadOfYearOfEra() {
-        ESTestCase.expectThrows(IllegalArgumentException.class, () -> DateTimeFormatterTimestampConverter.ofPattern("uuuu-MM-dd HH:mm:ss"));
+        ESTestCase.expectThrows(IllegalArgumentException.class,
+                () -> DateTimeFormatterTimestampConverter.ofPattern("uuuu-MM-dd HH:mm:ss", ZoneOffset.UTC));
     }
 
     public void testToEpochSeconds_GivenValidTimestampDoesNotFollowPattern() {
-        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern("yyyy-MM-dd HH:mm:ss", ZoneOffset.UTC);
         ESTestCase.expectThrows(DateTimeParseException.class, () -> formatter.toEpochSeconds("14:00:22"));
     }
 
     public void testToEpochMillis_GivenValidTimestampDoesNotFollowPattern() {
-        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", ZoneOffset.UTC);
         ESTestCase.expectThrows(DateTimeParseException.class, () -> formatter.toEpochMillis("2015-01-01 14:00:22"));
     }
 
     public void testToEpochSeconds_GivenPatternHasFullDateAndOnlyHours() {
-        long expected = ZonedDateTime.of(2014, 3, 22, 1, 0, 0, 0, ZoneOffset.systemDefault()).toEpochSecond();
+        long expected = ZonedDateTime.of(2014, 3, 22, 1, 0, 0, 0, ZoneOffset.UTC).toEpochSecond();
         assertEquals(expected, toEpochSeconds("2014-03-22 01", "y-M-d HH"));
     }
 
     public void testToEpochSeconds_GivenPatternHasFullDateAndTimeWithoutTimeZone() {
-        long expected = ZonedDateTime.of(1985, 8, 18, 20, 15, 40, 0, ZoneOffset.systemDefault()).toEpochSecond();
+        long expected = ZonedDateTime.of(1985, 8, 18, 20, 15, 40, 0, ZoneOffset.UTC).toEpochSecond();
         assertEquals(expected, toEpochSeconds("1985-08-18 20:15:40", "yyyy-MM-dd HH:mm:ss"));
-
-        expected = ZonedDateTime.of(1985, 8, 18, 20, 15, 40, 0, ZoneOffset.UTC).toEpochSecond();
-        assertEquals(expected, toEpochSeconds("1985-08-18 20:15:40", "yyyy-MM-dd HH:mm:ss", ZoneOffset.UTC));
 
         expected = ZonedDateTime.of(1985, 8, 18, 20, 15, 40, 0, ZoneOffset.MIN).toEpochSecond();
         assertEquals(expected, toEpochSeconds("1985-08-18 20:15:40", "yyyy-MM-dd HH:mm:ss", ZoneOffset.MIN));
@@ -74,13 +74,11 @@ public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
 
     public void testToEpochSeconds_GivenPatternHasDateWithoutYearAndTimeWithoutTimeZone() throws ParseException {
         // Summertime
-        long expected = ZonedDateTime.of(LocalDate.now(ZoneId.systemDefault()).getYear(), 8, 14, 1, 30, 20, 0,
-                ZoneOffset.systemDefault()).toEpochSecond();
+        long expected = ZonedDateTime.of(LocalDate.now(ZoneOffset.UTC).getYear(), 8, 14, 1, 30, 20, 0, ZoneOffset.UTC).toEpochSecond();
         assertEquals(expected, toEpochSeconds("08 14 01:30:20", "MM dd HH:mm:ss"));
 
         // Non-summertime
-        expected = ZonedDateTime.of(LocalDate.now(ZoneId.systemDefault()).getYear(), 12, 14, 1, 30, 20, 0,
-                ZoneOffset.systemDefault()).toEpochSecond();
+        expected = ZonedDateTime.of(LocalDate.now(ZoneOffset.UTC).getYear(), 12, 14, 1, 30, 20, 0, ZoneOffset.UTC).toEpochSecond();
         assertEquals(expected, toEpochSeconds("12 14 01:30:20", "MM dd HH:mm:ss"));
     }
 
@@ -90,7 +88,7 @@ public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
     }
 
     private static long toEpochSeconds(String timestamp, String pattern) {
-        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern(pattern);
+        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern(pattern, ZoneOffset.UTC);
         return formatter.toEpochSeconds(timestamp);
     }
 
@@ -100,7 +98,7 @@ public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
     }
 
     private static long toEpochMillis(String timestamp, String pattern) {
-        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern(pattern);
+        TimestampConverter formatter = DateTimeFormatterTimestampConverter.ofPattern(pattern, ZoneOffset.UTC);
         return formatter.toEpochMillis(timestamp);
     }
 }

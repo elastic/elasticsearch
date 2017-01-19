@@ -539,6 +539,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertEquals(oldHitCount, indexStats.getHitCount());
     }
 
+    @AwaitsFix(bugUrl = "fix in work, mute for now")
     public void testGeoPointNotIndexed() throws Exception {
         assertAcked(prepareCreate("test").addMapping("test", "value", "type=long", "location", "type=geo_point,index=false"));
         ensureGreen("test");

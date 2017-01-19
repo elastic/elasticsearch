@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.uri;
+package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;

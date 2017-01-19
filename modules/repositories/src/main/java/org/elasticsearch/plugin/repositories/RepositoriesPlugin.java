@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories;
+package org.elasticsearch.plugin.repositories;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.uri.URLRepository;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.url.URLRepository;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RespositoriesPlugin extends Plugin implements RepositoryPlugin {
+public class RepositoriesPlugin extends Plugin implements RepositoryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {

@@ -1,7 +1,6 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
 
-import org.elasticsearch.painless.Definition;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -106,6 +105,14 @@ class PainlessLexer extends Lexer {
   }
 
 
+    protected boolean isSimpleType(String name) {
+      throw new UnsupportedOperationException("Must be implemented in a subclass");
+    }
+    protected boolean slashIsRegex() {
+      throw new UnsupportedOperationException("Must be implemented in a subclass");
+    }
+
+
   public PainlessLexer(CharStream input) {
     super(input);
     _interp = new LexerATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
@@ -141,21 +148,21 @@ class PainlessLexer extends Lexer {
   private boolean DIV_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 0:
-      return  false == SlashStrategy.slashIsRegex(this) ;
+      return  false == slashIsRegex() ;
     }
     return true;
   }
   private boolean REGEX_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return  SlashStrategy.slashIsRegex(this) ;
+      return  slashIsRegex() ;
     }
     return true;
   }
   private boolean TYPE_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return  Definition.isSimpleType(getText()) ;
+      return  isSimpleType(getText()) ;
     }
     return true;
   }

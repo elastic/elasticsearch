@@ -628,11 +628,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
                 "[{}{}]", (Object) value, SecurityTemplateService.SECURITY_INDEX_NAME, auditIndex);
-        if (Booleans.isExplicitFalse(value)) {
+        if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
 
-        if (Booleans.isExplicitTrue(value)) {
+        if (Booleans.isTrue(value)) {
             return;
         }
 

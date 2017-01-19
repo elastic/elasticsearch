@@ -116,7 +116,7 @@ public class SettingsFilterTests extends ESTestCase {
     }
 
     private String randomBooleanSetting() {
-        return randomFrom("true", "1", "on", "yes", "false", "0", "off", "no");
+        return randomFrom("true", "false");
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

@@ -53,7 +53,7 @@ public class JiraAccount {
         try {
             URI uri = new URI(url);
             Scheme protocol = Scheme.parse(uri.getScheme());
-            if ((protocol == Scheme.HTTP) && (Booleans.isExplicitTrue(settings.get(ALLOW_HTTP_SETTING)) == false)) {
+            if ((protocol == Scheme.HTTP) && (Booleans.isTrue(settings.get(ALLOW_HTTP_SETTING)) == false)) {
                 throw new SettingsException("invalid jira [" + name + "] account settings. unsecure scheme [" + protocol + "]");
             }
             this.url = uri;

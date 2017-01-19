@@ -23,12 +23,19 @@ lexer grammar PainlessLexer;
 }
 
 @members{
-  protected boolean isSimpleType(String name) {
-    throw new UnsupportedOperationException("Must be implemented in a subclass");
-  }
-  protected boolean slashIsRegex() {
-    throw new UnsupportedOperationException("Must be implemented in a subclass");
-  }
+/**
+ * Check against the current whitelist to determine whether a token is a type
+ * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
+ * See also
+ * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
+ */
+protected abstract boolean isSimpleType(String name);
+
+/**
+ * Is the preceding {@code /} a the beginning of a regex (true) or a division
+ * (false).
+ */
+protected abstract boolean slashIsRegex();
 }
 
 WS: [ \t\n\r]+ -> skip;

@@ -20,7 +20,15 @@
 lexer grammar PainlessLexer;
 
 @header {
-import org.elasticsearch.painless.Definition;
+}
+
+@members{
+  protected boolean isSimpleType(String name) {
+    throw new UnsupportedOperationException("Must be implemented in a subclass");
+  }
+  protected boolean slashIsRegex() {
+    throw new UnsupportedOperationException("Must be implemented in a subclass");
+  }
 }
 
 WS: [ \t\n\r]+ -> skip;
@@ -59,7 +67,7 @@ INSTANCEOF: 'instanceof';
 BOOLNOT: '!';
 BWNOT:   '~';
 MUL:     '*';
-DIV:     '/' { false == SlashStrategy.slashIsRegex(this) }?;
+DIV:     '/' { false == slashIsRegex() }?;
 REM:     '%';
 ADD:     '+';
 SUB:     '-';
@@ -108,7 +116,7 @@ INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
-REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { SlashStrategy.slashIsRegex(this) }?;
+REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { slashIsRegex() }?;
 
 TRUE:  'true';
 FALSE: 'false';
@@ -121,7 +129,7 @@ NULL: 'null';
 // or not.  Note this works by processing one character at a time
 // and the rule is added or removed as this happens.  This is also known
 // as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
-TYPE: ID ( DOT ID )* { Definition.isSimpleType(getText()) }?;
+TYPE: ID ( DOT ID )* { isSimpleType(getText()) }?;
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;

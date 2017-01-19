@@ -428,7 +428,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     .put(indexMetaData, false)
                                     .build();
 
-                            String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) ? "s" : "";
+                            String maybeShadowIndicator = indexMetaData.isIndexUsingShadowReplicas() ? "s" : "";
                             logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
                                     request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
                                     indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());

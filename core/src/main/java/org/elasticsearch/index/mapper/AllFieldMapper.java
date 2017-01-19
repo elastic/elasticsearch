@@ -40,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
@@ -118,7 +117,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
             // the doc values settings (old and new) are rejected
             Object docValues = node.get("doc_values");
-            if (docValues != null && lenientNodeBooleanValue(docValues)) {
+            if (docValues != null && TypeParsers.nodeBooleanValueLenient(name, "doc_values", docValues)) {
                 throw new MapperParsingException("Field [" + name +
                     "] is always tokenized and cannot have doc values");
             }
@@ -139,8 +138,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED :
-                        EnabledAttributeMapper.DISABLED);
+                    boolean enabled = TypeParsers.nodeBooleanValueLenient(name, "enabled", fieldNode);
+                    builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }
             }

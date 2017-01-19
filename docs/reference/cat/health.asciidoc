@@ -22,7 +22,7 @@ It has one option `ts` to disable the timestamping:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/health?v&ts=0
+GET /_cat/health?v&ts=false
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]

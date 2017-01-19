@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +146,66 @@ public class SettingsTests extends ESTestCase {
         assertEquals(2, fooSettings.getAsMap().size());
         assertThat(fooSettings.get("bar"), equalTo("def"));
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testLenientBooleanForPreEs6Index() throws IOException {
+        // time to say goodbye?
+        assertTrue(
+            "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1_UNRELEASED));
+
+
+        String falsy = randomFrom("false", "off", "no", "0");
+        String truthy = randomFrom("true", "on", "yes", "1");
+
+        Settings settings = Settings.builder()
+            .put("foo", falsy)
+            .put("bar", truthy).build();
+
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true));
+
+        List<String> expectedDeprecationWarnings = new ArrayList<>();
+        if (Booleans.isBoolean(falsy) == false) {
+            expectedDeprecationWarnings.add(
+                "The value [" + falsy + "] of setting [foo] is not coerced into boolean anymore. Please change this value to [false].");
+        }
+        if (Booleans.isBoolean(truthy) == false) {
+            expectedDeprecationWarnings.add(
+                "The value [" + truthy + "] of setting [bar] is not coerced into boolean anymore. Please change this value to [true].");
+        }
+
+        if (expectedDeprecationWarnings.isEmpty() == false) {
+            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
+        }
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testInvalidLenientBooleanForCurrentIndexVersion() {
+        String falsy = randomFrom("off", "no", "0");
+        String truthy = randomFrom("on", "yes", "1");
+
+        Settings settings = Settings.builder()
+            .put("foo", falsy)
+            .put("bar", truthy).build();
+
+        expectThrows(IllegalArgumentException.class,
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null));
+        expectThrows(IllegalArgumentException.class,
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null));
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testValidLenientBooleanForCurrentIndexVersion() {
+        Settings settings = Settings.builder()
+            .put("foo", "false")
+            .put("bar", "true").build();
+
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true));
     }
 
     public void testMultLevelGetPrefix() {

@@ -125,7 +125,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 Object propNode = entry.getValue();
 
                 if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, Names.IGNORE_MALFORMED, propNode, parserContext));
                     iterator.remove();
                 }
             }

@@ -296,7 +296,7 @@ public class IndexModuleTests extends ESTestCase {
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings),
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap()));
-        module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
+        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings) -> new SimilarityProvider() {
             @Override
             public String name() {
                 return string;
@@ -304,7 +304,7 @@ public class IndexModuleTests extends ESTestCase {
 
             @Override
             public Similarity get() {
-                return new TestSimilarity(settings.get("key"));
+                return new TestSimilarity(providerSettings.get("key"));
             }
         });
 

@@ -139,7 +139,7 @@ public class RestTableTests extends ESTestCase {
 
     public void testThatDisplayHeadersWithoutTimestamp() throws Exception {
         restRequest.params().put("h", "timestamp,epoch,bulk*");
-        restRequest.params().put("ts", "0");
+        restRequest.params().put("ts", "false");
         List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
 
         List<String> headerNames = getHeaderNames(headers);

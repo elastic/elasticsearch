@@ -1263,9 +1263,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * is the returned value from
      * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
      */
-    public static boolean isOnSharedFilesystem(Settings settings) {
+    public boolean isOnSharedFilesystem(Settings settings) {
         // don't use the setting directly, not to trigger verbose deprecation logging
-        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+        return settings.getAsBooleanLenientForPreEs6Indices(
+            this.indexCreatedVersion, SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
     }
 
     /**
@@ -1273,9 +1274,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
      * setting for this is <code>false</code>.
      */
-    public static boolean isIndexUsingShadowReplicas(Settings settings) {
+    public boolean isIndexUsingShadowReplicas() {
+        return isIndexUsingShadowReplicas(this.settings);
+    }
+
+    public boolean isIndexUsingShadowReplicas(Settings settings) {
         // don't use the setting directly, not to trigger verbose deprecation logging
-        return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
+        return settings.getAsBooleanLenientForPreEs6Indices(this.indexCreatedVersion, SETTING_SHADOW_REPLICAS, false);
     }
 
     /**

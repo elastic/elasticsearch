@@ -53,13 +53,29 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
 
     public void testConflictFieldsMapping(String fieldName) throws Exception {
         //test store, ... all the parameters that are not to be changed just like in other fields
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "no").endObject()
-                .endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "yes").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
-                .endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                            .field("store", false)
+                        .endObject()
+                    .endObject()
+            .endObject();
+        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                        .field("store", true)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
     }
 

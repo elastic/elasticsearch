@@ -18,10 +18,15 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -46,22 +51,23 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
- * Provides a helper constructing the {@link Aggregator} implementation based on a provided {@link AggregationBuilder} instance.
+ * Provides helpers for constructing and searching an {@link Aggregator} implementation based on a provided
+ * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
-
     protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
-                                                                                      MappedFieldType fieldType,
-                                                                                      IndexSearcher indexSearcher) throws IOException {
+                                                                                      IndexSearcher indexSearcher,
+                                                                                      MappedFieldType... fieldTypes) throws IOException {
         IndexSettings indexSettings = new IndexSettings(
             IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
@@ -102,15 +108,92 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
-            new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
-        when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
-        when(queryShardContext.getForField(any())).thenReturn(fieldData);
-        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+        for (MappedFieldType fieldType : fieldTypes) {
+            IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
+                new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
+            when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
+            when(queryShardContext.getForField(fieldType)).thenReturn(fieldData);
+            when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+        }
 
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
         return aggregator;
     }
 
+    protected <A extends InternalAggregation, C extends Aggregator> A search(IndexSearcher searcher,
+                                                                             Query query,
+                                                                             AggregationBuilder builder,
+                                                                             MappedFieldType... fieldTypes) throws IOException {
+        try (C a = createAggregator(builder, searcher, fieldTypes)) {
+            a.preCollection();
+            searcher.search(query, a);
+            a.postCollection();
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) a.buildAggregation(0L);
+            return internalAgg;
+        }
+    }
+
+    /**
+     * Divides the provided {@link IndexSearcher} in sub-searcher, one for each segment,
+     * builds an aggregator for each sub-searcher filtered by the provided {@link Query} and
+     * returns the reduced {@link InternalAggregation}.
+     */
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
+                                                                                      Query query,
+                                                                                      AggregationBuilder builder,
+                                                                                      MappedFieldType... fieldTypes) throws IOException {
+        final IndexReaderContext ctx = searcher.getTopReaderContext();
+
+        final ShardSearcher[] subSearchers;
+        if (ctx instanceof LeafReaderContext) {
+            subSearchers = new ShardSearcher[1];
+            subSearchers[0] = new ShardSearcher((LeafReaderContext) ctx, ctx);
+        } else {
+            final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
+            final int size = compCTX.leaves().size();
+            subSearchers = new ShardSearcher[size];
+            for(int searcherIDX=0;searcherIDX<subSearchers.length;searcherIDX++) {
+                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
+                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
+            }
+        }
+
+        List<InternalAggregation> aggs = new ArrayList<> ();
+        Query rewritten = searcher.rewrite(query);
+        Weight weight = searcher.createWeight(rewritten, true);
+        try (C root = createAggregator(builder, searcher, fieldTypes)) {
+            for (ShardSearcher subSearcher : subSearchers) {
+                try (C a = createAggregator(builder, subSearcher, fieldTypes)) {
+                    a.preCollection();
+                    subSearcher.search(weight, a);
+                    a.postCollection();
+                    aggs.add(a.buildAggregation(0L));
+                }
+            }
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) aggs.get(0).doReduce(aggs,
+                new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
+            return internalAgg;
+        }
+    }
+
+    private static class ShardSearcher extends IndexSearcher {
+        private final List<LeafReaderContext> ctx;
+
+        public ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
+            super(parent);
+            this.ctx = Collections.singletonList(ctx);
+        }
+
+        public void search(Weight weight, Collector collector) throws IOException {
+            search(ctx, weight, collector);
+        }
+
+        @Override
+        public String toString() {
+            return "ShardSearcher(" + ctx.get(0) + ")";
+        }
+    }
 }

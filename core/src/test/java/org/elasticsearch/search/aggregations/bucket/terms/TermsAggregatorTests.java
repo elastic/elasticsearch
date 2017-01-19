@@ -74,7 +74,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
             fieldType.setName("string");
             fieldType.setHasDocValues(true );
-            try (TermsAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+            try (TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
                 aggregator.preCollection();
                 indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                 aggregator.postCollection();
@@ -94,7 +94,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    public void testMixLongAndDouble() throws IOException {
+    public void testMixLongAndDouble() throws Exception {
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.LONG)
                 .executionHint(executionMode.toString())
@@ -190,7 +190,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private InternalAggregation buildInternalAggregation(TermsAggregationBuilder builder, MappedFieldType fieldType,
                                                          IndexSearcher searcher) throws IOException {
-        try (TermsAggregator aggregator = createAggregator(builder, fieldType, searcher)) {
+        try (TermsAggregator aggregator = createAggregator(builder, searcher, fieldType)) {
             aggregator.preCollection();
             searcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();

@@ -19,9 +19,13 @@
 
 package org.elasticsearch.client;
 
-public class MainActionIT extends ESRestHighLevelClientTestCase {
+import java.io.IOException;
 
-    public void testPing() {
+public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
+
+    public void testPing() throws IOException {
         assertTrue(highLevelClient().ping());
     }
+
+    //TODO add here integ tests for info api: "GET /" once we have parsing code for MainResponse
 }

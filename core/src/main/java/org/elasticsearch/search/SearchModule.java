@@ -302,7 +302,9 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
-        registerSearchResponseListeners(plugins);
+        if (false == transportClient) {
+          registerSearchResponseListeners(plugins);
+        }
         registerShapes();
     }
 

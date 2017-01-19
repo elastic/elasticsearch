@@ -287,7 +287,7 @@ public class JobProvider {
      * @param jobId The job id
      */
     public void dataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
-        get(jobId, DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX, handler, errorHandler,
+        get(jobId, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId), handler, errorHandler,
                 DataCounts.PARSER, () -> new DataCounts(jobId));
     }
 
@@ -626,9 +626,10 @@ public class JobProvider {
         SearchRequest searchRequest = new SearchRequest(indexName);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         if (categoryId != null) {
-            String uid = Uid.createUid(CategoryDefinition.TYPE.getPreferredName(), categoryId);
+            String documentId = CategoryDefinition.documentId(jobId, categoryId);
+            String uid = Uid.createUid(CategoryDefinition.TYPE.getPreferredName(), documentId);
             sourceBuilder.query(QueryBuilders.termQuery(UidFieldMapper.NAME, uid));
-            searchRequest.routing(categoryId);
+            searchRequest.routing(documentId);
         } else if (from != null && size != null) {
             searchRequest.types(CategoryDefinition.TYPE.getPreferredName());
             sourceBuilder.from(from).size(size)
@@ -798,7 +799,7 @@ public class JobProvider {
      */
     public Optional<Quantiles> getQuantiles(String jobId) {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
-        String quantilesId = Quantiles.quantilesId(jobId);
+        String quantilesId = Quantiles.documentId(jobId);
         LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
 
         Optional<Quantiles> quantiles = getBlocking(indexName, Quantiles.TYPE.getPreferredName(), quantilesId, Quantiles.PARSER);
@@ -1015,7 +1016,7 @@ public class JobProvider {
         LOGGER.trace("ES API CALL: get result type {} ID {} for job {}",
                 ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, jobId);
 
-        get(jobId, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(),
+        get(jobId, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
                 handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
                 () -> {
                     LOGGER.warn("No memory usage details for job with id {}", jobId);

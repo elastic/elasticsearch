@@ -3,19 +3,19 @@ setup:
       index:
         index:  .ml-anomalies-farequote
         type:   category_definition
-        id:     1
+        id:     farequote-1
         body:   { "job_id": "farequote", "category_id": 1 }
   - do:
       index:
         index:  .ml-anomalies-farequote
         type:   category_definition
-        id:     2
+        id:     farequote-2
         body:   { "job_id": "farequote", "category_id": 2 }
   - do:
       index:
         index:  .ml-anomalies-unrelated
         type:   category_definition
-        id:     3
+        id:     farequote-3
         body:   { "job_id": "unrelated", "category_id": 1 }
 
   - do:

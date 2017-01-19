@@ -46,6 +46,10 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
         PARSER.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
     }
 
+    public static String documentId(String jobId, String categoryId) {
+        return jobId + "-" + categoryId;
+    }
+
     private final String jobId;
     private long id = 0L;
     private String terms = "";

@@ -49,7 +49,7 @@ public class JobDataCountsPersister extends AbstractComponent {
         try {
             XContentBuilder content = serialiseCounts(counts);
             client.prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(jobId), DataCounts.TYPE.getPreferredName(),
-                    jobId + DataCounts.DOCUMENT_SUFFIX)
+                    DataCounts.documentId(jobId))
             .setSource(content).execute(new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {

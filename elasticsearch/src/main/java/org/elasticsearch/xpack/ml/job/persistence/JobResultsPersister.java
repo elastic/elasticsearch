@@ -212,7 +212,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistCategoryDefinition(CategoryDefinition category) {
         Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
-                String.valueOf(category.getCategoryId()));
+                CategoryDefinition.documentId(category.getJobId(), Long.toString(category.getCategoryId())));
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(category.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
@@ -223,7 +223,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
-                Quantiles.quantilesId(quantiles.getJobId()));
+                Quantiles.documentId(quantiles.getJobId()));
         if (persistable.persist(AnomalyDetectorsIndex.jobStateIndexName())) {
             // Refresh the index when persisting quantiles so that previously
             // persisted results will be available for searching.  Do this using the
@@ -239,13 +239,13 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
-                modelSnapshot.getSnapshotId());
+                modelSnapshot.documentId());
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()));
     }
 
     public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
         String index = AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId());
-        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), modelSnapshot.getSnapshotId());
+        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), modelSnapshot.documentId());
         try {
             indexRequest.source(toXContentBuilder(modelSnapshot));
         } catch (IOException e) {
@@ -261,7 +261,7 @@ public class JobResultsPersister extends AbstractComponent {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
-                ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
+                ModelSizeStats.documentId(jobId));
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
         persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(), null);
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));

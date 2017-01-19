@@ -56,7 +56,7 @@ setup:
       index:
         index:  .ml-anomalies-job-stats-test
         type:   result
-        id:     model_size_stats
+        id:     job-stats-test-model_size_stats
         body:   {
                   "job_id": "job-stats-test",
                   "result_type": "model_size_stats",

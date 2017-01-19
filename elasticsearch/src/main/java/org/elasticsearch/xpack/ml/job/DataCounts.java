@@ -35,7 +35,7 @@ import java.util.Objects;
 
 public class DataCounts extends ToXContentToBytes implements Writeable {
 
-    public static final String DOCUMENT_SUFFIX = "-data-counts";
+    private static final String DOCUMENT_SUFFIX = "-data-counts";
     public static final String PROCESSED_RECORD_COUNT_STR = "processed_record_count";
     public static final String PROCESSED_FIELD_COUNT_STR = "processed_field_count";
     public static final String INPUT_BYTES_STR = "input_bytes";
@@ -92,6 +92,10 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
         }, LATEST_RECORD_TIME, ValueType.VALUE);
         PARSER.declareLong((t, u) -> {;}, INPUT_RECORD_COUNT);
+    }
+
+    public static String documentId(String jobId) {
+        return jobId + DOCUMENT_SUFFIX;
     }
 
     private final String jobId;

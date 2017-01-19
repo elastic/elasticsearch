@@ -191,6 +191,10 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         return jobId;
     }
 
+    public String documentId() {
+        return jobId + "-" + snapshotId;
+    }
+
     public Date getTimestamp() {
         return timestamp;
     }

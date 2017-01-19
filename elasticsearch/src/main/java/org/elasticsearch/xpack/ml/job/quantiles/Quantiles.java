@@ -44,7 +44,7 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
     }
 
-    public static String quantilesId(String jobId) {
+    public static String documentId(String jobId) {
         return jobId + "-" + TYPE.getPreferredName();
     }
 

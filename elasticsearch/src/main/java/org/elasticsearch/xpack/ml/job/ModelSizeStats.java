@@ -76,6 +76,10 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
     }
 
+    public static String documentId(String jobId) {
+        return jobId + "-" + RESULT_TYPE_VALUE;
+    }
+
     /**
      * The status of the memory monitored by the ResourceMonitor. OK is default,
      * SOFT_LIMIT means that the models have done some aggressive pruning to
@@ -119,7 +123,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     }
 
     private final String jobId;
-    private final String id;
     private final long modelBytes;
     private final long totalByFieldCount;
     private final long totalOverFieldCount;
@@ -133,7 +136,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
                            long totalPartitionFieldCount, long bucketAllocationFailuresCount, MemoryStatus memoryStatus,
                            Date timestamp, Date logTime) {
         this.jobId = jobId;
-        this.id = id;
         this.modelBytes = modelBytes;
         this.totalByFieldCount = totalByFieldCount;
         this.totalOverFieldCount = totalOverFieldCount;
@@ -146,7 +148,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
     public ModelSizeStats(StreamInput in) throws IOException {
         jobId = in.readString();
-        id = null;
         modelBytes = in.readVLong();
         totalByFieldCount = in.readVLong();
         totalOverFieldCount = in.readVLong();
@@ -201,10 +202,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
     public String getJobId() {
         return jobId;
-    }
-
-    public String getId() {
-        return id;
     }
 
     public long getModelBytes() {

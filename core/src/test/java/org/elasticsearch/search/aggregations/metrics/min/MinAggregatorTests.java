@@ -62,7 +62,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
             aggregator.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();
@@ -96,7 +96,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
             aggregator.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();
@@ -127,7 +127,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number2");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number2");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
             aggregator.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();
@@ -149,7 +149,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
             aggregator.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();

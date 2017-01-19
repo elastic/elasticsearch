@@ -555,7 +555,6 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getAllFieldStats().get("location").getMaxValue(), equalTo(null));
         assertThat(response.getAllFieldStats().get("location").isAggregatable(), equalTo(true));
         assertThat(response.getAllFieldStats().get("location").isSearchable(), equalTo(false));
-
     }
 
     private void indexRange(String index, long from, long to) throws Exception {

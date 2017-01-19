@@ -49,7 +49,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
         discartPunctuation = settings
-            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "discard_punctuation", true);
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "discard_punctuation", true, deprecationLogger);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
     }

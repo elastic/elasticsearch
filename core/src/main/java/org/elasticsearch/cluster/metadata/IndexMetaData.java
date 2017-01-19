@@ -41,6 +41,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -1256,6 +1258,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         }
     }
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(IndexMetaData.class));
+
     /**
      * Returns <code>true</code> iff the given settings indicate that the index
      * associated with these settings allocates it's shards on a shared
@@ -1266,7 +1270,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public boolean isOnSharedFilesystem(Settings settings) {
         // don't use the setting directly, not to trigger verbose deprecation logging
         return settings.getAsBooleanLenientForPreEs6Indices(
-            this.indexCreatedVersion, SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+            this.indexCreatedVersion, SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings), deprecationLogger);
     }
 
     /**
@@ -1280,7 +1284,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
     public boolean isIndexUsingShadowReplicas(Settings settings) {
         // don't use the setting directly, not to trigger verbose deprecation logging
-        return settings.getAsBooleanLenientForPreEs6Indices(this.indexCreatedVersion, SETTING_SHADOW_REPLICAS, false);
+        return settings.getAsBooleanLenientForPreEs6Indices(this.indexCreatedVersion, SETTING_SHADOW_REPLICAS, false, deprecationLogger);
     }
 
     /**

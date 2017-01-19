@@ -131,7 +131,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean caseLevel = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "caseLevel", null);
+        Boolean caseLevel = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "caseLevel", null, deprecationLogger);
         if (caseLevel != null) {
             rbc.setCaseLevel(caseLevel);
         }
@@ -147,7 +147,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean numeric = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "numeric", null);
+        Boolean numeric = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "numeric", null, deprecationLogger);
         if (numeric != null) {
             rbc.setNumericCollation(numeric);
         }
@@ -158,7 +158,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         Boolean hiraganaQuaternaryMode = settings
-            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "hiraganaQuaternaryMode", null);
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "hiraganaQuaternaryMode", null, deprecationLogger);
         if (hiraganaQuaternaryMode != null) {
             rbc.setHiraganaQuaternary(hiraganaQuaternaryMode);
         }

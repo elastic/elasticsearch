@@ -40,8 +40,10 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
-        this.removeTrailing = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "remove_trailing", true);
+        this.ignoreCase =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        this.removeTrailing = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "remove_trailing", true, deprecationLogger);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");

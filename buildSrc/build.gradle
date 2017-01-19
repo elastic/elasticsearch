@@ -23,14 +23,8 @@ apply plugin: 'groovy'
 
 group = 'org.elasticsearch.gradle'
 
-// TODO: remove this when upgrading to a version that supports ProgressLogger
-// gradle 2.14 made internal apis unavailable to plugins, and gradle considered
-// ProgressLogger to be an internal api. Until this is made available again,
-// we can't upgrade without losing our nice progress logging
-// NOTE that this check duplicates that in BuildPlugin, but we need to check
-// early here before trying to compile the broken classes in buildSrc
-if (GradleVersion.current() != GradleVersion.version('2.13')) {
-  throw new GradleException('Gradle 2.13 is required to build elasticsearch')
+if (GradleVersion.current() < GradleVersion.version('2.13')) {
+  throw new GradleException('Gradle 2.13+ is required to build elasticsearch')
 }
 
 if (project == rootProject) {
@@ -96,9 +90,25 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'de.thetaphi:forbiddenapis:2.2'
   compile 'org.apache.rat:apache-rat:0.11'
-  compile 'ru.vyarus:gradle-animalsniffer-plugin:1.0.1'
 }
 
+// Gradle version-specific options (allows build to run with Gradle 2.13 as well as 2.14+/3.+)
+if (GradleVersion.current() == GradleVersion.version("2.13")) {
+  // ProgressLogger(-Factory) classes are part of the public Gradle API
+  // Add default imports for (org.gradle.logging)
+  compileGroovy.groovyOptions.configurationScript = file('src/compile/groovy/gradle-2.13-loggers.groovy')
+  dependencies {
+    compile 'ru.vyarus:gradle-animalsniffer-plugin:1.0.1' // last version compatible with Gradle 2.13
+  }
+} else {
+  // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
+  // Use logging dependency and add default imports for "org.gradle.internal.logging.progress"
+  compileGroovy.groovyOptions.configurationScript = file('src/compile/groovy/gradle-2.14-loggers.groovy')
+  dependencies {
+    compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
+    compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1
+  }
+}
 
 /*****************************************************************************
  *                         Bootstrap repositories                            *

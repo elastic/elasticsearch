@@ -132,20 +132,6 @@ setup:
   - do:
       indices.refresh:
         index: .ml-state
----
-"Test revert model with only job_id":
-  - do:
-      catch: request
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-
----
-"Test revert model with invalid time":
-  - do:
-      catch: request
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-        time: "foo"
 
 ---
 "Test revert model with invalid snapshotId":
@@ -154,14 +140,6 @@ setup:
       xpack.ml.revert_model_snapshot:
         job_id: "foo"
         snapshot_id: "not_exist"
-
----
-"Test revert model with invalid description":
-  - do:
-      catch: /resource_not_found_exception/
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-        description: "foo"
 
 ---
 "Test revert model with valid snapshotId":
@@ -190,59 +168,7 @@ setup:
   - match: { model.snapshot_doc_count: 0 }
 
 ---
-"Test revert model with valid time":
-  - do:
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-        time: "2016-06-02T01:00:00Z"
-
-  - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
-  - match: { model.timestamp: 1464825600000 }
-  - match: { model.restore_priority: 1 }
-  - match: { model.snapshot_id: "foo1" }
-  - match: { model.snapshot_doc_count: 0 }
-
-  - do:
-        xpack.ml.revert_model_snapshot:
-          job_id: "foo"
-          time: "2016-06-01T01:00:00Z"
-
-  - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
-  - match: { model.timestamp: 1464739200000 }
-  - match: { model.restore_priority: 2 }
-  - match: { model.snapshot_id: "foo2" }
-  - match: { model.snapshot_doc_count: 0 }
-
----
-"Test revert model with valid description":
-  - do:
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-        description: "first"
-
-  - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
-  - match: { model.timestamp: 1464825600000 }
-  - match: { model.restore_priority: 1 }
-  - match: { model.snapshot_id: "foo1" }
-  - match: { model.snapshot_doc_count: 0 }
-
-  - do:
-        xpack.ml.revert_model_snapshot:
-          job_id: "foo"
-          description: "second"
-
-  - match: { acknowledged: true }
-  - match: { model.job_id: "foo" }
-  - match: { model.timestamp: 1464739200000 }
-  - match: { model.restore_priority: 2 }
-  - match: { model.snapshot_id: "foo2" }
-  - match: { model.snapshot_doc_count: 0 }
-
----
-"Test revert model with deleteInterveningResults":
+"Test revert model with delete_intervening_results":
   - do:
       xpack.ml.get_buckets:
         job_id: "foo"
@@ -292,9 +218,8 @@ setup:
   - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: foo
 
   - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
-
 

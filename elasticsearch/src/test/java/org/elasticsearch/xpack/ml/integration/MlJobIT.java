@@ -72,10 +72,19 @@ public class MlJobIT extends ESRestTestCase {
     public void testGetJobs_GivenSingleJob() throws Exception {
         createFarequoteJob();
 
+        // Explicit _all
         Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":1"));
+        assertThat(responseAsString, containsString("\"job_id\":\"farequote\""));
+
+        // Implicit _all
+        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors");
+
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
         assertThat(responseAsString, containsString("\"job_id\":\"farequote\""));
     }
@@ -85,10 +94,21 @@ public class MlJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
+        // Explicit _all
         Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":3"));
+        assertThat(responseAsString, containsString("\"job_id\":\"farequote_1\""));
+        assertThat(responseAsString, containsString("\"job_id\":\"farequote_2\""));
+        assertThat(responseAsString, containsString("\"job_id\":\"farequote_3\""));
+
+        // Implicit _all
+        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors");
+
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":3"));
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_1\""));
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_2\""));

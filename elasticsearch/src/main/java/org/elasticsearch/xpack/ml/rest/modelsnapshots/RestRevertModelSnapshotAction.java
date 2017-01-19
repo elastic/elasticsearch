@@ -21,32 +21,26 @@ import java.io.IOException;
 
 public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
-    private final String TIME_DEFAULT = null;
-    private final String SNAPSHOT_ID_DEFAULT = null;
-    private final String DESCRIPTION_DEFAULT = null;
     private final boolean DELETE_INTERVENING_DEFAULT = false;
 
     @Inject
     public RestRevertModelSnapshotAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST,
-                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/_revert",
-                this);
+                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
+                        RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
+        String snapshotId = restRequest.param(RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName());
         RevertModelSnapshotAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            request = RevertModelSnapshotAction.Request.parseRequest(jobId, parser);
+            request = RevertModelSnapshotAction.Request.parseRequest(jobId, snapshotId, parser);
         } else {
-            request = new RevertModelSnapshotAction.Request(jobId);
-            request.setTime(restRequest.param(RevertModelSnapshotAction.Request.TIME.getPreferredName(), TIME_DEFAULT));
-            request.setSnapshotId(restRequest.param(RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName(), SNAPSHOT_ID_DEFAULT));
-            request.setDescription(
-                    restRequest.param(RevertModelSnapshotAction.Request.DESCRIPTION.getPreferredName(), DESCRIPTION_DEFAULT));
+            request = new RevertModelSnapshotAction.Request(jobId, snapshotId);
             request.setDeleteInterveningResults(restRequest
                     .paramAsBoolean(RevertModelSnapshotAction.Request.DELETE_INTERVENING.getPreferredName(), DELETE_INTERVENING_DEFAULT));
         }

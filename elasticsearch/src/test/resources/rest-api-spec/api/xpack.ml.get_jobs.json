@@ -4,12 +4,12 @@
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/{job_id}",
       "paths": [
-        "/_xpack/ml/anomaly_detectors/{job_id}"
+        "/_xpack/ml/anomaly_detectors/{job_id}",
+        "/_xpack/ml/anomaly_detectors/"
       ],
       "parts": {
         "job_id": {
           "type": "string",
-          "required": true,
           "description": "The ID of the jobs to fetch"
         }
       }

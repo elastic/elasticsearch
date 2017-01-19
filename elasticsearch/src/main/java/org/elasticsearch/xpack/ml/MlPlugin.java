@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.DeleteSchedulerAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.action.GetCategoriesDefinitionAction;
+import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestGetJobsAction;
-import org.elasticsearch.xpack.ml.rest.job.RestGetJobsStatsAction;
+import org.elasticsearch.xpack.ml.rest.job.RestGetJobStatsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPutJobAction;
@@ -233,7 +233,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(
                 RestGetJobsAction.class,
-                RestGetJobsStatsAction.class,
+                RestGetJobStatsAction.class,
                 RestPutJobAction.class,
                 RestDeleteJobAction.class,
                 RestOpenJobAction.class,
@@ -285,7 +285,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
                 new ActionHandler<>(ValidateTransformAction.INSTANCE, ValidateTransformAction.TransportAction.class),
                 new ActionHandler<>(ValidateTransformsAction.INSTANCE, ValidateTransformsAction.TransportAction.class),
-                new ActionHandler<>(GetCategoriesDefinitionAction.INSTANCE, GetCategoriesDefinitionAction.TransportAction.class),
+                new ActionHandler<>(GetCategoriesAction.INSTANCE, GetCategoriesAction.TransportAction.class),
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(UpdateModelSnapshotAction.INSTANCE, UpdateModelSnapshotAction.TransportAction.class),

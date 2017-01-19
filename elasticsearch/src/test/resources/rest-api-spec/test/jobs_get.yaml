@@ -59,11 +59,22 @@ setup:
   - match: { jobs.0.description: "Job 2"}
 
 ---
-"Test get all jobs":
+"Test explicit get all jobs":
 
   - do:
       xpack.ml.get_jobs:
         job_id: _all
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "job-1"}
+  - match: { jobs.0.description: "Job 1"}
+  - match: { jobs.1.job_id: "job-2"}
+  - match: { jobs.1.description: "Job 2"}
+
+---
+"Test implicit get all jobs":
+
+  - do:
+      xpack.ml.get_jobs: {}
   - match: { count: 2 }
   - match: { jobs.0.job_id: "job-1"}
   - match: { jobs.0.description: "Job 1"}

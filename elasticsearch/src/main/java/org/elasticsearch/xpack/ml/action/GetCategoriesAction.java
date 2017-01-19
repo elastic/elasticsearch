@@ -39,13 +39,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesDefinitionAction extends
-Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Response, GetCategoriesDefinitionAction.RequestBuilder> {
+public class GetCategoriesAction extends
+Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesAction.RequestBuilder> {
 
-    public static final GetCategoriesDefinitionAction INSTANCE = new GetCategoriesDefinitionAction();
-    private static final String NAME = "cluster:admin/ml/categorydefinitions/get";
+    public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
+    private static final String NAME = "cluster:admin/ml/categories/get";
 
-    private GetCategoriesDefinitionAction() {
+    private GetCategoriesAction() {
         super(NAME);
     }
 
@@ -177,7 +177,7 @@ Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Resp
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, GetCategoriesDefinitionAction action) {
+        public RequestBuilder(ElasticsearchClient client, GetCategoriesAction action) {
             super(client, action, new Request());
         }
     }

@@ -13,16 +13,8 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
 
     @Override
     protected Request createTestInstance() {
-        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(randomAsciiOfLengthBetween(1, 20));
-        if (randomBoolean()) {
-            request.setDescription(randomAsciiOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            request.setTime(randomAsciiOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            request.setSnapshotId(randomAsciiOfLengthBetween(1, 20));
-        }
+        RevertModelSnapshotAction.Request request =
+                new RevertModelSnapshotAction.Request(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setDeleteInterveningResults(randomBoolean());
         }
@@ -36,7 +28,6 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
 
     @Override
     protected Request parseInstance(XContentParser parser) {
-        return RevertModelSnapshotAction.Request.parseRequest(null, parser);
+        return RevertModelSnapshotAction.Request.parseRequest(null, null, parser);
     }
-
 }

@@ -2,13 +2,20 @@
   "xpack.ml.get_model_snapshots": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+        "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots"
+      ],
       "parts": {
         "job_id": {
           "type": "string",
           "required": true,
           "description": "The ID of the job to fetch"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "description": "The ID of the snapshot to fetch"
         }
       },
       "params": {

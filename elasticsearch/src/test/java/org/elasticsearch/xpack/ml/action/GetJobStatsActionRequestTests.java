@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-public class GetJobsStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetJobStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

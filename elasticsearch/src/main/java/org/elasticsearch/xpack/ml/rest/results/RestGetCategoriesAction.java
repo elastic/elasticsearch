@@ -16,8 +16,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.GetCategoriesDefinitionAction;
-import org.elasticsearch.xpack.ml.action.GetCategoriesDefinitionAction.Request;
+import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.GetCategoriesAction.Request;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.results.PageParams;
 
@@ -29,16 +29,16 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     public RestGetCategoriesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
-                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions/{"
+                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET,
-                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions", this);
+                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories", this);
 
         controller.registerHandler(RestRequest.Method.POST,
-                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions/{"
+                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST,
-                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions", this);
+                MlPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories", this);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
 
         if (bodyBytes != null && bodyBytes.length() > 0) {
             XContentParser parser = restRequest.contentParser();
-            request = GetCategoriesDefinitionAction.Request.parseRequest(jobId, parser);
+            request = GetCategoriesAction.Request.parseRequest(jobId, parser);
             request.setCategoryId(categoryId);
         } else {
 
@@ -69,7 +69,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
             }
         }
 
-        return channel -> client.execute(GetCategoriesDefinitionAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetCategoriesAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
 }

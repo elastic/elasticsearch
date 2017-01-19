@@ -14,12 +14,12 @@ public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXCont
 
     @Override
     protected Request parseInstance(XContentParser parser) {
-        return GetModelSnapshotsAction.Request.parseRequest(null, parser);
+        return GetModelSnapshotsAction.Request.parseRequest(null, null, parser);
     }
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20), randomBoolean() ? null : randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setDescriptionString(randomAsciiOfLengthBetween(1, 20));
         }

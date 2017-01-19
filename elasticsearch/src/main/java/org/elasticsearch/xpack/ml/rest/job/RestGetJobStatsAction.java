@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,18 +19,24 @@ import org.elasticsearch.xpack.ml.job.Job;
 
 import java.io.IOException;
 
-public class RestGetJobsStatsAction extends BaseRestHandler {
+public class RestGetJobStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestGetJobsStatsAction(Settings settings, RestController controller) {
+    public RestGetJobStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
+        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
+                + "anomaly_detectors/_stats", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(restRequest.param(Job.ID.getPreferredName()));
+        String jobId = restRequest.param(Job.ID.getPreferredName());
+        if (Strings.isNullOrEmpty(jobId)) {
+            jobId = Job.ALL;
+        }
+        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

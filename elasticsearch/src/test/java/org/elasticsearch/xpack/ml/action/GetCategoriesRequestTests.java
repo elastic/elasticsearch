@@ -9,12 +9,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.results.PageParams;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class GetCategoryDefinitionRequestTests extends AbstractStreamableXContentTestCase<GetCategoriesDefinitionAction.Request> {
+public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCase<GetCategoriesAction.Request> {
 
     @Override
-    protected GetCategoriesDefinitionAction.Request createTestInstance() {
+    protected GetCategoriesAction.Request createTestInstance() {
         String jobId = randomAsciiOfLength(10);
-        GetCategoriesDefinitionAction.Request request = new GetCategoriesDefinitionAction.Request(jobId);
+        GetCategoriesAction.Request request = new GetCategoriesAction.Request(jobId);
         if (randomBoolean()) {
             request.setCategoryId(randomAsciiOfLength(10));
         } else {
@@ -27,12 +27,12 @@ public class GetCategoryDefinitionRequestTests extends AbstractStreamableXConten
     }
 
     @Override
-    protected GetCategoriesDefinitionAction.Request createBlankInstance() {
-        return new GetCategoriesDefinitionAction.Request();
+    protected GetCategoriesAction.Request createBlankInstance() {
+        return new GetCategoriesAction.Request();
     }
 
     @Override
-    protected GetCategoriesDefinitionAction.Request parseInstance(XContentParser parser) {
-        return GetCategoriesDefinitionAction.Request.parseRequest(null, parser);
+    protected GetCategoriesAction.Request parseInstance(XContentParser parser) {
+        return GetCategoriesAction.Request.parseRequest(null, parser);
     }
 }

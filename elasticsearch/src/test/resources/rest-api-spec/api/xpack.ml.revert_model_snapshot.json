@@ -2,36 +2,28 @@
   "xpack.ml.revert_model_snapshot": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/_revert",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/_revert" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert" ],
       "parts": {
         "job_id": {
           "type": "string",
           "required": true,
           "description": "The ID of the job to fetch"
-        }
-      },
-      "params": {
-        "time": {
-          "type": "date",
-          "description": "revert to a snapshot with a timestamp no later than this time"
         },
         "snapshot_id": {
           "type": "string",
-          "description": "the snapshot ID of the snapshot to revert to"
-        },
-        "description": {
-          "type": "string",
-          "description": "the description of the snapshot to revert to"
-        },
+          "description": "The ID of the snapshot to revert to"
+        }
+      },
+      "params": {
         "delete_intervening_results": {
           "type": "boolean",
-          "description": "should we reset the results back to the time of the snapshot?"
+          "description": "Should we reset the results back to the time of the snapshot?"
         }
       }
     },
     "body": {
-      "description": "Model snapshot selection criteria"
+      "description": "Reversion options"
     }
   }
 }

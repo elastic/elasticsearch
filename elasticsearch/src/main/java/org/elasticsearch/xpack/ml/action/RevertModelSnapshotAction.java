@@ -54,8 +54,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class RevertModelSnapshotAction
 extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response, RevertModelSnapshotAction.RequestBuilder> {
 
@@ -78,69 +76,46 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
-        public static final ParseField TIME = new ParseField("time");
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
-        public static final ParseField DESCRIPTION = new ParseField("description");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
         private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-            PARSER.declareString(Request::setTime, TIME);
-            PARSER.declareString(Request::setSnapshotId, SNAPSHOT_ID);
-            PARSER.declareString(Request::setDescription, DESCRIPTION);
+            PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);
             PARSER.declareBoolean(Request::setDeleteInterveningResults, DELETE_INTERVENING);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser) {
+        public static Request parseRequest(String jobId, String snapshotId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
             if (jobId != null) {
                 request.jobId = jobId;
+            }
+            if (snapshotId != null) {
+                request.snapshotId = snapshotId;
             }
             return request;
         }
 
         private String jobId;
-        private String time;
         private String snapshotId;
-        private String description;
         private boolean deleteInterveningResults;
 
         Request() {
         }
 
-        public Request(String jobId) {
+        public Request(String jobId, String snapshotId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID.getPreferredName());
         }
 
         public String getJobId() {
             return jobId;
         }
 
-        public String getTime() {
-            return time;
-        }
-
-        public void setTime(String time) {
-            this.time = time;
-        }
-
         public String getSnapshotId() {
             return snapshotId;
-        }
-
-        public void setSnapshotId(String snapshotId) {
-            this.snapshotId = snapshotId;
-        }
-
-        @Override
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
         }
 
         public boolean getDeleteInterveningResults() {
@@ -153,20 +128,14 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (time == null && snapshotId == null && description == null) {
-                validationException = addValidationError(Messages.getMessage(Messages.REST_INVALID_REVERT_PARAMS), validationException);
-            }
-            return validationException;
+            return null;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            time = in.readOptionalString();
-            snapshotId = in.readOptionalString();
-            description = in.readOptionalString();
+            snapshotId = in.readString();
             deleteInterveningResults = in.readBoolean();
         }
 
@@ -174,9 +143,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeOptionalString(time);
-            out.writeOptionalString(snapshotId);
-            out.writeOptionalString(description);
+            out.writeString(snapshotId);
             out.writeBoolean(deleteInterveningResults);
         }
 
@@ -184,15 +151,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
-            if (time != null) {
-                builder.field(TIME.getPreferredName(), time);
-            }
-            if (snapshotId != null) {
-                builder.field(SNAPSHOT_ID.getPreferredName(), snapshotId);
-            }
-            if (description != null) {
-                builder.field(DESCRIPTION.getPreferredName(), description);
-            }
+            builder.field(SNAPSHOT_ID.getPreferredName(), snapshotId);
             builder.field(DELETE_INTERVENING.getPreferredName(), deleteInterveningResults);
             builder.endObject();
             return builder;
@@ -200,7 +159,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, time, snapshotId, description, deleteInterveningResults);
+            return Objects.hash(jobId, snapshotId, deleteInterveningResults);
         }
 
         @Override
@@ -212,8 +171,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(time, other.time) && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(description, other.description)
+            return Objects.equals(jobId, other.jobId) && Objects.equals(snapshotId, other.snapshotId)
                     && Objects.equals(deleteInterveningResults, other.deleteInterveningResults);
         }
     }
@@ -338,14 +296,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            logger.debug("Received request to revert to time '{}' description '{}' snapshot id '{}' for job '{}', deleting intervening " +
-                            "results: {}",
-                    request.getTime(), request.getDescription(), request.getSnapshotId(), request.getJobId(),
-                    request.getDeleteInterveningResults());
-
-            if (request.getTime() == null && request.getSnapshotId() == null && request.getDescription() == null) {
-                throw new IllegalStateException(Messages.getMessage(Messages.REST_INVALID_REVERT_PARAMS));
-            }
+            logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
+                    request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
             QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
             Allocation allocation = jobManager.getJobAllocation(request.getJobId());
@@ -365,9 +317,9 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
         private void getModelSnapshot(Request request, JobProvider provider, Consumer<ModelSnapshot> handler,
                                       Consumer<Exception> errorHandler) {
-            logger.info("Reverting to snapshot '" + request.getSnapshotId() + "' for time '" + request.getTime() + "'");
+            logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
 
-            provider.modelSnapshots(request.getJobId(), 0, 1, null, request.getTime(),
+            provider.modelSnapshots(request.getJobId(), 0, 1, null, null,
                     ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription(),
                     page -> {
                         List<ModelSnapshot> revertCandidates = page.results();

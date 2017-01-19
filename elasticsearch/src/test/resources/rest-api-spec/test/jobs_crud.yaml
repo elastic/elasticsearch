@@ -8,7 +8,7 @@
   - match: { jobs: [] }
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: "_all"
   - match: { count: 0 }
   - match: { jobs: [] }

@@ -66,7 +66,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: farequote
   - match: { jobs.0.status: "CLOSED" }
 
@@ -99,7 +99,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: farequote
   - match: { jobs.0.status: "CLOSED" }
 

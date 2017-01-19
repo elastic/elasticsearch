@@ -15,15 +15,15 @@ setup:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "1"
-        body:   { "job_id": "foo", "timestamp": "2016-06-02T00:00:00Z", "restore_priority": "1" }
+        id:     "foo-1"
+        body:   { "job_id": "foo", "snapshot_id": "1", "timestamp": "2016-06-02T00:00:00Z", "restore_priority": "1" }
 
   - do:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "2"
-        body:   { "job_id": "foo", "timestamp": "2016-06-01T00:00:00Z", "restore_priority": "2" }
+        id:     "foo-2"
+        body:   { "job_id": "foo", "snapshot_id": "2", "timestamp": "2016-06-01T00:00:00Z", "restore_priority": "2" }
 
   - do:
       indices.refresh:
@@ -35,8 +35,29 @@ setup:
       xpack.ml.get_model_snapshots:
         job_id: "foo"
 
+  - match: { count: 2 }
+  - match: { model_snapshots.0.restore_priority: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+
+---
+"Test get model snapshots API with _all":
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+        snapshot_id: "_all"
 
   - match: { count: 2 }
+  - match: { model_snapshots.0.restore_priority: 2 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+
+---
+"Test get specific model snapshot":
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+        snapshot_id: "2"
+
+  - match: { count: 1 }
   - match: { model_snapshots.0.restore_priority: 2 }
   - match: { model_snapshots.0.timestamp: 1464739200000 }
 
@@ -47,7 +68,6 @@ setup:
         job_id: "foo"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
-
 
   - match: { count: 2 }
   - match: { model_snapshots.0.restore_priority: 2 }
@@ -60,7 +80,6 @@ setup:
         job_id: "foo"
         desc: false
 
-
   - match: { count: 2 }
   - match: { model_snapshots.0.restore_priority: 1 }
   - match: { model_snapshots.0.timestamp: 1464825600000 }
@@ -71,7 +90,6 @@ setup:
       xpack.ml.get_model_snapshots:
         job_id: "foo"
         size: 1
-
 
   - match: { count: 2 }
   - match: { model_snapshots.0.restore_priority: 2 }
@@ -84,7 +102,6 @@ setup:
       xpack.ml.get_model_snapshots:
         job_id: "foo"
         from: 1
-
 
   - match: { count: 2 }
   - match: { model_snapshots.0.restore_priority: 1 }

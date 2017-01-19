@@ -11,18 +11,18 @@ import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.Collections;
 
-public class GetCategoryDefinitionResponseTests extends AbstractStreamableTestCase<GetCategoriesDefinitionAction.Response> {
+public class GetCategoriesResponseTests extends AbstractStreamableTestCase<GetCategoriesAction.Response> {
 
     @Override
-    protected GetCategoriesDefinitionAction.Response createTestInstance() {
+    protected GetCategoriesAction.Response createTestInstance() {
         CategoryDefinition definition = new CategoryDefinition(randomAsciiOfLength(10));
         QueryPage<CategoryDefinition> queryPage =
                 new QueryPage<>(Collections.singletonList(definition), 1L, CategoryDefinition.RESULTS_FIELD);
-        return new GetCategoriesDefinitionAction.Response(queryPage);
+        return new GetCategoriesAction.Response(queryPage);
     }
 
     @Override
-    protected GetCategoriesDefinitionAction.Response createBlankInstance() {
-        return new GetCategoriesDefinitionAction.Response();
+    protected GetCategoriesAction.Response createBlankInstance() {
+        return new GetCategoriesAction.Response();
     }
 }

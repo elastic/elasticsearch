@@ -83,7 +83,7 @@ setup:
 
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: job-stats-test
   - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -96,7 +96,7 @@ setup:
 "Test get job stats of scheduled job that has not received and data":
 
   - do:
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: scheduled-job
   - match: { jobs.0.job_id : scheduled-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
@@ -104,9 +104,24 @@ setup:
   - match: { jobs.0.status: OPENED }
 
 ---
+"Test get all job stats explicitly":
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: _all
+  - match: { count: 2 }
+
+---
+"Test get all job stats implicitly":
+
+  - do:
+      xpack.ml.get_job_stats: {}
+  - match: { count: 2 }
+
+---
 "Test get job stats given missing job":
 
   - do:
       catch: missing
-      xpack.ml.get_jobs_stats:
+      xpack.ml.get_job_stats:
         job_id: unknown-job

@@ -36,12 +36,6 @@ public final class Messages {
     public static final String LICENSE_LIMIT_JOBS_REACTIVATE = "license.limit.jobs.reactivate";
     public static final String LICENSE_LIMIT_PARTITIONS = "license.limit.partitions";
 
-    public static final String LOGFILE_INVALID_CHARS_IN_PATH = "logfile.invalid.chars.path";
-    public static final String LOGFILE_INVALID_PATH = "logfile.invalid.path";
-    public static final String LOGFILE_MISSING = "logfile.missing";
-    public static final String LOGFILE_MISSING_DIRECTORY = "logfile.missing.directory";
-
-
     public static final String JOB_AUDIT_CREATED = "job.audit.created";
     public static final String JOB_AUDIT_DELETED = "job.audit.deleted";
     public static final String JOB_AUDIT_PAUSED = "job.audit.paused";
@@ -219,8 +213,6 @@ public final class Messages {
     public static final String JSON_TRANSFORM_CONFIG_MAPPING = "json.transform.config.mapping.error";
     public static final String JSON_TRANSFORM_CONFIG_PARSE = "json.transform.config.parse.error";
 
-    public static final String ON_HOST = "on.host";
-
     public static final String REST_ACTION_NOT_ALLOWED_FOR_SCHEDULED_JOB = "rest.action.not.allowed.for.scheduled.job";
 
     public static final String REST_INVALID_DATETIME_PARAMS = "rest.invalid.datetime.params";
@@ -230,21 +222,12 @@ public final class Messages {
     public static final String REST_INVALID_FROM = "rest.invalid.from";
     public static final String REST_INVALID_SIZE = "rest.invalid.size";
     public static final String REST_INVALID_FROM_SIZE_SUM = "rest.invalid.from.size.sum";
-    public static final String REST_GZIP_ERROR = "rest.gzip.error";
     public static final String REST_START_AFTER_END = "rest.start.after.end";
     public static final String REST_RESET_BUCKET_NO_LATENCY = "rest.reset.bucket.no.latency";
-    public static final String REST_INVALID_REVERT_PARAMS = "rest.invalid.revert.params";
     public static final String REST_JOB_NOT_CLOSED_REVERT = "rest.job.not.closed.revert";
     public static final String REST_NO_SUCH_MODEL_SNAPSHOT = "rest.no.such.model.snapshot";
-    public static final String REST_INVALID_DESCRIPTION_PARAMS = "rest.invalid.description.params";
     public static final String REST_DESCRIPTION_ALREADY_USED = "rest.description.already.used";
     public static final String REST_CANNOT_DELETE_HIGHEST_PRIORITY = "rest.cannot.delete.highest.priority";
-
-    public static final String REST_ALERT_MISSING_ARGUMENT = "rest.alert.missing.argument";
-    public static final String REST_ALERT_INVALID_TIMEOUT = "rest.alert.invalid.timeout";
-    public static final String REST_ALERT_INVALID_THRESHOLD = "rest.alert.invalid.threshold";
-    public static final String REST_ALERT_CANT_USE_PROB = "rest.alert.cant.use.prob";
-    public static final String REST_ALERT_INVALID_TYPE = "rest.alert.invalid.type";
 
     public static final String PROCESS_ACTION_SLEEPING_JOB = "process.action.sleeping.job";
     public static final String PROCESS_ACTION_CLOSED_JOB = "process.action.closed.job";
@@ -256,8 +239,6 @@ public final class Messages {
     public static final String PROCESS_ACTION_REVERTING_JOB = "process.action.reverting.job";
     public static final String PROCESS_ACTION_UPDATING_JOB = "process.action.updating.job";
     public static final String PROCESS_ACTION_WRITING_JOB = "process.action.writing.job";
-
-    public static final String SUPPORT_BUNDLE_SCRIPT_ERROR = "support.bundle.script.error";
 
     private Messages() {
     }

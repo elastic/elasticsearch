@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,6 +24,9 @@ import java.io.IOException;
 
 public class RestGetModelSnapshotsAction extends BaseRestHandler {
 
+    private final String ALL = "_all";
+    private final String ALL_SNAPSHOT_IDS = null;
+
     // Even though these are null, setting up the defaults in case
     // we want to change them later
     private final String DEFAULT_SORT = null;
@@ -35,21 +39,31 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     public RestGetModelSnapshotsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/", this);
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
         // endpoints that support body parameters must also accept POST
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/", this);
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
+
+        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots", this);
+        // endpoints that support body parameters must also accept POST
+        controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
+        String snapshotId = restRequest.param(Request.SNAPSHOT_ID.getPreferredName());
+        if (ALL.equals(snapshotId)) {
+            snapshotId = ALL_SNAPSHOT_IDS;
+        }
         Request getModelSnapshots;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            getModelSnapshots = Request.parseRequest(jobId, parser);
+            getModelSnapshots = Request.parseRequest(jobId, snapshotId, parser);
         } else {
-            getModelSnapshots = new Request(jobId);
+            getModelSnapshots = new Request(jobId, snapshotId);
             getModelSnapshots.setSort(restRequest.param(Request.SORT.getPreferredName(), DEFAULT_SORT));
             if (restRequest.hasParam(Request.START.getPreferredName())) {
                 getModelSnapshots.setStart(restRequest.param(Request.START.getPreferredName(), DEFAULT_START));

@@ -2,10 +2,10 @@
   "xpack.ml.get_categories": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
       "paths": [
-        "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
-        "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/"
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/categories/"
       ],
       "parts": {
         "job_id": {

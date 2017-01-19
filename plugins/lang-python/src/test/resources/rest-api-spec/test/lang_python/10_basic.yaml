@@ -11,10 +11,15 @@ setup:
         indices.refresh: {}
 
 ---
-
 "Lang Python":
+    - skip:
+      features:
+        - warnings
     - do:
+        warnings:
+          - '[python] scripts are deprecated, use [painless] scripts instead'
         search:
+
             body:
                 script_fields:
                     bar:

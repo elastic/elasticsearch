@@ -540,7 +540,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testGeoPointNotIndexed() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("test", "value", "type=long", "location", "type=geo_point,index=no"));
+        assertAcked(prepareCreate("test").addMapping("test", "value", "type=long", "location", "type=geo_point,index=false"));
         ensureGreen("test");
         client().prepareIndex("test", "test").setSource("value", 1L, "location", new GeoPoint(32, -132)).get();
         client().prepareIndex("test", "test").setSource("value", 2L).get();
@@ -555,7 +555,6 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getAllFieldStats().get("location").getMaxValue(), equalTo(null));
         assertThat(response.getAllFieldStats().get("location").isAggregatable(), equalTo(true));
         assertThat(response.getAllFieldStats().get("location").isSearchable(), equalTo(false));
-
     }
 
     private void indexRange(String index, long from, long to) throws Exception {

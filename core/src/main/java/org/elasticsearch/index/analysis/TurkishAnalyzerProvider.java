@@ -31,8 +31,10 @@ public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Turki
 
     public TurkishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new TurkishAnalyzer(Analysis.parseStopWords(env, settings, TurkishAnalyzer.getDefaultStopSet()),
-                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new TurkishAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, TurkishAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

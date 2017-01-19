@@ -56,7 +56,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
             this.replacement = replacement.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
-        this.reverse = settings.getAsBoolean("reverse", false);
+        this.reverse = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "reverse", false);
     }
 
     @Override

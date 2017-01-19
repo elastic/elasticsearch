@@ -115,7 +115,7 @@ public final class AutoCreateIndex {
             boolean autoCreateIndex;
             List<Tuple<String, Boolean>> expressions = new ArrayList<>();
             try {
-                autoCreateIndex = Booleans.parseBooleanExact(value);
+                autoCreateIndex = Booleans.parseBoolean(value);
             } catch (IllegalArgumentException ex) {
                 try {
                     String[] patterns = Strings.commaDelimitedListToStringArray(value);

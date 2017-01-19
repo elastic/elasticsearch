@@ -71,7 +71,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.request().realtime && // if the realtime flag is set
                 request.request().preference() == null && // the preference flag is not already set
                 indexMeta != null && // and we have the index
-                IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings())) { // and the index uses shadow replicas
+                indexMeta.isIndexUsingShadowReplicas()) { // and the index uses shadow replicas
             // set the preference for the request to use "_primary" automatically
             request.request().preference(Preference.PRIMARY.type());
         }

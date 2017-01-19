@@ -35,8 +35,8 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     public KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
-        Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
+        boolean ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
+        Set<?> rules = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "keywords");
         if (rules == null) {
             throw new IllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");
         }

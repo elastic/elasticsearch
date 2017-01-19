@@ -127,7 +127,7 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
                     ex.getMessage());
         }
     }

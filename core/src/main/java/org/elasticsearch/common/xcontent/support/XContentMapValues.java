@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -412,39 +413,29 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
-        if (node == null) {
-            return defaultValue;
+    public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {
+        try {
+            return nodeBooleanValue(node, defaultValue);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
-        return lenientNodeBooleanValue(node);
     }
 
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node) {
-        if (node instanceof Boolean) {
-            return (Boolean) node;
+    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+        String nodeValue = node == null ? null : node.toString();
+        return Booleans.parseBoolean(nodeValue, defaultValue);
+    }
+
+    public static boolean nodeBooleanValue(Object node, String name) {
+        try {
+            return nodeBooleanValue(node);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean", ex);
         }
-        if (node instanceof Number) {
-            return ((Number) node).intValue() != 0;
-        }
-        String value = node.toString();
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
     }
 
     public static boolean nodeBooleanValue(Object node) {
-        switch (node.toString()) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IllegalArgumentException("Can't parse boolean value [" + node + "], expected [true] or [false]");
-        }
+        return Booleans.parseBoolean(node.toString());
     }
 
     public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {

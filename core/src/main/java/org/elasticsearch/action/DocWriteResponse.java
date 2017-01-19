@@ -292,8 +292,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         objParser.declareString(constructorArg(), new ParseField(_ID));
         objParser.declareLong(constructorArg(), new ParseField(_VERSION));
         objParser.declareString(constructorArg(), new ParseField(RESULT));
+        objParser.declareObject(optionalConstructorArg(), (p, c) -> ShardInfo.fromXContent(p), new ParseField(_SHARDS));
         objParser.declareLong(optionalConstructorArg(), new ParseField(_SEQ_NO));
         objParser.declareBoolean(DocWriteResponse::setForcedRefresh, new ParseField(FORCED_REFRESH));
-        objParser.declareObject(DocWriteResponse::setShardInfo, (p, c) -> ShardInfo.fromXContent(p), new ParseField(_SHARDS));
     }
 }

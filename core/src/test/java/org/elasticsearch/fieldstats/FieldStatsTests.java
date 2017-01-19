@@ -614,7 +614,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     /**
      * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
      **/
-    private FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
+    public static FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
         int type = randomInt(5);
         switch (type) {
             case 0:

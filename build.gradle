@@ -150,6 +150,13 @@ subprojects {
             // elasticsearch snapshots
             mavenLocal()
         }
+        maven {
+            url "s3://prelert-artifacts/maven"
+            credentials(AwsCredentials) {
+                accessKey "${project.mlAwsAccessKey}"
+                secretKey "${project.mlAwsSecretKey}"
+            }
+        }
         mavenCentral()
         maven {
             name 'sonatype-snapshots'

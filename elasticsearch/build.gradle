@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.elastic.gradle.DownloadS3Task
 
 apply plugin: 'elasticsearch.esplugin'
 
@@ -13,8 +12,15 @@ version = project.version
 
 thirdPartyAudit.enabled = false
 
+configurations {
+    nativeBundle
+}
+
 dependencies {
     compile group: 'net.sf.supercsv', name: 'super-csv', version:"${supercsvVersion}"
+    nativeBundle group: "${project.group}", name: 'ml-cpp-test', version:"${project.version}", classifier: 'darwin-x86_64', ext: 'zip'
+    nativeBundle group: "${project.group}", name: 'ml-cpp-test', version:"${project.version}", classifier: 'linux-x86_64', ext: 'zip'
+    nativeBundle group: "${project.group}", name: 'ml-cpp-test', version:"${project.version}", classifier: 'windows-x86_64', ext: 'zip'
     testCompile group: 'org.ini4j', name: 'ini4j', version:"${ini4jVersion}"
 }
 
@@ -40,22 +46,6 @@ integTest {
 
 integTest.mustRunAfter noBootstrapTest
 
-String projectGroupPath = project.group.replaceAll("\\.", "/")
-
-task downloadCppDist(type: DownloadS3Task) {
-  enabled project.cppLocalDists == ''
-  description = 'Download C++ zips from S3 Bucket'
-  bucket 'prelert-artifacts'
-  destDir file("${buildDir}/cppDist")
-  flatten true
-  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-windows-x86_64.zip"
-  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-linux-x86_64.zip"
-  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-darwin-x86_64.zip"
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-windows-x86_64.zip"))
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-darwin-x86_64.zip"))
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-linux-x86_64.zip"))
-}
-
 bundlePlugin {
   if (project.cppLocalDists) {
     String localZipFile = 'ml-cpp-${project.version}-' +
@@ -63,11 +53,10 @@ bundlePlugin {
       (project.isLinux ? "linux-x86_64" : "sunos-x86_64"))) + ".zip"
     from { zipTree(cppLocalDists + '/' + localZipFile) }
   } else {
-    for (outputFile in downloadCppDist.outputs.files) {
+    for (outputFile in configurations.nativeBundle) {
       from(zipTree(outputFile)) {
         duplicatesStrategy 'exclude'
       }
     }
-    dependsOn 'downloadCppDist'
   }
 }

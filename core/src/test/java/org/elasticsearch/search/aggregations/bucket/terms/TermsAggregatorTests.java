@@ -63,7 +63,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
             fieldType.setName("string");
             fieldType.setHasDocValues(true );
-            try (TermsAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)) {
+            try (TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
                 aggregator.preCollection();
                 indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                 aggregator.postCollection();
@@ -82,5 +82,4 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
-
 }

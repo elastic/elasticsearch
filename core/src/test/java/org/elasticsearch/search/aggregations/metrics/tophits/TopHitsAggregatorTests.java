@@ -66,7 +66,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         fieldType.setHasDocValues(true );
         TopHitsAggregationBuilder aggregationBuilder = new TopHitsAggregationBuilder("_name");
         aggregationBuilder.sort("string", SortOrder.DESC);
-        try (TopHitsAggregator aggregator = createAggregator(aggregationBuilder, fieldType, indexSearcher)){
+        try (TopHitsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)){
             aggregator.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();

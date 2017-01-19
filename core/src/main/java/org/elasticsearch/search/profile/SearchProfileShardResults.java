@@ -88,6 +88,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PROFILE_FIELD).startArray(SHARDS_FIELD);
+        // shardResults is a map, but we print entries in a json array, which is ordered.
+        // we sort the keys of the map, so that toXContent always prints out the same array order
         TreeSet<String> sortedKeys = new TreeSet<>(shardResults.keySet());
         for (String key : sortedKeys) {
             builder.startObject();

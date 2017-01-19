@@ -412,8 +412,10 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    project.sourceCompatibility = null
-                    project.targetCompatibility = null
+                    doFirst{
+                        sourceCompatibility = null
+                        targetCompatibility = null
+                    }
                 }
             }
         }

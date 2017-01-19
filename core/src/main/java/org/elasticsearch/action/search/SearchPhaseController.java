@@ -65,6 +65,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -85,11 +86,25 @@ public class SearchPhaseController extends AbstractComponent {
 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener;
 
     public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+        this(settings, bigArrays, scriptService, Collections.emptyList());
+    }
+
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService,
+                                 List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.searchResponseListener = searchResponseListener;
+    }
+
+    /**
+     * Returns the search response listeners registry
+     */
+    public List<BiConsumer<SearchRequest, SearchResponse> > getSearchResponseListener() {
+        return searchResponseListener;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {

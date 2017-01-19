@@ -20,6 +20,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -255,6 +257,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -276,6 +280,7 @@ public class SearchModule {
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
+    private final List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListeners = new ArrayList<> ();
 
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -297,6 +302,7 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
+        registerSearchResponseListeners(plugins);
         registerShapes();
     }
 
@@ -327,6 +333,13 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
+    }
+
+    /**
+     * Returns the search response listeners registry
+     */
+    public List<BiConsumer<SearchRequest, SearchResponse> > getSearchResponseListeners() {
+        return searchResponseListeners;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -679,6 +692,10 @@ public class SearchModule {
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
     }
 
+    private void registerSearchResponseListeners(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, p -> p.getSearchResponseListeners(), this::registerSearchResponseListener);
+    }
+
     private void registerSearchExts(List<SearchPlugin> plugins) {
         registerFromPlugin(plugins, SearchPlugin::getSearchExts, this::registerSearchExt);
     }
@@ -769,6 +786,10 @@ public class SearchModule {
         // Using Optional here is fairly horrible, but in master we don't have to because the builders return QueryBuilder.
         namedXContents.add(new NamedXContentRegistry.Entry(Optional.class, spec.getName(),
                 (XContentParser p, Object c) -> (Optional) spec.getParser().fromXContent((QueryParseContext) c)));
+    }
+
+    private void registerSearchResponseListener(BiConsumer<SearchRequest, SearchResponse> listener) {
+        searchResponseListeners.add(requireNonNull(listener, "SearchResponseListener must not be null"));
     }
 
     public FetchPhase getFetchPhase() {

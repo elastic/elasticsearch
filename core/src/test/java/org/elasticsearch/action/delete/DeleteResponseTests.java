@@ -19,21 +19,17 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
@@ -79,7 +75,16 @@ public class DeleteResponseTests extends ESTestCase {
         // Print the parsed object out and test that the output is the same as the original output
         BytesReference parsedDeleteResponseBytes = toXContent(parsedDeleteResponse, xContentType);
         try (XContentParser parser = createParser(xContentType.xContent(), parsedDeleteResponseBytes)) {
-            assertDocWriteResponse(deleteResponse, parser.map());
+            assertDeleteResponse(deleteResponse, parser.map());
+        }
+    }
+
+    private static void assertDeleteResponse(DeleteResponse expected, Map<String, Object> actual) {
+        assertDocWriteResponse(expected, actual);
+        if (expected.getResult() == DocWriteResponse.Result.DELETED) {
+            assertTrue((boolean) actual.get("found"));
+        } else {
+            assertFalse((boolean) actual.get("found"));
         }
     }
 

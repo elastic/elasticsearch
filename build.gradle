@@ -111,11 +111,13 @@ task clean(type: Delete) {
   delete 'build'
 }
 
+String projectGroupPath = project.group.replaceAll("\\.", "/")
+
 task uploadPackToS3(type: UploadS3Task, dependsOn: build) {
   enabled project.uploadEnabled
   description = 'upload pack zip to S3 Bucket'
   bucket 'prelert-artifacts'
-  upload bundlePack.outputs.files.singleFile, "maven/${project.group}/${packArtifactName}/${project.version}/${bundlePack.outputs.files.singleFile.name}"
+  upload bundlePack.outputs.files.singleFile, "maven/${projectGroupPath}/${packArtifactName}/${project.version}/${bundlePack.outputs.files.singleFile.name}"
 }
 
 task deploy(dependsOn: uploadPackToS3) {

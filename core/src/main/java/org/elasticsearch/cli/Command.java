@@ -81,8 +81,7 @@ public abstract class Command implements Closeable {
 
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
-        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-        LogConfigurator.configureWithoutConfig(settings);
+        LogConfigurator.configureWithoutConfig(loggerLevel);
 
         try {
             mainWithoutErrorHandling(args, terminal);

@@ -19,9 +19,6 @@
 
 lexer grammar PainlessLexer;
 
-@header {
-}
-
 @members{
 /**
  * Check against the current whitelist to determine whether a token is a type

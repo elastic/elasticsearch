@@ -162,7 +162,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
-    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -499,7 +498,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                                       TransportReplicationAction<Request, Request, Response>.PrimaryShardReference primaryShardReference,
                                       boolean executeOnReplicas) {
                 return new NoopReplicationOperation(request, actionListener) {
-                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -552,7 +550,6 @@ public class TransportReplicationActionTests extends ESTestCase {
                                       TransportReplicationAction<Request, Request, Response>.PrimaryShardReference primaryShardReference,
                                       boolean executeOnReplicas) {
                 return new NoopReplicationOperation(request, actionListener) {
-                    @Override
                     public void execute() throws Exception {
                         assertPhase(task, "primary");
                         assertFalse(executed.getAndSet(true));
@@ -1166,8 +1163,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void execute() throws Exception {
-            // Using the diamond operator (<>) prevents Eclipse from being able to compile this code
-            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<Request, Response>(null, new Response()));
+            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<>(null, new Response()));
         }
     }
 

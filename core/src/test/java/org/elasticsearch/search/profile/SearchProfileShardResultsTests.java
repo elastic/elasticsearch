@@ -46,7 +46,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         Map<String, ProfileShardResult> searchProfileResults = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
-            int queryItems = rarely() ? 0 : randomIntBetween(0, 2);
+            int queryItems = rarely() ? 0 : randomIntBetween(1, 2);
             for (int q = 0; q < queryItems; q++) {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }

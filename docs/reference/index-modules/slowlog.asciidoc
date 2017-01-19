@@ -22,6 +22,7 @@ index.search.slowlog.threshold.fetch.warn: 1s
 index.search.slowlog.threshold.fetch.info: 800ms
 index.search.slowlog.threshold.fetch.debug: 500ms
 index.search.slowlog.threshold.fetch.trace: 200ms
+index.search.slowlog.source: 1000
 --------------------------------------------------
 
 All of the above settings are _dynamic_ and are set per-index.

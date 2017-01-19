@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -42,6 +43,13 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchInfoThreshold;
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
+
+    /**
+     * How much of the source to log in the slowlog - 0 means log none and
+     * anything greater than 0 means log at least that many <em>characters</em>
+     * of the source.
+     */
+    private int maxSourceCharsToLog;
 
     private SlowLogLevel level;
 
@@ -76,6 +84,20 @@ public final class SearchSlowLog implements SearchOperationListener {
     public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL =
         new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
             Property.IndexScope);
+    /**
+     * Reads how much of the source to log. The user can specify any value they
+     * like and numbers are interpreted the maximum number of characters to log
+     * and everything else is interpreted as Elasticsearch interprets booleans
+     * which is then converted to 0 for false and Integer.MAX_VALUE for true.
+     */
+    public static final Setting<Integer> INDEX_SEARCH_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING = new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".source", "1000", (value) -> {
+        try {
+            return Integer.parseInt(value, 10);
+        } catch (NumberFormatException e) {
+            return Booleans.parseBoolean(value, true) ? Integer.MAX_VALUE : 0;
+        }
+    }, Property.Dynamic, Property.IndexScope);
+
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -101,9 +123,15 @@ public final class SearchSlowLog implements SearchOperationListener {
         this.fetchDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING).nanos();
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING, this::setFetchTraceThreshold);
         this.fetchTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING).nanos();
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING, this::setMaxSourceCharsToLog);
+        this.maxSourceCharsToLog = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_LEVEL, this::setLevel);
         setLevel(indexSettings.getValue(INDEX_SEARCH_SLOWLOG_LEVEL));
+    }
+
+    private void setMaxSourceCharsToLog(int maxSourceCharsToLog) {
+        this.maxSourceCharsToLog = maxSourceCharsToLog;
     }
 
     private void setLevel(SlowLogLevel level) {
@@ -114,36 +142,38 @@ public final class SearchSlowLog implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos, maxSourceCharsToLog));
         }
     }
 
     static final class SlowLogSearchContextPrinter {
         private final SearchContext context;
         private final long tookInNanos;
+        private final int maxSourceCharsToLog;
 
-        public SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
+        public SlowLogSearchContextPrinter(SearchContext context, long tookInNanos, int maxSourceCharsToLog) {
             this.context = context;
             this.tookInNanos = tookInNanos;
+            this.maxSourceCharsToLog = maxSourceCharsToLog;
         }
 
         @Override
@@ -166,11 +196,14 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("], ");
             }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");
-            if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
-            } else {
-                sb.append("source[], ");
+
+            if (maxSourceCharsToLog == 0 || context.request().source() == null) {
+                return sb.toString();
             }
+
+            String source = context.request().source().toString(FORMAT_PARAMS);
+            sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
+
             return sb.toString();
         }
     }

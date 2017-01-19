@@ -92,8 +92,11 @@ public class IndexResponse extends DocWriteResponse {
                     String type = (String) args[1];
                     String id = (String) args[2];
                     long version = (long) args[3];
-                    boolean created = (boolean) args[5];
-                    return new IndexResponse(shardId, type, id, version, created);
+                    ShardInfo shardInfo = (ShardInfo) args[5];
+                    boolean created = (boolean) args[6];
+                    IndexResponse indexResponse = new IndexResponse(shardId, type, id, version, created);
+                    indexResponse.setShardInfo(shardInfo);
+                    return indexResponse;
                 });
         DocWriteResponse.declareParserFields(PARSER);
         PARSER.declareBoolean(constructorArg(), new ParseField(CREATED));

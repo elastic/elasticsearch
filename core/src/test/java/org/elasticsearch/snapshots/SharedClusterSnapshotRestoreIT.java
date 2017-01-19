@@ -2738,6 +2738,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 Settings.builder()
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
+                    .put("non_atomic_move", true)
                     .put("random", randomAsciiOfLength(10))));
 
         logger.info("--> indexing some data");

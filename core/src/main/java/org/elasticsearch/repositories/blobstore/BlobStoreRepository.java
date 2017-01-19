@@ -190,15 +190,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String INDEX_METADATA_CODEC = "index-metadata";
 
-    protected static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+    private static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
 
-    protected static final String SNAPSHOT_INDEX_PREFIX = "index-";
+    private static final String SNAPSHOT_INDEX_PREFIX = "index-";
 
-    protected static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
+    private static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
-    protected static final String SNAPSHOT_INDEX_CODEC = "snapshots";
+    private static final String SNAPSHOT_INDEX_CODEC = "snapshots";
 
-    protected static final String DATA_BLOB_PREFIX = "__";
+    private static final String DATA_BLOB_PREFIX = "__";
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -733,22 +733,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     long latestIndexBlobId() throws IOException {
         try {
             // first, try listing the blobs and determining which index blob is the latest
-            return listBlobsToGetLatestIndexId();
-        } catch (UnsupportedOperationException e) {
-            // could not list the blobs because the repository does not support the operation,
-            // try reading from the index-latest file
+            return readSnapshotIndexLatestBlob();
+        } catch (IOException ioe) {
+            // we could not find the index.latest blob, this can happen in two scenarios:
+            //  (1) its an empty repository
+            //  (2) when writing the index-latest blob, if the blob already exists,
+            //      we first delete it, then atomically write the new blob.  there is
+            //      a small window in time when the blob is deleted and the new one
+            //      written - if the node crashes during that time, we won't have an
+            //      index-latest blob
+            // lets try to list all index-N blobs to determine the last one, if listing the blobs
+            // is not a supported operation (which is the case for read-only repositories), then
+            // assume its an empty repository.
             try {
-                return readSnapshotIndexLatestBlob();
-            } catch (IOException ioe) {
-                // we likely could not find the blob, this can happen in two scenarios:
-                //  (1) its an empty repository
-                //  (2) when writing the index-latest blob, if the blob already exists,
-                //      we first delete it, then atomically write the new blob.  there is
-                //      a small window in time when the blob is deleted and the new one
-                //      written - if the node crashes during that time, we won't have an
-                //      index-latest blob
-                // in a read-only repository, we can't know which of the two scenarios it is,
-                // but we will assume (1) because we can't do anything about (2) anyway
+                return listBlobsToGetLatestIndexId();
+            } catch (UnsupportedOperationException uoe) {
                 return RepositoryData.EMPTY_REPO_GEN;
             }
         }

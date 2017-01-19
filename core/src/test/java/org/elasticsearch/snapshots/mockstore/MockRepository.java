@@ -42,7 +42,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -52,7 +51,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -102,6 +100,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    private volatile boolean nonAtomicMove;
+
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetaData metadata, Environment environment,
@@ -116,6 +116,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = metadata.settings().getAsBoolean("block_on_init", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
+        nonAtomicMove = metadata.settings().getAsBoolean("non_atomic_move", false);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
@@ -156,58 +157,17 @@ public class MockRepository extends FsRepository {
         return mockBlobStore;
     }
 
-    public void unblock() {
-        unblockExecution();
-    }
-
-    public void blockOnDataFiles(boolean blocked) {
-        blockOnDataFiles = blocked;
-    }
-
-    @Override
-    public RepositoryData getRepositoryData() {
-        final int numIterations = 10;
-        int count = 0;
-        NotXContentException ex = null;
-        RepositoryData repositoryData = null;
-        while (count < numIterations) {
-            try {
-                repositoryData = super.getRepositoryData();
-            } catch (NotXContentException e) {
-                ex = e;
-            }
-            if (repositoryData != null) {
-                break;
-            }
-            count++;
-            try {
-                Thread.sleep(1000L);
-            } catch (InterruptedException e) {
-            }
-        }
-        if (ex != null) {
-            logger.info("--> [{}] repository failed to read x-content from index file, on iteration [{}] the repository data was [{}]",
-                metadata.name(), count, repositoryData);
-            throw ex;
-        }
-        return repositoryData;
-    }
-
-    public void blockOnControlFiles(boolean blocked) {
-        blockOnControlFiles = blocked;
-    }
-
-    public boolean blockOnDataFiles() {
-        return blockOnDataFiles;
-    }
-
-    public synchronized void unblockExecution() {
+    public synchronized void unblock() {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
         blockOnControlFiles = false;
         blockOnInitialization = false;
         this.notifyAll();
+    }
+
+    public void blockOnDataFiles(boolean blocked) {
+        blockOnDataFiles = blocked;
     }
 
     public boolean blocked() {
@@ -300,9 +260,7 @@ public class MockRepository extends FsRepository {
                             }
                         }
                     }
-                }
-                // don't block on the index-N files, as getRepositoryData depends on it
-                else if (blobName.startsWith("index-") == false) {
+                } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
@@ -357,7 +315,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
-                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                if (nonAtomicMove) {
                     // simulate a non-atomic move, since many blob container implementations
                     // will not have an atomic move, and we should be able to handle that
                     maybeIOExceptionOrBlock(targetBlob);

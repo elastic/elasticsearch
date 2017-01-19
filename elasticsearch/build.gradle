@@ -40,26 +40,27 @@ integTest {
 
 integTest.mustRunAfter noBootstrapTest
 
+String projectGroupPath = project.group.replaceAll("\\.", "/")
+
 task downloadCppDist(type: DownloadS3Task) {
   enabled project.cppLocalDists == ''
   description = 'Download C++ zips from S3 Bucket'
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
-  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-windows-x86_64-${project.version}.zip"
-  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-linux-x86_64-${project.version}.zip"
-  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-darwin-x86_64-${project.version}.zip"
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-windows-x86_64-${project.version}.zip"))
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-darwin-x86_64-${project.version}.zip"))
-  outputs.file(file("${buildDir}/cppDist/ml-cpp-linux-x86_64-${project.version}.zip"))
+  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-windows-x86_64.zip"
+  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-linux-x86_64.zip"
+  download "maven/${projectGroupPath}/ml-cpp/${project.version}/ml-cpp-${project.version}-darwin-x86_64.zip"
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-windows-x86_64.zip"))
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-darwin-x86_64.zip"))
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-${project.version}-linux-x86_64.zip"))
 }
 
 bundlePlugin {
   if (project.cppLocalDists) {
-    String localZipFile = 'ml-cpp-' +
+    String localZipFile = 'ml-cpp-${project.version}-' +
       (project.isWindows ? "windows-x86_64" : (project.isMacOsX ? "darwin-x86_64" :
-      (project.isLinux ? "linux-x86_64" : "sunos-x86_64"))) +
-      "-${project.version}.zip"
+      (project.isLinux ? "linux-x86_64" : "sunos-x86_64"))) + ".zip"
     from { zipTree(cppLocalDists + '/' + localZipFile) }
   } else {
     for (outputFile in downloadCppDist.outputs.files) {

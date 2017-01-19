@@ -368,7 +368,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             return recoveryTarget.store().loadSeqNoStats(globalCheckpoint).getLocalCheckpoint() + 1;
         } catch (final IOException e) {
             // this can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
-            // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk to
+            // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
             // proceeds to attempt a sequence-number-based recovery
             return SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }

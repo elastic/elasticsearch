@@ -101,7 +101,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
-        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), key, defaultValue)) {
+        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), key, defaultValue, deprecationLogger)) {
             return flag;
         }
         return 0;

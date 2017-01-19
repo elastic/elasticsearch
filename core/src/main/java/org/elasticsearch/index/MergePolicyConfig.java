@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -165,7 +166,7 @@ public final class MergePolicyConfig {
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
         double reclaimDeletesWeight = indexSettings.getValue(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
         this.mergesEnabled = indexSettings.getSettings()
-            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), INDEX_MERGE_ENABLED, true);
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), INDEX_MERGE_ENABLED, true, new DeprecationLogger(logger));
         if (mergesEnabled == false) {
             logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
         }

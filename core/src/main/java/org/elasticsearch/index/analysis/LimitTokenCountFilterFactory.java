@@ -37,7 +37,7 @@ public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
         super(indexSettings, name, settings);
         this.maxTokenCount = settings.getAsInt("max_token_count", DEFAULT_MAX_TOKEN_COUNT);
         this.consumeAllTokens = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), "consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
+            indexSettings.getIndexVersionCreated(), "consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS, deprecationLogger);
     }
 
     @Override

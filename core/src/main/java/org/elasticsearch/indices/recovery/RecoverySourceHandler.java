@@ -218,7 +218,9 @@ public class RecoverySourceHandler {
             final Translog.Snapshot snapshot = translogView.snapshot();
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
-                tracker.markSeqNoAsCompleted(operation.seqNo());
+                if (operation.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    tracker.markSeqNoAsCompleted(operation.seqNo());
+                }
             }
             return tracker.getCheckpoint() >= endingSeqNo;
         }

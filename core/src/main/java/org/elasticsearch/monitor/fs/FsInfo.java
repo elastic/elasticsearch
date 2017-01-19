@@ -543,7 +543,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         if (mostDiskEstimate != null) {
             builder.startObject(Fields.MOST_ESTIMATE);
             {
-                builder.field(Fields.PATH, leastDiskEstimate.getPath());
+                builder.field(Fields.PATH, mostDiskEstimate.getPath());
                 builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mostDiskEstimate.getTotalBytes());
                 builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, mostDiskEstimate.getFreeBytes());
                 builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());

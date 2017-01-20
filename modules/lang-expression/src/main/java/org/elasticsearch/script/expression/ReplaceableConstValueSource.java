@@ -19,17 +19,16 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
+
+import java.io.IOException;
 
 /**
- * A {@link ValueSource} which has a stub {@link FunctionValues} that holds a dynamically replaceable constant double.
+ * A {@link DoubleValuesSource} which has a stub {@link DoubleValues} that holds a dynamically replaceable constant double.
  */
-final class ReplaceableConstValueSource extends ValueSource {
+final class ReplaceableConstValueSource extends DoubleValuesSource {
     final ReplaceableConstFunctionValues fv;
 
     ReplaceableConstValueSource() {
@@ -37,9 +36,13 @@ final class ReplaceableConstValueSource extends ValueSource {
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map map, LeafReaderContext atomicReaderContext) throws IOException {
+    public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
         return fv;
+    }
+
+    @Override
+    public boolean needsScores() {
+        return false;
     }
 
     @Override
@@ -50,11 +53,6 @@ final class ReplaceableConstValueSource extends ValueSource {
     @Override
     public int hashCode() {
         return System.identityHashCode(this);
-    }
-
-    @Override
-    public String description() {
-        return "replaceableConstDouble";
     }
 
     public void setValue(double v) {

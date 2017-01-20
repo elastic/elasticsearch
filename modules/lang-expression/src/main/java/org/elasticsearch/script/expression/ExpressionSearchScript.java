@@ -19,22 +19,21 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
@@ -44,7 +43,7 @@ class ExpressionSearchScript implements SearchScript {
 
     final CompiledScript compiledScript;
     final SimpleBindings bindings;
-    final ValueSource source;
+    final DoubleValuesSource source;
     final ReplaceableConstValueSource specialValue; // _value
     final boolean needsScores;
     Scorer scorer;
@@ -53,7 +52,7 @@ class ExpressionSearchScript implements SearchScript {
     ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v, boolean needsScores) {
         compiledScript = c;
         bindings = b;
-        source = ((Expression)compiledScript.compiled()).getValueSource(bindings);
+        source = ((Expression)compiledScript.compiled()).getDoubleValuesSource(bindings);
         specialValue = v;
         this.needsScores = needsScores;
     }
@@ -67,11 +66,13 @@ class ExpressionSearchScript implements SearchScript {
     public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
         return new LeafSearchScript() {
 
-            FunctionValues values = source.getValues(Collections.singletonMap("scorer", Lucene.illegalScorer("Scores are not available in the current context")), leaf);
+            DoubleValues values = source.getValues(leaf,
+                DoubleValuesSource.fromScorer(Lucene.illegalScorer("Scores are not available in the current context")));
 
             double evaluate() {
                 try {
-                    return values.doubleVal(docid);
+                    values.advanceExact(docid);
+                    return values.doubleValue();
                 } catch (Exception exception) {
                     throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
                 }
@@ -96,7 +97,7 @@ class ExpressionSearchScript implements SearchScript {
                 scorer = s;
                 try {
                     // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(Collections.singletonMap("scorer", scorer), leaf);
+                    values = source.getValues(leaf, DoubleValuesSource.fromScorer(scorer));
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't get values using " + compiledScript, e);
                 }

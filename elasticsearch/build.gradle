@@ -8,10 +8,6 @@ esplugin {
     classname 'org.elasticsearch.xpack.ml.MlPlugin'
 }
 
-version = project.version
-
-thirdPartyAudit.enabled = false
-
 configurations {
     nativeBundle
 }

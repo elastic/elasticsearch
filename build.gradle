@@ -3,7 +3,10 @@ description = 'Builds the Machine Learning Java classes and UI'
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
-import org.apache.tools.ant.taskdefs.condition.Os
+
+if (project.projectDir.name != 'prelert-legacy') {
+  throw new GradleException('You must checkout prelert-legacy in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/prelert-legacy')
+}
 
 String mlAwsAccessKey = System.env.PRELERT_AWS_ACCESS_KEY_ID
 if (mlAwsAccessKey == null && project.hasProperty("PRELERT_AWS_ACCESS_KEY_ID")) {
@@ -26,40 +29,6 @@ if (envCppLocalDists != null) {
 
 allprojects {
   group = 'org.elasticsearch.ml'
-  version = VersionProperties.elasticsearch
-}
-
-configurations.all {
-    // check for updates every build
-    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-}
-
-buildscript {
-    repositories {
-        if (System.getProperty("repos.mavenlocal") != null) {
-            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
-            // elasticsearch snapshots
-            mavenLocal()
-        }
-        mavenCentral()
-        maven {
-            name 'sonatype-snapshots'
-            url "https://oss.sonatype.org/content/repositories/snapshots/"
-        }
-        jcenter()
-    }
-    dependencies {
-        classpath group: 'org.elasticsearch.gradle', name: 'build-tools', version: "${elasticsearchVersion}", changing: true
-    }
-}
-
-subprojects {
-  // we must not publish to sonatype until we have set up x-plugins to only publish the parts we want to publish!
-  project.afterEvaluate {
-    if (project.plugins.hasPlugin('com.bmuschko.nexus') && project.nexus.repositoryUrl.startsWith('file://') == false) {
-      uploadArchives.enabled = false
-    }
-  }
 }
 
 task bundlePack(type: Zip) {
@@ -70,7 +39,31 @@ task bundlePack(type: Zip) {
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = 'ml'
-  version = project.version
+  version = VersionProperties.elasticsearch
+}
+
+subprojects {
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', 'Elastic Commercial Software End User License Agreement')
+            license.appendNode('url', 'https://www.elastic.co/eula/')
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
+          }
+        }
+      }
+    }
+  }
 }
 
 task assemble(dependsOn: bundlePack) {
@@ -83,11 +76,6 @@ task test(dependsOn: [':elasticsearch:test', ':kibana:test']) {
   description = 'Assembles and tests this project.'
 }
 
-task build(dependsOn: [assemble, test]) {
-  group = 'Build'
-  description = 'Assembles and tests this project.'
-}
-
 task clean(type: Delete) {
   group = 'Build'
   description = 'Deletes the build directory'
@@ -95,26 +83,16 @@ task clean(type: Delete) {
 }
 
 subprojects {
-    apply plugin: 'eclipse'
-    apply plugin: 'idea'
 
-    buildscript {
-        repositories {
-            if (System.getProperty("repos.mavenlocal") != null) {
-                // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
-                // elasticsearch snapshots
-                mavenLocal()
-            }
-            mavenCentral()
-            maven {
-                name 'sonatype-snapshots'
-                url "https://oss.sonatype.org/content/repositories/snapshots/"
-            }
-            jcenter()
-        }
-    }
+  tasks.withType(LicenseHeadersTask.class) {
+    approvedLicenses = ['Elasticsearch Confidential']
+    additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
+  }
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:ml-api:${version}": ':prelert-legacy:elasticsearch' ]
+}
 
-    repositories {
+allprojects {
+      repositories {
         if (System.getProperty("repos.mavenlocal") != null) {
             // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is useful for building against
             // elasticsearch snapshots
@@ -134,103 +112,4 @@ subprojects {
         }
         jcenter()
     }
-
-    tasks.withType(LicenseHeadersTask.class) {
-      approvedLicenses = ['Elasticsearch Confidential']
-      additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
-    }
-}
-
-allprojects {
-  // injecting groovy property variables into all projects
-  project.ext {
-    // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
-    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
-  }
-}
-
-allprojects {
-  apply plugin: 'idea'
-
-  if (isIdea) {
-    project.buildDir = file('build-idea')
-  }
-  idea {
-    module {
-      inheritOutputDirs = false
-      outputDir = file('build-idea/classes/main')
-      testOutputDir = file('build-idea/classes/test')
-
-      // also ignore other possible build dirs
-      excludeDirs += file('build')
-      excludeDirs += file('build-eclipse')
-
-      iml {
-        // fix so that Gradle idea plugin properly generates support for resource folders
-        // see also https://issues.gradle.org/browse/GRADLE-2975
-        withXml {
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-resource')
-          }
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-test-resource')
-          }
-        }
-      }
-    }
-  }
-}
-
-// Make sure gradle idea was run before running anything in intellij (including import).
-File ideaMarker = new File(projectDir, '.local-idea-is-configured')
-tasks.idea.doLast {
-  ideaMarker.setText('', 'UTF-8')
-}
-if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
-}
-
-// eclipse configuration
-allprojects {
-  apply plugin: 'eclipse'
-  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
-  if (path != ':') {
-    eclipse.project.name = path
-    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-      eclipse.project.name = eclipse.project.name.replace(':', '_')
-    }
-  }
-
-  plugins.withType(JavaBasePlugin) {
-    File eclipseBuild = project.file('build-eclipse')
-    eclipse.classpath.defaultOutputDir = eclipseBuild
-    if (isEclipse) {
-      // set this so generated dirs will be relative to eclipse build
-      project.buildDir = eclipseBuild
-    }
-    eclipse.classpath.file.whenMerged { classpath ->
-      // give each source folder a unique corresponding output folder
-      int i = 0;
-      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
-        i++;
-        // this is *NOT* a path or a file.
-        folder.output = "build-eclipse/" + i
-      }
-    }
-  }
-  task copyEclipseSettings(type: Copy) {
-    // TODO: "package this up" for external builds
-    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
-    into '.settings'
-  }
-  // otherwise .settings is not nuked entirely
-  task wipeEclipseSettings(type: Delete) {
-    delete '.settings'
-  }
-  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
-  // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }

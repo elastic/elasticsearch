@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':elasticsearch', configuration: 'runtime')
+    testCompile project(path: ':prelert-legacy:elasticsearch', configuration: 'runtime')
 }
 
 integTest {
     cluster {
         numNodes = 3
         distribution = 'zip'
-        plugin ':elasticsearch'
+        plugin ':prelert-legacy:elasticsearch'
     }
 }

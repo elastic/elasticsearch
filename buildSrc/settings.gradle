@@ -1,0 +1,10 @@
+File extrasDir = new File(settingsDir, '../..').getCanonicalFile()
+if (extrasDir.name.endsWith('-extra') == false) {
+  throw new GradleException("prelert-legacy must be checked out under an elasticsearch-extra directory, found ${extrasDir.name}")
+}
+File elasticsearchDir = new File(extrasDir.parentFile, extrasDir.name[0..-7])
+if (elasticsearchDir.exists() == false) {
+  throw new GradleException("${elasticsearchDir.name} is missing as a sibling to ${extrasDir.name}")
+}
+
+project(':').projectDir = new File(elasticsearchDir, 'buildSrc')

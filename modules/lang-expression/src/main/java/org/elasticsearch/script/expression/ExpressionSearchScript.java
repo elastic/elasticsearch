@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.LeafSearchScript;
@@ -66,9 +65,7 @@ class ExpressionSearchScript implements SearchScript {
     public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
         return new LeafSearchScript() {
 
-            DoubleValues values = source.getValues(leaf,
-                DoubleValuesSource.fromScorer(Lucene.illegalScorer("Scores are not available in the current context")));
-
+            DoubleValues values = source.getValues(leaf, null);
             double evaluate() {
                 try {
                     values.advanceExact(docid);

@@ -32,9 +32,6 @@ import java.util.Map;
  * of an {@link ExecutableScript}.
  */
 public class ExpressionExecutableScript implements ExecutableScript {
-
-    private final int NO_DOCUMENT = -1;
-
     public final CompiledScript compiledScript;
     public final Map<String, ReplaceableConstFunctionValues> functionValuesMap;
     public final ReplaceableConstFunctionValues[] functionValuesArray;

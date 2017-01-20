@@ -29,8 +29,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -48,7 +50,7 @@ import java.util.Map;
  * only an id is used or as part of the deprecated namespace where
  * both a language and an id are used.
  */
-public final class ScriptMetaData implements MetaData.Custom {
+public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContent {
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -244,7 +246,19 @@ public final class ScriptMetaData implements MetaData.Custom {
         String id = null;
         StoredScriptSource source;
 
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+        Token token = parser.currentToken();
+
+        if (token == null) {
+            token = parser.nextToken();
+        }
+
+        if (token != Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{]");
+        }
+
+        token = parser.nextToken();
+
+        while (token != Token.END_OBJECT) {
             switch (token) {
                 case FIELD_NAME:
                     id = parser.currentName();
@@ -281,6 +295,8 @@ public final class ScriptMetaData implements MetaData.Custom {
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [<id>, <code>, {]");
             }
+
+            token = parser.nextToken();
         }
 
         return new ScriptMetaData(scripts);
@@ -382,10 +398,14 @@ public final class ScriptMetaData implements MetaData.Custom {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
         for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
+
+        builder.endObject();
 
         return builder;
     }

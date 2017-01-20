@@ -21,11 +21,15 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
@@ -33,7 +37,8 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StoredScriptTests extends ESTestCase {
+public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptSource> {
+
     public void testBasicAddDelete() {
         StoredScriptSource source = new StoredScriptSource("lang", "code", emptyMap());
         ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test", source);
@@ -332,6 +337,28 @@ public class StoredScriptTests extends ESTestCase {
             ParsingException pe = expectThrows(ParsingException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes()));
             assertThat(pe.getRootCause().getMessage(), equalTo("content_type cannot be user-specified"));
+        }
+    }
+
+    @Override
+    protected StoredScriptSource createTestInstance() {
+        return new StoredScriptSource(
+            randomAsciiOfLength(randomIntBetween(4, 32)),
+            randomAsciiOfLength(randomIntBetween(4, 16383)),
+            Collections.emptyMap());
+    }
+
+    @Override
+    protected Writeable.Reader<StoredScriptSource> instanceReader() {
+        return StoredScriptSource::new;
+    }
+
+    @Override
+    protected StoredScriptSource doParseInstance(XContentParser parser) {
+        try {
+            return StoredScriptSource.fromXContent(parser);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
         }
     }
 }

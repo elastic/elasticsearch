@@ -22,20 +22,21 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 
-
-public class ScriptMetaDataTests extends ESTestCase {
+public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 
     public void testGetScript() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
@@ -66,33 +67,6 @@ public class ScriptMetaDataTests extends ESTestCase {
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getCode());
         assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getCode());
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getCode());
-    }
-
-    public void testToAndFromXContent() throws IOException {
-        XContentType contentType = randomFrom(XContentType.values());
-        XContentBuilder xContentBuilder = XContentBuilder.builder(contentType.xContent());
-        ScriptMetaData expected = randomScriptMetaData(contentType);
-
-        xContentBuilder.startObject();
-        expected.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.emptyMap()));
-        xContentBuilder.endObject();
-        xContentBuilder = shuffleXContent(xContentBuilder);
-
-        XContentParser parser = createParser(xContentBuilder);
-        parser.nextToken();
-        ScriptMetaData result = ScriptMetaData.fromXContent(parser);
-        assertEquals(expected, result);
-        assertEquals(expected.hashCode(), result.hashCode());
-    }
-
-    public void testReadFromWriteTo() throws IOException {
-        ScriptMetaData expected = randomScriptMetaData(randomFrom(XContentType.values()));
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        expected.writeTo(new OutputStreamStreamOutput(out));
-
-        ScriptMetaData result = new ScriptMetaData(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
-        assertEquals(expected, result);
-        assertEquals(expected.hashCode(), result.hashCode());
     }
 
     public void testDiff() throws Exception {
@@ -142,4 +116,26 @@ public class ScriptMetaDataTests extends ESTestCase {
         return builder.build();
     }
 
+    @Override
+    protected ScriptMetaData createTestInstance() {
+        try {
+            return randomScriptMetaData(randomFrom(XContentType.values()));
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    @Override
+    protected Writeable.Reader<ScriptMetaData> instanceReader() {
+        return ScriptMetaData::new;
+    }
+
+    @Override
+    protected ScriptMetaData doParseInstance(XContentParser parser) {
+        try {
+            return ScriptMetaData.fromXContent(parser);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
 }

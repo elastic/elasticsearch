@@ -74,7 +74,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
                 new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123)));
-        BytesReference xContent = toXContent(failure, XContentType.JSON);
+        BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"
                         + "\"index\":\"indexName\","

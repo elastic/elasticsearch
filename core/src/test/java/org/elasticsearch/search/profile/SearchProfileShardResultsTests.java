@@ -59,16 +59,18 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
     public void testFromXContent() throws IOException {
         SearchProfileShardResults shardResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(shardResult, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(shardResult, xContentType, humanReadable);
+        SearchProfileShardResults parsed = null;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
             ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);
-            SearchProfileShardResults parsed = SearchProfileShardResults.fromXContent(parser);
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType), xContentType);
+            parsed = SearchProfileShardResults.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
 }

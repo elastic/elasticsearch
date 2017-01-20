@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class IndexResponseTests extends ESTestCase {
 
-    public void testToXContent() throws IOException {
+    public void testToXContent() {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 5, true);
             String output = Strings.toString(indexResponse);
@@ -62,7 +62,8 @@ public class IndexResponseTests extends ESTestCase {
 
         // Create a random IndexResponse and converts it to XContent in bytes
         IndexResponse indexResponse = randomIndexResponse();
-        BytesReference indexResponseBytes = toXContent(indexResponse, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference indexResponseBytes = toXContent(indexResponse, xContentType, humanReadable);
 
         // Parse the XContent bytes to obtain a parsed
         IndexResponse parsedIndexResponse;
@@ -76,12 +77,13 @@ public class IndexResponseTests extends ESTestCase {
         // and those exceptions are not parsed back with the same types.
 
         // Print the parsed object out and test that the output is the same as the original output
-        BytesReference parsedIndexResponseBytes = toXContent(parsedIndexResponse, xContentType);
+        BytesReference parsedIndexResponseBytes = toXContent(parsedIndexResponse, xContentType, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), parsedIndexResponseBytes)) {
             assertIndexResponse(indexResponse, parser.map());
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static void assertDocWriteResponse(DocWriteResponse expected, Map<String, Object> actual) {
         assertEquals(expected.getIndex(), actual.get("_index"));
         assertEquals(expected.getType(), actual.get("_type"));
@@ -165,8 +167,8 @@ public class IndexResponseTests extends ESTestCase {
         ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
-        long seqNo = randomIntBetween(-2, 5);
-        long version = (long) randomIntBetween(0, 5);
+        long seqNo = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
+        long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();
 
         IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);

@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -137,16 +137,18 @@ public class InternalSearchHitTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         InternalSearchHit searchHit = createTestItem(true);
-        XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder = searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        boolean humanReadable = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toXContent(searchHit, xContentType, humanReadable);
 
-        XContentParser parser = createParser(builder);
-        parser.nextToken(); // jump to first START_OBJECT
-        InternalSearchHit parsed = InternalSearchHit.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        InternalSearchHit parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parser.nextToken(); // jump to first START_OBJECT
+            parsed = InternalSearchHit.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {

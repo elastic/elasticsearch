@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -49,19 +49,17 @@ public class InternalSearchHitsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         InternalSearchHits searchHits = createTestItem();
-        XContentType xcontentType = XContentType.JSON; //randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder.startObject();
-        builder = searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        XContentParser parser = createParser(builder);
-        InternalSearchHits parsed = InternalSearchHits.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        parser.nextToken();
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        XContentType xcontentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(searchHits, xcontentType, humanReadable);
+        InternalSearchHits parsed;
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            parsed = InternalSearchHits.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, humanReadable), xcontentType);
     }
 
     public void testToXContent() throws IOException {

@@ -388,7 +388,8 @@ public class PublishClusterStateAction extends AbstractComponent {
                 // If true we received full cluster state - otherwise diffs
                 if (in.readBoolean()) {
                     incomingState = ClusterState.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
-                    logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
+                    logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
+                        request.bytes().length());
                 } else if (lastSeenClusterState != null) {
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);

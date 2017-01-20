@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -35,7 +36,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -44,11 +44,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -62,6 +62,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
@@ -97,6 +98,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  */
@@ -693,7 +695,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ).get();
 
         NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
-        RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
+        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(nodeSettings, mock(RestController.class),
+                internalCluster().getInstance(SettingsFilter.class));
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
         final CountDownLatch getRepoLatch = new CountDownLatch(1);
@@ -715,7 +718,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             throw getRepoError.get();
         }
 
-        RestClusterStateAction clusterStateAction = internalCluster().getInstance(RestClusterStateAction.class);
+        RestClusterStateAction clusterStateAction = new RestClusterStateAction(nodeSettings, mock(RestController.class),
+                internalCluster().getInstance(SettingsFilter.class));
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();

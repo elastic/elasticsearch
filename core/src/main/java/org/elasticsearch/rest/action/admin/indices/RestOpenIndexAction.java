@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,8 +36,6 @@ import java.io.IOException;
  *
  */
 public class RestOpenIndexAction extends BaseRestHandler {
-
-    @Inject
     public RestOpenIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);

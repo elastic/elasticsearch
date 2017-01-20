@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -40,8 +39,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchScrollAction extends BaseRestHandler {
-
-    @Inject
     public RestSearchScrollAction(Settings settings, RestController controller) {
         super(settings);
 

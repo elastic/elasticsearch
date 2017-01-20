@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +53,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
     public RestMultiSearchAction(Settings settings, RestController controller) {
         super(settings);
 

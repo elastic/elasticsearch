@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,7 +44,6 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-    @Inject
     public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);

@@ -25,7 +25,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -102,7 +101,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    @Inject
     public RestReindexAction(Settings settings, RestController controller) {
         super(settings, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);

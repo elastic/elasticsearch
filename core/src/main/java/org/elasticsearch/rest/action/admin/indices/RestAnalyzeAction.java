@@ -24,7 +24,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -53,7 +52,6 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
     }
 
-    @Inject
     public RestAnalyzeAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_analyze", this);

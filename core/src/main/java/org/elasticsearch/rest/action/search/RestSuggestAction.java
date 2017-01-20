@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +45,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestSuggestAction extends BaseRestHandler {
-    @Inject
     public RestSuggestAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerAsDeprecatedHandler(POST, "/_suggest", this,

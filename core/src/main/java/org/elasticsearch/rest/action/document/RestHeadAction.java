@@ -24,7 +24,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -48,8 +47,6 @@ public abstract class RestHeadAction extends BaseRestHandler {
      * Handler to check for document existence.
      */
     public static class Document extends RestHeadAction {
-
-        @Inject
         public Document(Settings settings, RestController controller) {
             super(settings, false);
             controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
@@ -60,8 +57,6 @@ public abstract class RestHeadAction extends BaseRestHandler {
      * Handler to check for document source existence (may be disabled in the mapping).
      */
     public static class Source extends RestHeadAction {
-
-        @Inject
         public Source(Settings settings, RestController controller) {
             super(settings, true);
             controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);

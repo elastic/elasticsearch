@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.ml.job.manager.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -207,7 +206,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 jobProvider,
                 jobManager,
-                new JobDataDeleterFactory(client), //NORELEASE: this should use Delete-by-query
                 dataProcessor,
                 new MlInitializationService(settings, threadPool, clusterService, jobProvider),
                 jobDataCountsPersister,

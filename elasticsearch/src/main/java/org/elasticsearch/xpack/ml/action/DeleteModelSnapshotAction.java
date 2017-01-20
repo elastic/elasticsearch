@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.ml.job.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.manager.JobManager;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -129,21 +129,21 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
+        private final Client client;
         private final JobProvider jobProvider;
         private final JobManager jobManager;
         private final ClusterService clusterService;
-        private final JobDataDeleterFactory bulkDeleterFactory;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                JobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
-                               JobDataDeleterFactory bulkDeleterFactory) {
+                               Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            this.client = client;
             this.jobProvider = jobProvider;
             this.jobManager = jobManager;
             this.clusterService = clusterService;
-            this.bulkDeleterFactory = bulkDeleterFactory;
         }
 
         @Override
@@ -178,7 +178,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                         }
 
                         // Delete the snapshot and any associated state files
-                        JobDataDeleter deleter = bulkDeleterFactory.apply(request.getJobId());
+                        JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
                         deleter.deleteModelSnapshot(deleteCandidate);
                         deleter.commit(new ActionListener<BulkResponse>() {
                             @Override

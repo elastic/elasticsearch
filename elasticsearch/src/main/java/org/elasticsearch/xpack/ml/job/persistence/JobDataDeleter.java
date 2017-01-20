@@ -213,8 +213,7 @@ public class JobDataDeleter {
 
             totalDeletedCount.addAndGet(searchResponse.getHits().hits().length);
             if (totalDeletedCount.get() < searchResponse.getHits().totalHits()) {
-                client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(SCROLL_CONTEXT_DURATION)
-                        .execute(this);
+                client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(SCROLL_CONTEXT_DURATION).execute(this);
             }
             else {
                 scrollFinishedListener.onResponse(true);

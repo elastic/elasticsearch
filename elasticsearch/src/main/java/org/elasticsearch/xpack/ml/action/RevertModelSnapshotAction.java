@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,9 +43,8 @@ import org.elasticsearch.xpack.ml.job.manager.JobManager;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleterFactory;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.OldDataRemover;
 import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class RevertModelSnapshotAction
@@ -267,20 +268,19 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
+        private final Client client;
         private final JobManager jobManager;
         private final JobProvider jobProvider;
-        private final JobDataDeleterFactory bulkDeleterFactory;
         private final JobDataCountsPersister jobDataCountsPersister;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider,
-                ClusterService clusterService, JobDataDeleterFactory bulkDeleterFactory,
-                JobDataCountsPersister jobDataCountsPersister) {
+                ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
+            this.client = client;
             this.jobManager = jobManager;
             this.jobProvider = jobProvider;
-            this.bulkDeleterFactory = bulkDeleterFactory;
             this.jobDataCountsPersister = jobDataCountsPersister;
         }
 
@@ -351,21 +351,22 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
                     logger.info("Deleting results after '" + deleteAfter + "'");
 
-                    // NORELEASE: OldDataRemover is basically delete-by-query.
-                    // We should replace this
-                    // whole abstraction with DBQ eventually
-                    OldDataRemover remover = new OldDataRemover(bulkDeleterFactory);
-                    remover.deleteResultsAfter(new ActionListener<BulkResponse>() {
+                    // NORELEASE: JobDataDeleter is basically delete-by-query.
+                    // We should replace this whole abstraction with DBQ eventually
+                    JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
+                    dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
                         @Override
-                        public void onResponse(BulkResponse bulkItemResponses) {
-                            listener.onResponse(response);
+                        public void onResponse(Boolean success) {
+                            dataDeleter.commit(ActionListener.wrap(
+                                    bulkItemResponses -> {listener.onResponse(response);},
+                                    listener::onFailure));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    }, jobId, deleteAfter.getTime() + 1);
+                    });
                 }
             }, listener::onFailure);
         }

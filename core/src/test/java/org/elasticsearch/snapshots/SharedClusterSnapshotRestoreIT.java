@@ -2720,6 +2720,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 Settings.builder()
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
+                    // test that we can take a snapshot after a failed one, even if a partial index-N was written
+                    .put("atomic_move", false)
                     .put("random", randomAsciiOfLength(10))));
 
         logger.info("--> indexing some data");

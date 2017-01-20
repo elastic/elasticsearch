@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -175,13 +176,14 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
+        mappings.put(MapperService.DEFAULT_MAPPING,
+            MapperService.parseMapping(xContentRegistry(), new BytesArray("{}"), XContentType.JSON));
         MapperException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
-        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
+        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), new BytesArray("{}"), XContentType.JSON));
 
         e = expectThrows( MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));

@@ -86,7 +86,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         builder.setSettings(KEY, VALUE);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}");
+        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         builder.setSettings(Settings.builder().put(KEY, VALUE));

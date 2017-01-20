@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -336,7 +337,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "abcde", XContentType.JSON)
+                .addMapping("type1", new BytesArray("abcde"), XContentType.JSON)
                 .get());
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
 
@@ -373,7 +374,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}", XContentType.JSON)
+                .addMapping("type1", new BytesArray("{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}"),
+                    XContentType.JSON)
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
@@ -424,7 +426,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1")
-                .setSource("{\n" +
+                .setSource(new BytesArray("{\n" +
                         "    \"template\" : \"*\",\n" +
                         "    \"aliases\" : {\n" +
                         "        \"my_alias\" : {\n" +
@@ -435,7 +437,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "            }\n" +
                         "        }\n" +
                         "    }\n" +
-                        "}", XContentType.JSON).get();
+                        "}"), XContentType.JSON).get();
 
 
         assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));

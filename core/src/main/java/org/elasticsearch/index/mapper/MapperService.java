@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -190,8 +191,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
-    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(xContentRegistry, mappingSource)) {
+    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, BytesReference mappingSource,
+                                                   XContentType xContentType) throws Exception {
+        try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, mappingSource)) {
             return parser.map();
         }
     }

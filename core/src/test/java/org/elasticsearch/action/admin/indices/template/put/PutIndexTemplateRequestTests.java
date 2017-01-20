@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -70,11 +71,11 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
 
     public void testPutIndexTemplateRequestSerializationXContent() throws IOException {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        BytesReference mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
         request.patterns(Collections.singletonList("foo"));
         // THIS IS NOT A BUG! Intentionally specifying the wrong type so we serialize it
         request.mapping("bar", mapping, XContentType.JSON);
-        assertEquals(mapping, request.mappings().get("bar"));
+        assertEquals(mapping, request.mappings().get("bar").v2());
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_5_0_0);
@@ -84,23 +85,15 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         in.setVersion(Version.V_5_0_0);
         PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
         serialized.readFrom(in);
-        assertNotEquals(mapping, serialized.mappings().get("bar"));
-        assertTrue(serialized.mappings().get("bar").startsWith("{"));
+        assertEquals(mapping, serialized.mappings().get("bar").v2());
+        assertEquals(XContentType.YAML, serialized.mappings().get("bar").v1());
 
         out = new BytesStreamOutput();
         request.writeTo(out);
         in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         serialized = new PutIndexTemplateRequest();
         serialized.readFrom(in);
-        assertEquals(mapping, serialized.mappings().get("bar"));
-    }
-
-    public void testContentTypesAreConvertedWhenSettingMapping() throws IOException {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-        request.mapping("bar", mapping, XContentType.YAML);
-        assertNotEquals(mapping, request.mappings().get("bar"));
-        assertFalse(mapping.startsWith("{"));
-        assertTrue(request.mappings().get("bar").startsWith("{"));
+        assertEquals(mapping, serialized.mappings().get("bar").v2());
+        assertEquals(XContentType.JSON, serialized.mappings().get("bar").v1());
     }
 }

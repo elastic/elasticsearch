@@ -30,6 +30,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -222,13 +225,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             templateBuilder.settings(request.settings);
 
             Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
-            for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+            for (Map.Entry<String, Tuple<XContentType, BytesReference>> entry : request.mappings.entrySet()) {
                 try {
-                    templateBuilder.putMapping(entry.getKey(), entry.getValue());
+                    templateBuilder.putMapping(entry.getKey(), entry.getValue().v2());
                 } catch (Exception e) {
                     throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
+                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue().v2(),
+                    entry.getValue().v1()));
             }
 
             dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
@@ -316,7 +320,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Integer version;
         List<String> indexPatterns;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
-        Map<String, String> mappings = new HashMap<>();
+        Map<String, Tuple<XContentType, BytesReference>> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
         Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
@@ -347,7 +351,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return this;
         }
 
-        public PutRequest mappings(Map<String, String> mappings) {
+        public PutRequest mappings(Map<String, Tuple<XContentType, BytesReference>> mappings) {
             this.mappings.putAll(mappings);
             return this;
         }
@@ -362,8 +366,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return this;
         }
 
-        public PutRequest putMapping(String mappingType, String mappingSource) {
-            mappings.put(mappingType, mappingSource);
+        public PutRequest putMapping(String mappingType, BytesReference mappingSource, XContentType xContentType) {
+            mappings.put(mappingType, new Tuple<>(xContentType, mappingSource));
             return this;
         }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -347,7 +348,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public Builder putMapping(String mappingType, String mappingSource) throws IOException {
+        public Builder putMapping(String mappingType, BytesReference mappingSource) throws IOException {
             mappings.put(mappingType, new CompressedXContent(mappingSource));
             return this;
         }
@@ -456,7 +457,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                 String mappingType = currentFieldName;
                                 Map<String, Object> mappingSource =
                                     MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).string());
+                                builder.putMapping(mappingType, XContentFactory.jsonBuilder().map(mappingSource).bytes());
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
@@ -480,7 +481,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             Map<String, Object> mapping = parser.mapOrdered();
                             if (mapping.size() == 1) {
                                 String mappingType = mapping.keySet().iterator().next();
-                                String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();
+                                BytesReference mappingSource = XContentFactory.jsonBuilder().map(mapping).bytes();
 
                                 if (mappingSource == null) {
                                     // crap, no mapping source, warn?

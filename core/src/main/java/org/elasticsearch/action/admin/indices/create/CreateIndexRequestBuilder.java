@@ -77,10 +77,20 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to create the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json or yaml format)
+     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public CreateIndexRequestBuilder setSettings(String source) {
         request.settings(source);
+        return this;
+    }
+
+    /**
+     * The settings to create the index with (either json or yaml format)
+     */
+    public CreateIndexRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 

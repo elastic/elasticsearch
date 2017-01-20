@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-public class GetDatafeedsStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetDatafeedStatsActionRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

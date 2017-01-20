@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetDatafeedsStatsActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

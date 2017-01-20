@@ -45,14 +45,14 @@ setup:
         "datafeed_id": "datafeed-1"
         "start": 0
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: "datafeed-1"
   - match: { datafeeds.0.status: STARTED }
   - do:
       xpack.ml.stop_datafeed:
         "datafeed_id": "datafeed-1"
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: "datafeed-1"
   - match: { datafeeds.0.status: STOPPED }
 ---

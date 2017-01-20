@@ -75,11 +75,22 @@ setup:
   - match: { datafeeds.0.job_id: "job-2"}
 
 ---
-"Test get all datafeeds":
+"Test explicit get all datafeeds":
 
   - do:
       xpack.ml.get_datafeeds:
         datafeed_id: _all
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.job_id: "job-1"}
+  - match: { datafeeds.1.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.1.job_id: "job-2"}
+
+---
+"Test implicit get all datafeeds":
+
+  - do:
+      xpack.ml.get_datafeeds: {}
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.job_id: "job-1"}

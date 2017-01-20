@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
@@ -238,7 +238,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 RestRevertModelSnapshotAction.class,
                 RestUpdateModelSnapshotAction.class,
                 RestGetDatafeedsAction.class,
-                RestGetDatafeedsStatsAction.class,
+                RestGetDatafeedStatsAction.class,
                 RestPutDatafeedAction.class,
                 RestDeleteDatafeedAction.class,
                 RestStartDatafeedAction.class,

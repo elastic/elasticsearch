@@ -40,7 +40,7 @@ setup:
   - match: { datafeeds: [] }
 
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: "_all"
   - match: { count: 0 }
   - match: { datafeeds: [] }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,19 +19,24 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
 
-public class RestGetDatafeedsStatsAction extends BaseRestHandler {
+public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestGetDatafeedsStatsAction(Settings settings, RestController controller) {
+    public RestGetDatafeedStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
                 + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats", this);
+        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
+                + "datafeeds/_stats", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(
-                restRequest.param(DatafeedConfig.ID.getPreferredName()));
+        String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
+        if (Strings.isNullOrEmpty(datafeedId)) {
+            datafeedId = GetDatafeedsStatsAction.ALL;
+        }
+        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

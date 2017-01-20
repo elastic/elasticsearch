@@ -25,11 +25,17 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
                 + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
+                + "datafeeds", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
+        String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
+        if (datafeedId == null) {
+            datafeedId = GetDatafeedsAction.ALL;
+        }
+        GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(datafeedId);
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

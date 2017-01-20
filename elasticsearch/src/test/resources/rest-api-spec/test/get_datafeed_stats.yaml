@@ -56,30 +56,41 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: missing-datafeed
 
 ---
 "Test get single datafeed stats":
 
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: datafeed-1
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.status: "STOPPED"}
 
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: datafeed-2
   - match: { datafeeds.0.datafeed_id: "datafeed-2"}
   - match: { datafeeds.0.status: "STOPPED"}
 
 ---
-"Test get all datafeeds stats":
+"Test explicit get all datafeed stats":
 
   - do:
-      xpack.ml.get_datafeeds_stats:
+      xpack.ml.get_datafeed_stats:
         datafeed_id: _all
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.status: "STOPPED"}
+  - match: { datafeeds.1.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.1.status: "STOPPED"}
+
+---
+"Test implicit get all datafeed stats":
+
+  - do:
+      xpack.ml.get_datafeed_stats: {}
   - match: { count: 2 }
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.status: "STOPPED"}

@@ -49,7 +49,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:admin/ml/datafeeds/stats/get";
 
-    private static final String ALL = "_all";
+    public static final String ALL = "_all";
     private static final String STATUS = "status";
 
     private GetDatafeedsStatsAction() {

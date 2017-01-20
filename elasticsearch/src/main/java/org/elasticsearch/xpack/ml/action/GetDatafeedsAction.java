@@ -46,7 +46,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
     public static final GetDatafeedsAction INSTANCE = new GetDatafeedsAction();
     public static final String NAME = "cluster:admin/ml/datafeeds/get";
 
-    private static final String ALL = "_all";
+    public static final String ALL = "_all";
 
     private GetDatafeedsAction() {
         super(NAME);

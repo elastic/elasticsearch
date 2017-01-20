@@ -941,7 +941,7 @@ In the above example, the `bool must_not` clause specifies a list of queries non
 
 We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
 
-This example returns all accounts of anybody who is 40 years old but don't live in ID(aho):
+This example returns all accounts of anybody who is 40 years old but doesn't live in ID(aho):
 
 [source,js]
 --------------------------------------------------

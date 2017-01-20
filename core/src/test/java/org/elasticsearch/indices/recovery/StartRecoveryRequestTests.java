@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final Version targetNodeVersion = randomVersionBetween(random(), Version.V_6_0_0_alpha1_UNRELEASED, Version.CURRENT);
+        final Version targetNodeVersion = randomVersion(random());
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
@@ -68,7 +68,11 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+        } else {
+            assertThat(SequenceNumbersService.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
+        }
     }
 
 }

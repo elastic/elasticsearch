@@ -149,7 +149,7 @@ public class TranslogRecoveryPerformer {
      *                            cause a {@link MapperException} to be thrown if an update
      *                            is encountered.
      */
-    private void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates, Engine.Operation.Origin origin) {
+    private void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates, Engine.Operation.Origin origin) throws IOException {
 
         try {
             switch (operation.opType()) {
@@ -207,11 +207,11 @@ public class TranslogRecoveryPerformer {
         operationProcessed();
     }
 
-    protected void index(Engine engine, Engine.Index engineIndex) {
+    protected void index(Engine engine, Engine.Index engineIndex) throws IOException {
         engine.index(engineIndex);
     }
 
-    protected void delete(Engine engine, Engine.Delete engineDelete) {
+    protected void delete(Engine engine, Engine.Delete engineDelete) throws IOException {
         engine.delete(engineDelete);
     }
 

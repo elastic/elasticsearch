@@ -32,6 +32,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
@@ -63,6 +64,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
@@ -125,6 +127,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.OldIndexUtils;
+import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -133,6 +136,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -1144,7 +1149,7 @@ public class InternalEngineTests extends ESTestCase {
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
-    public void testVersioningNewCreate() {
+    public void testVersioningNewCreate() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
@@ -1155,7 +1160,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
 
-    public void testVersioningNewIndex() {
+    public void testVersioningNewIndex() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1166,7 +1171,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
 
-    public void testExternalVersioningNewIndex() {
+    public void testExternalVersioningNewIndex() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(newUid(doc), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, 12, VersionType.EXTERNAL, PRIMARY, 0, -1, false);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1177,7 +1182,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getVersion(), equalTo(12L));
     }
 
-    public void testVersioningIndexConflict() {
+    public void testVersioningIndexConflict() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1199,7 +1204,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testExternalVersioningIndexConflict() {
+    public void testExternalVersioningIndexConflict() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(newUid(doc), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, 12, VersionType.EXTERNAL, PRIMARY, 0, -1, false);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1242,7 +1247,7 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testVersioningIndexConflictWithFlush() {
+    public void testVersioningIndexConflictWithFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1266,7 +1271,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testExternalVersioningIndexConflictWithFlush() {
+    public void testExternalVersioningIndexConflictWithFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(newUid(doc), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, 12, VersionType.EXTERNAL, PRIMARY, 0, -1, false);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1361,6 +1366,8 @@ public class InternalEngineTests extends ESTestCase {
                             }
                         } catch (AlreadyClosedException ex) {
                             // fine
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
                         }
                     }
                 };
@@ -1379,7 +1386,7 @@ public class InternalEngineTests extends ESTestCase {
 
     }
 
-    public void testVersioningDeleteConflict() {
+    public void testVersioningDeleteConflict() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1412,7 +1419,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testVersioningDeleteConflictWithFlush() {
+    public void testVersioningDeleteConflictWithFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1451,7 +1458,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testVersioningCreateExistsException() {
+    public void testVersioningCreateExistsException() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index create = new Engine.Index(newUid(doc), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0, -1, false);
         Engine.IndexResult indexResult = engine.index(create);
@@ -1463,7 +1470,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testVersioningCreateExistsExceptionWithFlush() {
+    public void testVersioningCreateExistsExceptionWithFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index create = new Engine.Index(newUid(doc), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0, -1, false);
         Engine.IndexResult indexResult = engine.index(create);
@@ -1477,7 +1484,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    public void testVersioningReplicaConflict1() {
+    public void testVersioningReplicaConflict1() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         final Engine.Index v1Index = indexForDoc(doc);
         final Engine.IndexResult v1Result = engine.index(v1Index);
@@ -1526,7 +1533,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(replicaV2ReplayResult.getVersion(), equalTo(2L));
     }
 
-    public void testVersioningReplicaConflict2() {
+    public void testVersioningReplicaConflict2() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         final Engine.Index v1Index = indexForDoc(doc);
         final Engine.IndexResult v1Result = engine.index(v1Index);
@@ -1595,7 +1602,7 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(replicaV2Result.getVersion(), equalTo(3L));
     }
 
-    public void testBasicCreatedFlag() {
+    public void testBasicCreatedFlag() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1612,7 +1619,7 @@ public class InternalEngineTests extends ESTestCase {
         assertTrue(indexResult.isCreated());
     }
 
-    public void testCreatedFlagAfterFlush() {
+    public void testCreatedFlagAfterFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
         Engine.IndexResult indexResult = engine.index(index);
@@ -1654,7 +1661,7 @@ public class InternalEngineTests extends ESTestCase {
     // #5891: make sure IndexWriter's infoStream output is
     // sent to lucene.iw with log level TRACE:
 
-    public void testIndexWriterInfoStream() throws IllegalAccessException {
+    public void testIndexWriterInfoStream() throws IllegalAccessException, IOException {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
         mockAppender.start();
@@ -1915,7 +1922,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     // #8603: make sure we can separately log IFD's messages
-    public void testIndexWriterIFDInfoStream() throws IllegalAccessException {
+    public void testIndexWriterIFDInfoStream() throws IllegalAccessException, IOException {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
         mockAppender.start();
@@ -2532,20 +2539,8 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testCheckDocumentFailure() throws Exception {
-        ParsedDocument doc = testParsedDocument("1", "test", null, testDocumentWithTextField(), B_1, null);
-        Exception documentFailure = engine.checkIfDocumentFailureOrThrow(indexForDoc(doc), new IOException("simulated document failure"));
-        assertThat(documentFailure, instanceOf(IOException.class));
-        try {
-            engine.checkIfDocumentFailureOrThrow(indexForDoc(doc), new CorruptIndexException("simulated environment failure", ""));
-            fail("expected exception to be thrown");
-        } catch (Exception envirnomentException) {
-            assertThat(envirnomentException.getMessage(), containsString("simulated environment failure"));
-        }
-    }
-
     private static class ThrowingIndexWriter extends IndexWriter {
-        private AtomicReference<Exception> failureToThrow = new AtomicReference<>();
+        private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
 
         public ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
@@ -2558,13 +2553,15 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         private void maybeThrowFailure() throws IOException {
-            Exception failure = failureToThrow.get();
-            if (failure instanceof RuntimeException) {
-                throw (RuntimeException)failure;
-            } else if (failure instanceof IOException) {
-                throw (IOException)failure;
-            } else {
-                assert failure == null : "unsupported failure class: " + failure.getClass().getCanonicalName();
+            if (failureToThrow.get() != null) {
+                Exception failure = failureToThrow.get().get();
+                if (failure instanceof RuntimeException) {
+                    throw (RuntimeException) failure;
+                } else if (failure instanceof IOException) {
+                    throw (IOException) failure;
+                } else {
+                    assert false: "unsupported failure class: " + failure.getClass().getCanonicalName();
+                }
             }
         }
 
@@ -2574,14 +2571,8 @@ public class InternalEngineTests extends ESTestCase {
             return super.deleteDocuments(terms);
         }
 
-        public void setThrowFailure(IOException documentFailure) {
-            Objects.requireNonNull(documentFailure);
-            failureToThrow.set(documentFailure);
-        }
-
-        public void setThrowFailure(RuntimeException runtimeFailure) {
-            Objects.requireNonNull(runtimeFailure);
-            failureToThrow.set(runtimeFailure);
+        public void setThrowFailure(Supplier<Exception> failureSupplier) {
+            failureToThrow.set(failureSupplier);
         }
 
         public void clearFailure() {
@@ -2594,13 +2585,14 @@ public class InternalEngineTests extends ESTestCase {
             final ParsedDocument doc1 = testParsedDocument("1", "test", null, testDocumentWithTextField(), B_1, null);
             final ParsedDocument doc2 = testParsedDocument("2", "test", null, testDocumentWithTextField(), B_1, null);
             final ParsedDocument doc3 = testParsedDocument("3", "test", null, testDocumentWithTextField(), B_1, null);
+
             ThrowingIndexWriter throwingIndexWriter = new ThrowingIndexWriter(store.directory(), new IndexWriterConfig());
             try (Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, () -> throwingIndexWriter)) {
                 // test document failure while indexing
                 if (randomBoolean()) {
-                    throwingIndexWriter.setThrowFailure(new IOException("simulated"));
+                    throwingIndexWriter.setThrowFailure(() -> new IOException("simulated"));
                 } else {
-                    throwingIndexWriter.setThrowFailure(new IllegalArgumentException("simulated max token length"));
+                    throwingIndexWriter.setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
                 }
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
@@ -2610,29 +2602,33 @@ public class InternalEngineTests extends ESTestCase {
                 assertNull(indexResult.getFailure());
                 engine.index(indexForDoc(doc2));
 
-                // test document failure while deleting
+                // test failure while deleting
+                // all these simulated exceptions are not fatal to the IW so we treat them as document failures
                 if (randomBoolean()) {
-                    throwingIndexWriter.setThrowFailure(new IOException("simulated"));
+                    throwingIndexWriter.setThrowFailure(() -> new IOException("simulated"));
+                    expectThrows(IOException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
                 } else {
-                    throwingIndexWriter.setThrowFailure(new IllegalArgumentException("simulated max token length"));
+                    throwingIndexWriter.setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                    expectThrows(IllegalArgumentException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
                 }
-                Engine.DeleteResult deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
-                assertNotNull(deleteResult.getFailure());
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {
                     // simulate close by corruption
-                    throwingIndexWriter.setThrowFailure(new CorruptIndexException("simulated", "hello"));
-                    try {
-                        if (randomBoolean()) {
-                            engine.index(indexForDoc(doc3));
-                        } else {
-                            engine.delete(new Engine.Delete("test", "2", newUid(doc2)));
-                        }
-                        fail("corruption should throw exceptions");
-                    } catch (Exception e) {
-                        assertThat(e, instanceOf(CorruptIndexException.class));
-                    }
+                    throwingIndexWriter.setThrowFailure(null);
+                    UncheckedIOException uncheckedIOException = expectThrows(UncheckedIOException.class, () -> {
+                        Engine.Index index = indexForDoc(doc3);
+                        index.parsedDoc().rootDoc().add(new StoredField("foo", "bar") {
+                            // this is a hack to add a failure during store document which triggers a tragic event
+                            // and in turn fails the engine
+                            @Override
+                            public BytesRef binaryValue() {
+                                throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
+                            }
+                        });
+                        engine.index(index);
+                    });
+                    assertTrue(uncheckedIOException.getCause() instanceof MockDirectoryWrapper.FakeIOException);
                 } else {
                     // normal close
                     engine.close();
@@ -2807,7 +2803,11 @@ public class InternalEngineTests extends ESTestCase {
                 }
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < docs.size()) {
-                    engine.index(docs.get(docOffset));
+                    try {
+                        engine.index(docs.get(docOffset));
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
                 }
             });
             thread[i].start();
@@ -2867,7 +2867,11 @@ public class InternalEngineTests extends ESTestCase {
                     }
                     int docOffset;
                     while ((docOffset = offset.incrementAndGet()) < docs.size()) {
-                        engine.index(docs.get(docOffset));
+                        try {
+                            engine.index(docs.get(docOffset));
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                     }
                 }
             };
@@ -3055,7 +3059,13 @@ public class InternalEngineTests extends ESTestCase {
                 final ParsedDocument doc = testParsedDocument(id, "test", null, testDocumentWithTextField(), SOURCE, null);
 
                 skip.set(randomBoolean());
-                final Thread thread = new Thread(() -> finalInitialEngine.index(indexForDoc(doc)));
+                final Thread thread = new Thread(() -> {
+                    try {
+                        finalInitialEngine.index(indexForDoc(doc));
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                });
                 thread.start();
                 if (skip.get()) {
                     threads.add(thread);

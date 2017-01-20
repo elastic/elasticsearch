@@ -10,17 +10,23 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -116,6 +122,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class MlPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "ml";
@@ -214,37 +221,40 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<Class<? extends RestHandler>> getRestHandlers() {
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                RestGetJobsAction.class,
-                RestGetJobStatsAction.class,
-                RestPutJobAction.class,
-                RestDeleteJobAction.class,
-                RestOpenJobAction.class,
-                RestGetListAction.class,
-                RestPutListAction.class,
-                RestDeleteListAction.class,
-                RestGetInfluencersAction.class,
-                RestGetRecordsAction.class,
-                RestGetBucketsAction.class,
-                RestPostDataAction.class,
-                RestCloseJobAction.class,
-                RestFlushJobAction.class,
-                RestValidateDetectorAction.class,
-                RestValidateTransformAction.class,
-                RestValidateTransformsAction.class,
-                RestGetCategoriesAction.class,
-                RestGetModelSnapshotsAction.class,
-                RestRevertModelSnapshotAction.class,
-                RestUpdateModelSnapshotAction.class,
-                RestGetDatafeedsAction.class,
-                RestGetDatafeedStatsAction.class,
-                RestPutDatafeedAction.class,
-                RestDeleteDatafeedAction.class,
-                RestStartDatafeedAction.class,
-                RestStopDatafeedAction.class,
-                RestDeleteModelSnapshotAction.class
-                );
+            new RestGetJobsAction(settings, restController),
+            new RestGetJobStatsAction(settings, restController),
+            new RestPutJobAction(settings, restController),
+            new RestDeleteJobAction(settings, restController),
+            new RestOpenJobAction(settings, restController),
+            new RestGetListAction(settings, restController),
+            new RestPutListAction(settings, restController),
+            new RestDeleteListAction(settings, restController),
+            new RestGetInfluencersAction(settings, restController),
+            new RestGetRecordsAction(settings, restController),
+            new RestGetBucketsAction(settings, restController),
+            new RestPostDataAction(settings, restController),
+            new RestCloseJobAction(settings, restController),
+            new RestFlushJobAction(settings, restController),
+            new RestValidateDetectorAction(settings, restController),
+            new RestValidateTransformAction(settings, restController),
+            new RestValidateTransformsAction(settings, restController),
+            new RestGetCategoriesAction(settings, restController),
+            new RestGetModelSnapshotsAction(settings, restController),
+            new RestRevertModelSnapshotAction(settings, restController),
+            new RestUpdateModelSnapshotAction(settings, restController),
+            new RestGetDatafeedsAction(settings, restController),
+            new RestGetDatafeedStatsAction(settings, restController),
+            new RestPutDatafeedAction(settings, restController),
+            new RestDeleteDatafeedAction(settings, restController),
+            new RestStartDatafeedAction(settings, restController),
+            new RestStopDatafeedAction(settings, restController),
+            new RestDeleteModelSnapshotAction(settings, restController)
+        );
     }
 
     @Override

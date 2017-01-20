@@ -65,7 +65,9 @@ public final class SettingsLoaderFactory {
      *
      * @param source The underlying settings content.
      * @return A settings loader.
+     * @deprecated use {@link #loaderFromXContentType(XContentType)} instead
      */
+    @Deprecated
     public static SettingsLoader loaderFromSource(String source) {
         if (source.indexOf('{') != -1 && source.indexOf('}') != -1) {
             return new JsonSettingsLoader(true);
@@ -77,7 +79,8 @@ public final class SettingsLoaderFactory {
     }
 
     /**
-     * Returns a {@link SettingsLoader} based on the {@link XContentType}
+     * Returns a {@link SettingsLoader} based on the {@link XContentType}. Note only types that return {@code true} from
+     * {@link XContentType#hasStringRepresentation()} are supported
      *
      * @param xContentType The content type
      * @return A settings loader.

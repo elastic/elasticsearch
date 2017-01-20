@@ -968,6 +968,7 @@ public final class Settings implements ToXContent {
         /**
          * Loads settings from the actual string content that represents them using the
          * {@link SettingsLoaderFactory#loaderFromXContentType(XContentType)} method to obtain a loader
+         * Note only types that return {@code true} from {@link XContentType#hasStringRepresentation()} are supported
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromXContentType(xContentType);
@@ -982,7 +983,7 @@ public final class Settings implements ToXContent {
 
         /**
          * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
          */
         public Builder loadFromPath(Path path) throws IOException {
             // NOTE: loadFromStream will close the input stream
@@ -991,7 +992,7 @@ public final class Settings implements ToXContent {
 
         /**
          * Loads settings from a stream that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
          */
         public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);

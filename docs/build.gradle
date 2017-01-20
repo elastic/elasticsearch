@@ -30,7 +30,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/filter-aggregation.asciidoc',
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
-  'reference/aggregations/bucket/global-aggregation.asciidoc',
   'reference/aggregations/bucket/histogram-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',

@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -145,6 +146,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             try {
                 int timeout = (int) azureStorageSettings.getTimeout().getMillis();
                 client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+                client.getDefaultRequestOptions().setRetryPolicyFactory(new RetryExponentialRetry(1000 * 30, 7));
             } catch (ClassCastException e) {
                 throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
                     "]. It can not be longer than 2,147,483,647ms.");

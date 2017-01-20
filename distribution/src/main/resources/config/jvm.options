@@ -98,6 +98,13 @@
 # ensure the directory exists
 #-Xloggc:${loggc}
 
+# By default, the GC log file will not rotate.
+# By uncommenting the lines below, the GC log file
+# will be rotated every 128MB at most 32 times.
+#-XX:+UseGCLogFileRotation
+#-XX:NumberOfGCLogFiles=32
+#-XX:GCLogFileSize=128M
+
 # Elasticsearch 5.0.0 will throw an exception on unquoted field names in JSON.
 # If documents were already indexed with unquoted fields in a previous version
 # of Elasticsearch, some operations may throw errors.

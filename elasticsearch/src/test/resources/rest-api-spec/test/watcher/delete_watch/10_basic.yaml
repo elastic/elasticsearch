@@ -42,3 +42,14 @@
       xpack.watcher.delete_watch:
         id: "my_watch"
   - match: { found: true }
+
+---
+"Non existent watch returns 404":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      xpack.watcher.delete_watch:
+        id: "non-existent-watch"
+      catch: missing

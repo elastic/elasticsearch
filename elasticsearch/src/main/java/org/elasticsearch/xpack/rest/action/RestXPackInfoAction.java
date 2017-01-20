@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.rest.action;
 
-import java.io.IOException;
-import java.util.EnumSet;
-
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,16 +15,16 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.action.XPackInfoRequest;
-import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
+
+import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackInfoAction extends XPackRestHandler {
-
-    @Inject
     public RestXPackInfoAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(HEAD, URI_BASE, this);

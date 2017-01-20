@@ -8,21 +8,27 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
 import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
 
@@ -64,13 +70,16 @@ public class Licensing implements ActionPlugin {
     }
 
     @Override
-    public List<Class<? extends RestHandler>> getRestHandlers() {
-        if (isTribeNode) {
-            return Collections.singletonList(RestGetLicenseAction.class);
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster) {
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new RestGetLicenseAction(settings, restController));
+        if (false == isTribeNode) {
+            handlers.add(new RestPutLicenseAction(settings, restController));
+            handlers.add(new RestDeleteLicenseAction(settings, restController));
         }
-        return Arrays.asList(RestPutLicenseAction.class,
-                RestGetLicenseAction.class,
-                RestDeleteLicenseAction.class);
+        return handlers;
     }
 
     public List<Setting<?>> getSettings() {

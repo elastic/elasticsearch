@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClearRolesCacheAction extends BaseRestHandler {
-
-    @Inject
     public RestClearRolesCacheAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_xpack/security/role/{name}/_clear_cache", this);

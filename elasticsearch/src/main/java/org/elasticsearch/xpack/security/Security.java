@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -23,9 +25,12 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -38,6 +43,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -169,6 +175,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
+    private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
@@ -241,8 +248,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
 
         List<Object> components = new ArrayList<>();
-        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext(), cryptoService);
-        components.add(securityContext);
+        securityContext.set(new SecurityContext(settings, threadPool.getThreadContext(), cryptoService));
+        components.add(securityContext.get());
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client);
@@ -335,7 +342,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
-                sslService, securityContext, destructiveOperations));
+                sslService, securityContext.get(), destructiveOperations));
         return components;
     }
 
@@ -500,21 +507,24 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     @Override
-    public List<Class<? extends RestHandler>> getRestHandlers() {
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(RestAuthenticateAction.class,
-                RestClearRealmCacheAction.class,
-                RestClearRolesCacheAction.class,
-                RestGetUsersAction.class,
-                RestPutUserAction.class,
-                RestDeleteUserAction.class,
-                RestGetRolesAction.class,
-                RestPutRoleAction.class,
-                RestDeleteRoleAction.class,
-                RestChangePasswordAction.class,
-                RestSetEnabledAction.class);
+        return Arrays.asList(
+                new RestAuthenticateAction(settings, restController, securityContext.get(), licenseState),
+                new RestClearRealmCacheAction(settings, restController),
+                new RestClearRolesCacheAction(settings, restController),
+                new RestGetUsersAction(settings, restController),
+                new RestPutUserAction(settings, restController),
+                new RestDeleteUserAction(settings, restController),
+                new RestGetRolesAction(settings, restController),
+                new RestPutRoleAction(settings, restController),
+                new RestDeleteRoleAction(settings, restController),
+                new RestChangePasswordAction(settings, restController, securityContext.get()),
+                new RestSetEnabledAction(settings, restController));
     }
 
     @Override

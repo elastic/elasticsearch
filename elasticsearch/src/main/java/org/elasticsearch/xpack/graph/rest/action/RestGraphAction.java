@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,7 +55,6 @@ public class RestGraphAction extends XPackRestHandler {
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField TERM_FIELD = new ParseField("term");
 
-    @Inject
     public RestGraphAction(Settings settings, RestController controller) {
         super(settings);
 

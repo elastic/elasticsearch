@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -26,8 +25,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestWatcherStatsAction extends WatcherRestHandler {
-
-    @Inject
     public RestWatcherStatsAction(Settings settings, RestController controller) {
         super(settings);
 

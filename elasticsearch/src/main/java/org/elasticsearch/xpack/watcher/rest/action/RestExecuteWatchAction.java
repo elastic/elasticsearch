@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
@@ -35,13 +33,8 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
 public class RestExecuteWatchAction extends WatcherRestHandler {
-
-    final TriggerService triggerService;
-
-    @Inject
-    public RestExecuteWatchAction(Settings settings, RestController controller, TriggerService triggerService) {
+    public RestExecuteWatchAction(Settings settings, RestController controller) {
         super(settings);
-        this.triggerService = triggerService;
 
         // @deprecated Remove deprecations in 6.0
         controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_execute", this,

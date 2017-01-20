@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,8 +28,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest endpoint to add a Role to the security index
  */
 public class RestPutRoleAction extends BaseRestHandler {
-
-    @Inject
     public RestPutRoleAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_xpack/security/role/{name}", this);

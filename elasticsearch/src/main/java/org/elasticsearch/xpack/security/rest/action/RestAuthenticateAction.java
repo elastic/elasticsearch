@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,6 @@ public class RestAuthenticateAction extends BaseRestHandler {
     private final SecurityContext securityContext;
     private final XPackLicenseState licenseState;
 
-    @Inject
     public RestAuthenticateAction(Settings settings, RestController controller, SecurityContext securityContext,
                                   XPackLicenseState licenseState) {
         super(settings);

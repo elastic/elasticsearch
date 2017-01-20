@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -26,8 +25,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteWatchAction extends WatcherRestHandler {
-
-    @Inject
     public RestDeleteWatchAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0

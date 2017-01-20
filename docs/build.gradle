@@ -24,7 +24,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/datehistogram-aggregation.asciidoc',
   'reference/aggregations/bucket/daterange-aggregation.asciidoc',
   'reference/aggregations/bucket/diversified-sampler-aggregation.asciidoc',
   'reference/aggregations/bucket/filter-aggregation.asciidoc',

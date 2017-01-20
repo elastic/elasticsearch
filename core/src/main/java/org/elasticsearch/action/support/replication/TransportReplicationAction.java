@@ -312,7 +312,7 @@ public abstract class TransportReplicationAction<
                 } else {
                     setPhase(replicationTask, "primary");
                     final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
-                    final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
+                    final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData);
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request, new ActionListener<PrimaryResult>() {
                         @Override
@@ -876,8 +876,8 @@ public abstract class TransportReplicationAction<
      * Indicated whether this operation should be replicated to shadow replicas or not. If this method returns true the replication phase
      * will be skipped. For example writes such as index and delete don't need to be replicated on shadow replicas but refresh and flush do.
      */
-    protected boolean shouldExecuteReplication(Settings settings) {
-        return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
+    protected boolean shouldExecuteReplication(IndexMetaData indexMetaData) {
+        return IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false;
     }
 
     class PrimaryShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult>, Releasable {

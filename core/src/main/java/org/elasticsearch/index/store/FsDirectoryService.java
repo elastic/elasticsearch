@@ -91,7 +91,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         Set<String> preLoadExtensions = new HashSet<>(
                 indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
+        if (indexSettings.isOnSharedFilesystem()) {
             wrapped = new SleepingLockWrapper(wrapped, 5000);
         }
         return new RateLimitedFSDirectory(wrapped, this, this) ;

@@ -481,16 +481,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                partial(lenientNodeBooleanValue(entry.getValue(), name));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                includeGlobalState = lenientNodeBooleanValue(entry.getValue(), name);
             } else if (name.equals("include_aliases")) {
-                includeAliases = lenientNodeBooleanValue(entry.getValue());
+                includeAliases = lenientNodeBooleanValue(entry.getValue(), name);
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

@@ -96,7 +96,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", "yes").endObject()
+                .startObject("_timestamp").field("enabled", "true").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
@@ -146,7 +146,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testTimestampMissingDefaultToEpochValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                     .field("default", "1970-01-01")
                     .field("format", "YYYY-MM-dd")
                 .endObject()
@@ -171,7 +171,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testTimestampMissingNowDefaultValue() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                     .field("default", "now")
                     .field("format", "YYYY-MM-dd")
                 .endObject()
@@ -199,7 +199,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testPathMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                     .field("path", "timestamp")
                     .field("default", (String) null)
                 .endObject()
@@ -213,7 +213,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testTimestampMissingWithForcedNullDefaultShouldFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                     .field("default", (String) null)
                 .endObject()
                 .endObject().endObject();
@@ -227,7 +227,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testTimestampDefaultAndIgnore() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                     .field("default", "1971-12-26")
                     .field("ignore_missing", false)
                 .endObject()
@@ -242,7 +242,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
     public void testTimestampMissingShouldNotFail() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                    .field("enabled", "yes")
+                    .field("enabled", "true")
                 .endObject()
                 .endObject().endObject();
         XContentBuilder doc = XContentFactory.jsonBuilder()

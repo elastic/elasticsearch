@@ -26,6 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -74,7 +76,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
-
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
@@ -310,7 +311,13 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
-        return Booleans.parseBoolean(get(setting), defaultValue);
+        String rawValue = get(setting);
+        Boolean booleanValue = Booleans.parseBooleanExact(rawValue, defaultValue);
+        if (rawValue != null && Booleans.isStrictlyBoolean(rawValue) == false) {
+            DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+            deprecationLogger.deprecated("Expected a boolean for setting [{}] but got [{}]", setting, rawValue);
+        }
+        return booleanValue;
     }
 
     /**

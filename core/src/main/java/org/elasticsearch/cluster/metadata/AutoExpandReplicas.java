@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
@@ -28,12 +30,17 @@ import org.elasticsearch.common.settings.Setting.Property;
  * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
  */
 final class AutoExpandReplicas {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(AutoExpandReplicas.class));
+
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "false", (value) -> {
         final int min;
         final int max;
-        if (Booleans.parseBoolean(value, true) == false) {
+        if (Booleans.isExplicitFalse(value)) {
+            if (Booleans.isStrictlyBoolean(value) == false) {
+                DEPRECATION_LOGGER.deprecated("Expected [false] for setting [{}] but got [{}]", IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, value);
+            }
             return new AutoExpandReplicas(0, 0, false);
         }
         final int dash = value.indexOf('-');

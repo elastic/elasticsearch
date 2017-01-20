@@ -130,7 +130,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+                    EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode, fieldName) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
                 } else if (fieldName.equals("format")) {
@@ -145,7 +145,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("ignore_missing")) {
-                    ignoreMissing = lenientNodeBooleanValue(fieldNode);
+                    ignoreMissing = lenientNodeBooleanValue(fieldNode, fieldName);
                     builder.ignoreMissing(ignoreMissing);
                     iterator.remove();
                 }

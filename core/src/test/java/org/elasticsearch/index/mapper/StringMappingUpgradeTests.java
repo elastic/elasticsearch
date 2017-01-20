@@ -295,7 +295,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             Object store;
             if (randomBoolean()) {
                 store = randomFrom("yes", "no");
-                warnings.add("Expected a boolean for property [store] but got [" + store + "]");
+                warnings.add("Expected a boolean for property [field.store] but got [" + store + "]");
             } else {
                 store = randomFrom(true, false);
             }

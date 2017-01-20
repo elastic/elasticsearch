@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentParserTests extends ESTestCase {
@@ -100,6 +103,31 @@ public class XContentParserTests extends ESTestCase {
             token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
+        }
+    }
+
+    public void testReadBooleans() throws IOException {
+        String falsy = randomFrom("\"false\"", "false");
+        String truthy = randomFrom("\"true\"", "true");
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("foo"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValue());
+            assertFalse(parser.booleanValue());
+
+            token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.currentName(), equalTo("bar"));
+            token = parser.nextToken();
+            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertTrue(parser.isBooleanValue());
+            assertTrue(parser.booleanValue());
         }
     }
 }

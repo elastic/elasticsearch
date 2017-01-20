@@ -123,7 +123,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
             String propName = entry.getKey();
             Object propNode = entry.getValue();
             if (propName.equals(Names.COERCE)) {
-                builder.coerce = XContentMapValues.lenientNodeBooleanValue(propNode);
+                builder.coerce = XContentMapValues.lenientNodeBooleanValue(propNode, propName);
                 iterator.remove();
             }
         }

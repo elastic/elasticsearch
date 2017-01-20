@@ -447,8 +447,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "string").field("store", "yes").endObject()
-            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+            .startObject("field1").field("type", "string").field("store", "true").endObject()
+            .startObject("field2").field("type", "string").field("store", "true").field("index", "not_analyzed").endObject()
             .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
@@ -488,8 +488,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if(testTemplate) {
             logger.info("-->  creating test template");
             assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-                .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                .startObject("field1").field("type", "string").field("store", "true").endObject()
+                .startObject("field2").field("type", "string").field("store", "true").field("index", "not_analyzed").endObject()
                 .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
         }
 

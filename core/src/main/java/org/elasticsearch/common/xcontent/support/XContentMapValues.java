@@ -24,8 +24,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -40,6 +43,7 @@ import java.util.function.Function;
  *
  */
 public class XContentMapValues {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(XContentMapValues.class));
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -418,25 +422,35 @@ public class XContentMapValues {
     /**
      * This method is very lenient, use {@link #nodeBooleanValue} instead.
      */
-    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
+    public static boolean lenientNodeBooleanValue(Object node, String name, boolean defaultValue) {
         if (node == null) {
             return defaultValue;
         }
-        return lenientNodeBooleanValue(node);
+        return lenientNodeBooleanValue(node, name);
     }
 
     /**
      * This method is very lenient, use {@link #nodeBooleanValue} instead.
      */
-    public static boolean lenientNodeBooleanValue(Object node) {
+    public static boolean lenientNodeBooleanValue(Object node, String name) {
+        boolean interpretedAsLenient = false;
+        boolean booleanValue;
+
         if (node instanceof Boolean) {
-            return (Boolean) node;
+            booleanValue = (Boolean) node;
+        } else if (node instanceof Number) {
+            interpretedAsLenient = true;
+            booleanValue = ((Number) node).intValue() != 0;
+        } else {
+            String value = node.toString();
+            booleanValue = !(value.equals("false") || value.equals("0") || value.equals("off"));
+            interpretedAsLenient = Booleans.isStrictlyBoolean(value) == false;
         }
-        if (node instanceof Number) {
-            return ((Number) node).intValue() != 0;
+
+        if (interpretedAsLenient) {
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] but got [{}]", name, node.toString());
         }
-        String value = node.toString();
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+        return booleanValue;
     }
 
     public static boolean nodeBooleanValue(Object node) {

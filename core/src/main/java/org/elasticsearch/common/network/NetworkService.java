@@ -60,12 +60,6 @@ public class NetworkService extends AbstractComponent {
             Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
         public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
             Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
-        public static final Setting<Boolean> TCP_BLOCKING =
-            Setting.boolSetting("network.tcp.blocking", false, Property.NodeScope);
-        public static final Setting<Boolean> TCP_BLOCKING_SERVER =
-            Setting.boolSetting("network.tcp.blocking_server", TCP_BLOCKING, Property.NodeScope);
-        public static final Setting<Boolean> TCP_BLOCKING_CLIENT =
-            Setting.boolSetting("network.tcp.blocking_client", TCP_BLOCKING, Property.NodeScope);
         public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
             Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
     }

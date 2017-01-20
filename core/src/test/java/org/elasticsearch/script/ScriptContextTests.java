@@ -37,7 +37,7 @@ public class ScriptContextTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "off")
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "false")
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();

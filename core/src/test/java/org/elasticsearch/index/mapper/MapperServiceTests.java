@@ -234,4 +234,37 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                         MergeReason.MAPPING_UPDATE, random().nextBoolean()));
         assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
     }
+
+     public void testPartitionedConstraints() {
+        // partitioned index must have routing
+         IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("type", "{\"type\":{}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
+
+        // partitioned index cannot have parent/child relationships
+        IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}")
+                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(parentException.getMessage(), parentException.getMessage().contains("cannot have a _parent field"));
+
+        // valid partitioned index
+        assertTrue(client().admin().indices().prepareCreate("test-index")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 4)
+                .put("index.routing_partition_size", 2))
+            .execute().actionGet().isAcknowledged());
+    }
 }

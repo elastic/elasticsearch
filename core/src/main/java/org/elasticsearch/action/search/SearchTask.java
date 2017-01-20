@@ -31,4 +31,9 @@ public class SearchTask extends CancellableTask {
         super(id, type, action, description, parentTaskId);
     }
 
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        return true;
+    }
+
 }

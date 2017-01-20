@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -59,14 +58,14 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
-    private static ThreadPool THREAD_POOL;
+    private static ThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
     private TransportBulkAction transportBulkAction;
 
     @BeforeClass
     public static void createThreadPool() {
-        THREAD_POOL = new TestThreadPool("DynamicMappingDisabledTests");
+        threadPool = new TestThreadPool("DynamicMappingDisabledTests");
     }
 
     @Override
@@ -75,22 +74,22 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
                 .build();
-        clusterService = createClusterService(THREAD_POOL);
-        Transport transport = new MockTcpTransport(settings, THREAD_POOL, BigArrays.NON_RECYCLING_INSTANCE,
+        clusterService = createClusterService(threadPool);
+        Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()),
                 new NetworkService(settings, Collections.emptyList()));
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ShardStateAction shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
+        ShardStateAction shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, threadPool);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), indexNameExpressionResolver);
         UpdateHelper updateHelper = new UpdateHelper(settings, null);
         TransportShardBulkAction shardBulkAction = new TransportShardBulkAction(settings, transportService, clusterService,
-                indicesService, THREAD_POOL, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
-        transportBulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
+                indicesService, threadPool, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
+        transportBulkAction = new TransportBulkAction(settings, threadPool, transportService, clusterService,
                 null, shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
     }
 
@@ -104,13 +103,12 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     @AfterClass
     public static void destroyThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         // since static must set to null to be eligible for collection
-        THREAD_POOL = null;
+        threadPool = null;
     }
 
     public void testDynamicDisabled() {
-
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
         BulkRequest bulkRequest = new BulkRequest();
@@ -120,16 +118,14 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkResponse) {
-                BulkItemResponse itemResponse = bulkResponse.getItems()[0];
-                assertTrue(itemResponse.isFailed());
-                assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-                assertEquals(itemResponse.getFailure().getCause().getMessage(), "no such index");
-                onFailureCalled.set(true);
+                fail("onResponse shouldn't be called");
             }
 
             @Override
             public void onFailure(Exception e) {
-                fail("unexpected failure in bulk action, expected failed bulk item");
+                onFailureCalled.set(true);
+                assertThat(e, instanceOf(IndexNotFoundException.class));
+                assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
             }
         });
 

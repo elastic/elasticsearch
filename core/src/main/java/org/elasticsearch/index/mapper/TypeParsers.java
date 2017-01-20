@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -30,17 +31,13 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
@@ -54,17 +51,37 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TypeParsers.class));
-    private static final Set<String> BOOLEAN_STRINGS = new HashSet<>(Arrays.asList("true", "false"));
 
-    public static boolean nodeBooleanValue(String name, Object node, Mapper.TypeParser.ParserContext parserContext) {
-        // TODO: remove this leniency in 6.0
-        if (BOOLEAN_STRINGS.contains(node.toString()) == false) {
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] but got [{}]", name, node);
+    //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
+    public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node,
+                                           Mapper.TypeParser.ParserContext parserContext) {
+        if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            return XContentMapValues.nodeBooleanValue(node, fieldName + "." + propertyName);
+        } else {
+            return nodeBooleanValueLenient(fieldName, propertyName, node);
         }
-        return XContentMapValues.lenientNodeBooleanValue(node);
     }
 
-    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+    //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
+    public static boolean nodeBooleanValueLenient(String fieldName, String propertyName, Object node) {
+        if (Booleans.isBoolean(node.toString()) == false) {
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] for field [{}] but got [{}]",
+                propertyName, fieldName, node);
+        }
+        if (node instanceof Boolean) {
+            return (Boolean) node;
+        }
+        if (node instanceof Number) {
+            return ((Number) node).intValue() != 0;
+        }
+        @SuppressWarnings("deprecated")
+        boolean value = Booleans.parseBooleanLenient(node.toString(), false);
+        return value;
+    }
+
+
+    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                                     Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;
         NamedAnalyzer searchAnalyzer = null;
         NamedAnalyzer searchQuoteAnalyzer = null;
@@ -77,16 +94,17 @@ public class TypeParsers {
                 parseTermVector(name, propNode.toString(), builder);
                 iterator.remove();
             } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(nodeBooleanValue("store_term_vectors", propNode, parserContext));
+                builder.storeTermVectors(nodeBooleanValue(name, "store_term_vectors", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(nodeBooleanValue("store_term_vector_offsets", propNode, parserContext));
+                builder.storeTermVectorOffsets(nodeBooleanValue(name, "store_term_vector_offsets", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(nodeBooleanValue("store_term_vector_positions", propNode, parserContext));
+                builder.storeTermVectorPositions(
+                    nodeBooleanValue(name, "store_term_vector_positions", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(nodeBooleanValue("store_term_vector_payloads", propNode, parserContext));
+                builder.storeTermVectorPayloads(nodeBooleanValue(name,"store_term_vector_payloads", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
@@ -117,7 +135,8 @@ public class TypeParsers {
         }
 
         if (searchAnalyzer == null && searchQuoteAnalyzer != null) {
-            throw new MapperParsingException("analyzer and search_analyzer on field [" + name + "] must be set when search_quote_analyzer is set");
+            throw new MapperParsingException("analyzer and search_analyzer on field [" + name +
+                "] must be set when search_quote_analyzer is set");
         }
 
         if (searchAnalyzer == null) {
@@ -139,16 +158,17 @@ public class TypeParsers {
         }
     }
 
-    public static boolean parseNorms(FieldMapper.Builder builder, String propName, Object propNode, Mapper.TypeParser.ParserContext parserContext) {
+    public static boolean parseNorms(FieldMapper.Builder builder, String fieldName, String propName, Object propNode,
+                                     Mapper.TypeParser.ParserContext parserContext) {
         if (propName.equals("norms")) {
             if (propNode instanceof Map) {
                 final Map<String, Object> properties = nodeMapValue(propNode, "norms");
-                for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext();) {
+                for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext(); ) {
                     Entry<String, Object> entry2 = propsIterator.next();
                     final String propName2 = entry2.getKey();
                     final Object propNode2 = entry2.getValue();
                     if (propName2.equals("enabled")) {
-                        builder.omitNorms(!lenientNodeBooleanValue(propNode2));
+                        builder.omitNorms(nodeBooleanValue(fieldName, "enabled", propNode2, parserContext) == false);
                         propsIterator.remove();
                     } else if (propName2.equals("loading")) {
                         // ignore for bw compat
@@ -156,13 +176,14 @@ public class TypeParsers {
                     }
                 }
                 DocumentMapperParser.checkNoRemainingFields(propName, properties, parserContext.indexVersionCreated());
-                DEPRECATION_LOGGER.deprecated("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
+                DEPRECATION_LOGGER.deprecated("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use " +
+                    "[norms:true/false] instead");
             } else {
-                builder.omitNorms(nodeBooleanValue("norms", propNode, parserContext) == false);
+                builder.omitNorms(nodeBooleanValue(fieldName,"norms", propNode, parserContext) == false);
             }
             return true;
         } else if (propName.equals("omit_norms")) {
-            builder.omitNorms(nodeBooleanValue("norms", propNode, parserContext));
+            builder.omitNorms(nodeBooleanValue(fieldName,"norms", propNode, parserContext));
             DEPRECATION_LOGGER.deprecated("[omit_norms] is deprecated, please use [norms] instead with the opposite boolean value");
             return true;
         } else {
@@ -174,14 +195,15 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
-    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
+    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                      Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext(); ) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
-            if (parseNorms(builder, propName, propNode, parserContext)) {
+            if (parseNorms(builder, name, propName, propNode, parserContext)) {
                 iterator.remove();
             }
         }
@@ -190,8 +212,8 @@ public class TypeParsers {
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
-        Version indexVersionCreated = parserContext.indexVersionCreated();
+    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                  Mapper.TypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
@@ -204,28 +226,29 @@ public class TypeParsers {
                 throw new MapperParsingException("[" + propName + "] must not have a [null] value");
             }
             if (propName.equals("store")) {
-                builder.store(parseStore(propNode.toString()));
+                builder.store(nodeBooleanValue(name,"store", propNode.toString(), parserContext));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                builder.index(parseIndex(name, propNode.toString()));
+                builder.index(nodeBooleanValue(name, "index", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(nodeBooleanValue(DOC_VALUES, propNode, parserContext));
+                builder.docValues(nodeBooleanValue(name, DOC_VALUES, propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
                 iterator.remove();
             } else if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)
-                    && parseNorms(builder, propName, propNode, parserContext)) {
+                && parseNorms(builder, name, propName, propNode, parserContext)) {
                 iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field [" + name + "] which is within a multi field.");
+                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field ["
+                        + name + "] which is within a multi field.");
                 } else {
-                    builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
+                    builder.includeInAll(nodeBooleanValue(name, "include_in_all", propNode, parserContext));
                 }
                 iterator.remove();
             } else if (propName.equals("similarity")) {
@@ -241,7 +264,8 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] which is within a multi field.");
+                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
+                        "which is within a multi field.");
                 } else {
                     parseCopyFields(propNode, builder);
                 }
@@ -250,7 +274,8 @@ public class TypeParsers {
         }
     }
 
-    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
+                                          String propName, Object propNode) {
         parserContext = parserContext.createMultiFieldContext(parserContext);
         if (propName.equals("fields")) {
 
@@ -262,13 +287,14 @@ public class TypeParsers {
                 multiFieldsPropNodes = (Map<String, Object>) propNode;
             } else {
                 throw new MapperParsingException("expected map for property [fields] on field [" + propNode + "] or " +
-                        "[" + propName + "] but got a " + propNode.getClass());
+                    "[" + propName + "] but got a " + propNode.getClass());
             }
 
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
                 if (multiFieldName.contains(".")) {
-                    throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot contain '.'");
+                    throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" +
+                        " contain '.'");
                 }
                 if (!(multiFieldEntry.getValue() instanceof Map)) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
@@ -343,40 +369,11 @@ public class TypeParsers {
         }
     }
 
-    private static boolean parseIndex(String fieldName, String index) throws MapperParsingException {
-        switch (index) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        case "not_analyzed":
-        case "analyzed":
-        case "no":
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [index] but got [{}]", index);
-            return "no".equals(index) == false;
-        default:
-            throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
-        }
-    }
-
-    private static boolean parseStore(String store) throws MapperParsingException {
-        if (BOOLEAN_STRINGS.contains(store) == false) {
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [store] but got [{}]", store);
-        }
-        if ("no".equals(store)) {
-            return false;
-        } else if ("yes".equals(store)) {
-            return true;
-        } else {
-            return lenientNodeBooleanValue(store);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public static void parseCopyFields(Object propNode, FieldMapper.Builder builder) {
         FieldMapper.CopyTo.Builder copyToBuilder = new FieldMapper.CopyTo.Builder();
         if (isArray(propNode)) {
-            for(Object node : (List<Object>) propNode) {
+            for (Object node : (List<Object>) propNode) {
                 copyToBuilder.add(nodeStringValue(node, null));
             }
         } else {

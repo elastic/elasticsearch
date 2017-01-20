@@ -59,8 +59,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         } else {
             ClusterState state = clusterService.state();
             ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncDeleteBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
-                    state).start();
+            new AsyncDeleteBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+                    listener).start();
         }
     }
 
@@ -72,12 +72,11 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     /**
      * Implementation of delete-by-query using scrolling and bulk.
      */
-    static class AsyncDeleteBySearchAction extends AbstractAsyncBulkIndexByScrollAction<DeleteByQueryRequest> {
-
+    static class AsyncDeleteBySearchAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
         public AsyncDeleteBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
+                ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
+                ActionListener<BulkIndexByScrollResponse> listener) {
+            super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
         }
 
         @Override
@@ -107,8 +106,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         }
 
         /**
-         * Overrides the parent {@link AbstractAsyncBulkIndexByScrollAction#copyMetadata(RequestWrapper, ScrollableHitSource.Hit)}
-         * method that is much more Update/Reindex oriented and so also copies things like timestamp/ttl which we
+         * Overrides the parent's implementation is much more Update/Reindex oriented and so also copies things like timestamp/ttl which we
          * don't care for a deletion.
          */
         @Override

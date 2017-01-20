@@ -53,7 +53,7 @@ curl -XPUT localhost:9200/test/  -d '
          "filter" : {
             "code" : {
                "type" : "pattern_capture",
-               "preserve_original" : 1,
+               "preserve_original" : true,
                "patterns" : [
                   "(\\p{Ll}+|\\p{Lu}\\p{Ll}+|\\p{Lu}+)",
                   "(\\d+)"
@@ -94,7 +94,7 @@ curl -XPUT localhost:9200/test/  -d '
          "filter" : {
             "email" : {
                "type" : "pattern_capture",
-               "preserve_original" : 1,
+               "preserve_original" : true,
                "patterns" : [
                   "([^@]+)",
                   "(\\p{L}+)",

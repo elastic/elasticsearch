@@ -1,7 +1,7 @@
 [[indices-shadow-replicas]]
 == Shadow replica indices
 
-experimental[]
+deprecated[5.2.0, Shadow replicas don't see much usage and we are planning to remove them]
 
 If you would like to use a shared filesystem, you can use the shadow replicas
 settings to choose where on disk the data for an index should be kept, as well

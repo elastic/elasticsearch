@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.vagrant
 import org.apache.commons.io.output.TeeOutputStream
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
-import org.gradle.logging.ProgressLoggerFactory
 
 import javax.inject.Inject
 

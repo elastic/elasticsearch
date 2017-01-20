@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,7 +127,7 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
                     ex.getMessage());
         }
     }
@@ -475,6 +477,33 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo"));
     }
 
+    public void testGetAllConcreteSettings() {
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+
+        Settings settings = Settings.builder()
+            .putArray("foo.1.bar", "1", "2")
+            .putArray("foo.2.bar", "3", "4", "5")
+            .putArray("foo.bar", "6")
+            .putArray("some.other", "6")
+            .putArray("foo.3.bar", "6")
+            .build();
+        Stream<Setting<List<String>>> allConcreteSettings = listAffixSetting.getAllConcreteSettings(settings);
+        Map<String, List<String>> collect = allConcreteSettings.collect(Collectors.toMap(Setting::getKey, (s) -> s.get(settings)));
+        assertEquals(3, collect.size());
+        assertEquals(Arrays.asList("1", "2"), collect.get("foo.1.bar"));
+        assertEquals(Arrays.asList("3", "4", "5"), collect.get("foo.2.bar"));
+        assertEquals(Arrays.asList("6"), collect.get("foo.3.bar"));
+    }
+
+    public void testAffixSettingsFailOnGet() {
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope));
+        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
+        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.getRaw(Settings.EMPTY));
+        assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
+        assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
+    }
 
     public void testMinMaxInt() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);

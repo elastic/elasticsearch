@@ -315,7 +315,7 @@ public abstract class TransportReplicationAction<
                 } else {
                     setPhase(replicationTask, "primary");
                     final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
-                    final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
+                    final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData);
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request,
                             ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
@@ -514,16 +514,15 @@ public abstract class TransportReplicationAction<
                             request),
                     e);
                 request.onRetry();
-                final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        context.close();
                         // Forking a thread on local node via transport service so that custom transport service have an
                         // opportunity to execute custom logic before the replica operation begins
                         String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
-                            new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
+                            new TransportChannelResponseHandler<>(logger, channel, extraMessage,
+                                () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             new ConcreteShardRequest<>(request, targetAllocationID),
                             handler);
@@ -664,7 +663,6 @@ public abstract class TransportReplicationAction<
                 return;
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
-            taskManager.registerChildTask(task, node.getId());
             if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
                 performLocalAction(state, primary, node);
             } else {
@@ -810,11 +808,9 @@ public abstract class TransportReplicationAction<
             }
             setPhase(task, "waiting_for_retry");
             request.onRetry();
-            final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    context.close();
                     run();
                 }
 
@@ -825,7 +821,6 @@ public abstract class TransportReplicationAction<
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    context.close();
                     // Try one more time...
                     run();
                 }
@@ -915,8 +910,8 @@ public abstract class TransportReplicationAction<
      * Indicated whether this operation should be replicated to shadow replicas or not. If this method returns true the replication phase
      * will be skipped. For example writes such as index and delete don't need to be replicated on shadow replicas but refresh and flush do.
      */
-    protected boolean shouldExecuteReplication(Settings settings) {
-        return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
+    protected boolean shouldExecuteReplication(IndexMetaData indexMetaData) {
+        return indexMetaData.isIndexUsingShadowReplicas() == false;
     }
 
     class ShardReference implements Releasable {

@@ -29,6 +29,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -38,6 +39,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -76,29 +79,31 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        int retry = 0;
-        while (retry <= maxRetries) {
-            try {
-                if (!client.doesBucketExist(bucket)) {
-                    CreateBucketRequest request = null;
-                    if (region != null) {
-                        request = new CreateBucketRequest(bucket, region);
-                    } else {
-                        request = new CreateBucketRequest(bucket);
+        SocketAccess.doPrivilegedVoid(() -> {
+            int retry = 0;
+            while (retry <= maxRetries) {
+                try {
+                    if (!client.doesBucketExist(bucket)) {
+                        CreateBucketRequest request;
+                        if (region != null) {
+                            request = new CreateBucketRequest(bucket, region);
+                        } else {
+                            request = new CreateBucketRequest(bucket);
+                        }
+                        request.setCannedAcl(this.cannedACL);
+                        client.createBucket(request);
                     }
-                    request.setCannedAcl(this.cannedACL);
-                    client.createBucket(request);
-                }
-                break;
-            } catch (AmazonClientException e) {
-                if (shouldRetry(e) && retry < maxRetries) {
-                    retry++;
-                } else {
-                    logger.debug("S3 client create bucket failed");
-                    throw e;
+                    break;
+                } catch (AmazonClientException e) {
+                    if (shouldRetry(e) && retry < maxRetries) {
+                        retry++;
+                    } else {
+                        logger.debug("S3 client create bucket failed");
+                        throw e;
+                    }
                 }
             }
-        }
+        });
     }
 
     @Override
@@ -114,7 +119,9 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         return bucket;
     }
 
-    public boolean serverSideEncryption() { return serverSideEncryption; }
+    public boolean serverSideEncryption() {
+        return serverSideEncryption;
+    }
 
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
@@ -131,45 +138,48 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) {
-        ObjectListing prevListing = null;
-        //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
-        //we can do at most 1K objects per delete
-        //We don't know the bucket name until first object listing
-        DeleteObjectsRequest multiObjectDeleteRequest = null;
-        ArrayList<KeyVersion> keys = new ArrayList<KeyVersion>();
-        while (true) {
-            ObjectListing list;
-            if (prevListing != null) {
-                list = client.listNextBatchOfObjects(prevListing);
-            } else {
-                list = client.listObjects(bucket, path.buildAsString());
-                multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-            }
-            for (S3ObjectSummary summary : list.getObjectSummaries()) {
-                keys.add(new KeyVersion(summary.getKey()));
-                //Every 500 objects batch the delete request
-                if (keys.size() > 500) {
-                    multiObjectDeleteRequest.setKeys(keys);
-                    client.deleteObjects(multiObjectDeleteRequest);
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            ObjectListing prevListing = null;
+            //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
+            //we can do at most 1K objects per delete
+            //We don't know the bucket name until first object listing
+            DeleteObjectsRequest multiObjectDeleteRequest = null;
+            ArrayList<KeyVersion> keys = new ArrayList<KeyVersion>();
+            while (true) {
+                ObjectListing list;
+                if (prevListing != null) {
+                    list = client.listNextBatchOfObjects(prevListing);
+                } else {
+                    list = client.listObjects(bucket, path.buildAsString());
                     multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-                    keys.clear();
+                }
+                for (S3ObjectSummary summary : list.getObjectSummaries()) {
+                    keys.add(new KeyVersion(summary.getKey()));
+                    //Every 500 objects batch the delete request
+                    if (keys.size() > 500) {
+                        multiObjectDeleteRequest.setKeys(keys);
+                        client.deleteObjects(multiObjectDeleteRequest);
+                        multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
+                        keys.clear();
+                    }
+                }
+                if (list.isTruncated()) {
+                    prevListing = list;
+                } else {
+                    break;
                 }
             }
-            if (list.isTruncated()) {
-                prevListing = list;
-            } else {
-                break;
+            if (!keys.isEmpty()) {
+                multiObjectDeleteRequest.setKeys(keys);
+                client.deleteObjects(multiObjectDeleteRequest);
             }
-        }
-        if (!keys.isEmpty()) {
-            multiObjectDeleteRequest.setKeys(keys);
-            client.deleteObjects(multiObjectDeleteRequest);
-        }
+            return null;
+        });
     }
 
     protected boolean shouldRetry(AmazonClientException e) {
         if (e instanceof AmazonS3Exception) {
-            AmazonS3Exception s3e = (AmazonS3Exception)e;
+            AmazonS3Exception s3e = (AmazonS3Exception) e;
             if (s3e.getStatusCode() == 400 && "RequestTimeout".equals(s3e.getErrorCode())) {
                 return true;
             }
@@ -194,7 +204,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
         try {
             StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
-            if(_storageClass.equals(StorageClass.Glacier)) {
+            if (_storageClass.equals(StorageClass.Glacier)) {
                 throw new BlobStoreException("Glacier storage class is not supported");
             }
 

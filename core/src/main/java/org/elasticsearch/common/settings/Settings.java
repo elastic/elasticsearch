@@ -26,6 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -311,6 +313,36 @@ public final class Settings implements ToXContent {
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
+    }
+
+    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
+    /**
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
+     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
+     *
+     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
+     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
+     *
+     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
+     */
+    @Deprecated
+    public Boolean getAsBooleanLenientForPreEs6Indices(
+        final Version indexVersion,
+        final String setting,
+        final Boolean defaultValue,
+        final DeprecationLogger deprecationLogger) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            //Only emit a warning if the setting's value is not a proper boolean
+            final String value = get(setting, "false");
+            if (Booleans.isBoolean(value) == false) {
+                @SuppressWarnings("deprecation")
+                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
+                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
+                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
+                return convertedValue;
+            }
+        }
+        return getAsBoolean(setting, defaultValue);
     }
 
     /**

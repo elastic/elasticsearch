@@ -1,7 +1,6 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
 
-import org.elasticsearch.painless.Definition;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -13,7 +12,7 @@ import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
-class PainlessLexer extends Lexer {
+abstract class PainlessLexer extends Lexer {
   static { RuntimeMetaData.checkVersion("4.5.1", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
@@ -106,6 +105,21 @@ class PainlessLexer extends Lexer {
   }
 
 
+  /**
+   * Check against the current whitelist to determine whether a token is a type
+   * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
+   * See also
+   * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
+   */
+  protected abstract boolean isSimpleType(String name);
+
+  /**
+   * Is the preceding {@code /} a the beginning of a regex (true) or a division
+   * (false).
+   */
+  protected abstract boolean slashIsRegex();
+
+
   public PainlessLexer(CharStream input) {
     super(input);
     _interp = new LexerATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
@@ -141,21 +155,21 @@ class PainlessLexer extends Lexer {
   private boolean DIV_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 0:
-      return  false == SlashStrategy.slashIsRegex(this) ;
+      return  false == slashIsRegex() ;
     }
     return true;
   }
   private boolean REGEX_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return  SlashStrategy.slashIsRegex(this) ;
+      return  slashIsRegex() ;
     }
     return true;
   }
   private boolean TYPE_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return  Definition.isSimpleType(getText()) ;
+      return  isSimpleType(getText()) ;
     }
     return true;
   }

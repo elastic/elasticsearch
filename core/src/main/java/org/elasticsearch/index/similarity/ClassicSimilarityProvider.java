@@ -20,6 +20,9 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -35,9 +38,10 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
 
     private final ClassicSimilarity similarity = new ClassicSimilarity();
 
-    public ClassicSimilarityProvider(String name, Settings settings) {
+    public ClassicSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+        boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
+            Version.indexCreated(indexSettings), "discount_overlaps", true, new DeprecationLogger(ESLoggerFactory.getLogger(getClass())));
         this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 
@@ -48,4 +52,5 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
     public ClassicSimilarity get() {
         return similarity;
     }
+
 }

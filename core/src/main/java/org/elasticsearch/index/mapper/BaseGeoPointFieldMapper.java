@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -123,7 +125,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 Object propNode = entry.getValue();
 
                 if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, Names.IGNORE_MALFORMED, propNode, parserContext));
                     iterator.remove();
                 }
             }
@@ -173,17 +175,21 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
 
         @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
-            int maxDoc = reader.maxDoc();
-            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+        public FieldStats.GeoPoint stats(IndexReader reader) throws IOException {
+            String field = name();
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(field);
             if (fi == null) {
                 return null;
             }
-            /**
-             * we don't have a specific type for geo_point so we use an empty {@link FieldStats.Text}.
-             * TODO: we should maybe support a new type that knows how to (de)encode the min/max information
-             */
-            return new FieldStats.Text(maxDoc, -1, -1, -1, isSearchable(), isAggregatable());
+
+            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, field);
+            if (terms == null) {
+                return new FieldStats.GeoPoint(reader.maxDoc(), 0L, -1L, -1L, isSearchable(), isAggregatable());
+            }
+            GeoPoint minPt = GeoPoint.fromGeohash(NumericUtils.sortableBytesToLong(terms.getMin().bytes, terms.getMin().offset));
+            GeoPoint maxPt = GeoPoint.fromGeohash(NumericUtils.sortableBytesToLong(terms.getMax().bytes, terms.getMax().offset));
+            return new FieldStats.GeoPoint(reader.maxDoc(), terms.getDocCount(), -1L, terms.getSumTotalTermFreq(), isSearchable(),
+                isAggregatable(), minPt, maxPt);
         }
     }
 

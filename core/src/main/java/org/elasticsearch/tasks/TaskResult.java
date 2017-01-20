@@ -230,7 +230,7 @@ public final class TaskResult implements Writeable, ToXContent {
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, error);
+            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
             return builder.bytes();
         }

@@ -17,16 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
-
-public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
-
-    protected ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
-    }
-
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
-}
+/**
+ * Lexer, parser, and tree {@link Walker} responsible for turning the code
+ * generating nodes in {@link org.elasticsearch.painless.node}.
+ */
+package org.elasticsearch.painless.antlr;

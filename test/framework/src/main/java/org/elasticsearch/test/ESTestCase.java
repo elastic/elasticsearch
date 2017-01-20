@@ -178,6 +178,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
+    protected final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private ThreadContext threadContext;
 
     // -----------------------------------------------------------------

@@ -160,7 +160,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         }
                     };
-                    taskManager.registerChildTask(task, nodes.getLocalNodeId());
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
@@ -173,7 +172,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, masterChangePredicate);
                 } else {
-                    taskManager.registerChildTask(task, nodes.getMasterNode().getId());
                     transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::newResponse) {
                         @Override
                         public void handleException(final TransportException exp) {

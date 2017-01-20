@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -197,12 +198,16 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
+            // use the provided values, otherwise just pick valid dummy values
+            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(request.settings);
+            int dummyShards = request.settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                    dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
 
             //create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(request.settings)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .build();

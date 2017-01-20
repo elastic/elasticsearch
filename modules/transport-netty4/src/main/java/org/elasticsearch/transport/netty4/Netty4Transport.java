@@ -32,7 +32,6 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.oio.OioEventLoopGroup;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -65,8 +64,6 @@ import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
 import org.elasticsearch.transport.netty4.channel.PrivilegedNioSocketChannel;
-import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
-import org.elasticsearch.transport.netty4.channel.PrivilegedOioSocketChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -193,13 +190,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     private Bootstrap createBootstrap() {
         final Bootstrap bootstrap = new Bootstrap();
-        if (TCP_BLOCKING_CLIENT.get(settings)) {
-            bootstrap.group(new OioEventLoopGroup(1, daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)));
-            bootstrap.channel(PrivilegedOioSocketChannel.class);
-        } else {
-            bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
-            bootstrap.channel(PrivilegedNioSocketChannel.class);
-        }
+        bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
+        bootstrap.channel(PrivilegedNioSocketChannel.class);
 
         bootstrap.handler(getClientChannelInitializer());
 
@@ -282,13 +274,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        if (TCP_BLOCKING_SERVER.get(settings)) {
-            serverBootstrap.group(new OioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
-        } else {
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
-        }
+        serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
+        serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
 

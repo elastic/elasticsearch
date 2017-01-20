@@ -39,10 +39,7 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
+        SpecialPermission.checkSpecialPermission();
         AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
     }
 

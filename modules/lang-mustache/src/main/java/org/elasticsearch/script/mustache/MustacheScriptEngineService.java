@@ -155,10 +155,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
             final BytesStreamOutput result = new BytesStreamOutput();
             try (UTF8StreamWriter writer = utf8StreamWriter().setOutput(result)) {
                 // crazy reflection here
-                SecurityManager sm = System.getSecurityManager();
-                if (sm != null) {
-                    sm.checkPermission(SpecialPermission.INSTANCE);
-                }
+                SpecialPermission.checkSpecialPermission();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     ((Mustache) template.compiled()).execute(writer, vars);
                     return null;

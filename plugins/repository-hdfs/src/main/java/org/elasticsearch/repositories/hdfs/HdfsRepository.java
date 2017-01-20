@@ -95,10 +95,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         try {
             // initialize our filecontext
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(SpecialPermission.INSTANCE);
-            }
+            SpecialPermission.checkSpecialPermission();
             FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
                 () -> createContext(uri, getMetadata().settings()));
             blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);

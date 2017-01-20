@@ -60,10 +60,7 @@ public final class SocketAccess {
     }
 
     private static void checkSpecialPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
+        SpecialPermission.checkSpecialPermission();
     }
 
     @FunctionalInterface

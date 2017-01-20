@@ -79,4 +79,14 @@ public final class SpecialPermission extends BasicPermission {
     public SpecialPermission(String name, String actions) {
         this();
     }
+
+    /**
+     * Check that the current stack has {@link SpecialPermission} access according to the {@link SecurityManager}.
+     */
+    public static void checkSpecialPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(INSTANCE);
+        }
+    }
 }

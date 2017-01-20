@@ -38,12 +38,12 @@ public final class SocketAccess {
     private SocketAccess() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
-        checkSpecialPermission();
+        SpecialPermission.checkSpecialPermission();
         return AccessController.doPrivileged(operation);
     }
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        checkSpecialPermission();
+        SpecialPermission.checkSpecialPermission();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
@@ -51,10 +51,4 @@ public final class SocketAccess {
         }
     }
 
-    private static void checkSpecialPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
-    }
 }

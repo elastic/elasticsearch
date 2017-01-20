@@ -99,10 +99,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
 
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
+        SpecialPermission.checkSpecialPermission();
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HostedServiceGetDetailedResponse>)
                 () -> client.getHostedServicesOperations().getDetailed(serviceName));

@@ -82,10 +82,7 @@ final class TikaImpl {
     // only package private for testing!
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
+        SpecialPermission.checkSpecialPermission();
 
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<String>)

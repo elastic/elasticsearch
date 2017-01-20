@@ -64,10 +64,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SpecialPermission.INSTANCE);
-        }
+        SpecialPermission.checkSpecialPermission();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             // ClassInfo put in cache all the fields of a given class
             // that are annoted with @Key; at the same time it changes

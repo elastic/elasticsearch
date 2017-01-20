@@ -164,11 +164,11 @@ phase |37ms
 operations |7
 |`search.open_contexts` |`so`, `searchOpenContexts` |No |Open search
 contexts |0
-|`search.query_current` |`sqc`, `searchFetchCurrent` |No |Current query
+|`search.query_current` |`sqc`, `searchQueryCurrent` |No |Current query
 phase operations |0
-|`search.query_time` |`sqti`, `searchFetchTime` |No |Time spent in query
+|`search.query_time` |`sqti`, `searchQueryTime` |No |Time spent in query
 phase |43ms
-|`search.query_total` |`sqto`, `searchFetchTotal` |No |Number of query
+|`search.query_total` |`sqto`, `searchQueryTotal` |No |Number of query
 operations |9
 |`search.scroll_current` |`scc`, `searchScrollCurrent` |No |Open scroll contexts |2
 |`search.scroll_time` |`scti`, `searchScrollTime` |No |Time scroll contexts held open|2m

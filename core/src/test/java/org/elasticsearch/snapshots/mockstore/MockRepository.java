@@ -100,7 +100,7 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
-    private volatile boolean nonAtomicMove;
+    private volatile boolean atomicMove;
 
     private volatile boolean blocked = false;
 
@@ -116,7 +116,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = metadata.settings().getAsBoolean("block_on_init", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
-        nonAtomicMove = metadata.settings().getAsBoolean("non_atomic_move", false);
+        atomicMove = metadata.settings().getAsBoolean("atomic_move", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
@@ -315,16 +315,16 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
-                if (nonAtomicMove) {
+                if (atomicMove) {
+                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
+                    maybeIOExceptionOrBlock(targetBlob);
+                    super.move(sourceBlob, targetBlob);
+                } else {
                     // simulate a non-atomic move, since many blob container implementations
                     // will not have an atomic move, and we should be able to handle that
                     maybeIOExceptionOrBlock(targetBlob);
                     super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
                     super.deleteBlob(sourceBlob);
-                } else {
-                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.move(sourceBlob, targetBlob);
                 }
             }
 

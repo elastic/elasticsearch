@@ -732,7 +732,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     long latestIndexBlobId() throws IOException {
         try {
-            // first, try listing the blobs and determining which index blob is the latest
+            // first, try reading the latest index generation from the index.latest blob
             return readSnapshotIndexLatestBlob();
         } catch (IOException ioe) {
             // we could not find the index.latest blob, this can happen in two scenarios:

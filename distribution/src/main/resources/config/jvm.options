@@ -98,7 +98,7 @@
 # ensure the directory exists
 #-Xloggc:${loggc}
 
-# By default, the JVM log file will not rotate.
+# By default, the GC log file will not rotate.
 # By uncommenting the lines below, the GC log file
 # will be rotated every 128MB at most 32 times.
 #-XX:+UseGCLogFileRotation

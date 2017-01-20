@@ -19,7 +19,7 @@
 
 esplugin {
     description 'Module for generic repositories'
-    classname 'org.elasticsearch.repositories.RepositoriesPlugin'
+    classname 'org.elasticsearch.plugin.repositories.RepositoriesPlugin'
 }
 
 dependencies {

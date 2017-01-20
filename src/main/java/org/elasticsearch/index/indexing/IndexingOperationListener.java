@@ -104,4 +104,17 @@ public abstract class IndexingOperationListener {
     public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
 
     }
+
+    /**
+     * Called after failed index occurs.
+     */
+    public void failedIndex(Engine.Index index) {
+    }
+
+    /**
+     * Called after failed delete occurs.
+     */
+    public void failedDelete(Engine.Delete delete) {
+
+    }
 }

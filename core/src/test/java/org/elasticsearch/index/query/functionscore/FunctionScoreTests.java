@@ -751,6 +751,33 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
     }
 
+    public void testWeightFactorNeedsScore() {
+        for (boolean needsScore : new boolean[] {true, false}) {
+            WeightFactorFunction function = new WeightFactorFunction(10.0f, new ScoreFunction(CombineFunction.REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return needsScore;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            });
+            assertEquals(needsScore, function.needsScores());
+        }
+    }
+
     private static class DummyScoreFunction extends ScoreFunction {
         protected DummyScoreFunction(CombineFunction scoreCombiner) {
             super(scoreCombiner);

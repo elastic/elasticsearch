@@ -19,6 +19,7 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
+import org.gradle.logging.ProgressLoggerFactory
 import org.gradle.util.ConfigureUtil
 
 import javax.inject.Inject

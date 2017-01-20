@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -39,7 +38,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
     public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);

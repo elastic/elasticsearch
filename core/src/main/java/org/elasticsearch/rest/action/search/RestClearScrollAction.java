@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,8 +38,6 @@ import java.util.Arrays;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestClearScrollAction extends BaseRestHandler {
-
-    @Inject
     public RestClearScrollAction(Settings settings, RestController controller) {
         super(settings);
 

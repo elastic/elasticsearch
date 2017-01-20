@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -32,8 +31,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
-
-    @Inject
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
         this(settings, controller, true);
     }

@@ -25,7 +25,6 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,8 +43,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestFieldStatsAction extends BaseRestHandler {
-
-    @Inject
     public RestFieldStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_field_stats", this);

@@ -81,9 +81,10 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         if (input.getExtractKeys() != null) {
             BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON);
             // EMPTY is safe here because we never use namedObject
-            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes);
-            Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
-            payload = new Payload.Simple(filteredKeys);
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes)) {
+                Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
+                payload = new Payload.Simple(filteredKeys);
+            }
         } else {
             payload = new Payload.XContent(response);
         }

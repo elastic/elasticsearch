@@ -37,16 +37,6 @@ public class XContentUtils {
         }
     }
 
-    public static Tuple<XContentType, Object> convertToObject(BytesReference bytes) throws ElasticsearchParseException {
-        try {
-            // EMPTY is safe here because we never call namedObject
-            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes);
-            return Tuple.tuple(parser.contentType(), readValue(parser, parser.nextToken()));
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
-        }
-    }
-
     public static String[] readStringArray(XContentParser parser, boolean allowNull) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             if (allowNull) {

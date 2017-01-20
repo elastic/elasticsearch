@@ -113,11 +113,11 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("my_type", null, defaultMapping);
+        DocumentMapper mapper = parser.parse("my_type", null, defaultMapping, null);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
         try {
-            mapper = parser.parse(null, null, defaultMapping);
+            mapper = parser.parse(null, null, defaultMapping, null);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             fail();
@@ -125,7 +125,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
             // all is well
         }
         try {
-            mapper = parser.parse(null, new CompressedXContent("{}"), defaultMapping);
+            mapper = parser.parse(null, new CompressedXContent("{}"), defaultMapping, XContentType.JSON);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             fail();
@@ -144,7 +144,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", new CompressedXContent(mapping), defaultMapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("my_type", new CompressedXContent(mapping), defaultMapping, XContentType.JSON);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }

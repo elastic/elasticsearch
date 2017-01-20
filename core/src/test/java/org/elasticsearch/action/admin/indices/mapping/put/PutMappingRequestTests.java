@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -76,11 +77,12 @@ public class PutMappingRequestTests extends ESTestCase {
         // this is hacky but here goes
         PutMappingRequest request = new PutMappingRequest("foo");
         String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-        request.source(mapping, XContentType.JSON); // THIS IS NOT A BUG! Intentionally specifying the wrong type so we serialize it
-        assertEquals(mapping, request.source());
+        request.source(mapping, XContentType.JSON);
+        assertEquals(mapping, request.source().utf8ToString());
 
         // output version doesn't matter
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        bytesStreamOutput.setVersion(Version.V_5_0_0);
         request.writeTo(bytesStreamOutput);
 
         StreamInput in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
@@ -88,25 +90,17 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest serialized = new PutMappingRequest();
         serialized.readFrom(in);
 
-        // yaml is translated to JSON on reading
-        String source = serialized.source();
-        assertNotEquals(mapping, source);
-        assertTrue(source.startsWith("{"));
+        BytesReference source = serialized.source();
+        assertEquals(mapping, source.utf8ToString());
 
         // reading from a fixed version does no translation
+        bytesStreamOutput = new BytesStreamOutput();
+        request.writeTo(bytesStreamOutput);
         in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
         assertEquals(Version.CURRENT, in.getVersion());
         serialized = new PutMappingRequest();
         serialized.readFrom(in);
-        assertEquals(mapping, serialized.source());
-    }
-
-    public void testPutMappingRequestTranslatesNonJsonToJson() throws IOException {
-        // this is hacky but here goes
-        PutMappingRequest request = new PutMappingRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-        request.source(mapping, XContentType.YAML);
-        assertNotEquals(mapping, request.source());
-        assertTrue(request.source().startsWith("{"));
+        assertEquals(mapping, serialized.source().utf8ToString());
+        assertEquals(XContentType.JSON, serialized.getXContentType());
     }
 }

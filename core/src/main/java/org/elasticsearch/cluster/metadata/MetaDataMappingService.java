@@ -259,9 +259,9 @@ public class MetaDataMappingService extends AbstractComponent {
                 DocumentMapper existingMapper = mapperService.documentMapper(request.type());
                 if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
+                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, false, request.xContentType());
                 } else {
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null);
+                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null, request.xContentType());
                     if (existingMapper != null) {
                         // first, simulate: just call merge and ignore the result
                         existingMapper.merge(newMapper.mapping(), request.updateAllTypes());

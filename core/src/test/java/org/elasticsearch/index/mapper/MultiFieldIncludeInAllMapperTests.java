@@ -36,7 +36,7 @@ public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
         // first check that for newer versions we throw exception if include_in_all is found withing multi field
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY);
         Exception e = expectThrows(MapperParsingException.class, () ->
-            mapperService.parse("type", new CompressedXContent(mapping.string()), true));
+            mapperService.parse("type", new CompressedXContent(mapping.string()), true, mapping.contentType()));
         assertEquals("include_in_all in multi fields is not allowed. Found the include_in_all in field [c] which is within a multi field.",
                 e.getMessage());
     }

@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -52,7 +53,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray("{\"script\":\"1\"}")));
+                .setSource(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
                 .get().getStoredScript();
         assertNotNull(script);
@@ -68,7 +69,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setScriptLang("lang#")
                 .setId("id#")
-                .setSource(new BytesArray("{}"))
+                .setSource(new BytesArray("{}"), XContentType.JSON)
                 .get());
         assertEquals("Validation Failed: 1: id can't contain: '#';2: lang can't contain: '#';", e.getMessage());
     }
@@ -77,7 +78,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
+                .setSource(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)), XContentType.JSON)
                 .get()
         );
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());

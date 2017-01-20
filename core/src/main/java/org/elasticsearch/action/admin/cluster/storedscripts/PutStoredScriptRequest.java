@@ -25,10 +25,12 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -99,15 +101,23 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return xContentType;
     }
 
+    /**
+     * Set the script source using bytes.
+     * @deprecated this method is deprecated as it relies on content type detection. Use {@link #script(BytesReference, XContentType)}
+     */
     @Deprecated
     public PutStoredScriptRequest script(BytesReference source) {
         this.script = source;
+        this.xContentType = Objects.requireNonNull(XContentFactory.xContentType(source));
         return this;
     }
 
+    /**
+     * Set the script source and the content type of the bytes.
+     */
     public PutStoredScriptRequest script(BytesReference source, XContentType xContentType) {
         this.script = source;
-        this.xContentType = xContentType;
+        this.xContentType = Objects.requireNonNull(xContentType);
         return this;
     }
 
@@ -142,11 +152,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public String toString() {
         String sSource = "_na_";
         try {
-            if (xContentType == null) {
-                sSource = XContentHelper.convertToJson(script, false);
-            } else {
-                sSource = XContentHelper.convertToJson(script, false, xContentType);
-            }
+            sSource = XContentHelper.convertToJson(script, false, xContentType);
         } catch (Exception e) {
             // ignore
         }

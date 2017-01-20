@@ -83,7 +83,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                     .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices).type(request.type())
                     .updateAllTypes(request.updateAllTypes())
-                    .source(request.source());
+                    .source(request.source(), request.getXContentType());
 
             metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 

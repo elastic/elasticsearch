@@ -58,6 +58,11 @@ public enum XContentType implements Writeable {
         public XContent xContent() {
             return JsonXContent.jsonXContent;
         }
+
+        @Override
+        public boolean hasStringRepresentation() {
+            return true;
+        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -76,6 +81,11 @@ public enum XContentType implements Writeable {
         @Override
         public XContent xContent() {
             return SmileXContent.smileXContent;
+        }
+
+        @Override
+        public boolean hasStringRepresentation() {
+            return false;
         }
     },
     /**
@@ -96,6 +106,11 @@ public enum XContentType implements Writeable {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
+
+        @Override
+        public boolean hasStringRepresentation() {
+            return true;
+        }
     },
     /**
      * A CBOR based content type.
@@ -114,6 +129,11 @@ public enum XContentType implements Writeable {
         @Override
         public XContent xContent() {
             return CborXContent.cborXContent;
+        }
+
+        @Override
+        public boolean hasStringRepresentation() {
+            return false;
         }
     };
 
@@ -168,6 +188,8 @@ public enum XContentType implements Writeable {
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
+
+    public abstract boolean hasStringRepresentation();
 
     public static XContentType readFrom(StreamInput in) throws IOException {
         int index = in.readVInt();

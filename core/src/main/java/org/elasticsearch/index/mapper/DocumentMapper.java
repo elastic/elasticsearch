@@ -196,6 +196,10 @@ public class DocumentMapper implements ToXContent {
         return this.mappingSource;
     }
 
+    public XContentType mappingSourceXContentType() {
+        return XContentType.JSON;
+    }
+
     public RootObjectMapper root() {
         return mapping.root;
     }

@@ -41,12 +41,19 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         return this;
     }
 
+    /**
+     * Set the source of the script.
+     * @deprecated this method requires content type detection. Use {@link #setSource(BytesReference, XContentType)} instead
+     */
     @Deprecated
     public PutStoredScriptRequestBuilder setSource(BytesReference source) {
         request.script(source);
         return this;
     }
 
+    /**
+     * Set the source of the script along with the content type of the source
+     */
     public PutStoredScriptRequestBuilder setSource(BytesReference source, XContentType xContentType) {
         request.script(source, xContentType);
         return this;

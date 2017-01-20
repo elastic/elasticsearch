@@ -54,7 +54,7 @@ public class IndexedExpressionTests extends ESIntegTestCase {
         client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(ExpressionScriptEngineService.NAME)
                 .setId("script1")
-                .setSource(new BytesArray("{\"script\":\"2\"}"))
+                .setSource(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {

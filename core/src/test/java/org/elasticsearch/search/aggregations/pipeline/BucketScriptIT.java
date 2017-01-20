@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -482,7 +483,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                 .setId("my_script")
                 .setScriptLang(CustomScriptPlugin.NAME)
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"my_script\" }")));
+                .setSource(new BytesArray("{ \"script\": \"my_script\" }"), XContentType.JSON));
 
         SearchResponse response = client()
                 .prepareSearch("idx")

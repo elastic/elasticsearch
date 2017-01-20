@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -74,13 +75,19 @@ public class DocumentMapperParser {
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parse(type, source, null);
+        return parse(type, source, null, null);
     }
 
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource,
+                                XContentType xContentType) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+            Map<String, Object> root;
+            if (xContentType != null) {
+                root = XContentHelper.convertToMap(source.compressedReference(), true, xContentType).v2();
+            } else {
+                root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+            }
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();

@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -318,7 +319,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     && mappers.containsKey(type) == false;
 
             try {
-                DocumentMapper documentMapper = documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                DocumentMapper documentMapper =
+                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null, null);
                 documentMappers.add(documentMapper);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -499,7 +501,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false, mapper.mappingSourceXContentType());
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
@@ -614,8 +616,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault,
+                                XContentType xContentType) throws MapperParsingException {
+        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null, xContentType);
     }
 
     public boolean hasMapping(String mappingType) {
@@ -654,7 +657,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new TypeMissingException(index(),
                     new IllegalStateException("trying to auto create mapping, but dynamic mapping is disabled"), type);
         }
-        mapper = parse(type, null, true);
+        mapper = parse(type, null, true, null);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

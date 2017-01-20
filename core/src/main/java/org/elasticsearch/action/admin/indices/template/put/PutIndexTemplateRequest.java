@@ -197,7 +197,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {

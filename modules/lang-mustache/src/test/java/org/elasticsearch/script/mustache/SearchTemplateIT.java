@@ -160,7 +160,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}")));
+                        "}"), XContentType.JSON));
 
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
@@ -172,7 +172,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}")));
+                        "}"), XContentType.JSON));
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
@@ -222,7 +222,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "       }" +
                         "}" +
                         "}"
-                ))
+                ), XContentType.JSON)
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(MustacheScriptEngineService.NAME)
@@ -234,7 +234,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}"))
+                        "}"), XContentType.JSON)
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(MustacheScriptEngineService.NAME)
@@ -244,7 +244,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "             \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}"))
+                        "}"), XContentType.JSON)
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -313,7 +313,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setId("git01")
                 .setSource(new BytesArray("{\"template\":{\"query\": {\"match_phrase_prefix\": " +
                         "{\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                        "\"unsupported\": \"unsupported\"}}}}}")));
+                        "\"unsupported\": \"unsupported\"}}}}}"), XContentType.JSON));
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
@@ -331,7 +331,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setScriptLang(MustacheScriptEngineService.NAME)
                 .setId("git01")
-                .setSource(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"}}}}")));
+                .setSource(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"}}}}"),
+                    XContentType.JSON));
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("testindex").types("test"))
@@ -346,7 +347,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 client().admin().cluster().preparePutStoredScript()
                         .setScriptLang(MustacheScriptEngineService.NAME)
                         .setId("4")
-                        .setSource(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes())
+                        .setSource(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes(), XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));

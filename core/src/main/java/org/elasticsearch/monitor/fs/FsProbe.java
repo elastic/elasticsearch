@@ -22,6 +22,9 @@ package org.elasticsearch.monitor.fs;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -48,7 +51,7 @@ public class FsProbe extends AbstractComponent {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats(FsInfo previous) throws IOException {
+    public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
         if (!nodeEnv.hasNodeFile()) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
@@ -67,7 +70,13 @@ public class FsProbe extends AbstractComponent {
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
+        DiskUsage leastDiskEstimate = null;
+        DiskUsage mostDiskEstimate = null;
+        if (clusterInfo != null) {
+            leastDiskEstimate = clusterInfo.getNodeLeastAvailableDiskUsages().get(nodeEnv.nodeId());
+            mostDiskEstimate = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeEnv.nodeId());
+        }
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths, leastDiskEstimate, mostDiskEstimate);
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {

@@ -29,13 +29,21 @@ import org.gradle.api.tasks.Copy
 /**
  * A plugin to run tests that depend on other plugins or modules.
  *
- * This plugin will add the plugin-metadata and properties files for each 
+ * This plugin will add the plugin-metadata and properties files for each
  * dependency to the test source set.
  */
 class TestWithDependenciesPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        if (project.isEclipse) {
+            /* The changes this plugin makes both break and aren't needed by
+             * Eclipse. This is because Eclipse flattens main and test
+             * dependencies into a single dependency. Because Eclipse is
+             * "special".... */
+            return
+        }
+
         project.configurations.testCompile.dependencies.all { Dependency dep ->
             // this closure is run every time a compile dependency is added
             if (dep instanceof ProjectDependency && dep.dependencyProject.plugins.hasPlugin(PluginBuildPlugin)) {

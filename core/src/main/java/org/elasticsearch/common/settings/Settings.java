@@ -951,7 +951,9 @@ public final class Settings implements ToXContent {
         /**
          * Loads settings from the actual string content that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * @deprecated use {@link #loadFromSource(String, XContentType)} to avoid content type detection
          */
+        @Deprecated
         public Builder loadFromSource(String source) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
             try {

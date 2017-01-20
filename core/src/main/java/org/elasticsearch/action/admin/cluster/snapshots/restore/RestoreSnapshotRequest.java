@@ -319,9 +319,25 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      *
      * @param source repository-specific snapshot settings
      * @return this request
+     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public RestoreSnapshotRequest settings(String source) {
         this.settings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets repository-specific restore settings in JSON, YAML or properties format
+     * <p>
+     * See repository documentation for more information.
+     *
+     * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
+     * @return this request
+     */
+    public RestoreSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -337,7 +353,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -436,9 +452,19 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets settings that should be added/changed in all restored indices
+     * @deprecated use {@link #indexSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public RestoreSnapshotRequest indexSettings(String source) {
         this.indexSettings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(String source, XContentType xContentType) {
+        this.indexSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -449,7 +475,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            indexSettings(builder.string());
+            indexSettings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

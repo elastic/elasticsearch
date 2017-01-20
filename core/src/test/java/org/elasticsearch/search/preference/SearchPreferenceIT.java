@@ -148,7 +148,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
         assertThat(resp.getHits().totalHits(), equalTo(1L));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}").get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen("test");
 
         resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();

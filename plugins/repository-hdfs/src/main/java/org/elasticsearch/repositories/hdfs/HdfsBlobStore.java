@@ -109,7 +109,7 @@ final class HdfsBlobStore implements BlobStore {
         }
         return path;
     }
-    
+
     interface Operation<V> {
         V run(FileContext fileContext) throws IOException;
     }
@@ -124,18 +124,14 @@ final class HdfsBlobStore implements BlobStore {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
         if (closed) {
             throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }
         try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<V>() {
-                @Override
-                public V run() throws IOException {
-                    return operation.run(fileContext);
-                }
-            }, null, new ReflectPermission("suppressAccessChecks"),
+            return AccessController.doPrivileged((PrivilegedExceptionAction<V>)
+                    () -> operation.run(fileContext), null, new ReflectPermission("suppressAccessChecks"),
                      new AuthPermission("modifyPrivateCredentials"));
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();

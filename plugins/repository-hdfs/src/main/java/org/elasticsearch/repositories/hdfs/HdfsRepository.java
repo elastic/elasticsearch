@@ -97,14 +97,10 @@ public final class HdfsRepository extends BlobStoreRepository {
             // initialize our filecontext
             SecurityManager sm = System.getSecurityManager();
             if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
+                sm.checkPermission(SpecialPermission.INSTANCE);
             }
-            FileContext fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
-                @Override
-                public FileContext run() {
-                    return createContext(uri, getMetadata().settings());
-                }
-            });
+            FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
+                () -> createContext(uri, getMetadata().settings()));
             blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {

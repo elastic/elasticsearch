@@ -35,8 +35,6 @@ import java.security.PrivilegedExceptionAction;
  */
 public final class Access {
 
-    private static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
-
     private Access() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
@@ -64,7 +62,7 @@ public final class Access {
     private static void checkSpecialPermission() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(SPECIAL_PERMISSION);
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
     }
 

@@ -84,16 +84,12 @@ final class TikaImpl {
         // check that its not unprivileged code like a script
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
 
         try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
-                @Override
-                public String run() throws TikaException, IOException {
-                    return TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
-                }
-            }, RESTRICTED_CONTEXT);
+            return AccessController.doPrivileged((PrivilegedExceptionAction<String>)
+                () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit), RESTRICTED_CONTEXT);
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();

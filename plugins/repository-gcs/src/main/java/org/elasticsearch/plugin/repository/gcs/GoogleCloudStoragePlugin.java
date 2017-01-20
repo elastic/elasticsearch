@@ -66,7 +66,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
          */
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             // ClassInfo put in cache all the fields of a given class

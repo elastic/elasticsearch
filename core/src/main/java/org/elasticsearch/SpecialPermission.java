@@ -57,6 +57,9 @@ import java.security.BasicPermission;
  * </code></pre>
  */
 public final class SpecialPermission extends BasicPermission {
+
+    public static final SpecialPermission INSTANCE = new SpecialPermission();
+
     /**
      * Creates a new SpecialPermision object.
      */

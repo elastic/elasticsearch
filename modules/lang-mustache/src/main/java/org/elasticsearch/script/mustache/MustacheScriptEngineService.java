@@ -127,9 +127,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
         // Nothing to do here
     }
 
-    // permission checked before doing crazy reflection
-    static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
-
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
@@ -160,7 +157,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                 // crazy reflection here
                 SecurityManager sm = System.getSecurityManager();
                 if (sm != null) {
-                    sm.checkPermission(SPECIAL_PERMISSION);
+                    sm.checkPermission(SpecialPermission.INSTANCE);
                 }
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     ((Mustache) template.compiled()).execute(writer, vars);

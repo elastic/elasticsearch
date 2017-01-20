@@ -41,14 +41,9 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     static {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                return evilHadoopInit();
-            }
-        });
+        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
     }
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")

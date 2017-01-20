@@ -73,7 +73,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     static {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
         // Initializing Jackson requires RuntimePermission accessDeclaredMembers
         // The ClientConfiguration class requires RuntimePermission getClassLoader

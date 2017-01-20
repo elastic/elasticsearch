@@ -152,7 +152,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         final SecurityManager sm = System.getSecurityManager();
 
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
 
         // Create our loader (which loads compiled code with no permissions).

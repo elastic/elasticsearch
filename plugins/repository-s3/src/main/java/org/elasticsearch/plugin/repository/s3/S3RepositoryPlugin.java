@@ -47,22 +47,19 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     static {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
+            sm.checkPermission(SpecialPermission.INSTANCE);
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    // kick jackson to do some static caching of declared members info
-                    Jackson.jsonNodeOf("{}");
-                    // ClientConfiguration clinit has some classloader problems
-                    // TODO: fix that
-                    Class.forName("com.amazonaws.ClientConfiguration");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                // kick jackson to do some static caching of declared members info
+                Jackson.jsonNodeOf("{}");
+                // ClientConfiguration clinit has some classloader problems
+                // TODO: fix that
+                Class.forName("com.amazonaws.ClientConfiguration");
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -298,6 +299,14 @@ public class MockClientBuilder {
         BulkRequestBuilder builder = mock(BulkRequestBuilder.class);
         when(client.prepareBulk()).thenReturn(builder);
         when(builder.execute()).thenReturn(actionFuture);
+        when(actionFuture.actionGet()).thenReturn(response);
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder bulk(BulkResponse response) {
+        ActionFuture<BulkResponse> actionFuture = mock(ActionFuture.class);
+        when(client.bulk(any(BulkRequest.class))).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(response);
         return this;
     }

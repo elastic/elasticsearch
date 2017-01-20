@@ -92,6 +92,8 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
         if (addRecordsResponse.hasFailures()) {
             logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
         }
+
+        bulkRequest = new BulkRequest();
     }
 
     BulkRequest getBulkRequest() {

@@ -76,7 +76,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -327,7 +326,11 @@ public final class Settings implements ToXContent {
      * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
      */
     @Deprecated
-    public Boolean getAsBooleanLenientForPreEs6Indices(Version indexVersion, String setting, Boolean defaultValue) {
+    public Boolean getAsBooleanLenientForPreEs6Indices(
+        final Version indexVersion,
+        final String setting,
+        final Boolean defaultValue,
+        final DeprecationLogger deprecationLogger) {
         if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             //Only emit a warning if the setting's value is not a proper boolean
             final String value = get(setting, "false");

@@ -172,10 +172,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     aggs.add(a.buildAggregation(0L));
                 }
             }
-            @SuppressWarnings("unchecked")
-            A internalAgg = (A) aggs.get(0).doReduce(aggs,
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
-            return internalAgg;
+            if (aggs.isEmpty()) {
+                return null;
+            } else {
+                @SuppressWarnings("unchecked")
+                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
+                return internalAgg;
+            }
         }
     }
 

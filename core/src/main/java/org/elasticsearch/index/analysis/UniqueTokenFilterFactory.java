@@ -32,7 +32,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
     public UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.onlyOnSamePosition = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), "only_on_same_position", false);
+            indexSettings.getIndexVersionCreated(), "only_on_same_position", false, deprecationLogger);
     }
 
     @Override

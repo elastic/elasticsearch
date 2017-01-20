@@ -22,6 +22,8 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -43,8 +45,9 @@ public class BM25SimilarityProvider extends AbstractSimilarityProvider {
         super(name);
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);
-        boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
-            Version.indexCreated(indexSettings), "discount_overlaps", true);
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(getClass()));
+        boolean discountOverlaps =
+            settings.getAsBooleanLenientForPreEs6Indices(Version.indexCreated(indexSettings), "discount_overlaps", true, deprecationLogger);
 
         this.similarity = new BM25Similarity(k1, b);
         this.similarity.setDiscountOverlaps(discountOverlaps);
@@ -57,4 +60,5 @@ public class BM25SimilarityProvider extends AbstractSimilarityProvider {
     public Similarity get() {
         return similarity;
     }
+
 }

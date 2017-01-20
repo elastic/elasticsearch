@@ -56,6 +56,7 @@ endif::[]
 [[docker-cli-run-prod-mode]]
 ===== Production mode
 
+
 [[docker-prod-prerequisites]]
 [IMPORTANT]
 =========================
@@ -202,7 +203,17 @@ endif::[]
 To stop the cluster, type `docker-compose down`. Data volumes will persist, so it's possible to start the cluster again with the same data using `docker-compose up`.
 To destroy the cluster **and the data volumes** just type `docker-compose down -v`.
 
-===== Inspect status of cluster:
+### Inspect status of cluster:
+
+#### Via Browser
+
+**url:** http://http://docker.local:9200/
+
+**username:** elastic
+
+**password:** changeme
+
+#### Via Curl
 
 ["source","sh"]
 --------------------------------------------

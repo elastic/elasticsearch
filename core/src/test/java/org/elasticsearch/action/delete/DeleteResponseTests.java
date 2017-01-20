@@ -68,8 +68,8 @@ public class DeleteResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        // We can't use equals() to compare the original and the parsed index response
-        // because the random index response can contain shard failures with exceptions,
+        // We can't use equals() to compare the original and the parsed delete response
+        // because the random delete response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
 
         // Print the parsed object out and test that the output is the same as the original output

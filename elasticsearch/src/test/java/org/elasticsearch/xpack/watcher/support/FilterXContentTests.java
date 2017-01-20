@@ -9,8 +9,10 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,6 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class FilterXContentTests extends ESTestCase {
     public void testPayloadFiltering() throws Exception {
@@ -136,6 +139,62 @@ public class FilterXContentTests extends ESTestCase {
         assertThat(buckets.get(1).keySet(), containsInAnyOrder("foo"));
     }
 
+    // issue #4614
+    public void testNestedArraysWork() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
+                .startObject().startObject("foo").field("spam", "eggs").endObject().endObject()
+                .startObject().startObject("foo").field("spam", "eggs2").endObject().endObject()
+                .startObject().startObject("foo").field("spam", "eggs3").endObject().endObject()
+                .endArray().endObject();
+
+        XContentParser parser = createParser(builder);
+
+        assertArrayValues(parser, "buckets.foo.spam", "eggs", "eggs2", "eggs3");
+    }
+
+    private void assertArrayValues(XContentParser parser, String key, Object ... expectedValues) throws IOException {
+        Set<String> keys = new HashSet<>();
+        keys.add(key);
+        Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);
+        for (int i = 0; i < expectedValues.length; i++) {
+            if (expectedValues[i] instanceof String) {
+                String data = ObjectPath.eval("buckets." + i + ".foo.spam", filteredData);
+                assertThat(data, is(expectedValues[i]));
+            } else if (expectedValues[i] instanceof Integer) {
+                int data = ObjectPath.eval("buckets." + i + ".foo.spam", filteredData);
+                assertThat(data, is(expectedValues[i]));
+            } else if (expectedValues[i] instanceof Boolean) {
+                boolean data = ObjectPath.eval("buckets." + i + ".foo.spam", filteredData);
+                assertThat(data, is(expectedValues[i]));
+            }
+        }
+    }
+
+    public void testNestedArraysWorkWithNumbers() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
+                .startObject().startObject("foo").field("spam", 0).endObject().endObject()
+                .startObject().startObject("foo").field("spam", 1).endObject().endObject()
+                .startObject().startObject("foo").field("spam", 2).endObject().endObject()
+                .endArray().endObject();
+
+        XContentParser parser = createParser(builder);
+
+        assertArrayValues(parser, "buckets.foo.spam", 0, 1, 2);
+    }
+
+    public void testNestedArraysWorkWithBooleans() throws Exception {
+        boolean[] bools = new boolean[] { randomBoolean(), randomBoolean(), randomBoolean() };
+
+        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
+                .startObject().startObject("foo").field("spam", bools[0]).endObject().endObject()
+                .startObject().startObject("foo").field("spam", bools[1]).endObject().endObject()
+                .startObject().startObject("foo").field("spam", bools[2]).endObject().endObject()
+                .endArray().endObject();
+
+        XContentParser parser = createParser(builder);
+
+        assertArrayValues(parser, "buckets.foo.spam", bools);
+    }
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> selectMap(Map<String, Object> data, String... path) {

@@ -79,19 +79,25 @@ public final class XContentFilterKeysUtils {
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.text());
                     }
-                    state.previousField();
+                    if (isOutsideOfArray) {
+                        state.previousField();
+                    }
                     break;
                 case VALUE_NUMBER:
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.numberValue());
                     }
-                    state.previousField();
+                    if (isOutsideOfArray) {
+                        state.previousField();
+                    }
                     break;
                 case VALUE_BOOLEAN:
                     if (state.includeKey) {
                         data.put(state.currentFieldName(), parser.booleanValue());
                     }
-                    state.previousField();
+                    if (isOutsideOfArray) {
+                        state.previousField();
+                    }
                     break;
             }
         }

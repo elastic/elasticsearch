@@ -45,8 +45,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
   'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
   'reference/aggregations/metrics/geocentroid-aggregation.asciidoc',
-  'reference/aggregations/metrics/max-aggregation.asciidoc',
-  'reference/aggregations/metrics/min-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
@@ -175,6 +173,7 @@ integTest {
     }
     configFile 'scripts/my_script.js'
     configFile 'scripts/my_script.py'
+    configFile 'scripts/my_script.painless'
     configFile 'scripts/my_init_script.painless'
     configFile 'scripts/my_map_script.painless'
     configFile 'scripts/my_combine_script.painless'

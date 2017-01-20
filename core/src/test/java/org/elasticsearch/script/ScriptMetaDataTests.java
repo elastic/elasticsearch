@@ -20,8 +20,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,11 +28,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 
@@ -128,6 +123,18 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     @Override
     protected Writeable.Reader<ScriptMetaData> instanceReader() {
         return ScriptMetaData::new;
+    }
+
+    @Override
+    protected XContentBuilder toXContent(ScriptMetaData instance, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        builder.startObject();
+        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return builder;
     }
 
     @Override

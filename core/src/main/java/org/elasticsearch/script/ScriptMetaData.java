@@ -398,14 +398,10 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
         for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
-
-        builder.endObject();
 
         return builder;
     }

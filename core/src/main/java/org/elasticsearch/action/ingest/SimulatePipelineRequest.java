@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
@@ -47,24 +48,21 @@ public class SimulatePipelineRequest extends ActionRequest {
     private BytesReference source;
     private XContentType xContentType = XContentType.JSON;
 
+    /**
+     * Create a new request
+     * @deprecated use {@link #SimulatePipelineRequest(BytesReference, XContentType)} that does not attempt content autodetection
+     */
     @Deprecated
     public SimulatePipelineRequest(BytesReference source) {
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-        this.source = source;
-        this.xContentType = XContentFactory.xContentType(source);
+        this(source, XContentFactory.xContentType(source));
     }
 
+    /**
+     * Creates a new request with the given source and its content type
+     */
     public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-        if (xContentType == null) {
-            throw new IllegalArgumentException("content type is missing");
-        }
-        this.source = source;
-        this.xContentType = xContentType;
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     SimulatePipelineRequest() {

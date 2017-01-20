@@ -31,8 +31,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> {
 
     private String id;
@@ -41,32 +39,13 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     @Deprecated
     public PutPipelineRequest(String id, BytesReference source) {
-        if (id == null) {
-            throw new IllegalArgumentException("id is missing");
-        }
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-
-        this.id = id;
-        this.source = source;
-        this.xContentType = XContentFactory.xContentType(source);
+        this(id, source, XContentFactory.xContentType(source));
     }
 
     public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
-        if (id == null) {
-            throw new IllegalArgumentException("id is missing");
-        }
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-        if (xContentType == null) {
-            throw new IllegalArgumentException("unable to determine source type");
-        }
-
-        this.id = id;
-        this.source = source;
-        this.xContentType = xContentType;
+        this.id = Objects.requireNonNull(id);
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     PutPipelineRequest() {

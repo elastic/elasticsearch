@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.azure.arm;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.arm.AzureManagementService;
 import org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery;
@@ -89,7 +90,15 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
 
         cachedDiscoNodes = new ArrayList<>();
 
-        List<AzureVirtualMachine> vms = azureManagementService.getVirtualMachines(Discovery.HOST_GROUP_NAME_SETTING.get(settings));
+        List<AzureVirtualMachine> vms;
+        String groupName = Discovery.HOST_RESOURCE_GROUP_SETTING.get(settings);
+        // We can filter by resource group only if we are not using a wildcard
+        // We will filter the resources manually later then
+        if (Strings.isNotEmpty(groupName) && Regex.isSimpleMatchPattern(groupName)) {
+            vms = azureManagementService.getVirtualMachines(null);
+        } else {
+            vms = azureManagementService.getVirtualMachines(groupName);
+        }
 
         for (AzureVirtualMachine vm : vms) {
             // We check current power state
@@ -108,9 +117,11 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
                 }
             }
 
-            // If provided, we check the group name. It can be a wildcard
-            if (Discovery.HOST_GROUP_NAME_SETTING.exists(settings)) {
-                String groupName = Discovery.HOST_GROUP_NAME_SETTING.get(settings);
+            // If provided, we check the group name. It can be a wildcard.
+            // Note that if it's not a wildcard we already filtered nodes by group name when we called Azure API
+            // But let's be paranoid and check that it did not left any other machine. (Also useful for our tests
+            // where we mocked azure API in a simplistic way)
+            if (Strings.isNotEmpty(groupName)) {
                 boolean match;
                 if (Regex.isSimpleMatchPattern(groupName)) {
                     match = Regex.simpleMatch(groupName, vm.getGroupName());

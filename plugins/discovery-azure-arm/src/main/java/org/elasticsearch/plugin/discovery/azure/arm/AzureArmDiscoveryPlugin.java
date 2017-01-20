@@ -70,7 +70,7 @@ public class AzureArmDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
             AzureManagementService.Management.SECRET_SETTING,
             AzureManagementService.Management.SUBSCRIPTION_ID_SETTING,
             AzureManagementService.Management.TENANT_ID_SETTING,
-            AzureManagementService.Discovery.HOST_GROUP_NAME_SETTING,
+            AzureManagementService.Discovery.HOST_RESOURCE_GROUP_SETTING,
             AzureManagementService.Discovery.HOST_NAME_SETTING,
             AzureManagementService.Discovery.HOST_TYPE_SETTING,
             AzureManagementService.Discovery.REFRESH_SETTING,

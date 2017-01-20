@@ -44,7 +44,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,7 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_GROUP_NAME_SETTING;
+import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_RESOURCE_GROUP_SETTING;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_NAME_SETTING;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.HOST_TYPE_SETTING;
 import static org.elasticsearch.cloud.azure.arm.AzureManagementService.Discovery.REGION_SETTING;
@@ -273,7 +272,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testGroup1() {
         List<DiscoveryNode> nodes = runDiscoveryTest(
-            Settings.builder().put(HOST_GROUP_NAME_SETTING.getKey(), VM_GROUP_1_1.getGroupName()).build(),
+            Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), VM_GROUP_1_1.getGroupName()).build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(nodes, hasSize(2));
         assertThat(nodes,
@@ -285,7 +284,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testGroupWithWildcard() {
         List<DiscoveryNode> nodes = runDiscoveryTest(
-            Settings.builder().put(HOST_GROUP_NAME_SETTING.getKey(), "azure-group*").build(),
+            Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), "azure-group*").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(nodes, hasSize(4));
         assertThat(nodes,

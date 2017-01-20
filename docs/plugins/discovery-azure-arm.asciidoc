@@ -104,11 +104,11 @@ The following are a list of settings that can further control the discovery:
     You can filter virtual machines you would like to connect to by entering a name here. It can be a wildcard
     like `azure-esnode-*`.
 
-`discovery.azure-arm.host.group_name`::
+`discovery.azure-arm.host.resource_group`::
 
-    You can filter virtual machines you would like to connect to by entering the group name they belongs to.
-    It can be a wildcard. For example `azure-preprod-*` will match any machine belonging to any group which names
-    starts with `azure-preprod-`.
+    You can filter virtual machines you would like to connect to by entering the resource group they belongs to.
+    It can be a wildcard. For example `azure-preprod-*` will match any machine belonging to any resource group which
+    name starts with `azure-preprod-`.
 
 `discovery.azure-arm.region`::
 
@@ -128,7 +128,7 @@ For example. Let say you have the following nodes running on azure platform:
 
 .Azure platform example
 |===
-|Name |Group Name |Region |Private IP
+|Name |Resource Group |Region |Private IP
 
 |`azure-esnode-master-1`
 |`azure-preprod`
@@ -177,7 +177,7 @@ discovery:
         host:
             type: private_ip
             name: azure-esnode-master-*
-            group_name: azure-preprod
+            resource_group: azure-preprod
             region: westeurope
         refresh_interval: 10s
 ----

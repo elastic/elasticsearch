@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
@@ -26,13 +28,16 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchReq
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
-public class RestExecuteWatchAction extends WatcherRestHandler {
+public class RestExecuteWatchAction extends WatcherRestHandler implements RestRequestFilter {
+
     public RestExecuteWatchAction(Settings settings, RestController controller) {
         super(settings);
 
@@ -130,6 +135,17 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         }
 
         return builder.request();
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
+            Sets.newHashSet("watch.input.http.request.auth.basic.password",
+                    "watch.input.chain.inputs.*.http.request.auth.basic.password",
+                    "watch.actions.*.email.attachments.*.reporting.auth.basic.password",
+                    "watch.actions.*.webhook.auth.basic.password"));
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 
     interface Field {

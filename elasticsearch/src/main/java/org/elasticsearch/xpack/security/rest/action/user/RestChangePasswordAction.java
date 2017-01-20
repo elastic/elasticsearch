@@ -18,14 +18,17 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestChangePasswordAction extends BaseRestHandler {
+public class RestChangePasswordAction extends BaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
 
@@ -61,5 +64,12 @@ public class RestChangePasswordAction extends BaseRestHandler {
                                 return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
                             }
                         });
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.singleton("password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

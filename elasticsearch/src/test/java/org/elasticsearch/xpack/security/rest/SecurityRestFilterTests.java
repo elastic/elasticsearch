@@ -5,10 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -17,12 +21,18 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 import static org.mockito.Matchers.any;
@@ -35,6 +45,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityRestFilterTests extends ESTestCase {
+
     private AuthenticationService authcService;
     private RestChannel channel;
     private SecurityRestFilter filter;
@@ -48,10 +59,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         restHandler = mock(RestHandler.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         filter = new SecurityRestFilter(Settings.EMPTY, licenseState, mock(SSLService.class),
-            threadPool.getThreadContext(), authcService, restHandler);
+                new ThreadContext(Settings.EMPTY), authcService, restHandler);
     }
 
     public void testProcess() throws Exception {
@@ -102,4 +111,52 @@ public class SecurityRestFilterTests extends ESTestCase {
         verifyZeroInteractions(channel);
         verifyZeroInteractions(authcService);
     }
+
+    public void testProcessFiltersBodyCorrectly() throws Exception {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                .withContent(new BytesArray("{\"password\": \"changeme\", \"foo\": \"bar\"}")).build();
+        when(channel.request()).thenReturn(restRequest);
+        SetOnce<RestRequest> handlerRequest = new SetOnce<>();
+        restHandler = new FilteredRestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                handlerRequest.set(request);
+            }
+
+            @Override
+            public Set<String> getFilteredFields() {
+                return Collections.singleton("password");
+            }
+        };
+        SetOnce<RestRequest> authcServiceRequest = new SetOnce<>();
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            authcServiceRequest.set((RestRequest)i.getArguments()[0]);
+            callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
+            return Void.TYPE;
+        }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
+        filter = new SecurityRestFilter(Settings.EMPTY, licenseState, mock(SSLService.class),
+                new ThreadContext(Settings.EMPTY), authcService, restHandler);
+
+        filter.handleRequest(restRequest, channel, null);
+
+        assertEquals(restRequest, handlerRequest.get());
+        assertEquals(restRequest.content(), handlerRequest.get().content());
+        Map<String, Object> original = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, handlerRequest.get()
+                .content()).map();
+        assertEquals(2, original.size());
+        assertEquals("changeme", original.get("password"));
+        assertEquals("bar", original.get("foo"));
+
+        assertNotEquals(restRequest, authcServiceRequest.get());
+        assertNotEquals(restRequest.content(), authcServiceRequest.get().content());
+
+        Map<String, Object> map = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, authcServiceRequest.get()
+                .content()).map();
+        assertEquals(1, map.size());
+        assertEquals("bar", map.get("foo"));
+    }
+
+    private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}
 }

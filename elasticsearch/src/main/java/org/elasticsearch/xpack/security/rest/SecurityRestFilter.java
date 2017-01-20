@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 public class SecurityRestFilter implements RestHandler {
@@ -58,7 +60,7 @@ public class SecurityRestFilter implements RestHandler {
                 assert handler != null;
                 ServerTransportFilter.extactClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
             }
-            service.authenticate(request, ActionListener.wrap(
+            service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {
                     RemoteHostHeader.process(request, threadContext);
                     restHandler.handleRequest(request, channel, client);
@@ -74,5 +76,12 @@ public class SecurityRestFilter implements RestHandler {
         } else {
             restHandler.handleRequest(request, channel, client);
         }
+    }
+
+    RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
+        if (restHandler instanceof RestRequestFilter) {
+            return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
+        }
+        return restRequest;
     }
 }

@@ -30,7 +30,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/filter-aggregation.asciidoc',
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
-  'reference/aggregations/bucket/global-aggregation.asciidoc',
   'reference/aggregations/bucket/histogram-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',
@@ -170,8 +169,6 @@ integTest {
     Closure configFile = {
       extraConfigFile it, "src/test/cluster/config/$it"
     }
-    configFile 'scripts/my_script.js'
-    configFile 'scripts/my_script.py'
     configFile 'scripts/my_init_script.painless'
     configFile 'scripts/my_map_script.painless'
     configFile 'scripts/my_combine_script.painless'

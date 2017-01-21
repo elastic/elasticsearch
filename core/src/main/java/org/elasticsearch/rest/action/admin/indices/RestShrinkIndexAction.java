@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -34,8 +33,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import java.io.IOException;
 
 public class RestShrinkIndexAction extends BaseRestHandler {
-
-    @Inject
     public RestShrinkIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);

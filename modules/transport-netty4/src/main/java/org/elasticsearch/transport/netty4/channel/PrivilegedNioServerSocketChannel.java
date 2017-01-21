@@ -37,10 +37,7 @@ public class PrivilegedNioServerSocketChannel extends NioServerSocketChannel {
 
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Integer>) () -> super.doReadMessages(buf));
         } catch (PrivilegedActionException e) {

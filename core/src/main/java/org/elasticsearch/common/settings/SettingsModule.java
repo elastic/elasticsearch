@@ -221,5 +221,7 @@ public class SettingsModule implements Module {
         return clusterSettings;
     }
 
-    public SettingsFilter getSettingsFilter() { return settingsFilter; }
+    public SettingsFilter getSettingsFilter() {
+        return settingsFilter;
+    }
 }

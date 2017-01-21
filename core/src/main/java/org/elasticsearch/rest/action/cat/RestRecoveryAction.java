@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -49,9 +48,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * be specified to limit output to a particular index or indices.
  */
 public class RestRecoveryAction extends AbstractCatAction {
-
-    @Inject
-    public RestRecoveryAction(Settings settings, RestController restController, RestController controller) {
+    public RestRecoveryAction(Settings settings, RestController restController) {
         super(settings);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);

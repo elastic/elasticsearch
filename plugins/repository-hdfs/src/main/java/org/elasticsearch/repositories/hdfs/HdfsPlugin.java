@@ -32,23 +32,14 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
 
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                return evilHadoopInit();
-            }
-        });
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
     }
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")

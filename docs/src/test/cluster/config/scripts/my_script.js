@@ -1,1 +1,0 @@
-doc["num"].value * factor

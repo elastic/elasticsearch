@@ -17,10 +17,14 @@
  * under the License.
  */
 
-import org.codehaus.groovy.control.customizers.ImportCustomizer
+package org.elasticsearch.common;
 
-def imports = new ImportCustomizer()
-imports.addImports(
-        'org.gradle.internal.logging.progress.ProgressLogger',
-        'org.gradle.internal.logging.progress.ProgressLoggerFactory')
-configuration.addCompilationCustomizers(imports)
+import java.lang.Runnable;
+
+/**
+ * A {@link Runnable}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedRunnable<E extends Exception> {
+    void run() throws E;
+}

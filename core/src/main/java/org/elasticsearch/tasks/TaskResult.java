@@ -160,7 +160,9 @@ public final class TaskResult implements Writeable, ToXContent {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("completed", completed);
-        builder.field("task", task);
+        builder.startObject("task");
+        task.toXContent(builder, params);
+        builder.endObject();
         if (error != null) {
             XContentHelper.writeRawField("error", error, builder, params);
         }

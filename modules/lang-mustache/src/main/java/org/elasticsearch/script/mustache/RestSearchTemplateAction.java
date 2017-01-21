@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,7 +73,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
-    @Inject
     public RestSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
 

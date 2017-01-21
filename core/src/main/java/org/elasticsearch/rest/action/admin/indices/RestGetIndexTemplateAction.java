@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -39,8 +38,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetIndexTemplateAction extends BaseRestHandler {
-
-    @Inject
     public RestGetIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
 

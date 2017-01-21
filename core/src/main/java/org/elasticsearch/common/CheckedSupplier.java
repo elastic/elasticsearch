@@ -17,10 +17,14 @@
  * under the License.
  */
 
-import org.codehaus.groovy.control.customizers.ImportCustomizer
+package org.elasticsearch.common;
 
-def imports = new ImportCustomizer()
-imports.addImports(
-   'org.gradle.logging.ProgressLogger',
-   'org.gradle.logging.ProgressLoggerFactory')
-configuration.addCompilationCustomizers(imports)
+import java.util.function.Supplier;
+
+/**
+ * A {@link Supplier}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedSupplier<R, E extends Exception> {
+    R get() throws E;
+}

@@ -163,12 +163,6 @@ public final class TaskInfo implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        return builder.endObject();
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node", taskId.getNodeId());
         builder.field("id", taskId.getId());
         builder.field("type", type);

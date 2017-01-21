@@ -25,6 +25,8 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedTestResultEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
+import org.gradle.logging.ProgressLogger
+import org.gradle.logging.ProgressLoggerFactory
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
 import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.ERROR

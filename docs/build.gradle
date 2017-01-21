@@ -24,13 +24,11 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/datehistogram-aggregation.asciidoc',
   'reference/aggregations/bucket/daterange-aggregation.asciidoc',
   'reference/aggregations/bucket/diversified-sampler-aggregation.asciidoc',
   'reference/aggregations/bucket/filter-aggregation.asciidoc',
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
-  'reference/aggregations/bucket/global-aggregation.asciidoc',
   'reference/aggregations/bucket/histogram-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',
@@ -46,8 +44,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
   'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
   'reference/aggregations/metrics/geocentroid-aggregation.asciidoc',
-  'reference/aggregations/metrics/max-aggregation.asciidoc',
-  'reference/aggregations/metrics/min-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
@@ -170,8 +166,7 @@ integTest {
     Closure configFile = {
       extraConfigFile it, "src/test/cluster/config/$it"
     }
-    configFile 'scripts/my_script.js'
-    configFile 'scripts/my_script.py'
+    configFile 'scripts/my_script.painless'
     configFile 'scripts/my_init_script.painless'
     configFile 'scripts/my_map_script.painless'
     configFile 'scripts/my_combine_script.painless'

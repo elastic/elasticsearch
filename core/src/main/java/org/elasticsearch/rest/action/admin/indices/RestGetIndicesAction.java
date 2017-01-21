@@ -19,6 +19,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -53,7 +53,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetIndicesAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter) {
         super(settings);

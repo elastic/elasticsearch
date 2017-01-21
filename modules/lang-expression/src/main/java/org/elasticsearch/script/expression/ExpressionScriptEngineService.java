@@ -226,6 +226,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     } else {
                         throw new ParseException("Field [" + fieldname + "] must be numeric, date, or geopoint", 5);
                     }
+                    needsScores |= valueSource.getSortField(false).needsScores();
                     bindings.add(variable, valueSource.asDoubleValuesSource());
                 }
             } catch (Exception e) {

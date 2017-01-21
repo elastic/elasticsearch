@@ -82,18 +82,11 @@ final class TikaImpl {
     // only package private for testing!
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
 
         try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
-                @Override
-                public String run() throws TikaException, IOException {
-                    return TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
-                }
-            }, RESTRICTED_CONTEXT);
+            return AccessController.doPrivileged((PrivilegedExceptionAction<String>)
+                () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit), RESTRICTED_CONTEXT);
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();

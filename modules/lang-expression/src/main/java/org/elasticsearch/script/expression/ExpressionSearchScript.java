@@ -19,22 +19,20 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
@@ -44,16 +42,16 @@ class ExpressionSearchScript implements SearchScript {
 
     final CompiledScript compiledScript;
     final SimpleBindings bindings;
-    final ValueSource source;
-    final ReplaceableConstValueSource specialValue; // _value
+    final DoubleValuesSource source;
+    final ReplaceableConstDoubleValueSource specialValue; // _value
     final boolean needsScores;
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v, boolean needsScores) {
+    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
         compiledScript = c;
         bindings = b;
-        source = ((Expression)compiledScript.compiled()).getValueSource(bindings);
+        source = ((Expression)compiledScript.compiled()).getDoubleValuesSource(bindings);
         specialValue = v;
         this.needsScores = needsScores;
     }
@@ -63,15 +61,25 @@ class ExpressionSearchScript implements SearchScript {
         return needsScores;
     }
 
+
     @Override
     public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
         return new LeafSearchScript() {
+            // Fake the scorer until setScorer is called.
+            DoubleValues values = source.getValues(leaf, new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return Double.NaN;
+                }
 
-            FunctionValues values = source.getValues(Collections.singletonMap("scorer", Lucene.illegalScorer("Scores are not available in the current context")), leaf);
-
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return true;
+                }
+            });
             double evaluate() {
                 try {
-                    return values.doubleVal(docid);
+                    return values.doubleValue();
                 } catch (Exception exception) {
                     throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
                 }
@@ -89,6 +97,11 @@ class ExpressionSearchScript implements SearchScript {
             @Override
             public void setDocument(int d) {
                 docid = d;
+                try {
+                    values.advanceExact(d);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Can't advance to doc using " + compiledScript, e);
+                }
             }
 
             @Override
@@ -96,7 +109,17 @@ class ExpressionSearchScript implements SearchScript {
                 scorer = s;
                 try {
                     // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(Collections.singletonMap("scorer", scorer), leaf);
+                    values = source.getValues(leaf, new DoubleValues() {
+                        @Override
+                        public double doubleValue() throws IOException {
+                            return scorer.score();
+                        }
+
+                        @Override
+                        public boolean advanceExact(int doc) throws IOException {
+                            return true;
+                        }
+                    });
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't get values using " + compiledScript, e);
                 }

@@ -118,14 +118,15 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstValueSource specialValue = null;
-
+        ReplaceableConstDoubleValueSource specialValue = null;
+        boolean needsScores = false;
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
                     bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    needsScores = true;
                 } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstValueSource();
+                    specialValue = new ReplaceableConstDoubleValueSource();
                     bindings.add("_value", specialValue);
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                     // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
@@ -137,7 +138,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
                     Object value = vars.get(variable);
                     if (value instanceof Number) {
-                        bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()));
+                        bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()).asDoubleValuesSource());
                     } else {
                         throw new ParseException("Parameter [" + variable + "] must be a numeric type", 0);
                     }
@@ -227,16 +228,14 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     } else {
                         throw new ParseException("Field [" + fieldname + "] must be numeric, date, or geopoint", 5);
                     }
-
-                    bindings.add(variable, valueSource);
+                    needsScores |= valueSource.getSortField(false).needsScores();
+                    bindings.add(variable, valueSource.asDoubleValuesSource());
                 }
             } catch (Exception e) {
                 // we defer "binding" of variables until here: give context for that variable
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-
-        final boolean needsScores = expr.getSortField(bindings, false).needsScores();
         return new ExpressionSearchScript(compiledScript, bindings, specialValue, needsScores);
     }
 

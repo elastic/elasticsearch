@@ -19,25 +19,22 @@
 
 package org.elasticsearch.script.expression;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.lucene.expressions.Expression;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against a map of variables in the context
  * of an {@link ExecutableScript}.
  */
 public class ExpressionExecutableScript implements ExecutableScript {
-
-    private final int NO_DOCUMENT = -1;
-
     public final CompiledScript compiledScript;
-    public final Map<String, ReplaceableConstFunctionValues> functionValuesMap;
-    public final ReplaceableConstFunctionValues[] functionValuesArray;
+    public final Map<String, ReplaceableConstDoubleValues> functionValuesMap;
+    public final ReplaceableConstDoubleValues[] functionValuesArray;
 
     public ExpressionExecutableScript(CompiledScript compiledScript, Map<String, Object> vars) {
         this.compiledScript = compiledScript;
@@ -51,12 +48,12 @@ public class ExpressionExecutableScript implements ExecutableScript {
                     " [" + vars.size() + "].");
         }
 
-        functionValuesArray = new ReplaceableConstFunctionValues[functionValuesLength];
+        functionValuesArray = new ReplaceableConstDoubleValues[functionValuesLength];
         functionValuesMap = new HashMap<>();
 
         for (int functionValuesIndex = 0; functionValuesIndex < functionValuesLength; ++functionValuesIndex) {
             String variableName = expression.variables[functionValuesIndex];
-            functionValuesArray[functionValuesIndex] = new ReplaceableConstFunctionValues();
+            functionValuesArray[functionValuesIndex] = new ReplaceableConstDoubleValues();
             functionValuesMap.put(variableName, functionValuesArray[functionValuesIndex]);
         }
 
@@ -85,7 +82,7 @@ public class ExpressionExecutableScript implements ExecutableScript {
     @Override
     public Object run() {
         try {
-            return ((Expression) compiledScript.compiled()).evaluate(NO_DOCUMENT, functionValuesArray);
+            return ((Expression) compiledScript.compiled()).evaluate(functionValuesArray);
         } catch (Exception exception) {
             throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
         }

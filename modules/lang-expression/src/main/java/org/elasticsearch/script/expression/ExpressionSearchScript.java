@@ -43,12 +43,12 @@ class ExpressionSearchScript implements SearchScript {
     final CompiledScript compiledScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
-    final ReplaceableConstValueSource specialValue; // _value
+    final ReplaceableConstDoubleValueSource specialValue; // _value
     final boolean needsScores;
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v, boolean needsScores) {
+    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
         compiledScript = c;
         bindings = b;
         source = ((Expression)compiledScript.compiled()).getDoubleValuesSource(bindings);
@@ -61,14 +61,24 @@ class ExpressionSearchScript implements SearchScript {
         return needsScores;
     }
 
+
     @Override
     public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
         return new LeafSearchScript() {
+            // Fake the scorer until setScorer is called.
+            DoubleValues values = source.getValues(leaf, new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return Double.NaN;
+                }
 
-            DoubleValues values = source.getValues(leaf, null);
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return true;
+                }
+            });
             double evaluate() {
                 try {
-                    values.advanceExact(docid);
                     return values.doubleValue();
                 } catch (Exception exception) {
                     throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
@@ -87,6 +97,11 @@ class ExpressionSearchScript implements SearchScript {
             @Override
             public void setDocument(int d) {
                 docid = d;
+                try {
+                    values.advanceExact(d);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Can't advance to doc using " + compiledScript, e);
+                }
             }
 
             @Override
@@ -94,7 +109,17 @@ class ExpressionSearchScript implements SearchScript {
                 scorer = s;
                 try {
                     // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(leaf, DoubleValuesSource.fromScorer(scorer));
+                    values = source.getValues(leaf, new DoubleValues() {
+                        @Override
+                        public double doubleValue() throws IOException {
+                            return scorer.score();
+                        }
+
+                        @Override
+                        public boolean advanceExact(int doc) throws IOException {
+                            return true;
+                        }
+                    });
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't get values using " + compiledScript, e);
                 }

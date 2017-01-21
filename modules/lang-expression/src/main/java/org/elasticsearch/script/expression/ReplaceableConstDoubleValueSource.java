@@ -28,11 +28,11 @@ import java.io.IOException;
 /**
  * A {@link DoubleValuesSource} which has a stub {@link DoubleValues} that holds a dynamically replaceable constant double.
  */
-final class ReplaceableConstValueSource extends DoubleValuesSource {
-    final ReplaceableConstFunctionValues fv;
+final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
+    final ReplaceableConstDoubleValues fv;
 
-    ReplaceableConstValueSource() {
-        fv = new ReplaceableConstFunctionValues();
+    ReplaceableConstDoubleValueSource() {
+        fv = new ReplaceableConstDoubleValues();
     }
 
     @Override

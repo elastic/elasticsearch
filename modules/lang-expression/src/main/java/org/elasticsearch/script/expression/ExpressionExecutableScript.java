@@ -33,8 +33,8 @@ import java.util.Map;
  */
 public class ExpressionExecutableScript implements ExecutableScript {
     public final CompiledScript compiledScript;
-    public final Map<String, ReplaceableConstFunctionValues> functionValuesMap;
-    public final ReplaceableConstFunctionValues[] functionValuesArray;
+    public final Map<String, ReplaceableConstDoubleValues> functionValuesMap;
+    public final ReplaceableConstDoubleValues[] functionValuesArray;
 
     public ExpressionExecutableScript(CompiledScript compiledScript, Map<String, Object> vars) {
         this.compiledScript = compiledScript;
@@ -48,12 +48,12 @@ public class ExpressionExecutableScript implements ExecutableScript {
                     " [" + vars.size() + "].");
         }
 
-        functionValuesArray = new ReplaceableConstFunctionValues[functionValuesLength];
+        functionValuesArray = new ReplaceableConstDoubleValues[functionValuesLength];
         functionValuesMap = new HashMap<>();
 
         for (int functionValuesIndex = 0; functionValuesIndex < functionValuesLength; ++functionValuesIndex) {
             String variableName = expression.variables[functionValuesIndex];
-            functionValuesArray[functionValuesIndex] = new ReplaceableConstFunctionValues();
+            functionValuesArray[functionValuesIndex] = new ReplaceableConstDoubleValues();
             functionValuesMap.put(variableName, functionValuesArray[functionValuesIndex]);
         }
 

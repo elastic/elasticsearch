@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.repository.gcs;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -40,13 +39,10 @@ import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
@@ -64,7 +60,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             // ClassInfo put in cache all the fields of a given class
             // that are annoted with @Key; at the same time it changes

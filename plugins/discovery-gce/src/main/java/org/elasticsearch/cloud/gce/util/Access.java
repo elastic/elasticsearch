@@ -38,12 +38,12 @@ public final class Access {
     private Access() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         return AccessController.doPrivileged(operation);
     }
 
     public static void doPrivilegedVoid(DiscoveryRunnable action) {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             action.execute();
             return null;
@@ -51,7 +51,7 @@ public final class Access {
     }
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {

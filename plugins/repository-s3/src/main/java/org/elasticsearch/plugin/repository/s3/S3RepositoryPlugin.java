@@ -45,7 +45,7 @@ import org.elasticsearch.repositories.s3.S3Repository;
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     static {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 // kick jackson to do some static caching of declared members info

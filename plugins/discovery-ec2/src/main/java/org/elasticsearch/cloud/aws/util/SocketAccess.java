@@ -38,12 +38,12 @@ public final class SocketAccess {
     private SocketAccess() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         return AccessController.doPrivileged(operation);
     }
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {

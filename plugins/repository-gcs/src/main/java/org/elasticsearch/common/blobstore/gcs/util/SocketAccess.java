@@ -38,7 +38,7 @@ public final class SocketAccess {
     private SocketAccess() {}
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
@@ -47,7 +47,7 @@ public final class SocketAccess {
     }
 
     public static void doPrivilegedVoidIOException(StorageRunnable action) throws IOException {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 action.executeCouldThrow();

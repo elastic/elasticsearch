@@ -78,7 +78,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         return AccessController.doPrivileged(new PrivilegedAction<Expression>() {
             @Override
             public Expression run() {

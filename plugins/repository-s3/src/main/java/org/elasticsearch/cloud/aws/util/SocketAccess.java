@@ -60,7 +60,7 @@ public final class SocketAccess {
     }
 
     private static void checkSpecialPermission() {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
     }
 
     @FunctionalInterface

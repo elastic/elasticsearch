@@ -32,14 +32,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
 
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges
     static {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
     }
 

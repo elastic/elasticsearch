@@ -149,7 +149,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         }
 
         // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
 
         // Create our loader (which loads compiled code with no permissions).
         final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {

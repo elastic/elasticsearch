@@ -37,7 +37,7 @@ public class PrivilegedNioSocketChannel extends NioSocketChannel {
 
     @Override
     protected boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> super.doConnect(remoteAddress, localAddress));
         } catch (PrivilegedActionException e) {

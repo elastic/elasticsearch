@@ -121,7 +121,7 @@ final class HdfsBlobStore implements BlobStore {
     // 1) hadoop dynamic proxy is messy with access rules
     // 2) allow hadoop to add credentials to our Subject
     <V> V execute(Operation<V> operation) throws IOException {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         if (closed) {
             throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }

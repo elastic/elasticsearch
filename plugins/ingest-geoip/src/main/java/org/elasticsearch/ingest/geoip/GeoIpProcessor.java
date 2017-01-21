@@ -139,7 +139,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () -> {
             try {
                 return dbReader.city(ipAddress);
@@ -214,7 +214,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
-        SpecialPermission.checkSpecialPermission();
+        SpecialPermission.check();
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () -> {
             try {
                 return dbReader.country(ipAddress);

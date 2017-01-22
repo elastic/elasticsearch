@@ -23,19 +23,58 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 
 public class URLRepositoryTests extends ESTestCase {
 
-    public void testThing() throws IOException {
-//        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, Settings.EMPTY);
-//        Environment environment = new Environment(Settings.EMPTY);
-//        URLRepository urlRepository = new URLRepository(repositoryMetaData, environment, new NamedXContentRegistry(Collections.emptyList()));
-//        System.out.println(urlRepository);
+    public void testWhiteListingRepoURL() throws IOException {
+        String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
+        System.out.println(repoPath);
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoPath)
+            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
+            .build();
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
     }
 
+    public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
+        String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
+            .build();
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        try {
+            new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
+            fail("RepositoryException should have been thrown.");
+        } catch (RepositoryException e) {
+            assertEquals(String.format("[url] file url [%s] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls", repoPath), e.getMessage());
+        }
+    }
+
+    public void testMustBeSupportedProtocol() throws IOException {
+        Path directory = createTempDir();
+        String repoPath = directory.resolve("repository").toUri().toURL().toString();
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(Environment.PATH_REPO_SETTING.getKey(), directory.toString())
+            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
+            .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
+            .build();
+        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        try {
+            new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
+            fail("RepositoryException should have been thrown.");
+        } catch (RepositoryException e) {
+            assertEquals(String.format("[url] unsupported url protocol [file] from URL [%s]", repoPath), e.getMessage());
+        }
+    }
 
 }

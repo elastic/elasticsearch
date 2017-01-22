@@ -26,28 +26,35 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.NoSuchFileException;
 
-public class URLBlockStoreContainerTests extends ESTestCase {
+public class URLBlobStoreTests extends ESTestCase {
 
     private static HttpServer httpServer;
-    private static byte[] message = new byte[1024];
+    private static String blobName;
+    private static byte[] message = new byte[512];
+    private URLBlobStore urlBlobStore;
 
     @BeforeClass
     public static void startHttp() throws Exception {
-//        logDir = createTempDir();
+        for (int i = 0; i < message.length; ++i) {
+            message[i] = randomByte();
+        }
+        blobName = randomAsciiOfLength(8);
+
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 6001), 0);
 
-        httpServer.createContext("/hjdfd", (s) -> {
+        httpServer.createContext("/indices/" + blobName, (s) -> {
             s.sendResponseHeaders(200, message.length);
             OutputStream responseBody = s.getResponseBody();
             responseBody.write(message);
@@ -63,13 +70,30 @@ public class URLBlockStoreContainerTests extends ESTestCase {
         httpServer = null;
     }
 
-    public void testBlobStore() throws IOException {
+    @Before
+    public void storeSetup() throws MalformedURLException {
         Settings settings = Settings.EMPTY;
-        URLBlobStore urlBlobStore = new URLBlobStore(settings, new URL("http://localhost:6001"));
-        BlobContainer contain = urlBlobStore.blobContainer(BlobPath.cleanPath());
-        InputStream stream = contain.readBlob("/hjdfd");
-        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream))) {
-            System.out.println(bufferedReader.readLine());
+        String spec = "http://localhost:6001/";
+        urlBlobStore = new URLBlobStore(settings, new URL(spec));
+    }
+
+    public void testURLBlobStoreCanReadBlob() throws IOException {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        try (InputStream stream = container.readBlob(blobName)) {
+            byte[] bytes = new byte[message.length];
+            int read = stream.read(bytes);
+            assertEquals(message.length, read);
+            assertArrayEquals(message, bytes);
+        }
+    }
+
+    public void testNoBlobFound() throws IOException {
+        BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
+        String incorrectBlobName = "incorrect_" + blobName;
+        try (InputStream stream = container.readBlob(incorrectBlobName)) {
+            fail("Should have thrown NoSuchFileException exception");
+        } catch (NoSuchFileException e) {
+            assertEquals(String.format("[%s] blob not found", incorrectBlobName), e.getMessage());
         }
     }
 }

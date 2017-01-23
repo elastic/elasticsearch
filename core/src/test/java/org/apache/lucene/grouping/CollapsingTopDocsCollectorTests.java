@@ -214,7 +214,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Long>() {
             @Override
             public Long randomGroup(int maxGroup) {
-                return randomNonNegativeLong() % maxGroup;
+                return randomPositiveLong() % maxGroup;
             }
 
             @Override

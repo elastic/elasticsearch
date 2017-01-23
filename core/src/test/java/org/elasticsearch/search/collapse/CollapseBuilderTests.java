@@ -26,20 +26,23 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -49,21 +52,18 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
+public class CollapseBuilderTests extends AbstractSearchTestCase {
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        xContentRegistry = null;
     }
 
     public static CollapseBuilder randomCollapseBuilder() {
@@ -75,24 +75,27 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
         return builder;
     }
 
-    @Override
-    protected Writeable createTestInstance() {
-        return randomCollapseBuilder();
+    public void testSerialization() throws IOException {
+        CollapseBuilder testBuilder = randomCollapseBuilder();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            testBuilder.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                CollapseBuilder deserializedBuilder = new CollapseBuilder(in);
+                assertEquals(deserializedBuilder, testBuilder);
+                assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
+                assertNotSame(deserializedBuilder, testBuilder);
+            }
+        }
     }
 
-    @Override
-    protected Writeable.Reader<CollapseBuilder> instanceReader() {
-        return CollapseBuilder::new;
+    public void testEqualsAndHashcode() throws IOException {
+        CollapseBuilder instance1 = randomCollapseBuilder();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance1, this::copyBuilder);
     }
 
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
+    //we use the streaming infra to create a copy of the builder provided as argument
+    private CollapseBuilder copyBuilder(CollapseBuilder original) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, CollapseBuilder::new);
     }
 
     private SearchContext mockSearchContext() {

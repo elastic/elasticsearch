@@ -29,6 +29,12 @@
 * The deprecated `minimum_number_should_match` parameter in the `bool` query has
   been removed, use `minimum_should_match` instead.
 
+* The `query_string` query now correctly parses the maximum number of
+  states allowed when
+  "https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]"
+  a regex as `max_determinized_states` instead of the typo
+  `max_determined_states`.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

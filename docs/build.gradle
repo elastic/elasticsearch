@@ -48,7 +48,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/stats-aggregation.asciidoc',
   'reference/aggregations/metrics/sum-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
-  'reference/aggregations/metrics/valuecount-aggregation.asciidoc',
   'reference/aggregations/pipeline.asciidoc',
   'reference/aggregations/pipeline/avg-bucket-aggregation.asciidoc',
   'reference/aggregations/pipeline/bucket-script-aggregation.asciidoc',

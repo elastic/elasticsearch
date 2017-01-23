@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry.FromXContent;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -238,9 +237,10 @@ public final class NetworkModule {
 
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        boolean forceExecution,
                                                                                         TransportRequestHandler<T> actualHandler) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, executor, actualHandler);
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }
             return actualHandler;
         }

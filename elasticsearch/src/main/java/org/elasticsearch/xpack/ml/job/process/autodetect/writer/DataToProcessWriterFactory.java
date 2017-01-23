@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 
 /**
  * Factory for creating the suitable writer depending on
@@ -32,17 +32,17 @@ public final class DataToProcessWriterFactory {
      */
     public static DataToProcessWriter create(boolean includeControlField, AutodetectProcess autodetectProcess,
                                              DataDescription dataDescription, AnalysisConfig analysisConfig,
-                                             TransformConfigs transforms, StatusReporter statusReporter, Logger logger) {
+                                             TransformConfigs transforms, DataCountsReporter dataCountsReporter, Logger logger) {
         switch (dataDescription.getFormat()) {
         case JSON:
             return new JsonDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    transforms, statusReporter, logger);
+                    transforms, dataCountsReporter, logger);
         case DELIMITED:
             return new CsvDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    transforms, statusReporter, logger);
+                    transforms, dataCountsReporter, logger);
         case SINGLE_LINE:
             return new SingleLineDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    transforms, statusReporter, logger);
+                    transforms, dataCountsReporter, logger);
         default:
             throw new IllegalArgumentException();
         }

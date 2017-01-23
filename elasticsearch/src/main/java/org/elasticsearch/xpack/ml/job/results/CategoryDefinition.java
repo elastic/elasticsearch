@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.ArrayList;

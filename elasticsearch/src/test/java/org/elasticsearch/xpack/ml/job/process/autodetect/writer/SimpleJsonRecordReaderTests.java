@@ -11,8 +11,8 @@ import com.fasterxml.jackson.core.JsonParser;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.status.CountingInputStream;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
+import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -212,7 +212,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
 
     private JsonParser createParser(String input) throws JsonParseException, IOException {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
-        InputStream inputStream2 = new CountingInputStream(inputStream, mock(StatusReporter.class));
+        InputStream inputStream2 = new CountingInputStream(inputStream, mock(DataCountsReporter.class));
         return new JsonFactory().createParser(inputStream2);
     }
 

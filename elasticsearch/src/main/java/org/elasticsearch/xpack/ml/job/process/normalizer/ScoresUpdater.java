@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;

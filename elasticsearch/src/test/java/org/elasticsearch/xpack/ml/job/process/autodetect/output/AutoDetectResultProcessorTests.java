@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;

@@ -12,12 +12,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.ml.job.persistence.UsagePersister;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+
 import java.util.Locale;
 
 /**
  * Reports the number of bytes, fields and records read.
  * Persistence is done via {@linkplain UsagePersister}
- * The main difference betweeen this and the {@linkplain org.elasticsearch.xpack.ml.job.status.StatusReporter}
+ * The main difference betweeen this and the {@linkplain DataCountsReporter}
  * is that this writes hourly reports i.e. how much data was read in an hour
  */
 public class UsageReporter extends AbstractComponent {

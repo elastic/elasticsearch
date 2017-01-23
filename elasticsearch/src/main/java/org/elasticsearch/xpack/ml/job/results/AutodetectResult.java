@@ -13,10 +13,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
 import java.io.IOException;
 import java.util.List;

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction.Request;
-import org.elasticsearch.xpack.ml.job.results.PageParams;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXContentTestCase<GetModelSnapshotsAction.Request> {

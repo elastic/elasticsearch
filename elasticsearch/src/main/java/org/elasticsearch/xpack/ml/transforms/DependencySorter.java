@@ -10,7 +10,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
 
 /**
  * Transform inputs and outputs can be chained together this class provides
@@ -33,7 +33,7 @@ public final class DependencySorter {
      * <p>
      * Note if there is a circular dependency in the list of transforms this
      * will cause a stack overflow. Check with
-     * {@linkplain org.elasticsearch.xpack.ml.job.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
+     * {@linkplain org.elasticsearch.xpack.ml.job.config.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
      * first.
      *
      * @return List of transforms ordered by dependencies
@@ -49,7 +49,7 @@ public final class DependencySorter {
      * <p>
      * Note if there is a circular dependency in the list of transforms this
      * will cause a stack overflow. Check with
-     * {@linkplain org.elasticsearch.xpack.ml.job.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
+     * {@linkplain org.elasticsearch.xpack.ml.job.config.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
      * first.
      *
      * @return List of transforms ordered by dependencies
@@ -102,7 +102,7 @@ public final class DependencySorter {
      * <p>
      * Note if there is a circular dependency in the list of transforms this
      * will cause a stack overflow. Check with
-     * {@linkplain org.elasticsearch.xpack.ml.job.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
+     * {@linkplain org.elasticsearch.xpack.ml.job.config.transform.verification.TransformConfigsVerifier#checkForCircularDependencies(List)}
      * first.
      *
      * @return List of transforms ordered by dependencies

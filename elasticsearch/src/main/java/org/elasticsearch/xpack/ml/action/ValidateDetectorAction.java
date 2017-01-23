@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.Detector;
+import org.elasticsearch.xpack.ml.job.config.Detector;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.ValidateTransformsAction.Request;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 import java.util.ArrayList;

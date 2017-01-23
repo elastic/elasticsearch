@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 

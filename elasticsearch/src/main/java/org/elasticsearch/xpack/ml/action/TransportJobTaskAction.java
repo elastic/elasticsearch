@@ -23,10 +23,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.JobStatus;
-import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.manager.JobManager;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 

@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.ml.job.Detector;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -39,14 +39,14 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
     private DataDescription.Builder dataDescription;
     private AnalysisConfig analysisConfig;
     private List<TransformConfig> transformConfigs;
-    private StatusReporter statusReporter;
+    private DataCountsReporter dataCountsReporter;
 
     private List<String[]> writtenRecords;
 
     @Before
     public void setUpMocks() throws IOException {
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
-        statusReporter = Mockito.mock(StatusReporter.class);
+        dataCountsReporter = Mockito.mock(DataCountsReporter.class);
 
         writtenRecords = new ArrayList<>();
         doAnswer(new Answer<Void>() {
@@ -85,13 +85,13 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         SingleLineDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream);
-        verify(statusReporter, times(1)).getLatestRecordTime();
-        verify(statusReporter, times(1)).startNewIncrementalCount();
-        verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
-        verify(statusReporter, times(1)).reportRecordWritten(1, 1430301600000L);
-        verify(statusReporter, times(1)).reportRecordWritten(1, 1430305200000L);
-        verify(statusReporter, times(1)).reportRecordWritten(1, 1430308800000L);
-        verify(statusReporter, times(1)).incrementalStats();
+        verify(dataCountsReporter, times(1)).getLatestRecordTime();
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+        verify(dataCountsReporter, times(1)).setAnalysedFieldsPerRecord(1);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 1430301600000L);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 1430305200000L);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 1430308800000L);
+        verify(dataCountsReporter, times(1)).incrementalStats();
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field
@@ -101,8 +101,8 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"1430308800", "This is message 3", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(statusReporter).finishReporting();
-        verifyNoMoreInteractions(statusReporter);
+        verify(dataCountsReporter).finishReporting();
+        verifyNoMoreInteractions(dataCountsReporter);
     }
 
     public void testWrite_GivenDataContainsInvalidRecords() throws Exception {
@@ -122,13 +122,13 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         SingleLineDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream);
-        verify(statusReporter, times(1)).getLatestRecordTime();
-        verify(statusReporter, times(1)).startNewIncrementalCount();
-        verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
-        verify(statusReporter, times(1)).reportRecordWritten(1, 1430301600000L);
-        verify(statusReporter, times(1)).reportRecordWritten(1, 1430308800000L);
-        verify(statusReporter, times(3)).reportDateParseError(1);
-        verify(statusReporter, times(1)).incrementalStats();
+        verify(dataCountsReporter, times(1)).getLatestRecordTime();
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+        verify(dataCountsReporter, times(1)).setAnalysedFieldsPerRecord(1);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 1430301600000L);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 1430308800000L);
+        verify(dataCountsReporter, times(3)).reportDateParseError(1);
+        verify(dataCountsReporter, times(1)).incrementalStats();
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field
@@ -137,8 +137,8 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"1430308800", "This is message 3", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(statusReporter).finishReporting();
-        verifyNoMoreInteractions(statusReporter);
+        verify(dataCountsReporter).finishReporting();
+        verifyNoMoreInteractions(dataCountsReporter);
     }
 
     public void testWrite_GivenNoTransforms() throws Exception {
@@ -148,19 +148,19 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         SingleLineDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream);
-        verify(statusReporter, times(1)).startNewIncrementalCount();
-        verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);
-        verify(statusReporter, times(1)).reportDateParseError(1);
-        verify(statusReporter, times(1)).incrementalStats();
+        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
+        verify(dataCountsReporter, times(1)).setAnalysedFieldsPerRecord(1);
+        verify(dataCountsReporter, times(1)).reportDateParseError(1);
+        verify(dataCountsReporter, times(1)).incrementalStats();
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The final field is the control field
         expectedRecords.add(new String[]{"time", "message", "."});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(statusReporter).getLatestRecordTime();
-        verify(statusReporter).finishReporting();
-        verifyNoMoreInteractions(statusReporter);
+        verify(dataCountsReporter).getLatestRecordTime();
+        verify(dataCountsReporter).finishReporting();
+        verifyNoMoreInteractions(dataCountsReporter);
     }
 
     private static InputStream createInputStream(String input) {
@@ -169,7 +169,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
 
     private SingleLineDataToProcessWriter createWriter() {
         return new SingleLineDataToProcessWriter(true, autodetectProcess, dataDescription.build(),
-                analysisConfig, new TransformConfigs(transformConfigs), statusReporter, Mockito.mock(Logger.class));
+                analysisConfig, new TransformConfigs(transformConfigs), dataCountsReporter, Mockito.mock(Logger.class));
     }
 
     private void assertWrittenRecordsEqualTo(List<String[]> expectedRecords) {

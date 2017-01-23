@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.Logger;
 
-import org.elasticsearch.xpack.ml.job.condition.Condition;
+import org.elasticsearch.xpack.ml.job.config.Condition;
 
 /**
  * Matches a field against a regex

@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;

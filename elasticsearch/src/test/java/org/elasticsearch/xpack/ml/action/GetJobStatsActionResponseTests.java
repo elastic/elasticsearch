@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.JobStatus;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 

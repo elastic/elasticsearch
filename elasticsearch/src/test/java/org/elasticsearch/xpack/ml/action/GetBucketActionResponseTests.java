@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetBucketsAction.Response;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;

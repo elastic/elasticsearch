@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Response;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class PutModelSnapshotDescriptionActionResponseTests extends AbstractStreamableTestCase<UpdateModelSnapshotAction.Response> {

@@ -13,8 +13,8 @@ import java.util.List;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformResult;
 

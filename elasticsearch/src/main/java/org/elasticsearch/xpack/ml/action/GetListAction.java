@@ -41,9 +41,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
-import org.elasticsearch.xpack.ml.job.results.PageParams;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.audit.Auditor;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.Mockito;
 

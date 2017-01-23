@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Date;

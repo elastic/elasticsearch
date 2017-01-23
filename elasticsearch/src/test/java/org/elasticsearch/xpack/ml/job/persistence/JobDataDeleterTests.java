@@ -13,8 +13,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.ModelState;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;

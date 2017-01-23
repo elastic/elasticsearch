@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetListAction.Request;
-import org.elasticsearch.xpack.ml.job.results.PageParams;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class GetListActionRequestTests extends AbstractStreamableTestCase<GetListAction.Request> {

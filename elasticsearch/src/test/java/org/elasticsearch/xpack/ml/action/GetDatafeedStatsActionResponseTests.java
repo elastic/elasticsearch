@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;

@@ -26,8 +26,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.verification.TransformConfigsVerifier;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.verification.TransformConfigsVerifier;
 
 import java.io.IOException;
 import java.util.List;

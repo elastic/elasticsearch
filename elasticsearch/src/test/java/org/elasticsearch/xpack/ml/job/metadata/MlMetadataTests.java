@@ -15,10 +15,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.JobStatus;
-import org.elasticsearch.xpack.ml.job.JobTests;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ml.job.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.hamcrest.Matchers.equalTo;

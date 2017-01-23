@@ -15,8 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
-import org.elasticsearch.xpack.ml.job.ModelDebugConfig;
-import org.elasticsearch.xpack.ml.job.ModelDebugConfig.DebugDestination;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig.DebugDestination;
 
 public class ModelDebugConfigWriterTests extends ESTestCase {
     private OutputStreamWriter writer;

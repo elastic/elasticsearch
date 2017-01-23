@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.job.logging.CppLogMessageHandler;
+import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;

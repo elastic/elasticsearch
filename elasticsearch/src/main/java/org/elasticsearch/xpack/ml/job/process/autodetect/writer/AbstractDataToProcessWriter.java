@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.elasticsearch.xpack.ml.transforms.DependencySorter;
 import org.elasticsearch.xpack.ml.transforms.Transform;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
@@ -37,7 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
 
@@ -49,7 +47,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     protected final AutodetectProcess autodetectProcess;
     protected final DataDescription dataDescription;
     protected final AnalysisConfig analysisConfig;
-    protected final StatusReporter statusReporter;
+    protected final DataCountsReporter dataCountsReporter;
     protected final Logger logger;
     protected final TransformConfigs transformConfigs;
 
@@ -69,19 +67,19 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
 
     protected AbstractDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
-            DataDescription dataDescription, AnalysisConfig analysisConfig,
-            TransformConfigs transformConfigs, StatusReporter statusReporter, Logger logger) {
+                                          DataDescription dataDescription, AnalysisConfig analysisConfig,
+                                          TransformConfigs transformConfigs, DataCountsReporter dataCountsReporter, Logger logger) {
         this.includeControlField = includeControlField;
         this.autodetectProcess = Objects.requireNonNull(autodetectProcess);
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
-        this.statusReporter = Objects.requireNonNull(statusReporter);
+        this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
         this.transformConfigs = Objects.requireNonNull(transformConfigs);
 
         postDateTransforms = new ArrayList<>();
         dateInputTransforms = new ArrayList<>();
-        Date date = statusReporter.getLatestRecordTime();
+        Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;
         latestEpochMs = 0;
         if (date != null) {
@@ -112,7 +110,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
         Map<String, Integer> outFieldIndexes = outputFieldIndexes();
         inputOutputMap = createInputOutputMap(inFieldIndexes);
-        statusReporter.setAnalysedFieldsPerRecord(analysisConfig.analysisFields().size());
+        dataCountsReporter.setAnalysedFieldsPerRecord(analysisConfig.analysisFields().size());
 
         Map<String, Integer> scratchAreaIndexes = scratchAreaIndexes(inputFields, outputFields(),
                 dataDescription.getTimeField());
@@ -232,7 +230,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         try {
             dateTransform.transform(readWriteArea);
         } catch (TransformException e) {
-            statusReporter.reportDateParseError(numberOfFieldsRead);
+            dataCountsReporter.reportDateParseError(numberOfFieldsRead);
             logger.error(e.getMessage());
             return false;
         }
@@ -242,12 +240,12 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         // Records have epoch seconds timestamp so compare for out of order in seconds
         if (epochMs / MS_IN_SECOND < latestEpochMs / MS_IN_SECOND - analysisConfig.getLatency()) {
             // out of order
-            statusReporter.reportOutOfOrderRecord(inFieldIndexes.size());
+            dataCountsReporter.reportOutOfOrderRecord(inFieldIndexes.size());
 
             if (epochMs > latestEpochMsThisUpload) {
                 // record this timestamp even if the record won't be processed
                 latestEpochMsThisUpload = epochMs;
-                statusReporter.reportLatestTimeIncrementalStats(latestEpochMsThisUpload);
+                dataCountsReporter.reportLatestTimeIncrementalStats(latestEpochMsThisUpload);
             }
             return false;
         }
@@ -261,7 +259,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMsThisUpload = latestEpochMs;
 
         autodetectProcess.writeRecord(output);
-        statusReporter.reportRecordWritten(numberOfFieldsRead, latestEpochMs);
+        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, latestEpochMs);
 
         return true;
     }

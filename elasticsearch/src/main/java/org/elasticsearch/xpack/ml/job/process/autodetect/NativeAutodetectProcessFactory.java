@@ -11,14 +11,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 

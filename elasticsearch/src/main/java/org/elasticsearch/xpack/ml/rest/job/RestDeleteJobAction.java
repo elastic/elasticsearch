@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 

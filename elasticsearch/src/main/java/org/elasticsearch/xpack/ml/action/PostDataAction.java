@@ -26,10 +26,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.manager.JobManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 

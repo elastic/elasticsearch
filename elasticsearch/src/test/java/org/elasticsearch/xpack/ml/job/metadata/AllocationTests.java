@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.job.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 public class AllocationTests extends AbstractSerializingTestCase<Allocation> {

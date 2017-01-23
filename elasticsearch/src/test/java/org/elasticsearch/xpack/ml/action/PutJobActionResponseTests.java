@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.PutJobAction.Response;
-import org.elasticsearch.xpack.ml.job.IgnoreDowntime;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-import static org.elasticsearch.xpack.ml.job.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.job.JobTests.randomValidJobId;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;
 
 public class PutJobActionResponseTests extends AbstractStreamableTestCase<Response> {
 

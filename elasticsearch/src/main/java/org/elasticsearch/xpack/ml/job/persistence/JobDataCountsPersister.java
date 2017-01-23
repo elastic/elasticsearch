@@ -14,7 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 

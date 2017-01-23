@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,9 +32,9 @@ import java.util.Map;
 class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     public JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess, DataDescription dataDescription,
-                                   AnalysisConfig analysisConfig, TransformConfigs transforms, StatusReporter statusReporter,
+                                   AnalysisConfig analysisConfig, TransformConfigs transforms, DataCountsReporter dataCountsReporter,
                                    Logger logger) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, statusReporter, logger);
+        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, dataCountsReporter, logger);
     }
 
     /**
@@ -46,16 +46,16 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      */
     @Override
     public DataCounts write(InputStream inputStream) throws IOException {
-        statusReporter.startNewIncrementalCount();
+        dataCountsReporter.startNewIncrementalCount();
 
         try (JsonParser parser = new JsonFactory().createParser(inputStream)) {
             writeJson(parser);
 
             // this line can throw and will be propagated
-            statusReporter.finishReporting();
+            dataCountsReporter.finishReporting();
         }
 
-        return statusReporter.incrementalStats();
+        return dataCountsReporter.incrementalStats();
     }
 
     private void writeJson(JsonParser parser) throws IOException {
@@ -79,7 +79,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
             long missing = missingFieldCount(gotFields);
             if (missing > 0) {
-                statusReporter.reportMissingFields(missing);
+                dataCountsReporter.reportMissingFields(missing);
             }
 
             for (InputOutputMap inOut : inputOutputMap) {

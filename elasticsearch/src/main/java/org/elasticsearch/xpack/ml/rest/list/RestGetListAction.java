@@ -14,8 +14,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.GetListAction;
-import org.elasticsearch.xpack.ml.job.results.PageParams;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 
 import java.io.IOException;
 

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetRecordsAction.Response;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 

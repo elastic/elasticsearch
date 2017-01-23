@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -131,9 +131,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
-        StatusReporter statusReporter = mock(StatusReporter.class);
+        DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
         StateProcessor stateProcessor = mock(StateProcessor.class);
-        return new AutodetectCommunicator(executorService, createJobDetails(), autodetectProcess, statusReporter,
+        return new AutodetectCommunicator(executorService, createJobDetails(), autodetectProcess, dataCountsReporter,
                 autoDetectResultProcessor, stateProcessor, e -> {});
     }
 

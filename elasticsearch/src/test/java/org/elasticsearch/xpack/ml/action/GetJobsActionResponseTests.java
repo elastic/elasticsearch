@@ -6,16 +6,16 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetJobsAction.Response;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.AnalysisLimits;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.IgnoreDowntime;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.ModelDebugConfig;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;

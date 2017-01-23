@@ -9,8 +9,8 @@ import java.util.List;
 
 import org.apache.logging.log4j.Logger;
 
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
 
 
 /**

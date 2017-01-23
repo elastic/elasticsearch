@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetJobsAction.Request;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class GetJobsActionRequestTests extends AbstractStreamableTestCase<GetJobsAction.Request> {

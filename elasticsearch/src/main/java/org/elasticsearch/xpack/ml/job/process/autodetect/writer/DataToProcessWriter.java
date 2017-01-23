@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.ml.job.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.io.InputStream;

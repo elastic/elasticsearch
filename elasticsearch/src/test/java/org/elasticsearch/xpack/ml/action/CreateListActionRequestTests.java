@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.PutListAction.Request;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 import java.util.ArrayList;

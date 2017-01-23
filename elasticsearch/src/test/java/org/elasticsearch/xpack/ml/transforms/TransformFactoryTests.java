@@ -17,10 +17,10 @@ import java.util.Map;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
 
 public class TransformFactoryTests extends ESTestCase {

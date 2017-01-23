@@ -9,11 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
-import org.elasticsearch.xpack.ml.job.transform.IntRange;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
+import org.elasticsearch.xpack.ml.job.config.transform.IntRange;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.transforms.Transform.TransformIndex;
 
 public final class TransformTestUtils {

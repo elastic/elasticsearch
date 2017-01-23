@@ -65,8 +65,8 @@ import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformsAction;
-import org.elasticsearch.xpack.ml.job.manager.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.manager.JobManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -83,7 +83,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -149,8 +149,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
-                        StatusReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
-                        StatusReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
+                        DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
+                        DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         UsageReporter.UPDATE_INTERVAL_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
     }

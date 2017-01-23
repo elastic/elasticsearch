@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction.Request;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 public class ValidateTransformActionRequestTests extends AbstractStreamableXContentTestCase<ValidateTransformAction.Request> {

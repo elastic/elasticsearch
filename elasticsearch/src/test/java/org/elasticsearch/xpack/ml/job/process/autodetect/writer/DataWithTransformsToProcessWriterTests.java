@@ -7,15 +7,15 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.ml.job.Detector;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verify;
 
 public class DataWithTransformsToProcessWriterTests extends ESTestCase {
     private AutodetectProcess autodetectProcess;
-    private StatusReporter statusReporter;
+    private DataCountsReporter dataCountsReporter;
     private Logger logger;
 
     private List<String[]> writtenRecords;
@@ -43,7 +43,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
     @Before
     public void setUpMocks() throws IOException {
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
-        statusReporter = Mockito.mock(StatusReporter.class);
+        dataCountsReporter = Mockito.mock(DataCountsReporter.class);
         logger = Mockito.mock(Logger.class);
 
         writtenRecords = new ArrayList<>();
@@ -79,7 +79,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
 
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(statusReporter).finishReporting();
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testJsonWriteWithConcat() throws IOException {
@@ -102,7 +102,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
 
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(statusReporter).finishReporting();
+        verify(dataCountsReporter).finishReporting();
     }
 
 
@@ -126,9 +126,9 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
         TransformConfigs tcs = new TransformConfigs(Arrays.asList(tc));
 
         if (doCsv) {
-            return new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, statusReporter, logger);
+            return new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, dataCountsReporter, logger);
         } else {
-            return new JsonDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, statusReporter, logger);
+            return new JsonDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, dataCountsReporter, logger);
         }
     }
 

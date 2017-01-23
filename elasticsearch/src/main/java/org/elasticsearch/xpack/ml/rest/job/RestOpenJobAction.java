@@ -15,7 +15,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 

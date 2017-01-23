@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 

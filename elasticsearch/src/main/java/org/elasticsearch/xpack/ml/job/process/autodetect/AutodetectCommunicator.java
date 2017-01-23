@@ -10,11 +10,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
@@ -22,9 +23,8 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
-import org.elasticsearch.xpack.ml.job.status.CountingInputStream;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
@@ -45,7 +45,7 @@ public class AutodetectCommunicator implements Closeable {
     private static final int DEFAULT_TRY_TIMEOUT_SECS = 30;
 
     private final Job job;
-    private final StatusReporter statusReporter;
+    private final DataCountsReporter dataCountsReporter;
     private final AutodetectProcess autodetectProcess;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
     private final Consumer<Exception> handler;
@@ -53,11 +53,11 @@ public class AutodetectCommunicator implements Closeable {
     final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
     public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process,
-                                  StatusReporter statusReporter, AutoDetectResultProcessor autoDetectResultProcessor,
+                                  DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
                                   StateProcessor stateProcessor, Consumer<Exception> handler) {
         this.job = job;
         this.autodetectProcess = process;
-        this.statusReporter = statusReporter;
+        this.dataCountsReporter = dataCountsReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
         this.handler = handler;
 
@@ -77,7 +77,7 @@ public class AutodetectCommunicator implements Closeable {
 
     private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
         return DataToProcessWriterFactory.create(true, autodetectProcess, dataDescription.orElse(job.getDataDescription()),
-                job.getAnalysisConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
+                job.getAnalysisConfig(), new TransformConfigs(job.getTransforms()) , dataCountsReporter, LOGGER);
     }
 
     public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {
@@ -85,7 +85,7 @@ public class AutodetectCommunicator implements Closeable {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
             }
-            CountingInputStream countingStream = new CountingInputStream(inputStream, statusReporter);
+            CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
 
             DataToProcessWriter autoDetectWriter = createProcessWriter(params.getDataDescription());
             DataCounts results = autoDetectWriter.write(countingStream);
@@ -97,7 +97,7 @@ public class AutodetectCommunicator implements Closeable {
     @Override
     public void close() throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_CLOSE, job.getId()), () -> {
-            statusReporter.close();
+            dataCountsReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
             handler.accept(null);
@@ -158,7 +158,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public Optional<DataCounts> getDataCounts() {
-        return Optional.ofNullable(statusReporter.runningTotalStats());
+        return Optional.ofNullable(dataCountsReporter.runningTotalStats());
     }
 
     private <T> T checkAndRun(Supplier<String> errorMessage, Callback<T> callback, boolean wait) throws IOException {

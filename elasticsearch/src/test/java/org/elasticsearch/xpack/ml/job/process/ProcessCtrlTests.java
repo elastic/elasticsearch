@@ -9,17 +9,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.IgnoreDowntime;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.job.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 
 public class ProcessCtrlTests extends ESTestCase {
 

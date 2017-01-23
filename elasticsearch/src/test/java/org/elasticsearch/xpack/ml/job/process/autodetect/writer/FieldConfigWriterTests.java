@@ -25,21 +25,21 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.detectionrules.Connective;
+import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.ini4j.Config;
 import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
-import org.elasticsearch.xpack.ml.job.detectionrules.DetectionRule;
-import org.elasticsearch.xpack.ml.job.detectionrules.RuleCondition;
-import org.elasticsearch.xpack.ml.job.detectionrules.RuleConditionType;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 
 
 public class FieldConfigWriterTests extends ESTestCase {

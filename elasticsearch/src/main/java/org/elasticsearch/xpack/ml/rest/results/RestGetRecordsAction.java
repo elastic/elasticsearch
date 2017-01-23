@@ -14,9 +14,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.job.results.PageParams;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
 
 import java.io.IOException;
 

@@ -11,8 +11,8 @@ import java.util.List;
 
 import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 
 public class DependencySorterTests extends ESTestCase {
 

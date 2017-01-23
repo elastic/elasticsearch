@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 public final class DatafeedJobValidator {

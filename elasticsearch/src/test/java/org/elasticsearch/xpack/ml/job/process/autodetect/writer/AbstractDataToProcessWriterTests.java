@@ -7,17 +7,17 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataDescription;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.condition.Condition;
-import org.elasticsearch.xpack.ml.job.condition.Operator;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Condition;
+import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.job.transform.TransformType;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.transforms.Concat;
 import org.elasticsearch.xpack.ml.transforms.HighestRegisteredDomain;
 import org.elasticsearch.xpack.ml.transforms.RegexSplit;
@@ -50,13 +50,13 @@ import static org.mockito.Mockito.verify;
  */
 public class AbstractDataToProcessWriterTests extends ESTestCase {
     private AutodetectProcess autodetectProcess;
-    private StatusReporter statusReporter;
+    private DataCountsReporter dataCountsReporter;
     private Logger jobLogger;
 
     @Before
     public void setUpMocks() {
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
-        statusReporter = Mockito.mock(StatusReporter.class);
+        dataCountsReporter = Mockito.mock(DataCountsReporter.class);
         jobLogger = Mockito.mock(Logger.class);
     }
 
@@ -76,7 +76,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(tc));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 
@@ -135,7 +135,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(tc));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 
@@ -206,7 +206,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(tc));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 
@@ -278,7 +278,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(concatTc, hrdTc));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 
@@ -330,7 +330,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(excludeConfig));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 
@@ -345,10 +345,10 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertFalse(writer.applyTransformsAndWrite(input, output, 3));
 
         verify(autodetectProcess, never()).writeRecord(output);
-        verify(statusReporter, never()).reportRecordWritten(anyLong(), anyLong());
+        verify(dataCountsReporter, never()).reportRecordWritten(anyLong(), anyLong());
 
         // reset the call counts etc.
-        Mockito.reset(statusReporter);
+        Mockito.reset(dataCountsReporter);
 
         // this is ok
         input = new String[] { "2", "metricB", "0" };
@@ -356,7 +356,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertTrue(writer.applyTransformsAndWrite(input, output, 3));
 
         verify(autodetectProcess, times(1)).writeRecord(expectedOutput);
-        verify(statusReporter, times(1)).reportRecordWritten(3, 2000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(3, 2000);
     }
 
     public void testBuildTransforms_DateTransformsAreSorted() throws IOException {
@@ -383,7 +383,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         TransformConfigs transforms = new TransformConfigs(Arrays.asList(upperTc, concatTc, splitTc));
 
         AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
+                new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, dataCountsReporter, jobLogger);
 
         writer.writeHeader();
 

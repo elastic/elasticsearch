@@ -14,9 +14,9 @@ import java.util.Deque;
 import java.util.List;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.Detector;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;

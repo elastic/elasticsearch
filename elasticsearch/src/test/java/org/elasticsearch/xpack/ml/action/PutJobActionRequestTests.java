@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.PutJobAction.Request;
-import org.elasticsearch.xpack.ml.job.Job;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-import static org.elasticsearch.xpack.ml.job.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.job.JobTests.randomValidJobId;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;
 
 public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

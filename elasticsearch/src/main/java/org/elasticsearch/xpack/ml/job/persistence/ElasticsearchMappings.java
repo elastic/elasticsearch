@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.CategorizerState;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.Job;
-import org.elasticsearch.xpack.ml.job.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.ModelState;
-import org.elasticsearch.xpack.ml.job.audit.AuditActivity;
-import org.elasticsearch.xpack.ml.job.audit.AuditMessage;
-import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.ml.notifications.AuditActivity;
+import org.elasticsearch.xpack.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyCause;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;

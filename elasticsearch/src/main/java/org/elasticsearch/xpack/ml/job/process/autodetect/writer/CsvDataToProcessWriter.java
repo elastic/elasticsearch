@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.ml.job.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.DataCounts;
-import org.elasticsearch.xpack.ml.job.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.status.StatusReporter;
-import org.elasticsearch.xpack.ml.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -50,9 +50,9 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
     private static final int MAX_LINES_PER_RECORD = 10000;
 
     public CsvDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
-            DataDescription dataDescription, AnalysisConfig analysisConfig,
-            TransformConfigs transforms, StatusReporter statusReporter, Logger logger) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, statusReporter, logger);
+                                  DataDescription dataDescription, AnalysisConfig analysisConfig,
+                                  TransformConfigs transforms, DataCountsReporter dataCountsReporter, Logger logger) {
+        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, dataCountsReporter, logger);
     }
 
     /**
@@ -69,13 +69,13 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 new String(new char[]{DataDescription.LINE_ENDING}))
                 .maxLinesPerRow(MAX_LINES_PER_RECORD).build();
 
-        statusReporter.startNewIncrementalCount();
+        dataCountsReporter.startNewIncrementalCount();
 
         try (CsvListReader csvReader = new CsvListReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8), csvPref)) {
             String[] header = csvReader.getHeader(true);
             if (header == null) { // null if EoF
 
-                return statusReporter.incrementalStats();
+                return dataCountsReporter.incrementalStats();
             }
 
             long inputFieldCount = Math.max(header.length - 1, 0); // time field doesn't count
@@ -102,7 +102,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
 
                     for (InputOutputMap inOut : inputOutputMap) {
                         if (inOut.inputIndex >= line.size()) {
-                            statusReporter.reportMissingField();
+                            dataCountsReporter.reportMissingField();
                             continue;
                         }
 
@@ -121,10 +121,10 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
             }
 
             // This function can throw
-            statusReporter.finishReporting();
+            dataCountsReporter.finishReporting();
         }
 
-        return statusReporter.incrementalStats();
+        return dataCountsReporter.incrementalStats();
     }
 
     private static void fillRecordFromLine(List<String> line, String[] record) {

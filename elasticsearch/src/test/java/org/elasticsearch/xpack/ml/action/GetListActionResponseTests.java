@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetListAction.Response;
-import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
-import org.elasticsearch.xpack.ml.lists.ListDocument;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.ListDocument;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.Collections;

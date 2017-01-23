@@ -161,8 +161,9 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
             }
             builder.startObject("tasks");
             for(TaskInfo task : entry.getValue()) {
-                builder.field(task.getTaskId().toString());
+                builder.startObject(task.getTaskId().toString());
                 task.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endObject();
             builder.endObject();

@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -41,8 +40,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestAliasesExistAction extends BaseRestHandler {
-
-    @Inject
     public RestAliasesExistAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(HEAD, "/_alias/{name}", this);

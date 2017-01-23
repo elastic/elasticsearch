@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.CommitStats;
@@ -47,8 +46,6 @@ import java.util.Locale;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-
-    @Inject
     public RestShardsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/shards", this);

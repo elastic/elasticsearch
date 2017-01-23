@@ -472,11 +472,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");
     }
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
         final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
@@ -494,7 +494,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return index;
     }
 
-    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) {
+    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) throws IOException {
         final Engine.Delete delete;
         if (shard.routingEntry().primary()) {
             delete = shard.prepareDeleteOnPrimary(type, id, Versions.MATCH_ANY, VersionType.INTERNAL);

@@ -23,9 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,18 +40,18 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestListTasksAction extends BaseRestHandler {
 
-    private final ClusterService clusterService;
+    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    @Inject
-    public RestListTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestListTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         super(settings);
-        this.clusterService = clusterService;
+        this.nodesInCluster = nodesInCluster;
         controller.registerHandler(GET, "/_tasks", this);
     }
 
@@ -60,7 +59,8 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final String groupBy = request.param("group_by", "nodes");
-        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(clusterService, groupBy, channel));
+        return channel -> client.admin().cluster().listTasks(listTasksRequest,
+                listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -85,15 +85,15 @@ public class RestListTasksAction extends BaseRestHandler {
      * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
      */
     public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(
-        ClusterService clusterService,
-        String groupBy,
-        final RestChannel channel) {
+                Supplier<DiscoveryNodes> nodesInCluster,
+                String groupBy,
+                final RestChannel channel) {
         if ("nodes".equals(groupBy)) {
             return new RestBuilderListener<T>(channel) {
                 @Override
                 public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    response.toXContentGroupedByNode(builder, channel.request(), clusterService.state().nodes());
+                    response.toXContentGroupedByNode(builder, channel.request(), nodesInCluster.get());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,8 +36,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterUpdateSettingsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);

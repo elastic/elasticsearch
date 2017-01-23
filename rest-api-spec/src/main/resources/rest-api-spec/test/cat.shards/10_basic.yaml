@@ -172,8 +172,8 @@
 ---
 "Test cat shards with shadow replicas":
   - skip:
-      version: " - 6.99.99"
-      reason: deprecation was added in 5.2.0 (but this is disable now due to a bug in ThreadContext, Boaz is on it)
+      version: " - 5.1.99"
+      reason: deprecation was added in 5.2.0
       features: "warnings"
 
   - do:

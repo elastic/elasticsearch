@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,7 +39,6 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
     public RestMultiGetAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mget", this);

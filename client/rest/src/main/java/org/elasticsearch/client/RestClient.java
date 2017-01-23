@@ -96,8 +96,7 @@ public class RestClient implements Closeable {
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile Set<HttpHost> hosts;
-    private final AuthCache authCache = new BasicAuthCache();
+    private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
@@ -126,14 +125,14 @@ public class RestClient implements Closeable {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
-        authCache.clear();
         Set<HttpHost> httpHosts = new HashSet<>();
+        AuthCache authCache = new BasicAuthCache();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
             httpHosts.add(host);
             authCache.put(host, new BasicScheme());
         }
-        this.hosts = Collections.unmodifiableSet(httpHosts);
+        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(httpHosts), authCache);
         this.blacklist.clear();
     }
 
@@ -322,20 +321,20 @@ public class RestClient implements Closeable {
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
-                failureTrackingResponseListener);
+        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+                            failureTrackingResponseListener);
     }
 
-    private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
+    private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hosts.next();
+        final HttpHost host = hostTuple.hosts.next();
         //we stream the request body if the entity allows for it
         final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
         final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
         final HttpClientContext context = HttpClientContext.create();
-        context.setAuthCache(authCache);
+        context.setAuthCache(hostTuple.authCache);
         client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
@@ -375,7 +374,7 @@ public class RestClient implements Closeable {
             }
 
             private void retryIfPossible(Exception exception) {
-                if (hosts.hasNext()) {
+                if (hostTuple.hosts.hasNext()) {
                     //in case we are retrying, check whether maxRetryTimeout has been reached
                     long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
@@ -386,7 +385,7 @@ public class RestClient implements Closeable {
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, hosts, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
+                        performRequestAsync(startTime, hostTuple, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);
@@ -424,17 +423,18 @@ public class RestClient implements Closeable {
      * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
      * one dead host gets returned so that it can be retried.
      */
-    private Iterable<HttpHost> nextHost() {
+    private HostTuple<Iterator<HttpHost>> nextHost() {
+        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
         Collection<HttpHost> nextHosts = Collections.emptySet();
         do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hosts);
+            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
             for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
                 if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
                     filteredHosts.remove(entry.getKey());
                 }
             }
             if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
+                //last resort: if there are no good host to use, return a single dead one, the one that's closest to being retried
                 List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
                 if (sortedHosts.size() > 0) {
                     Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
@@ -453,7 +453,7 @@ public class RestClient implements Closeable {
                 nextHosts = rotatedHosts;
             }
         } while(nextHosts.isEmpty());
-        return nextHosts;
+        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache);
     }
 
     /**
@@ -693,6 +693,20 @@ public class RestClient implements Closeable {
          */
         public void onFailure(HttpHost host) {
 
+        }
+    }
+
+    /**
+     * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
+     * safe, volatile way.
+     */
+    private static class HostTuple<T> {
+        public final T hosts;
+        public final AuthCache authCache;
+
+        public HostTuple(final T hosts, final AuthCache authCache) {
+            this.hosts = hosts;
+            this.authCache = authCache;
         }
     }
 }

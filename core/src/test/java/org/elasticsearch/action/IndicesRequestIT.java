@@ -754,7 +754,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                        TransportRequestHandler<T> actualHandler, boolean forceExecution) {
+                                                                                        TransportRequestHandler<T> actualHandler,
+                                                                                        boolean forceExecution) {
             return new InterceptingRequestHandler<>(action, actualHandler);
         }
 

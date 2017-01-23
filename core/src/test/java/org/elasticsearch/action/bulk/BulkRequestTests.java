@@ -30,9 +30,15 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -204,5 +210,41 @@ public class BulkRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));
         expectThrows(NullPointerException.class, () -> bulkRequest.add((UpdateRequest) null));
         expectThrows(NullPointerException.class, () -> bulkRequest.add((DeleteRequest) null));
+    }
+
+    public void testSmileIsSupported() throws IOException {
+        XContentType xContentType = XContentType.SMILE;
+        BytesReference data;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try(XContentBuilder  builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.startObject("index");
+                builder.field("_index", "index");
+                builder.field("_type", "type");
+                builder.field("_id", "test");
+                builder.endObject();
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.field("field", "value");
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            data = out.bytes();
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(data, null, null);
+        assertEquals(1, bulkRequest.requests().size());
+        assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+        IndexRequest request = (IndexRequest) bulkRequest.requests().get(0);
+        assertEquals(IndexRequest.OpType.INDEX, request.opType());
+        assertEquals("index", request.index());
+        assertEquals("type", request.type());
+        assertEquals("test", request.id());
+        assertEquals(1, request.sourceAsMap().size());
+        assertEquals("value", request.sourceAsMap().get("field"));
     }
 }

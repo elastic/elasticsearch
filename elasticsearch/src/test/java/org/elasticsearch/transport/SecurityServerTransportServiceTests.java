@@ -38,12 +38,13 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
-                assertThat(
+                RequestHandlerRegistry handler = entry.getValue();
+                assertEquals(
                         "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
                                 "; do all the handler registration methods have overrides?",
-                        entry.getValue().toString(),
-                        startsWith(SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class.getName() + "@")
-                );
+                        handler.toString(),
+                        "ProfileSecuredRequestHandler{action='" + handler.getAction() + "', executorName='" + handler.getExecutor()
+                                + "', forceExecution=" + handler.isForceExecution() + "}");
             }
         }
     }

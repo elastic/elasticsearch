@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,17 +119,6 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
 
     }
 
-    @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
-        final Settings nodeSettings = super.nodeSettings(nodeOrdinal);
-        final int processors = randomIntBetween(1, 4);
-        /*
-         * We have to do this to ensure that there are sufficiently many threads to accept the indexing requests, otherwise operations will
-         * instead be queued and never trip the latch that all operations are inside the engine.
-         */
-        return Settings.builder().put(nodeSettings).put("processors", processors).put("thread_pool.bulk.size", 1 + processors).build();
-    }
-
     /*
      * This tests that sequence-number-based recoveries wait for in-flight operations to complete. The trick here is simple. We latch some
      * in-flight operations inside the engine after sequence numbers are assigned. While these operations are latched, we restart a replica.
@@ -137,9 +127,6 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
      */
     public void testRecoveryWaitsForOps() throws Exception {
         final int docs = randomIntBetween(1, 64);
-        final int numberOfProcessors = EsExecutors.numberOfProcessors(nodeSettings(0));
-        final int latchedDocs = randomIntBetween(1, 1 + numberOfProcessors);
-
         try {
             internalCluster().startMasterOnlyNode();
             final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
@@ -188,7 +175,9 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
             }
 
             // start some in-flight operations that will get latched in the engine
+
             final List<Thread> threads = new ArrayList<>();
+            final int latchedDocs = internalCluster().getInstance(ThreadPool.class, replicaNode).info(ThreadPool.Names.BULK).getMax();
             indexLatch.set(new CountDownLatch(latchedDocs));
             waitForOpsToCompleteLatch.set(new CountDownLatch(1));
             for (int i = docs; i < docs + latchedDocs; i++) {

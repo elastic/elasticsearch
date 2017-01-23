@@ -172,9 +172,18 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
 `host_type`::
 
-    The type of host type to use to communicate with other instances. Can be
-    one of `private_ip`, `public_ip`, `private_dns`, `public_dns`. Defaults to
-    `private_ip`.
++
+--
+The type of host type to use to communicate with other instances. Can be
+one of `private_ip`, `public_ip`, `private_dns`, `public_dns` or `tag:TAGNAME` where
+`TAGNAME` is the tag field you defined for your ec2 instance.
+
+For example if you defined a tag `my-elasticsearch-host` in ec2 and set it to `myhostname1.mydomain.com`, then
+setting `host_type: tag:my-elasticsearch-host` will tell Discovery Ec2 plugin to read the host name from the
+`my-elasticsearch-host` tag. In this case, it will be resolved to `myhostname1.mydomain.com`.
+
+Defaults to `private_ip`.
+--
 
 `availability_zones`::
 

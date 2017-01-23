@@ -164,20 +164,21 @@ public interface AwsEc2Service {
      * Defines discovery settings for ec2. Starting with discovery.ec2.
      */
     interface DISCOVERY_EC2 {
-        enum HostType {
-            PRIVATE_IP,
-            PUBLIC_IP,
-            PRIVATE_DNS,
-            PUBLIC_DNS
+        class HostType {
+            public static final String PRIVATE_IP = "private_ip";
+            public static final String PUBLIC_IP = "public_ip";
+            public static final String PRIVATE_DNS = "private_dns";
+            public static final String PUBLIC_DNS = "public_dns";
+            public static final String TAG_PREFIX = "tag:";
         }
 
         /**
          * discovery.ec2.host_type: The type of host type to use to communicate with other instances.
-         * Can be one of private_ip, public_ip, private_dns, public_dns. Defaults to private_ip.
+         * Can be one of private_ip, public_ip, private_dns, public_dns or meta:XXXX where
+         * XXXX is the metadata field name we will read the address from. Defaults to private_ip.
          */
-        Setting<HostType> HOST_TYPE_SETTING =
-            new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP.name(), s -> HostType.valueOf(s.toUpperCase(Locale.ROOT)),
-                Property.NodeScope);
+        Setting<String> HOST_TYPE_SETTING =
+            new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP, Function.identity(), Property.NodeScope);
         /**
          * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
          * discovery. Defaults to true.

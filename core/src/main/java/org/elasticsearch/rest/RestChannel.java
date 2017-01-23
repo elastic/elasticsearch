@@ -49,4 +49,8 @@ public interface RestChannel {
 
     void sendResponse(RestResponse response);
 
+    /**
+     * Sends a new simple error response with the error message included
+     */
+    void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException;
 }

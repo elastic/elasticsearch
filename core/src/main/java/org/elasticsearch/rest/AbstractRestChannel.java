@@ -123,4 +123,10 @@ public abstract class AbstractRestChannel implements RestChannel {
         return detailedErrorsEnabled;
     }
 
+    @Override
+    public void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException {
+        sendResponse(new BytesRestResponse(restStatus, newErrorBuilder().startObject()
+            .field("error", errorMessage)
+            .endObject()));
+    }
 }

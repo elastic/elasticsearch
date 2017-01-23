@@ -81,7 +81,7 @@ public abstract class RestRequest implements ToXContent.Params {
         }
         this.params = params;
         this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getHeader("Content-Type");
+        final List<String> contentType = getAllHeaderValues("Content-Type");
         this.xContentType = parseContentType(contentType);
         this.isPlainText = xContentType == null && isPlainTextContentType(contentType);
     }
@@ -99,7 +99,7 @@ public abstract class RestRequest implements ToXContent.Params {
         this.params = params;
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getHeader("Content-Type");
+        final List<String> contentType = getAllHeaderValues("Content-Type");
         this.xContentType = parseContentType(contentType);
         this.isPlainText = xContentType == null && isPlainTextContentType(contentType);
     }
@@ -135,7 +135,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
-     * sent. Use of {@link #getHeader(String)} should be preferred
+     * sent. Use of {@link #getAllHeaderValues(String)} should be preferred
      */
     public final String header(String name) {
         List<String> values = headers.get(name);
@@ -148,7 +148,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Get all values for the header or {@code null} if the header was not found
      */
-    public final List<String> getHeader(String name) {
+    public final List<String> getAllHeaderValues(String name) {
         List<String> values = headers.get(name);
         if (values != null) {
             return Collections.unmodifiableList(values);
@@ -401,7 +401,7 @@ public abstract class RestRequest implements ToXContent.Params {
         String source = param("source");
         if (source != null) {
             BytesArray bytes = new BytesArray(source);
-            String typeParam = param("source_type");
+            String typeParam = param("source_content_type");
             final XContentType xContentType;
             if (typeParam != null) {
                 xContentType = parseContentType(Collections.singletonList(typeParam));

@@ -252,9 +252,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchRequiresContentTypeForRequestsWithContent() {
-        String content = randomAsciiOfLengthBetween(1, 32);
+        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         TestRestRequest request = new TestRestRequest("/", content, null);
-        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
 
         assertFalse(channel.sendResponseCalled.get());
         restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
@@ -271,7 +271,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWorksWithPlainText() {
-        String content = randomAsciiOfLengthBetween(1, 32);
+        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content.getBytes(StandardCharsets.UTF_8)), null).withPath("/")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();

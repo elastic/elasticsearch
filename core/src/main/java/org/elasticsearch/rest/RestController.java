@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController extends AbstractComponent {
@@ -167,7 +168,7 @@ public class RestController extends AbstractComponent {
         RestChannel responseChannel = channel;
         try {
             final int contentLength = request.hasContent() ? request.content().length() : 0;
-            if (checkContentType(request, responseChannel, contentLength)) {
+            if (checkForContentType(request, responseChannel, contentLength)) {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
@@ -217,23 +218,24 @@ public class RestController extends AbstractComponent {
         }
     }
 
-    boolean checkContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength) {
+    /**
+     * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present and matches an
+     * {@link XContentType} or the request is plain text.
+     */
+    boolean checkForContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength) {
         if (contentLength > 0) {
             if (restRequest.getXContentType() == null && restRequest.isPlainText() == false) {
+                final List<String> contentTypeHeader = restRequest.getAllHeaderValues("Content-Type");
+                final String errorMessage;
+                if (contentTypeHeader == null) {
+                    errorMessage = "Content-Type header is missing";
+                } else {
+                    errorMessage = "Content-Type header [" +
+                        Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
+                }
+
                 try {
-                    XContentBuilder builder = channel.newErrorBuilder();
-                    final List<String> contentTypeHeader = restRequest.getHeader("Content-Type");
-                    final String errorMessage;
-                    if (contentTypeHeader == null) {
-                        errorMessage = "Content-Type header is missing";
-                    } else {
-                        errorMessage = "Content-Type header [" +
-                            Strings.collectionToCommaDelimitedString(restRequest.getHeader("Content-Type")) + "] is not supported";
-                    }
-                    builder.startObject().field("error", errorMessage).endObject();
-                    RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
-                    response.addHeader("Content-Type", builder.contentType().mediaType());
-                    channel.sendResponse(response);
+                    channel.sendErrorResponse(NOT_ACCEPTABLE, errorMessage);
                 } catch (IOException e) {
                     logger.warn("Failed to send response", e);
                 }
@@ -252,11 +254,7 @@ public class RestController extends AbstractComponent {
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             try {
-                XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error", "error traces in responses are disabled.").endObject();
-                RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
-                response.addHeader("Content-Type", builder.contentType().mediaType());
-                channel.sendResponse(response);
+                channel.sendErrorResponse(BAD_REQUEST, "error traces in responses are disabled.");
             } catch (IOException e) {
                 logger.warn("Failed to send response", e);
             }
@@ -364,6 +362,11 @@ public class RestController extends AbstractComponent {
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
+        }
+
+        @Override
+        public void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException {
+            delegate.sendErrorResponse(restStatus, errorMessage);
         }
 
         private void close() {

@@ -30,49 +30,54 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
     public void testExplain() {
+        // Debug.explain can explain an object
         Object dummy = new Object();
-        Map<String, Object> params = singletonMap("a", dummy);
-
-        Debug.PainlessExplainError e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec(
-                "Debug.explain(params.a)", params, true));
+        PainlessExplainError e = expectScriptThrows(PainlessExplainError.class, () -> exec(
+                "Debug.explain(params.a)", singletonMap("a", dummy), true));
         assertSame(dummy, e.getObjectToExplain());
-        assertThat(e.getMetadata(), hasEntry("es.class", singletonList("java.lang.Object")));
-        assertThat(e.getMetadata(), hasEntry("es.to_string", singletonList(dummy.toString())));
+        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList(dummy.toString())));
+        assertThat(e.getHeaders(), hasEntry("es.java_class", singletonList("java.lang.Object")));
+        assertThat(e.getHeaders(), hasEntry("es.painless_class", singletonList("Object")));
 
         // Null should be ok
-        e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec("Debug.explain(null)"));
+        e = expectScriptThrows(PainlessExplainError.class, () -> exec("Debug.explain(null)"));
         assertNull(e.getObjectToExplain());
-        assertThat(e.getMetadata(), hasEntry("es.class", singletonList("null")));
-        assertThat(e.getMetadata(), hasEntry("es.to_string", singletonList("null")));
+        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList("null")));
+        assertThat(e.getHeaders(), not(hasKey("es.java_class")));
+        assertThat(e.getHeaders(), not(hasKey("es.painless_class")));
 
         // You can't catch the explain exception
-        e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec(
+        e = expectScriptThrows(PainlessExplainError.class, () -> exec(
                 "try {\n"
               + "  Debug.explain(params.a)\n"
               + "} catch (Exception e) {\n"
               + "  return 1\n"
-              + "}", params, true));
+              + "}", singletonMap("a", dummy), true));
         assertSame(dummy, e.getObjectToExplain());
     }
 
     /**
-     * {@link Debug.PainlessExplainError} doesn't serialize but the headers still make it.
+     * {@link PainlessExplainError} doesn't serialize but the headers still make it.
      */
     public void testPainlessExplainErrorSerialization() throws IOException {
         Map<String, Object> params = singletonMap("a", "jumped over the moon");
         ScriptException e = expectThrows(ScriptException.class, () -> exec("Debug.explain(params.a)", params, true));
-        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.class"));
-        assertEquals(singletonList("jumped over the moon"), e.getMetadata("es.to_string"));
+        assertEquals(singletonList("jumped over the moon"), e.getHeader("es.to_string"));
+        assertEquals(singletonList("java.lang.String"), e.getHeader("es.java_class"));
+        assertEquals(singletonList("String"), e.getHeader("es.painless_class"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
             try (StreamInput in = out.bytes().streamInput()) {
                 ElasticsearchException read = (ScriptException) in.readException();
-                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.class"));
-                assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
+                assertEquals(singletonList("jumped over the moon"), read.getHeader("es.to_string"));
+                assertEquals(singletonList("java.lang.String"), read.getHeader("es.java_class"));
+                assertEquals(singletonList("String"), read.getHeader("es.painless_class"));
             }
         }
     }

@@ -18,6 +18,7 @@
  */
 
 import org.apache.tools.ant.types.Path
+import org.gradle.api.file.FileTree
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -53,7 +54,8 @@ integTest {
   }
 }
 
-// Build
+/* Build Javadoc for the Java classes in Painless's public API that are in the
+ * Painless plugin */
 task apiJavadoc(type: Javadoc) {
   source = sourceSets.main.allJava
   include '**/org/elasticsearch/painless/api/'
@@ -64,3 +66,10 @@ task apiJavadocJar(type: Jar) {
   from apiJavadoc
 }
 assemble.dependsOn apiJavadocJar
+
+// Reference documentation for Painless's public API.
+task generatePainlessApi(type: JavaExec) {
+  main = 'org.elasticsearch.painless.PainlessDocGenerator'
+  classpath = sourceSets.test.runtimeClasspath
+  args file('../../docs/reference/painless-api-reference')
+}

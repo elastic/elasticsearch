@@ -30,6 +30,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -254,7 +255,26 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         final TopDocs mergedTopDocs;
-        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
+        int numShards = resultsArr.length();
+        if (firstResult.queryResult().topDocs() instanceof CollapseTopFieldDocs) {
+            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) firstResult.queryResult().topDocs();
+            final Sort sort = new Sort(firstTopDocs.fields);
+
+            final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = (CollapseTopFieldDocs) topDocs;
+            }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
+                        sort.getSort(), new Object[0], Float.NaN);
+                }
+            }
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
+        } else if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
 
@@ -334,6 +354,8 @@ public class SearchPhaseController extends AbstractComponent {
             }
             // from is always zero as when we use scroll, we ignore from
             long size = Math.min(fetchHits, topN(queryResults));
+            // with collapsing we can have more hits than sorted docs
+            size = Math.min(sortedScoreDocs.length, size);
             for (int sortedDocsIndex = 0; sortedDocsIndex < size; sortedDocsIndex++) {
                 ScoreDoc scoreDoc = sortedScoreDocs[sortedDocsIndex];
                 lastEmittedDocPerShard[scoreDoc.shardIndex] = scoreDoc;
@@ -380,11 +402,16 @@ public class SearchPhaseController extends AbstractComponent {
         boolean sorted = false;
         int sortScoreIndex = -1;
         if (firstResult.topDocs() instanceof TopFieldDocs) {
-            sorted = true;
             TopFieldDocs fieldDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
-            for (int i = 0; i < fieldDocs.fields.length; i++) {
-                if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
-                    sortScoreIndex = i;
+            if (fieldDocs instanceof CollapseTopFieldDocs &&
+                fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) {
+                sorted = false;
+            } else {
+                sorted = true;
+                for (int i = 0; i < fieldDocs.fields.length; i++) {
+                    if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
+                        sortScoreIndex = i;
+                    }
                 }
             }
         }
@@ -423,6 +450,8 @@ public class SearchPhaseController extends AbstractComponent {
         }
         int from = ignoreFrom ? 0 : firstResult.queryResult().from();
         int numSearchHits = (int) Math.min(fetchHits - from, topN(queryResults));
+        // with collapsing we can have more fetch hits than sorted docs
+        numSearchHits = Math.min(sortedDocs.length, numSearchHits);
         // merge hits
         List<InternalSearchHit> hits = new ArrayList<>();
         if (!fetchResults.isEmpty()) {

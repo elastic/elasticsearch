@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -225,6 +226,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
+import org.elasticsearch.search.collapse.ExpandCollapseSearchResponseListener;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
@@ -260,7 +262,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -289,6 +290,10 @@ public class SearchModule {
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
+        this(settings, transportClient, plugins, null);
+    }
+
+    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins, Client client) {
         this.settings = settings;
         this.transportClient = transportClient;
         registerSuggesters(plugins);
@@ -305,7 +310,7 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         if (false == transportClient) {
-          registerSearchResponseListeners(plugins);
+            registerSearchResponseListeners(client, plugins);
         }
         registerShapes();
     }
@@ -698,7 +703,10 @@ public class SearchModule {
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
     }
 
-    private void registerSearchResponseListeners(List<SearchPlugin> plugins) {
+    private void registerSearchResponseListeners(Client client, List<SearchPlugin> plugins) {
+        if (client != null) {
+            registerSearchResponseListener(new ExpandCollapseSearchResponseListener(client));
+        }
         registerFromPlugin(plugins, p -> p.getSearchResponseListeners(), this::registerSearchResponseListener);
     }
 

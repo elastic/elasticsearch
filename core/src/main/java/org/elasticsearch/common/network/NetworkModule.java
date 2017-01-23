@@ -240,9 +240,10 @@ public final class NetworkModule {
 
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        boolean forceExecution,
                                                                                         TransportRequestHandler<T> actualHandler) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, executor, actualHandler);
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }
             return actualHandler;
         }

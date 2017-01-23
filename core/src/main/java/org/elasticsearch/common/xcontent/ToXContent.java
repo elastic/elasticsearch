@@ -20,6 +20,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +32,6 @@ import java.util.Map;
  * but those that don't may or may not require emitting a startObject and an endObject.
  */
 public interface ToXContent {
-
     interface Params {
         String param(String key);
 
@@ -65,6 +66,7 @@ public interface ToXContent {
     };
 
     class MapParams implements Params {
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapParams.class));
 
         private final Map<String, String> params;
 
@@ -88,12 +90,16 @@ public interface ToXContent {
 
         @Override
         public boolean paramAsBoolean(String key, boolean defaultValue) {
-            return Booleans.parseBoolean(param(key), defaultValue);
+            return paramAsBoolean(key, (Boolean) defaultValue);
         }
 
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-            return Booleans.parseBoolean(param(key), defaultValue);
+            String rawParam = param(key);
+            if (rawParam != null && Booleans.isStrictlyBoolean(rawParam) == false) {
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for [{}] but got [{}]", key, rawParam);
+            }
+            return Booleans.parseBoolean(rawParam, defaultValue);
         }
     }
 

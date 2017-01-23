@@ -342,15 +342,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index associated
-     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
-     * setting for this is <code>false</code>.
-     */
-    public boolean isIndexUsingShadowReplicas() {
-        return IndexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
      * Returns the version the index was created on.
      * @see Version#indexCreated(Settings)
      */

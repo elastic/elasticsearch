@@ -195,8 +195,8 @@ public class IndicesOptions {
 
         //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-                lenientNodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
-                lenientNodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
+                lenientNodeBooleanValue(ignoreUnavailableString, "ignore_unavailable", defaultSettings.ignoreUnavailable()),
+                lenientNodeBooleanValue(allowNoIndicesString, "allow_no_indices", defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),

@@ -87,7 +87,7 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_ttl").field("enabled", "yes").endObject()
+                .startObject("_ttl").field("enabled", "true").endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
@@ -117,7 +117,7 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
 
         String mappingWithTtl = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
-                .field("enabled", "yes")
+                .field("enabled", "true")
                 .endObject()
                 .startObject("properties").field("field").startObject().field("type", "text").endObject().endObject()
                 .endObject().endObject().string();
@@ -133,7 +133,7 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
     public void testThatChangingTTLKeepsMapperEnabled() throws Exception {
         String mappingWithTtl = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
-                .field("enabled", "yes")
+                .field("enabled", "true")
                 .endObject()
                 .startObject("properties").field("field").startObject().field("type", "text").endObject().endObject()
                 .endObject().endObject().string();

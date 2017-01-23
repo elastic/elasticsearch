@@ -54,6 +54,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -255,7 +256,15 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         assertThat(template.template(), equalTo("te*"));
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
-        assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
+        assertThat(template.mappings().get("type1").string(),
+            anyOf(
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"false\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"0\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":0}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"off\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"no\"}}}")
+        ));
         assertThat(template.aliases().size(), equalTo(3));
         assertThat(template.aliases().get("alias1"), notNullValue());
         assertThat(template.aliases().get("alias2").filter().string(), containsString(version));

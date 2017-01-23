@@ -25,30 +25,6 @@ package org.elasticsearch.common;
 public class Booleans {
 
     /**
-     * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
-     */
-    public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
-        // TODO: the leniency here is very dangerous: a simple typo will be misinterpreted and the user won't know.
-        // We should remove it and cutover to https://github.com/rmuir/booleanparser
-        if (text == null || length == 0) {
-            return defaultValue;
-        }
-        if (length == 1) {
-            return text[offset] != '0';
-        }
-        if (length == 2) {
-            return !(text[offset] == 'n' && text[offset + 1] == 'o');
-        }
-        if (length == 3) {
-            return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
-        }
-        if (length == 5) {
-            return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
-        }
-        return true;
-    }
-
-    /**
      * returns true if the a sequence of chars is one of "true","false","on","off","yes","no","0","1"
      *
      * @param text   sequence to check
@@ -78,6 +54,13 @@ public class Booleans {
         return false;
     }
 
+    public static Boolean parseBooleanExact(String value, Boolean defaultValue) {
+        if (Strings.hasText(value)) {
+            return parseBooleanExact(value);
+        }
+        return defaultValue;
+    }
+
     /***
      *
      * @return true/false
@@ -94,6 +77,13 @@ public class Booleans {
         }
 
         throw new IllegalArgumentException("Failed to parse value [" + value + "] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]");
+    }
+
+    /**
+     * @return true iff the provided value is either "true" or "false".
+     */
+    public static boolean isStrictlyBoolean(String value) {
+        return "false".equals(value) || "true".equals(value);
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {

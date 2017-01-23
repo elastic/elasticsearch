@@ -22,6 +22,8 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -36,7 +38,6 @@ import java.util.Map;
  *
  */
 public abstract class AbstractXContentParser implements XContentParser {
-
     // Currently this is not a setting that can be changed and is a policy
     // that relates to how parsing of things like "boost" are done across
     // the whole of Elasticsearch (eg if String "1.0" is a valid float).
@@ -52,6 +53,8 @@ public abstract class AbstractXContentParser implements XContentParser {
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
         }
     }
+
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
 
     private final NamedXContentRegistry xContentRegistry;
 
@@ -92,13 +95,27 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public boolean booleanValue() throws IOException {
+        boolean interpretedAsLenient = false;
+        boolean booleanValue;
+        String rawValue = null;
+
         Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {
-            return intValue() != 0;
+            interpretedAsLenient = true;
+            booleanValue = intValue() != 0;
+            rawValue = String.valueOf(intValue());
         } else if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            rawValue = new String(textCharacters(), textOffset(), textLength());
+            interpretedAsLenient = Booleans.isStrictlyBoolean(rawValue) == false;
+            booleanValue = Booleans.parseBoolean(rawValue, false /* irrelevant */);
+        } else {
+            booleanValue = doBooleanValue();
         }
-        return doBooleanValue();
+        if (interpretedAsLenient) {
+            deprecationLogger.deprecated("Expected a boolean [true/false] for property [{}] but got [{}]", currentName(), rawValue);
+        }
+        return booleanValue;
+
     }
 
     protected abstract boolean doBooleanValue() throws IOException;

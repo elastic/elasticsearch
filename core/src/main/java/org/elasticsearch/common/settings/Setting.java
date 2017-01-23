@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -668,15 +667,25 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), (value) -> parseBoolean(key, value), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, fallbackSetting, (value) -> parseBoolean(key, value), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, defaultValueFn, (value) -> parseBoolean(key, value), properties);
+    }
+
+    private static Boolean parseBoolean(String key, String value) {
+        // let the parser handle all cases for non-proper booleans without a deprecation warning by throwing IAE
+        boolean booleanValue = Booleans.parseBooleanExact(value);
+        if (Booleans.isStrictlyBoolean(value) == false) {
+            DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Setting.class));
+            deprecationLogger.deprecated("Expected a boolean [true/false] for setting [{}] but got [{}]", key, value);
+        }
+        return booleanValue;
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {

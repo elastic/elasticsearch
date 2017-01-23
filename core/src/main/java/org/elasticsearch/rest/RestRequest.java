@@ -26,6 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,6 +48,7 @@ import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestRequest.class));
 
     private final NamedXContentRegistry xContentRegistry;
     private final Map<String, String> params;
@@ -200,12 +203,21 @@ public abstract class RestRequest implements ToXContent.Params {
 
     @Override
     public boolean paramAsBoolean(String key, boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
+        return paramAsBoolean(key, (Boolean) defaultValue);
     }
 
     @Override
     public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
+        String rawParam = param(key);
+        // Treat empty string as true because that allows the presence of the url parameter to mean "turn this on"
+        if (rawParam != null && rawParam.length() == 0) {
+            return true;
+        } else {
+            if (rawParam != null && Booleans.isStrictlyBoolean(rawParam) == false) {
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for request parameter [{}] but got [{}]", key, rawParam);
+            }
+            return Booleans.parseBoolean(rawParam, defaultValue);
+        }
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {

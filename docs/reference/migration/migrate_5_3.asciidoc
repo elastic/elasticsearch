@@ -21,3 +21,33 @@ three properties:
    the filenames of the various logging files (if you prefer)
 
 The property `es.logs` is deprecated and will be removed in Elasticsearch 6.0.0.
+
+[[breaking_53_settings_changes]]
+[float]
+=== Settings changes
+
+[float]
+==== Lenient boolean representations are deprecated
+
+Usage of any value other than `false`, `"false", `true` and `"true"` in boolean
+settings deprecated.
+
+[[breaking_53_rest_api_changes]]
+[float]
+=== REST API changes
+
+==== Lenient boolean representations are deprecated
+
+Usage of any value other than `false`, `"false", `true` and `"true"` for
+boolean request parameters and boolean properties in the body of REST API calls
+is deprecated.
+
+[[breaking_53_mapping_changes]]
+[float]
+=== Mapping changes
+
+==== Lenient boolean representations are deprecated
+
+Usage of any value other than `false`, `"false", `true` and `"true"` for
+boolean values in mappings is deprecated.
+

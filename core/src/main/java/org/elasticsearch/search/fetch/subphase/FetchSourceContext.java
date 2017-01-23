@@ -26,6 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +45,7 @@ import java.util.function.Function;
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContent {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(FetchSourceContext.class));
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
@@ -103,6 +106,10 @@ public class FetchSourceContext implements Writeable, ToXContent {
             } else {
                 source_includes = Strings.splitStringByCommaToArray(source);
             }
+            if (fetchSource != null && Booleans.isStrictlyBoolean(source) == false) {
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for request parameter [_source] but got [{}]", source);
+            }
+
         }
         String sIncludes = request.param("_source_includes");
         sIncludes = request.param("_source_include", sIncludes);

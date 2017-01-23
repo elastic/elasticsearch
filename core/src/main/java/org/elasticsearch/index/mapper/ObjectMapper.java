@@ -42,11 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
-/**
- *
- */
 public class ObjectMapper extends Mapper implements Cloneable {
 
     public static final String CONTENT_TYPE = "object";
@@ -188,11 +183,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else {
-                    builder.dynamic(lenientNodeBooleanValue(fieldNode) ? Dynamic.TRUE : Dynamic.FALSE);
+                    boolean dynamic = TypeParsers.nodeBooleanValue(fieldName, "dynamic", fieldNode);
+                    builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(lenientNodeBooleanValue(fieldNode));
+                builder.enabled(TypeParsers.nodeBooleanValue(fieldName, "enabled", fieldNode));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -204,7 +200,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(lenientNodeBooleanValue(fieldNode));
+                builder.includeInAll(TypeParsers.nodeBooleanValue(fieldName, "include_in_all", fieldNode));
                 return true;
             }
             return false;
@@ -227,12 +223,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = lenientNodeBooleanValue(fieldNode);
+                nestedIncludeInParent = TypeParsers.nodeBooleanValue(name, "include_in_parent", fieldNode);
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = lenientNodeBooleanValue(fieldNode);
+                nestedIncludeInRoot = TypeParsers.nodeBooleanValue(name, "include_in_root", fieldNode);
                 node.remove("include_in_root");
             }
             if (nested) {

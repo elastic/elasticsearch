@@ -229,11 +229,11 @@ public class StringFieldMapper extends FieldMapper {
                             norms = ((Map<?,?>) norms).get("enabled");
                         }
                         if (norms != null) {
-                            node.put("norms", TypeParsers.nodeBooleanValue("norms", norms, parserContext));
+                            node.put("norms", TypeParsers.nodeBooleanValue(fieldName,"norms", norms));
                         }
                         Object omitNorms = node.remove("omit_norms");
                         if (omitNorms != null) {
-                            node.put("norms", TypeParsers.nodeBooleanValue("omit_norms", omitNorms, parserContext) == false);
+                            node.put("norms", TypeParsers.nodeBooleanValue(fieldName, "omit_norms", omitNorms) == false);
                         }
                     }
                     {

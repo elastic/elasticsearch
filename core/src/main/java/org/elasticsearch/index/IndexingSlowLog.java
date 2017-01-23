@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -36,6 +37,8 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexingSlowLog.class));
+
     private final Index index;
     private boolean reformat;
     private long indexWarnThreshold;
@@ -82,7 +85,12 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 try {
                     return Integer.parseInt(value, 10);
                 } catch (NumberFormatException e) {
-                    return Booleans.parseBoolean(value, true) ? Integer.MAX_VALUE : 0;
+                    boolean booleanValue = Booleans.parseBoolean(value, true);
+                    if (value != null && Booleans.isStrictlyBoolean(value) == false) {
+                        DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] or a number for setting [{}] but got [{}]",
+                            INDEX_INDEXING_SLOWLOG_PREFIX + ".source", value);
+                    }
+                    return booleanValue ? Integer.MAX_VALUE : 0;
                 }
             }, Property.Dynamic, Property.IndexScope);
 

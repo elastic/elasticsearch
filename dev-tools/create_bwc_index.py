@@ -48,6 +48,28 @@ def rarely():
 def frequently():
   return not rarely()
 
+def capabilities_of(version):
+  current_version = parse_version(version)
+
+  return {
+    'warmers': current_version < parse_version('2.0.0-alpha1'),
+    'dots_in_field_names': current_version >= parse_version('2.4.0'),
+    'lenient_booleans': current_version < parse_version('6.0.0-alpha1')
+  }
+
+
+def falsy(lenient):
+  return random.choice(['off', 'no', '0', 0, 'false', False]) if lenient else False
+
+
+def truthy(lenient):
+  return random.choice(['on', 'yes', '1', 1, 'true', True]) if lenient else True
+
+
+def random_bool(lenient):
+  return random.choice([falsy, truthy])(lenient)
+
+
 # asserts the correctness of the given hits given they are sorted asc
 def assert_sort(hits):
   values = [hit['sort'] for hit in hits['hits']['hits']]
@@ -59,19 +81,23 @@ def assert_sort(hits):
 
 # Indexes the given number of document into the given index
 # and randomly runs refresh, optimize and flush commands
-def index_documents(es, index_name, type, num_docs, supports_dots_in_field_names):
+def index_documents(es, index_name, type, num_docs, capabilities):
   logging.info('Indexing %s docs' % num_docs)
-  index(es, index_name, type, num_docs, supports_dots_in_field_names, True)
+  index(es, index_name, type, num_docs, capabilities, flush=True)
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
-def index(es, index_name, type, num_docs, supports_dots_in_field_names, flush=False):
+def index(es, index_name, type, num_docs, capabilities, flush=False):
   for id in range(0, num_docs):
-    body = {'string': str(random.randint(0, 100)),
-            'long_sort': random.randint(0, 100),
-            'double_sort' : float(random.randint(0, 100)),
-            'bool' : random.choice([True, False])}
-    if supports_dots_in_field_names:
+    lenient_bool = capabilities['lenient_booleans']
+    body = {
+          'string': str(random.randint(0, 100)),
+          'long_sort': random.randint(0, 100),
+          'double_sort': float(random.randint(0, 100)),
+          # be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
+          'bool': random_bool(lenient_bool) if id > 0 else random.choice([True, False])
+        }
+    if capabilities['dots_in_field_names']:
       body['field.with.dots'] = str(random.randint(0, 100))
 
     body['binary'] = base64.b64encode(bytearray(random.getrandbits(8) for _ in range(16))).decode('ascii')
@@ -83,10 +109,11 @@ def index(es, index_name, type, num_docs, supports_dots_in_field_names, flush=Fa
     if rarely() and flush:
       es.indices.flush(index=index_name, force=frequently())
 
-def reindex_docs(es, index_name, type, num_docs, supports_dots_in_field_names):
+def reindex_docs(es, index_name, type, num_docs, capabilities):
   logging.info('Re-indexing %s docs' % num_docs)
+  capabilities['lenient_booleans'] = False
   # reindex some docs after the flush such that we have something in the translog
-  index(es, index_name, type, num_docs, supports_dots_in_field_names)
+  index(es, index_name, type, num_docs, capabilities)
 
 def delete_by_query(es, version, index_name, doc_type):
 
@@ -200,9 +227,12 @@ def generate_index(client, version, index_name):
   client.indices.delete(index=index_name, ignore=404)
   logging.info('Create single shard test index')
 
+  capabilities = capabilities_of(version)
+  lenient_booleans = capabilities['lenient_booleans']
+
   mappings = {}
   warmers = {}
-  if parse_version(version) < parse_version('2.0.0-alpha1'):
+  if capabilities['warmers']:
     warmers['warmer1'] = {
       'source': {
         'query': {
@@ -249,7 +279,7 @@ def generate_index(client, version, index_name):
     }
     mappings['meta_fields'] = {
       '_routing': {
-        'required': 'false'
+        'required': falsy(lenient_booleans)
       },
     }
     mappings['custom_formats'] = {
@@ -266,13 +296,12 @@ def generate_index(client, version, index_name):
     }
     mappings['auto_boost'] = {
       '_all': {
-        'auto_boost': True
+        'auto_boost': truthy(lenient_booleans)
       }
     }
   mappings['doc'] = {'properties' : {}}
-  supports_dots_in_field_names = parse_version(version) >= parse_version("2.4.0")
-  if supports_dots_in_field_names:
 
+  if capabilities['dots_in_field_names']:
     if parse_version(version) < parse_version("5.0.0-alpha1"):
       mappings["doc"]['properties'].update({
         'field.with.dots': {
@@ -320,7 +349,7 @@ def generate_index(client, version, index_name):
       'properties': {
         'string_with_norms_disabled': {
           'type': 'text',
-          'norms' : False
+          'norms': False
         },
         'string_with_norms_enabled': {
           'type': 'keyword',
@@ -340,7 +369,7 @@ def generate_index(client, version, index_name):
   # test back-compat of stored binary fields
   mappings['doc']['properties']['binary'] = {
     'type': 'binary',
-    'store': True,
+    'store': truthy(lenient_booleans),
     }
 
   settings = {
@@ -363,7 +392,7 @@ def generate_index(client, version, index_name):
   if parse_version(version) < parse_version("5.0.0-alpha1"):
     health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   else:
-    health = client.cluster.health(wait_for_status='green', wait_for_no_relocating_shards=True)
+    health = client.cluster.health(wait_for_status='green', params={"wait_for_no_relocating_shards": "true"})
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)
@@ -372,13 +401,13 @@ def generate_index(client, version, index_name):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
-  index_documents(client, index_name, 'doc', num_docs, supports_dots_in_field_names)
+  index_documents(client, index_name, 'doc', num_docs, capabilities)
   if parse_version(version) < parse_version('5.1.0'):
     logging.info("Adding a alias that can't be created in 5.1+ so we can assert that we can still use it")
     client.indices.put_alias(index=index_name, name='#' + index_name)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, version, index_name, 'doc', num_docs)
-  return num_docs, supports_dots_in_field_names
+  return num_docs, capabilities
 
 def snapshot_index(client, version, repo_dir):
   persistent = {
@@ -400,7 +429,9 @@ def snapshot_index(client, version, repo_dir):
     },
     "mappings": {
       "type1": {
-        "_source": { "enabled" : False }
+        "_source": {
+          "enabled": falsy(capabilities_of(version)['lenient_booleans'])
+        }
       }
     },
     "aliases": {
@@ -488,7 +519,7 @@ def create_bwc_index(cfg, version):
     node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
-    num_docs, supports_dots_in_field_names = generate_index(client, version, index_name)
+    num_docs, capabilities = generate_index(client, version, index_name)
     if snapshot_supported:
       snapshot_index(client, version, repo_dir)
 
@@ -497,7 +528,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     if version.startswith('0.') or version.startswith('1.'):
       delete_by_query(client, version, index_name, 'doc')
-    reindex_docs(client, index_name, 'doc', min(100, num_docs), supports_dots_in_field_names)
+    reindex_docs(client, index_name, 'doc', min(100, num_docs), capabilities)
 
     shutdown_node(node)
     node = None

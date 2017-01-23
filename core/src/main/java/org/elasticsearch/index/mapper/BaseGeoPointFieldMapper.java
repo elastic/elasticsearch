@@ -221,7 +221,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     if (propName.equals("lat_lon")) {
                         deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
                             + "in the next major release");
-                        builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode));
+                        builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode, propName));
                         iterator.remove();
                     } else if (propName.equals("precision_step")) {
                         deprecationLogger.deprecated(CONTENT_TYPE + " precision_step parameter is deprecated and will be removed "
@@ -231,13 +231,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     } else if (propName.equals("geohash")) {
                         deprecationLogger.deprecated(CONTENT_TYPE + " geohash parameter is deprecated and will be removed "
                             + "in the next major release");
-                        builder.enableGeoHash(XContentMapValues.lenientNodeBooleanValue(propNode));
+                        builder.enableGeoHash(XContentMapValues.lenientNodeBooleanValue(propNode, propName));
                         iterator.remove();
                     } else if (propName.equals("geohash_prefix")) {
                         deprecationLogger.deprecated(CONTENT_TYPE + " geohash_prefix parameter is deprecated and will be removed "
                             + "in the next major release");
-                        builder.geoHashPrefix(XContentMapValues.lenientNodeBooleanValue(propNode));
-                        if (XContentMapValues.lenientNodeBooleanValue(propNode)) {
+                        builder.geoHashPrefix(XContentMapValues.lenientNodeBooleanValue(propNode, propName));
+                        if (XContentMapValues.lenientNodeBooleanValue(propNode, propName)) {
                             builder.enableGeoHash(true);
                         }
                         iterator.remove();
@@ -254,7 +254,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 }
 
                 if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, Names.IGNORE_MALFORMED, propNode));
                     iterator.remove();
                 }
             }

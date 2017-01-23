@@ -31,6 +31,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -46,15 +47,16 @@ import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
-
-    IndexService indexService;
-    DocumentMapperParser parser;
+    private IndexService indexService;
+    private DocumentMapperParser parser;
 
     @Before
     public void setup() {
@@ -125,6 +127,48 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", builder.string());
     }
 
+    public void testParsesBooleansLenient() throws IOException {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "boolean")
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "boolean")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().string();
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        String falsy = randomFrom("false", "off", "no", "0");
+        String truthy = randomFrom("true", "on", "yes", "1");
+
+        ParsedDocument parsedDoc = defaultMapper.parse("legacy", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+                .field("field1", falsy)
+                .field("field2", truthy)
+            .endObject()
+            .bytes());
+        Document doc = parsedDoc.rootDoc();
+        assertEquals("F", doc.getField("field1").stringValue());
+        assertEquals("T", doc.getField("field2").stringValue());
+
+        List<String> expectedDeprecationWarnings = new ArrayList<>();
+        if (Booleans.isStrictlyBoolean(falsy) == false) {
+            expectedDeprecationWarnings.add("Expected a boolean [true/false] for property [field1] but got ["+ falsy + "]");
+        }
+        if (Booleans.isStrictlyBoolean(truthy) == false) {
+            expectedDeprecationWarnings.add("Expected a boolean [true/false] for property [field2] but got [" + truthy + "]");
+        }
+
+        if (expectedDeprecationWarnings.isEmpty() == false) {
+            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
+        }
+    }
+
     public void testMultiFields() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -137,7 +181,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper mapper = indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = indexService.mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         assertEquals(mapping, mapper.mappingSource().toString());
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -212,8 +257,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool1"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "bool2"));
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool3"));
-        assertWarnings("Expected a boolean for property [index] but got [no]",
-                "Expected a boolean for property [index] but got [not_analyzed]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [no]",
+                "Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
 
     public void testEmptyName() throws IOException {

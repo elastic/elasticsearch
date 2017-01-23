@@ -24,6 +24,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -47,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class RestTable {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestRequest.class));
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
@@ -190,7 +193,13 @@ public class RestTable {
         } else {
             for (Table.Cell cell : table.getHeaders()) {
                 String d = cell.attr.get("default");
-                if (Booleans.parseBoolean(d, true) && checkOutputTimestamp(cell.value.toString(), request)) {
+                boolean defaultValue = Booleans.parseBoolean(d, true);
+                if (d != null && Booleans.isStrictlyBoolean(d) == false) {
+                    DEPRECATION_LOGGER.deprecated(
+                        "Expected a boolean [true/false] for attribute [default] of table header [{}] but got [{}]",
+                        cell.value.toString(), d);
+                }
+                if (defaultValue && checkOutputTimestamp(cell.value.toString(), request)) {
                     display.add(new DisplayHeader(cell.value.toString(), cell.value.toString()));
                 }
             }

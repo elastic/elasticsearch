@@ -994,8 +994,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-            if (Booleans.isStrictlyBoolean(checkIndexOnStartup) == false) {
-                deprecationLogger.deprecated("Expected a boolean [true/false] for setting [{}] but got [{}]", IndexSettings.INDEX_CHECK_ON_STARTUP, checkIndexOnStartup);
+            if (Booleans.isBoolean(checkIndexOnStartup) && Booleans.isStrictlyBoolean(checkIndexOnStartup) == false) {
+                deprecationLogger.deprecated("Expected [true/false/fix/checksum] for setting [{}] but got [{}]", IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), checkIndexOnStartup);
             }
             try {
                 checkIndex();

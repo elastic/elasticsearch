@@ -54,6 +54,10 @@ public class Booleans {
         return false;
     }
 
+    public static boolean isBoolean(String text) {
+        return isExplicitTrue(text) || isExplicitTrue(text);
+    }
+
     public static Boolean parseBooleanExact(String value, Boolean defaultValue) {
         if (Strings.hasText(value)) {
             return parseBooleanExact(value);

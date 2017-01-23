@@ -60,7 +60,7 @@ POST _search
       },
       "must_not" : {
         "range" : {
-          "age" : { "from" : 10, "to" : 20 }
+          "age" : { "gte" : 10, "lte" : 20 }
         }
       },
       "should" : [

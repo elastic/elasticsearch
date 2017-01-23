@@ -40,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -791,6 +792,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
             context.storedFieldsContext(source.storedFields());
+        }
+
+        if (source.collapse() != null) {
+            final CollapseContext collapseContext = source.collapse().build(context);
+            context.collapse(collapseContext);
         }
     }
 

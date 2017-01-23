@@ -41,11 +41,13 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -173,7 +175,7 @@ public class QueryPhase implements SearchPhase {
                 // Perhaps have a dedicated scroll phase?
                 final ScrollContext scrollContext = searchContext.scrollContext();
                 assert (scrollContext != null) == (searchContext.request().scroll() != null);
-                final TopDocsCollector<?> topDocsCollector;
+                final Collector topDocsCollector;
                 ScoreDoc after = null;
                 if (searchContext.request().scroll() != null) {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
@@ -206,17 +208,31 @@ public class QueryPhase implements SearchPhase {
                     numDocs = 1;
                 }
                 assert numDocs > 0;
-                if (searchContext.sort() != null) {
-                    SortAndFormats sf = searchContext.sort();
-                    topDocsCollector = TopFieldCollector.create(sf.sort, numDocs,
+                if (searchContext.collapse() == null) {
+                    if (searchContext.sort() != null) {
+                        SortAndFormats sf = searchContext.sort();
+                        topDocsCollector = TopFieldCollector.create(sf.sort, numDocs,
                             (FieldDoc) after, true, searchContext.trackScores(), searchContext.trackScores());
-                    sortValueFormats = sf.formats;
-                } else {
-                    rescore = !searchContext.rescore().isEmpty();
-                    for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                        numDocs = Math.max(rescoreContext.window(), numDocs);
+                        sortValueFormats = sf.formats;
+                    } else {
+                        rescore = !searchContext.rescore().isEmpty();
+                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                            numDocs = Math.max(rescoreContext.window(), numDocs);
+                        }
+                        topDocsCollector = TopScoreDocCollector.create(numDocs, after);
                     }
-                    topDocsCollector = TopScoreDocCollector.create(numDocs, after);
+                } else {
+                    Sort sort = Sort.RELEVANCE;
+                    if (searchContext.sort() != null) {
+                        sort = searchContext.sort().sort;
+                    }
+                    CollapseContext collapse = searchContext.collapse();
+                    topDocsCollector = collapse.createTopDocs(sort, numDocs, searchContext.trackScores());
+                    if (searchContext.sort() == null) {
+                        sortValueFormats = new DocValueFormat[] {DocValueFormat.RAW};
+                    } else {
+                        sortValueFormats = searchContext.sort().formats;
+                    }
                 }
                 collector = topDocsCollector;
                 if (doProfile) {
@@ -225,7 +241,14 @@ public class QueryPhase implements SearchPhase {
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
-                        TopDocs topDocs = topDocsCollector.topDocs();
+                        final TopDocs topDocs;
+                        if (topDocsCollector instanceof TopDocsCollector) {
+                            topDocs = ((TopDocsCollector<?>) topDocsCollector).topDocs();
+                        } else if (topDocsCollector instanceof CollapsingTopDocsCollector) {
+                            topDocs = ((CollapsingTopDocsCollector) topDocsCollector).getTopDocs();
+                        } else {
+                            throw new IllegalStateException("Unknown top docs collector " + topDocsCollector.getClass().getName());
+                        }
                         if (scrollContext != null) {
                             if (scrollContext.totalHits == -1) {
                                 // first round

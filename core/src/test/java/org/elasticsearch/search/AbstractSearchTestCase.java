@@ -33,6 +33,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
@@ -90,7 +91,8 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 HighlightBuilderTests::randomHighlighterBuilder,
                 SuggestBuilderTests::randomSuggestBuilder,
                 QueryRescoreBuilderTests::randomRescoreBuilder,
-                randomExtBuilders);
+                randomExtBuilders,
+                CollapseBuilderTests::randomCollapseBuilder);
     }
 
     protected SearchRequest createSearchRequest() throws IOException {

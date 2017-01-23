@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -74,7 +75,7 @@ public class RandomSearchRequestGenerator {
      * Build a random search request.
      *
      * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
-     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier)}.
+     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
@@ -112,7 +113,8 @@ public class RandomSearchRequestGenerator {
             Supplier<HighlightBuilder> randomHighlightBuilder,
             Supplier<SuggestBuilder> randomSuggestBuilder,
             Supplier<RescoreBuilder<?>> randomRescoreBuilder,
-            Supplier<List<SearchExtBuilder>> randomExtBuilders) {
+            Supplier<List<SearchExtBuilder>> randomExtBuilders,
+            Supplier<CollapseBuilder> randomCollapseBuilder) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -334,6 +336,9 @@ public class RandomSearchRequestGenerator {
             } else {
                 builder.slice(new SliceBuilder(field, id, max));
             }
+        }
+        if (randomBoolean()) {
+            builder.collapse(randomCollapseBuilder.get());
         }
         return builder;
     }

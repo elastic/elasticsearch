@@ -90,8 +90,9 @@ public class URLBlobStoreTests extends ESTestCase {
     public void testNoBlobFound() throws IOException {
         BlobContainer container = urlBlobStore.blobContainer(BlobPath.cleanPath().add("indices"));
         String incorrectBlobName = "incorrect_" + blobName;
-        try (InputStream stream = container.readBlob(incorrectBlobName)) {
+        try (InputStream ignored = container.readBlob(incorrectBlobName)) {
             fail("Should have thrown NoSuchFileException exception");
+            ignored.read();
         } catch (NoSuchFileException e) {
             assertEquals(String.format("[%s] blob not found", incorrectBlobName), e.getMessage());
         }

@@ -32,11 +32,11 @@ allprojects {
 }
 
 task bundlePack(type: Zip) {
-  onlyIf { project('kibana').bundlePlugin.enabled }
-  dependsOn 'elasticsearch:bundlePlugin'
-  dependsOn 'kibana:bundlePlugin'
-  from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
-  from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
+  onlyIf { project(':prelert-legacy:kibana').bundlePlugin.enabled }
+  dependsOn ':prelert-legacy:elasticsearch:bundlePlugin'
+  dependsOn ':prelert-legacy:kibana:bundlePlugin'
+  from { zipTree(project(':prelert-legacy:elasticsearch').bundlePlugin.outputs.files.singleFile) }
+  from { zipTree(project(':prelert-legacy:kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = 'ml'
   version = VersionProperties.elasticsearch
@@ -71,7 +71,7 @@ task assemble(dependsOn: bundlePack) {
   description = 'Assembles the outputs of this project.'
 }
 
-task test(dependsOn: [':elasticsearch:test', ':kibana:test']) {
+task test(dependsOn: [':prelert-legacy:elasticsearch:test', ':prelert-legacy:kibana:test']) {
   group = 'Build'
   description = 'Assembles and tests this project.'
 }

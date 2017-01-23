@@ -471,7 +471,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
-        //TODO should this be a Map<String, List<String>> instead?
         Map<String, Object> headers = new HashMap<>();
 
         do {
@@ -485,7 +484,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 } else if (STACK_TRACE.equals(currentFieldName)) {
                     stack = parser.text();
                 } else {
-                    //TODO here we need to parse multiple values
                     metadata.put(currentFieldName, Collections.singletonList(parser.text()));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -514,13 +512,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             //while key-value pairs are. Those become part of the metadata set and inherit the "es." prefix as that is currently required
             //by addMetadata. The prefix will get stripped out anyways when printing metadata out so it will be invisible.
             //The only potential problem would manifest if a parsed exception is serialized back to a version < 5.3.0 , then the additional
-            //metadata would be sent back as es. response headers which is suprising. That said this never ever happens as exceptions
+            //metadata would be sent back as es. response headers which is surprising. That said this never ever happens as exceptions
             //are only parsed in the high level REST client. Maybe this is a good reason to have parsing code for exceptions in the client
             //only, also because while response may moved out of core one day, exception most likely won't.
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, Object> header : headers.entrySet()) {
-            //TODO lists should be supported
             e.addHeader(header.getKey(), String.valueOf(header.getValue()));
         }
         return e;

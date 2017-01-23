@@ -57,7 +57,6 @@ public class BytesRestResponseTests extends ESTestCase {
         BytesRestResponse response = new BytesRestResponse(channel, new WithHeadersException());
         assertEquals(2, response.getHeaders().size());
         assertThat(response.getHeaders().get("n1"), notNullValue());
-        assertThat(response.getHeaders().get("n1"), notNullValue());
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
         assertThat(response.getHeaders().get("n2"), notNullValue());
         assertThat(response.getHeaders().get("n2"), contains("v21", "v22"));

@@ -195,7 +195,8 @@ public class RestTable {
                 String d = cell.attr.get("default");
                 boolean defaultValue = Booleans.parseBoolean(d, true);
                 if (d != null && Booleans.isStrictlyBoolean(d) == false) {
-                    DEPRECATION_LOGGER.deprecated("Expected a boolean for attribute [default] of table header [{}] but got [{}]",
+                    DEPRECATION_LOGGER.deprecated(
+                        "Expected a boolean [true/false] for attribute [default] of table header [{}] but got [{}]",
                         cell.value.toString(), d);
                 }
                 if (defaultValue && checkOutputTimestamp(cell.value.toString(), request)) {

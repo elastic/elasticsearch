@@ -393,7 +393,7 @@ public class TypeParsers {
         case "not_analyzed":
         case "analyzed":
         case "no":
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [index] but got [{}]", index);
+            DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for property [index] but got [{}]", index);
             return "no".equals(index) == false;
         default:
             throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");

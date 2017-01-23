@@ -253,7 +253,7 @@ public class LegacyNumberFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "double1"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "int2"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "double2"));
-        assertWarnings("Expected a boolean for property [index] but got [no]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [no]");
     }
 
     public void testUnIndex() throws IOException {
@@ -308,8 +308,8 @@ public class LegacyNumberFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test", oldSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\"},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
                 defaultMapper.mapping().toString());
-        assertWarnings("Expected a boolean for property [index] but got [no]",
-                "Expected a boolean for property [index] but got [not_analyzed]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [no]",
+                "Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
 
     public void testDocValuesOnNested() throws Exception {

@@ -443,12 +443,12 @@ public class XContentMapValues {
             booleanValue = ((Number) node).intValue() != 0;
         } else {
             String value = node.toString();
-            booleanValue = !(value.equals("false") || value.equals("0") || value.equals("off"));
+            booleanValue = ((value.equals("false") || value.equals("0") || value.equals("off"))) == false;
             interpretedAsLenient = Booleans.isStrictlyBoolean(value) == false;
         }
 
         if (interpretedAsLenient) {
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] but got [{}]", name, node.toString());
+            DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for property [{}] but got [{}]", name, node.toString());
         }
         return booleanValue;
     }

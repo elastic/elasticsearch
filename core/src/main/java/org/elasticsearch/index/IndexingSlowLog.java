@@ -87,7 +87,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 } catch (NumberFormatException e) {
                     boolean booleanValue = Booleans.parseBoolean(value, true);
                     if (value != null && Booleans.isStrictlyBoolean(value) == false) {
-                        DEPRECATION_LOGGER.deprecated("Expected a boolean for setting [{}] but got [{}]",
+                        DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] or a number for setting [{}] but got [{}]",
                             INDEX_INDEXING_SLOWLOG_PREFIX + ".source", value);
                     }
                     return booleanValue ? Integer.MAX_VALUE : 0;

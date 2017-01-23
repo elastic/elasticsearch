@@ -107,7 +107,7 @@ public class FetchSourceContext implements Writeable, ToXContent {
                 source_includes = Strings.splitStringByCommaToArray(source);
             }
             if (fetchSource != null && Booleans.isStrictlyBoolean(source) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for request parameter [_source] but got [{}]", source);
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for request parameter [_source] but got [{}]", source);
             }
 
         }

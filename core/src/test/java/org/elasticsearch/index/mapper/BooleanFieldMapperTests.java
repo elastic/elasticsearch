@@ -158,10 +158,10 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         List<String> expectedDeprecationWarnings = new ArrayList<>();
         if (Booleans.isStrictlyBoolean(falsy) == false) {
-            expectedDeprecationWarnings.add("Expected a boolean for property [field1] but got ["+ falsy + "]");
+            expectedDeprecationWarnings.add("Expected a boolean [true/false] for property [field1] but got ["+ falsy + "]");
         }
         if (Booleans.isStrictlyBoolean(truthy) == false) {
-            expectedDeprecationWarnings.add("Expected a boolean for property [field2] but got [" + truthy + "]");
+            expectedDeprecationWarnings.add("Expected a boolean [true/false] for property [field2] but got [" + truthy + "]");
         }
 
         if (expectedDeprecationWarnings.isEmpty() == false) {
@@ -257,8 +257,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool1"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "bool2"));
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool3"));
-        assertWarnings("Expected a boolean for property [index] but got [no]",
-                "Expected a boolean for property [index] but got [not_analyzed]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [no]",
+                "Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
 
     public void testEmptyName() throws IOException {

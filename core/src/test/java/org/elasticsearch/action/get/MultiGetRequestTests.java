@@ -43,7 +43,7 @@ public class MultiGetRequestTests extends ESTestCase {
             randomAsciiOfLength(5), randomAsciiOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
 
         assertEquals(1, multiGetRequest.getItems().size());
-        assertWarnings("Expected a boolean for property [_source] but got ["+ sourceValue  + "]");
+        assertWarnings("Expected a boolean [true/false] for property [_source] but got ["+ sourceValue  + "]");
     }
 
     public void testAddWithValidSourceValueIsAccepted() throws Exception {

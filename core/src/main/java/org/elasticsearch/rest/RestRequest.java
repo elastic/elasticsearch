@@ -214,7 +214,7 @@ public abstract class RestRequest implements ToXContent.Params {
             return true;
         } else {
             if (rawParam != null && Booleans.isStrictlyBoolean(rawParam) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for request parameter [{}] but got [{}]", key, rawParam);
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for request parameter [{}] but got [{}]", key, rawParam);
             }
             return Booleans.parseBoolean(rawParam, defaultValue);
         }

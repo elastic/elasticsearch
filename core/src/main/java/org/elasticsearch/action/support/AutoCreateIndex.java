@@ -120,7 +120,7 @@ public final class AutoCreateIndex {
             try {
                 autoCreateIndex = Booleans.parseBooleanExact(value);
                 if (Booleans.isStrictlyBoolean(value) == false) {
-                    DEPRECATION_LOGGER.deprecated("Expected a boolean for setting [{}] but got [{}]",
+                    DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] or index name pattern for setting [{}] but got [{}]",
                         AUTO_CREATE_INDEX_SETTING.getKey(), value);
                 }
             } catch (IllegalArgumentException ex) {

@@ -683,7 +683,7 @@ public class Setting<T> extends ToXContentToBytes {
         boolean booleanValue = Booleans.parseBooleanExact(value);
         if (Booleans.isStrictlyBoolean(value) == false) {
             DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Setting.class));
-            deprecationLogger.deprecated("Expected a boolean for setting [{}] but got [{}]", key, value);
+            deprecationLogger.deprecated("Expected a boolean [true/false] for setting [{}] but got [{}]", key, value);
         }
         return booleanValue;
     }

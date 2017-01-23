@@ -315,7 +315,7 @@ public final class Settings implements ToXContent {
         Boolean booleanValue = Booleans.parseBooleanExact(rawValue, defaultValue);
         if (rawValue != null && Booleans.isStrictlyBoolean(rawValue) == false) {
             DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
-            deprecationLogger.deprecated("Expected a boolean for setting [{}] but got [{}]", setting, rawValue);
+            deprecationLogger.deprecated("Expected a boolean [true/false] for setting [{}] but got [{}]", setting, rawValue);
         }
         return booleanValue;
     }

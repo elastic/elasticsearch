@@ -295,7 +295,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             Object store;
             if (randomBoolean()) {
                 store = randomFrom("yes", "no");
-                warnings.add("Expected a boolean for property [field.store] but got [" + store + "]");
+                warnings.add("Expected a boolean [true/false] for property [field.store] but got [" + store + "]");
             } else {
                 store = randomFrom(true, false);
             }
@@ -448,7 +448,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "id", source);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
-        assertWarnings("Expected a boolean for property [index] but got [not_analyzed]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
 
     public void testUpgradeTemplateWithDynamicTypeKeyword2() throws IOException {
@@ -472,6 +472,6 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "id", source);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
-        assertWarnings("Expected a boolean for property [index] but got [not_analyzed]");
+        assertWarnings("Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
 }

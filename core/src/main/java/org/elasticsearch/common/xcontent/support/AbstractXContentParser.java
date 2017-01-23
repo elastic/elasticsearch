@@ -112,7 +112,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             booleanValue = doBooleanValue();
         }
         if (interpretedAsLenient) {
-            deprecationLogger.deprecated("Expected a boolean for property [{}] but got [{}]", currentName(), rawValue);
+            deprecationLogger.deprecated("Expected a boolean [true/false] for property [{}] but got [{}]", currentName(), rawValue);
         }
         return booleanValue;
 

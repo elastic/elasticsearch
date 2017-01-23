@@ -97,7 +97,7 @@ public interface ToXContent {
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             String rawParam = param(key);
             if (rawParam != null && Booleans.isStrictlyBoolean(rawParam) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for [{}] but got [{}]", key, rawParam);
+                DEPRECATION_LOGGER.deprecated("Expected a boolean [true/false] for [{}] but got [{}]", key, rawParam);
             }
             return Booleans.parseBoolean(rawParam, defaultValue);
         }

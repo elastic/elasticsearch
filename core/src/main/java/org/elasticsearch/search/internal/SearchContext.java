@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -240,6 +241,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
     public abstract FieldDoc searchAfter();
+
+    public abstract SearchContext collapse(CollapseContext collapse);
+
+    public abstract CollapseContext collapse();
 
     public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
 

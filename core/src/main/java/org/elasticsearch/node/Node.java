@@ -350,7 +350,7 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class), client);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);

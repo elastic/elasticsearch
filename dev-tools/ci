@@ -36,6 +36,7 @@ case $key in
         GRADLE_CLI_ARGS=(
             "--info"
             "check"
+            "build"
             "-Dtests.network=true"
             "-Dtests.badapples=true"
         )

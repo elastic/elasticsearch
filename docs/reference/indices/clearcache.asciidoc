@@ -12,7 +12,7 @@ POST /twitter/_cache/clear
 // TEST[setup:twitter]
 
 The API, by default, will clear all caches. Specific caches can be cleaned
-explicitly by setting `query`, `fielddata`, `recycler` or `request_cache`.
+explicitly by setting `query`, `fielddata` or `request`.
 
 All caches relating to a specific field(s) can also be cleared by
 specifying `fields` parameter with a comma delimited list of the

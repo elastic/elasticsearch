@@ -224,8 +224,12 @@ public class RecoverySourceHandler {
                 }
             }
             return tracker.getCheckpoint() >= endingSeqNo;
+        } else {
+            // norelease this can currently happen if a snapshot restore rolls the primary back to a previous commit point; in this
+            // situation the local checkpoint on the replica can be far in advance of the maximum sequence number on the primary violating
+            // all assumptions regarding local and global checkpoints
+            return false;
         }
-        return false;
     }
 
     /**

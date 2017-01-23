@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -20,17 +22,17 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.datafeed.Datafeed;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
 import java.io.IOException;
@@ -156,8 +158,17 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedConfig.getId());
-        StopDatafeedAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
-        assertTrue(stopJobResponse.isAcknowledged());
+        try {
+            StopDatafeedAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
+            assertTrue(stopJobResponse.isAcknowledged());
+        } catch (Exception e) {
+            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            int i = 0;
+            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
+                logger.info(i++ + ":\n" +nodeHotThreads.getHotThreads());
+            }
+            throw e;
+        }
         assertBusy(() -> {
             MlMetadata mlMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(MlMetadata.TYPE);

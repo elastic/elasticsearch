@@ -56,7 +56,8 @@ public class URLRepositoryTests extends ESTestCase {
             new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            assertEquals(String.format("[url] file url [%s] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls", repoPath), e.getMessage());
+            String msg = "[url] file url [%s] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls";
+            assertEquals(String.format(msg, repoPath), e.getMessage());
         }
     }
 

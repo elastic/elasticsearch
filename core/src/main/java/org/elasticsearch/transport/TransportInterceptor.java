@@ -34,7 +34,8 @@ public interface TransportInterceptor {
      * used instead of the passed in handler. By default the provided handler is returned.
      */
     default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                     TransportRequestHandler<T> actualHandler) {
+                                                                                     TransportRequestHandler<T> actualHandler,
+                                                                                     boolean forceExecution) {
         return actualHandler;
     }
 

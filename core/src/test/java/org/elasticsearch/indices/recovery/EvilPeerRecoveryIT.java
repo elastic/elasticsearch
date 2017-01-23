@@ -175,7 +175,6 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
             }
 
             // start some in-flight operations that will get latched in the engine
-
             final List<Thread> threads = new ArrayList<>();
             final int latchedDocs = internalCluster().getInstance(ThreadPool.class, replicaNode).info(ThreadPool.Names.BULK).getMax();
             indexLatch.set(new CountDownLatch(latchedDocs));

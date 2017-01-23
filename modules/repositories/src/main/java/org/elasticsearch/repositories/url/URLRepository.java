@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;

@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.url.URLRepository;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -66,8 +66,8 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
 
     @Override
     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                    TransportRequestHandler<T> actualHandler,
-                                                                                    boolean forceExecution) {
+                                                                                    boolean forceExecution,
+                                                                                    TransportRequestHandler<T> actualHandler) {
         return new TransportRequestHandler<T>() {
 
             @Override

@@ -252,8 +252,8 @@ public class NetworkModuleTests extends ModuleTestCase {
         TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                            TransportRequestHandler<T> actualHandler,
-                                                                                            boolean forceExecution) {
+                                                                                            boolean forceExecution,
+                                                                                            TransportRequestHandler<T> actualHandler) {
                 called.incrementAndGet();
                 if ("foo/bar/boom".equals(action)) {
                     assertTrue(forceExecution);
@@ -274,9 +274,9 @@ public class NetworkModuleTests extends ModuleTestCase {
 
         TransportInterceptor transportInterceptor = module.getTransportInterceptor();
         assertEquals(0, called.get());
-        transportInterceptor.interceptHandler("foo/bar/boom", null, null, true);
+        transportInterceptor.interceptHandler("foo/bar/boom", null, true, null);
         assertEquals(1, called.get());
-        transportInterceptor.interceptHandler("foo/baz/boom", null, null, false);
+        transportInterceptor.interceptHandler("foo/baz/boom", null, false, null);
         assertEquals(2, called.get());
         assertTrue(transportInterceptor instanceof  NetworkModule.CompositeTransportInterceptor);
         assertEquals(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.size(), 1);

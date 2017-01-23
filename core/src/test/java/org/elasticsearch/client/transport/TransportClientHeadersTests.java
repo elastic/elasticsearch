@@ -134,9 +134,9 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                                TransportRequestHandler<T> actualHandler,
-                                                                                                boolean forceExecution) {
-                        return instance.interceptHandler(action, executor, actualHandler, forceExecution);
+                                                                                                boolean forceExecution,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                        return instance.interceptHandler(action, executor, forceExecution, actualHandler);
                     }
 
                     @Override

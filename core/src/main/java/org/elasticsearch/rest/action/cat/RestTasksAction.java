@@ -24,10 +24,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,18 +42,18 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {
-    private final ClusterService clusterService;
+    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    @Inject
-    public RestTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestTasksAction(Settings settings, RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
         super(settings);
         controller.registerHandler(GET, "/_cat/tasks", this);
-        this.clusterService = clusterService;
+        this.nodesInCluster = nodesInCluster;
     }
 
     @Override
@@ -159,7 +157,7 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     private void buildGroups(Table table, boolean fullId, boolean detailed, List<TaskGroup> taskGroups) {
-        DiscoveryNodes discoveryNodes = clusterService.state().nodes();
+        DiscoveryNodes discoveryNodes = nodesInCluster.get();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
         sortedGroups.sort((o1, o2) -> Long.compare(o1.getTaskInfo().getStartTime(), o2.getTaskInfo().getStartTime()));
         for (TaskGroup taskGroup : sortedGroups) {

@@ -363,8 +363,8 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
-                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class), client,
-                circuitBreakerService);
+                    settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                    threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService);
             modules.add(actionModule);
             modules.add(new GatewayModule());
 
@@ -492,6 +492,10 @@ public class Node implements Closeable {
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
                     () -> clusterService.localNode().getId());
 
+            if (NetworkModule.HTTP_ENABLED.get(settings)) {
+                logger.debug("initializing HTTP handlers ...");
+                actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            }
             logger.info("initialized");
 
             success = true;

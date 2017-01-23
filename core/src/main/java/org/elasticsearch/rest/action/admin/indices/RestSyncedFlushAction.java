@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -43,8 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *
  */
 public class RestSyncedFlushAction extends BaseRestHandler {
-
-    @Inject
     public RestSyncedFlushAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_flush/synced", this);

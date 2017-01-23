@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -31,8 +30,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import java.io.IOException;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
-
-    @Inject
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);

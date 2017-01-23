@@ -357,8 +357,8 @@ public class TransportReplicationActionTests extends ESTestCase {
     public void testClosedIndexOnReroute() throws InterruptedException {
         final String index = "test";
         // no replicas in oder to skip the replication part
-        setState(clusterService, new ClusterStateChanges(xContentRegistry()).closeIndices(state(index, true, ShardRoutingState.UNASSIGNED),
-                new CloseIndexRequest(index)));
+        setState(clusterService, new ClusterStateChanges(xContentRegistry(), threadPool).closeIndices(state(index, true,
+            ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

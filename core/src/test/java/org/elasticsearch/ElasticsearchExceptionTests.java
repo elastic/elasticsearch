@@ -523,7 +523,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */
     private static void assertToXContentAsJson(ToXContent e, String expectedJson) throws IOException {
-        BytesReference actual = XContentHelper.toXContent(e, XContentType.JSON);
+        BytesReference actual = XContentHelper.toXContent(e, XContentType.JSON, randomBoolean());
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, XContentType.JSON);
     }
 

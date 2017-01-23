@@ -508,13 +508,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            //TODO subclasses can print out additional metadata through metadataToXContent. Complex objects are not currently supported,
-            //while key-value pairs are. Those become part of the metadata set and inherit the "es." prefix as that is currently required
-            //by addMetadata. The prefix will get stripped out anyways when printing metadata out so it will be invisible.
-            //The only potential problem would manifest if a parsed exception is serialized back to a version < 5.3.0 , then the additional
-            //metadata would be sent back as es. response headers which is surprising. That said this never ever happens as exceptions
-            //are only parsed in the high level REST client. Maybe this is a good reason to have parsing code for exceptions in the client
-            //only, also because while response may moved out of core one day, exception most likely won't.
+            //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
+            //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
+            //Those key-value pairs become part of the metadata set and inherit the "es." prefix as that is currently required
+            //by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
+            //TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
+            //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, Object> header : headers.entrySet()) {

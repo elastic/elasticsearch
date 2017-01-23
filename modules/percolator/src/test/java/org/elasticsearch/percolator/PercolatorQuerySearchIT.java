@@ -95,7 +95,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute().actionGet();
         SearchResponse response = client().prepareSearch("index")
-            .setQuery(new PercolateQueryBuilder("query", "type", jsonBuilder().startObject().field("field1", "b").endObject().bytes(), XContentType.JSON))
+            .setQuery(new PercolateQueryBuilder("query", "type", jsonBuilder().startObject().field("field1", "b").endObject().bytes(),
+                XContentType.JSON))
             .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");

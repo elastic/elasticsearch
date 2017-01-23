@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -217,15 +216,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
 
                 @Override
                 protected void doRun() throws Exception {
-                    // FIXME we should remove the RequestContext completely since we have ThreadContext but cannot yet due to
-                    // the query cache
-                    RequestContext context = new RequestContext(request, threadContext);
-                    RequestContext.setCurrent(context);
-                    try {
-                        handler.messageReceived(request, channel, task);
-                    } finally {
-                        RequestContext.removeCurrent();
-                    }
+                    handler.messageReceived(request, channel, task);
                 }
             };
         }

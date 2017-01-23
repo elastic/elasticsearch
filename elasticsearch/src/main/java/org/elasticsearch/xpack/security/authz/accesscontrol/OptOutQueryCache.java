@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -25,11 +25,15 @@ import java.util.Set;
  */
 public final class OptOutQueryCache extends AbstractIndexComponent implements QueryCache {
 
-    final IndicesQueryCache indicesQueryCache;
+    private final IndicesQueryCache indicesQueryCache;
+    private final ThreadContext context;
+    private final String indexName;
 
-    public OptOutQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache) {
+    public OptOutQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache, ThreadContext context) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
+        this.context = Objects.requireNonNull(context, "threadContext must not be null");
+        this.indexName = indexSettings.getIndex().getName();
     }
 
     @Override
@@ -45,24 +49,10 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        final RequestContext context = RequestContext.current();
-        if (context == null) {
-            throw new IllegalStateException("opting out of the query cache. current request can't be found");
-        }
-        IndicesAccessControl indicesAccessControl = context.getThreadContext().getTransient(
+        IndicesAccessControl indicesAccessControl = context.getTransient(
                 AuthorizationService.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
-            return weight;
-        }
-
-        // At this level only IndicesRequest
-        final String indexName;
-        if (context.getRequest() instanceof ShardSearchRequest) {
-            indexName = ((ShardSearchRequest) context.getRequest()).shardId().getIndexName();
-        } else if (context.getRequest() instanceof BroadcastShardRequest) {
-            indexName = ((BroadcastShardRequest) context.getRequest()).shardId().getIndexName();
-        } else {
             return weight;
         }
 

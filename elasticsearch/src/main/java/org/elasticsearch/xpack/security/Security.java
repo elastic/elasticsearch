@@ -176,6 +176,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
+    private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
@@ -246,7 +247,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-
+        threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext(), cryptoService));
         components.add(securityContext.get());
@@ -472,7 +473,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
              *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
              *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
              *  unauthorized users. */
-            module.forceQueryCacheProvider(OptOutQueryCache::new);
+            module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
         }
     }
 

@@ -51,6 +51,7 @@ final class Request {
         return "Request{" +
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
+                ", params=" + params +
                 '}';
     }
 

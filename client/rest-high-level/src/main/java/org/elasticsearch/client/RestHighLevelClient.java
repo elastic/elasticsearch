@@ -159,7 +159,7 @@ public class RestHighLevelClient {
             throw new IllegalStateException("Response body expected but not returned");
         }
         if (entity.getContentType() == null) {
-            throw new IllegalStateException("Elasticsearch didn't return the Content-Type header, unable to parse response body");
+            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
         }
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
         if (xContentType == null) {

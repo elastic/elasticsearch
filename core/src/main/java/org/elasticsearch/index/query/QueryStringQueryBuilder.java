@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
@@ -95,7 +94,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
     private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
     private static final ParseField AUTO_GENERATE_PHRASE_QUERIES_FIELD = new ParseField("auto_generate_phrase_queries");
-    private static final ParseField MAX_DETERMINED_STATES_FIELD = new ParseField("max_determined_states");
+    private static final ParseField MAX_DETERMINED_STATES_FIELD = new ParseField("max_determinized_states", "max_determined_states");
     private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
             .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increment");

@@ -400,22 +400,22 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public static class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String _VERSION = "_version";
-        static final String _SCORE = "_score";
-        static final String FIELDS = "fields";
-        static final String HIGHLIGHT = "highlight";
-        static final String SORT = "sort";
-        static final String MATCHED_QUERIES = "matched_queries";
-        static final String _EXPLANATION = "_explanation";
-        static final String VALUE = "value";
-        static final String DESCRIPTION = "description";
-        static final String DETAILS = "details";
-        static final String INNER_HITS = "inner_hits";
-        static final String _SHARD = "_shard";
-        static final String _NODE = "_node";
+        public static final String _INDEX = "_index";
+        public static final String _TYPE = "_type";
+        public static final String _ID = "_id";
+        public static final String _VERSION = "_version";
+        public static final String _SCORE = "_score";
+        public static final String FIELDS = "fields";
+        public static final String HIGHLIGHT = "highlight";
+        public static final String SORT = "sort";
+        public static final String MATCHED_QUERIES = "matched_queries";
+        public static final String _EXPLANATION = "_explanation";
+        public static final String VALUE = "value";
+        public static final String DESCRIPTION = "description";
+        public static final String DETAILS = "details";
+        public static final String INNER_HITS = "inner_hits";
+        public static final String _SHARD = "_shard";
+        public static final String _NODE = "_node";
     }
 
     // public because we render hit as part of completion suggestion option
@@ -512,7 +512,8 @@ public class InternalSearchHit implements SearchHit {
     }
 
     private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("innerHitsParser", HashMap<String, Object>::new);
-    {
+
+    static {
         declareInnerHitsParseFields(PARSER);
     }
 
@@ -581,7 +582,10 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public static InternalSearchHit fromXContent(XContentParser parser) {
-        Map<String, Object> values = PARSER.apply(parser, null);
+        return createFromMap(PARSER.apply(parser, null));
+    }
+
+    public static InternalSearchHit createFromMap(Map<String, Object> values) {
         String type = get(Fields._TYPE, values, null);
         String id = get(Fields._ID, values, null);
         String index = get(Fields._INDEX, values, null);
@@ -964,9 +968,9 @@ public class InternalSearchHit implements SearchHit {
         }
 
         public static class Fields {
-            static final String _NESTED = "_nested";
-            static final String _NESTED_FIELD = "field";
-            static final String _NESTED_OFFSET = "offset";
+            public static final String _NESTED = "_nested";
+            public static final String _NESTED_FIELD = "field";
+            public static final String _NESTED_OFFSET = "offset";
         }
     }
 }

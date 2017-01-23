@@ -332,7 +332,8 @@ public class RestClient implements Closeable {
         final HttpHost host = hostTuple.hosts.next();
         //we stream the request body if the entity allows for it
         final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer = httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
+        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
+            httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
         final HttpClientContext context = HttpClientContext.create();
         context.setAuthCache(hostTuple.authCache);
         client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {

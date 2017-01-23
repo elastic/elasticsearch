@@ -54,39 +54,77 @@
       features: warnings
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 1
-          body: {
-            "value": "value1",
-            "num": 1.0
-          }
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "greater"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "greater" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value > 1.0" }
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 2
-          body: {
-            "value": "value2",
-            "num": 2.0
-          }
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value" }
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 3
-          body: {
-            "value": "value3",
-            "num": 3.0
-          }
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "expression"}
+  - match: { "script": "doc['num'].value" }
 
   - do:
-      indices.refresh: {
-
-      }
+      warnings:
+        - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
+      search:
+        index: test
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater",
+                "lang": "painless"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value",
+                "lang": "painless"
+              }
+            },
+            "script_expressions": {
+              "script": {
+                "stored": "value",
+                "lang": "expression"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }
+  - match: { hits.hits.0.fields.script_expressions.0: 2.0 }
+  - match: { hits.hits.1.fields.script_expressions.0: 3.0 }
 
   - do:
       warnings:
@@ -158,8 +196,8 @@
   - do:
       warnings:
         - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
-      index: test
       search:
+        index: test
         body: {
           "query": {
             "script": {
@@ -391,8 +429,8 @@
   - match: { script: "doc['num'].value" }
 
   - do:
-      index: test
       search:
+        index: test
         body: {
           "query": {
             "script": {

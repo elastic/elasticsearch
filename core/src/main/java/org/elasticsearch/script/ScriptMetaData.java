@@ -274,7 +274,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     if (split == -1) {
                         throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
                     } else {
-                        source = new StoredScriptSource(id.substring(split + 1), parser.text(), Collections.emptyMap());
+                        source = new StoredScriptSource(id.substring(0, split), parser.text(), Collections.emptyMap());
                     }
 
                     scripts.put(id, source);
@@ -337,7 +337,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
                 } else {
                     source = new StoredScriptSource(in);
-                    source = new StoredScriptSource(id.substring(split + 1), source.getCode(), Collections.emptyMap());
+                    source = new StoredScriptSource(id.substring(0, split), source.getCode(), Collections.emptyMap());
                 }
             // Version 5.3+ can just be parsed normally using StoredScriptSource.
             } else {

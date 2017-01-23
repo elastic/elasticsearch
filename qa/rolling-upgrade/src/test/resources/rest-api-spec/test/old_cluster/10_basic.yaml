@@ -150,8 +150,8 @@
   - match: { "script": "doc['num'].value" }
 
   - do:
-      index: test
       search:
+        index: test
         body: {
           "query": {
             "script": {

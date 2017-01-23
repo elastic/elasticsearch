@@ -482,98 +482,123 @@ public final class Script implements ToXContentObject, Writeable {
      * Creates a {@link Script} read from an input stream.
      */
     public Script(StreamInput in) throws IOException {
-        // Version 5.1 requires all Script members to be non-null and supports the potential
+        // Version 5.3 allows lang to be an optional parameter for stored scripts and expects
+        // options to be null for stored and file scripts.
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            this.type = ScriptType.readFrom(in);
+            this.lang = in.readOptionalString();
+            this.idOrCode = in.readString();
+            @SuppressWarnings("unchecked")
+            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+            this.options = options;
+            this.params = in.readMap();
+        // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             this.type = ScriptType.readFrom(in);
-
-            // The lang parameter will be optional for stored scripts as of 5.3.
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                this.lang = in.readOptionalString();
-            } else {
-                this.lang = in.readString();
-            }
+            this.lang = in.readString();
 
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
             Map<String, String> options = (Map<String, String>)(Map)in.readMap();
-            // The options parameter is expected to be null for stored and file scripts as of 5.3.
-            this.options = options;
+
+            if (this.type != ScriptType.INLINE && options.isEmpty()) {
+                this.options = null;
+            } else {
+                this.options = options;
+            }
+
             this.params = in.readMap();
         // Prior to version 5.1 the script members are read in certain cases as optional and given
         // default values when necessary.  Also the only option supported is for XContentType.
         } else {
-            String idOrCode = in.readString();
-            ScriptType type;
+            this.idOrCode = in.readString();
 
             if (in.readBoolean()) {
-                type = ScriptType.readFrom(in);
+                this.type = ScriptType.readFrom(in);
             } else {
-                type = DEFAULT_SCRIPT_TYPE;
+                this.type = DEFAULT_SCRIPT_TYPE;
             }
 
             String lang = in.readOptionalString();
 
             if (lang == null) {
-                lang = DEFAULT_SCRIPT_LANG;
+                this.lang = DEFAULT_SCRIPT_LANG;
+            } else {
+                this.lang = lang;
             }
 
             Map<String, Object> params = in.readMap();
 
             if (params == null) {
-                params = new HashMap<>();
+                this.params = new HashMap<>();
+            } else {
+                this.params = params;
             }
-
-            Map<String, String> options = null;
 
             if (in.readBoolean()) {
-                options = new HashMap<>();
+                this.options = new HashMap<>();
                 XContentType contentType = XContentType.readFrom(in);
-                options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
+                this.options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
             } else if (type == ScriptType.INLINE) {
                 options = new HashMap<>();
+            } else {
+                this.options = null;
             }
-
-            this.type = type;
-            this.lang = lang;
-            this.idOrCode = idOrCode;
-            this.options = options;
-            this.params = params;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Version 5.1 requires all Script members to be non-null and supports the potential
+        // Version 5.3+ allows lang to be an optional parameter for stored scripts and expects
+        // options to be null for stored and file scripts.
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            type.writeTo(out);
+            out.writeOptionalString(lang);
+            out.writeString(idOrCode);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
+            out.writeMap(options);
+            out.writeMap(params);
+        // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             type.writeTo(out);
 
-            // The lang parameter will be optional for stored scripts as of 5.3.
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                out.writeOptionalString(lang);
+            if (lang == null) {
+                out.writeString("");
             } else {
-                out.writeString(lang == null ? "" : lang);
+                out.writeString(lang);
             }
 
             out.writeString(idOrCode);
             @SuppressWarnings("unchecked")
             Map<String, Object> options = (Map<String, Object>)(Map)this.options;
-            // The options parameter is expected to be null for stored and file scripts as of 5.3.
-            out.writeMap(options);
+
+            if (options == null) {
+                out.writeMap(new HashMap<>());
+            } else {
+                out.writeMap(options);
+            }
+
             out.writeMap(params);
-        // Prior to version 5.1 the Script members were possibly written as optional or null, though this is no longer
-        // necessary since Script members cannot be null anymore, and there is no case where a null value wasn't equivalent
-        // to it's default value when actually compiling/executing a script.  Meaning, there are no backwards compatibility issues,
-        // and now there's enforced consistency.  Also the only supported compiler option was XContentType.
+        // Prior to version 5.1 the Script members were possibly written as optional or null, though there is no case where a null
+        // value wasn't equivalent to it's default value when actually compiling/executing a script.  Meaning, there are no
+        // backwards compatibility issues, and now there's enforced consistency.  Also the only supported compiler
+        // option was XContentType.
         } else {
             out.writeString(idOrCode);
             out.writeBoolean(true);
             type.writeTo(out);
             out.writeOptionalString(lang);
-            out.writeMap(params.isEmpty() ? null : params);
+
+            if (params.isEmpty()) {
+                out.writeMap(null);
+            } else {
+                out.writeMap(params);
+            }
 
             if (options != null && options.containsKey(CONTENT_TYPE_OPTION)) {
                 XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(CONTENT_TYPE_OPTION));

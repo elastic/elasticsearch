@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class EvilRecoveryIT extends ESIntegTestCase {
+public class EvilPeerRecoveryIT extends ESIntegTestCase {
 
     private static AtomicReference<CountDownLatch> indexLatch = new AtomicReference<>();
     private static AtomicReference<CountDownLatch> waitForOpsToCompleteLatch = new AtomicReference<>();

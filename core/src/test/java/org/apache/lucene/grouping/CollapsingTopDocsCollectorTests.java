@@ -349,4 +349,78 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         };
         assertSearchCollapse(producer, false);
     }
+
+    public void testEmptyNumericSegment() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new NumericDocValuesField("group", 0));
+        w.addDocument(doc);
+        doc.clear();
+        doc.add(new NumericDocValuesField("group", 1));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("group", 10));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("category", 0));
+        w.addDocument(doc);
+        w.commit();
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        SortField sortField = new SortField("group", SortField.Type.LONG);
+        sortField.setMissingValue(Long.MAX_VALUE);
+        Sort sort = new Sort(sortField);
+        final CollapsingTopDocsCollector collapsingCollector =
+                CollapsingTopDocsCollector.createNumeric("group", sort, 10, false);
+        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        CollapseTopFieldDocs collapseTopFieldDocs = collapsingCollector.getTopDocs();
+        assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
+        assertEquals(4, collapseTopFieldDocs.collapseValues.length);
+        assertEquals(0L, collapseTopFieldDocs.collapseValues[0]);
+        assertEquals(1L, collapseTopFieldDocs.collapseValues[1]);
+        assertEquals(10L, collapseTopFieldDocs.collapseValues[2]);
+        assertNull(collapseTopFieldDocs.collapseValues[3]);
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testEmptySortedSegment() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new SortedDocValuesField("group", new BytesRef("0")));
+        w.addDocument(doc);
+        doc.clear();
+        doc.add(new SortedDocValuesField("group", new BytesRef("1")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new SortedDocValuesField("group", new BytesRef("10")));
+        w.addDocument(doc);
+        w.commit();
+        doc.clear();
+        doc.add(new NumericDocValuesField("category", 0));
+        w.addDocument(doc);
+        w.commit();
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        Sort sort = new Sort(new SortField("group", SortField.Type.STRING_VAL));
+        final CollapsingTopDocsCollector collapsingCollector =
+            CollapsingTopDocsCollector.createKeyword("group", sort, 10, false);
+        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        CollapseTopFieldDocs collapseTopFieldDocs = collapsingCollector.getTopDocs();
+        assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
+        assertEquals(4, collapseTopFieldDocs.collapseValues.length);
+        assertNull(collapseTopFieldDocs.collapseValues[0]);
+        assertEquals(new BytesRef("0"), collapseTopFieldDocs.collapseValues[1]);
+        assertEquals(new BytesRef("1"), collapseTopFieldDocs.collapseValues[2]);
+        assertEquals(new BytesRef("10"), collapseTopFieldDocs.collapseValues[3]);
+        w.close();
+        reader.close();
+        dir.close();
+    }
 }

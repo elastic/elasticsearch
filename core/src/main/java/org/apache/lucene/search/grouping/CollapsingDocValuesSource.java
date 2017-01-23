@@ -71,16 +71,13 @@ abstract class CollapsingDocValuesSource<T> {
 
         @Override
         public Long copy(Long value, Long reuse) {
-            if (value == null) {
-                return null;
-            }
-            return value.longValue();
+            return value;
         }
 
         @Override
         public void setNextReader(LeafReader reader) throws IOException {
             DocValuesType type = getDocValuesType(reader, field);
-            if (type == null) {
+            if (type == null || type == DocValuesType.NONE) {
                 values = DocValues.emptyNumeric();
                 docsWithField = new Bits.MatchNoBits(reader.maxDoc());
                 return ;
@@ -108,7 +105,6 @@ abstract class CollapsingDocValuesSource<T> {
                             }
                         };
                     }
-                    docsWithField = DocValues.getDocsWithField(reader, field);
                     break;
 
                 default:
@@ -158,7 +154,7 @@ abstract class CollapsingDocValuesSource<T> {
         @Override
         public void setNextReader(LeafReader reader) throws IOException {
             DocValuesType type = getDocValuesType(reader, field);
-            if (type == null) {
+            if (type == null || type == DocValuesType.NONE) {
                 values = DocValues.emptySorted();
                 docsWithField = new Bits.MatchNoBits(reader.maxDoc());
                 return ;

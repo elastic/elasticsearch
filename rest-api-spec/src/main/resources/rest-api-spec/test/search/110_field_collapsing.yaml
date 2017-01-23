@@ -147,8 +147,6 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "5" }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
 
-
-
 ---
 "field collapsing and scroll":
 

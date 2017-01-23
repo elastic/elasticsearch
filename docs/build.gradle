@@ -25,7 +25,6 @@ apply plugin: 'elasticsearch.docs-test'
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/diversified-sampler-aggregation.asciidoc',
-  'reference/aggregations/bucket/filter-aggregation.asciidoc',
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
   'reference/aggregations/bucket/histogram-aggregation.asciidoc',

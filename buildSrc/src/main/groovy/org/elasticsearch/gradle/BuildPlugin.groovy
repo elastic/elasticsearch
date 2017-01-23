@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
@@ -418,10 +419,8 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
-                    }
+                    project.sourceCompatibility = null
+                    project.targetCompatibility = null
                 }
             }
         }
@@ -560,11 +559,22 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        Task test = project.tasks.getByName('test')
+        RandomizedTestingTask test = project.tasks.getByName('test')
         test.configure(commonTestConfig(project))
         test.configure {
             include '**/*Tests.class'
         }
+
+        // Add a method to create additional unit tests for a project, which will share the same
+        // randomized testing setup, but by default run no tests.
+        project.extensions.add('additionalTest', { String name, Closure config ->
+            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
+            additionalTest.classpath = test.classpath
+            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.configure(commonTestConfig(project))
+            additionalTest.configure(config)
+            test.dependsOn(additionalTest)
+        });
         return test
     }
 

@@ -282,7 +282,7 @@ public abstract class Engine implements Closeable {
      *
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
-    public abstract IndexResult index(final Index index);
+    public abstract IndexResult index(final Index index) throws IOException;
 
     /**
      * Perform document delete operation on the engine
@@ -292,7 +292,7 @@ public abstract class Engine implements Closeable {
      *
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
-    public abstract DeleteResult delete(final Delete delete);
+    public abstract DeleteResult delete(final Delete delete) throws IOException;
 
     public abstract NoOpResult noOp(final NoOp noOp);
 

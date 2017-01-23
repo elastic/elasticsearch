@@ -21,6 +21,8 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -163,9 +165,11 @@ public class SettingsTests extends ESTestCase {
             .put("foo", falsy)
             .put("bar", truthy).build();
 
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("testLenientBooleanForPreEs6Index"));
+
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true, deprecationLogger));
 
         List<String> expectedDeprecationWarnings = new ArrayList<>();
         if (Booleans.isBoolean(falsy) == false) {
@@ -191,10 +195,12 @@ public class SettingsTests extends ESTestCase {
             .put("foo", falsy)
             .put("bar", truthy).build();
 
+        final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(ESLoggerFactory.getLogger("testInvalidLenientBooleanForCurrentIndexVersion"));
         expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null));
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
         expectThrows(IllegalArgumentException.class,
-            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null));
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
     }
 
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
@@ -203,9 +209,11 @@ public class SettingsTests extends ESTestCase {
             .put("foo", "false")
             .put("bar", "true").build();
 
-        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null));
-        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true));
+        final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(ESLoggerFactory.getLogger("testValidLenientBooleanForCurrentIndexVersion"));
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true, deprecationLogger));
     }
 
     public void testMultLevelGetPrefix() {

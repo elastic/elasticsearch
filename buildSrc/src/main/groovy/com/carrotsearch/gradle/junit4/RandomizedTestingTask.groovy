@@ -19,6 +19,7 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
+import org.gradle.logging.ProgressLoggerFactory
 import org.gradle.util.ConfigureUtil
 
 import javax.inject.Inject
@@ -80,6 +81,7 @@ class RandomizedTestingTask extends DefaultTask {
     String argLine = null
 
     Map<String, Object> systemProperties = new HashMap<>()
+    Map<String, Object> environmentVariables = new HashMap<>()
     PatternFilterable patternSet = new PatternSet()
 
     RandomizedTestingTask() {
@@ -103,6 +105,10 @@ class RandomizedTestingTask extends DefaultTask {
 
     void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
+    }
+
+    void environment(String key, Object value) {
+        environmentVariables.put(key, value)
     }
 
     void include(String... includes) {
@@ -193,7 +199,8 @@ class RandomizedTestingTask extends DefaultTask {
             haltOnFailure: true, // we want to capture when a build failed, but will decide whether to rethrow later
             shuffleOnSlave: shuffleOnSlave,
             leaveTemporary: leaveTemporary,
-            ifNoTests: ifNoTests
+            ifNoTests: ifNoTests,
+            newenvironment: true
         ]
 
         DefaultLogger listener = null
@@ -248,6 +255,9 @@ class RandomizedTestingTask extends DefaultTask {
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {
                     sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                }
+                for (Map.Entry<String, Object> envvar : environmentVariables) {
+                    env key: envvar.getKey(), value: envvar.getValue().toString()
                 }
                 makeListeners()
             }

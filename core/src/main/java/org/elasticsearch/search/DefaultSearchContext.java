@@ -52,6 +52,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -113,6 +114,7 @@ final class DefaultSearchContext extends SearchContext {
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
+    private CollapseContext collapse;
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
@@ -579,6 +581,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public FieldDoc searchAfter() {
         return searchAfter;
+    }
+
+    @Override
+    public SearchContext collapse(CollapseContext collapse) {
+        this.collapse = collapse;
+        return this;
+    }
+
+    @Override
+    public CollapseContext collapse() {
+        return collapse;
     }
 
     public SearchContext sliceBuilder(SliceBuilder sliceBuilder) {

@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -81,6 +83,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+
+import java.util.Map;
 
 /**
  * Utility class to create aggregations.
@@ -159,6 +163,20 @@ public class AggregationBuilders {
     public static FiltersAggregationBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregationBuilder(name, filters);
     }
+    
+    /**
+     * Create a new {@link AdjacencyMatrix} aggregation with the given name.
+     */
+    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, Map<String, QueryBuilder> filters) {
+        return new AdjacencyMatrixAggregationBuilder(name, filters);
+    }    
+    
+    /**
+     * Create a new {@link AdjacencyMatrix} aggregation with the given name and separator
+     */
+    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, String separator,  Map<String, QueryBuilder> filters) {
+        return new AdjacencyMatrixAggregationBuilder(name, separator, filters);
+    }     
 
     /**
      * Create a new {@link Sampler} aggregation with the given name.

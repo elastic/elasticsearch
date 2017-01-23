@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,9 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
-
-
-    @Inject
     public RestPutMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/{index}/_mapping/", this);

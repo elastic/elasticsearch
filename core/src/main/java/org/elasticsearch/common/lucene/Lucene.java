@@ -56,6 +56,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -280,31 +281,8 @@ public class Lucene {
     }
 
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            int totalHits = in.readVInt();
-            float maxScore = in.readFloat();
-
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-                String field = null;
-                if (in.readBoolean()) {
-                    field = in.readString();
-                }
-                SortField.Type sortType = readSortType(in);
-                Object missingValue = readMissingValue(in);
-                boolean reverse = in.readBoolean();
-                fields[i] = new SortField(field, sortType, reverse);
-                if (missingValue != null) {
-                    fields[i].setMissingValue(missingValue);
-                }
-            }
-
-            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
-            for (int i = 0; i < fieldDocs.length; i++) {
-                fieldDocs[i] = readFieldDoc(in);
-            }
-            return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
-        } else {
+        byte type = in.readByte();
+        if (type == 0) {
             int totalHits = in.readVInt();
             float maxScore = in.readFloat();
 
@@ -313,6 +291,39 @@ public class Lucene {
                 scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
             }
             return new TopDocs(totalHits, scoreDocs, maxScore);
+        } else if (type == 1) {
+            int totalHits = in.readVInt();
+            float maxScore = in.readFloat();
+
+            SortField[] fields = new SortField[in.readVInt()];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = readSortField(in);
+            }
+
+            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                fieldDocs[i] = readFieldDoc(in);
+            }
+            return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
+        } else if (type == 2) {
+            int totalHits = in.readVInt();
+            float maxScore = in.readFloat();
+
+            String field = in.readString();
+            SortField[] fields = new SortField[in.readVInt()];
+            for (int i = 0; i < fields.length; i++) {
+               fields[i] = readSortField(in);
+            }
+            int size = in.readVInt();
+            Object[] collapseValues = new Object[size];
+            FieldDoc[] fieldDocs = new FieldDoc[size];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                fieldDocs[i] = readFieldDoc(in);
+                collapseValues[i] = readSortValue(in);
+            }
+            return new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues, maxScore);
+        } else {
+            throw new IllegalStateException("Unknown type " + type);
         }
     }
 
@@ -347,6 +358,33 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
+    private static Comparable readSortValue(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        if (type == 0) {
+            return null;
+        } else if (type == 1) {
+            return in.readString();
+        } else if (type == 2) {
+            return in.readInt();
+        } else if (type == 3) {
+            return in.readLong();
+        } else if (type == 4) {
+            return in.readFloat();
+        } else if (type == 5) {
+            return in.readDouble();
+        } else if (type == 6) {
+            return in.readByte();
+        } else if (type == 7) {
+            return in.readShort();
+        } else if (type == 8) {
+            return in.readBoolean();
+        } else if (type == 9) {
+            return in.readBytesRef();
+        } else {
+            throw new IOException("Can't match type [" + type + "]");
+        }
+    }
+
     public static ScoreDoc readScoreDoc(StreamInput in) throws IOException {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
@@ -354,8 +392,28 @@ public class Lucene {
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs instanceof TopFieldDocs) {
-            out.writeBoolean(true);
+        if (topDocs instanceof CollapseTopFieldDocs) {
+            out.writeByte((byte) 2);
+            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs;
+
+            out.writeVInt(topDocs.totalHits);
+            out.writeFloat(topDocs.getMaxScore());
+
+            out.writeString(collapseDocs.field);
+
+            out.writeVInt(collapseDocs.fields.length);
+            for (SortField sortField : collapseDocs.fields) {
+               writeSortField(out, sortField);
+            }
+
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                ScoreDoc doc = collapseDocs.scoreDocs[i];
+                writeFieldDoc(out, (FieldDoc) doc);
+                writeSortValue(out, collapseDocs.collapseValues[i]);
+            }
+        } else if (topDocs instanceof TopFieldDocs) {
+            out.writeByte((byte) 1);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
 
             out.writeVInt(topDocs.totalHits);
@@ -363,31 +421,7 @@ public class Lucene {
 
             out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
-                if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
-                    // for geo sorting, we replace the SortField with a SortField that assumes a double field.
-                    // this works since the SortField is only used for merging top docs
-                    SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
-                    newSortField.setMissingValue(sortField.getMissingValue());
-                    sortField = newSortField;
-                }
-                if (sortField.getClass() != SortField.class) {
-                    throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
-                }
-                if (sortField.getField() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeString(sortField.getField());
-                }
-                if (sortField.getComparatorSource() != null) {
-                    IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
-                    writeSortType(out, comparatorSource.reducedType());
-                    writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
-                } else {
-                    writeSortType(out, sortField.getType());
-                    writeMissingValue(out, sortField.getMissingValue());
-                }
-                out.writeBoolean(sortField.getReverse());
+              writeSortField(out, sortField);
             }
 
             out.writeVInt(topDocs.scoreDocs.length);
@@ -395,7 +429,7 @@ public class Lucene {
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
-            out.writeBoolean(false);
+            out.writeByte((byte) 0);
             out.writeVInt(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
@@ -431,44 +465,49 @@ public class Lucene {
         }
     }
 
+
+    private static void writeSortValue(StreamOutput out, Object field) throws IOException {
+        if (field == null) {
+            out.writeByte((byte) 0);
+        } else {
+            Class type = field.getClass();
+            if (type == String.class) {
+                out.writeByte((byte) 1);
+                out.writeString((String) field);
+            } else if (type == Integer.class) {
+                out.writeByte((byte) 2);
+                out.writeInt((Integer) field);
+            } else if (type == Long.class) {
+                out.writeByte((byte) 3);
+                out.writeLong((Long) field);
+            } else if (type == Float.class) {
+                out.writeByte((byte) 4);
+                out.writeFloat((Float) field);
+            } else if (type == Double.class) {
+                out.writeByte((byte) 5);
+                out.writeDouble((Double) field);
+            } else if (type == Byte.class) {
+                out.writeByte((byte) 6);
+                out.writeByte((Byte) field);
+            } else if (type == Short.class) {
+                out.writeByte((byte) 7);
+                out.writeShort((Short) field);
+            } else if (type == Boolean.class) {
+                out.writeByte((byte) 8);
+                out.writeBoolean((Boolean) field);
+            } else if (type == BytesRef.class) {
+                out.writeByte((byte) 9);
+                out.writeBytesRef((BytesRef) field);
+            } else {
+                throw new IOException("Can't handle sort field value of type [" + type + "]");
+            }
+        }
+    }
+
     public static void writeFieldDoc(StreamOutput out, FieldDoc fieldDoc) throws IOException {
         out.writeVInt(fieldDoc.fields.length);
         for (Object field : fieldDoc.fields) {
-            if (field == null) {
-                out.writeByte((byte) 0);
-            } else {
-                Class type = field.getClass();
-                if (type == String.class) {
-                    out.writeByte((byte) 1);
-                    out.writeString((String) field);
-                } else if (type == Integer.class) {
-                    out.writeByte((byte) 2);
-                    out.writeInt((Integer) field);
-                } else if (type == Long.class) {
-                    out.writeByte((byte) 3);
-                    out.writeLong((Long) field);
-                } else if (type == Float.class) {
-                    out.writeByte((byte) 4);
-                    out.writeFloat((Float) field);
-                } else if (type == Double.class) {
-                    out.writeByte((byte) 5);
-                    out.writeDouble((Double) field);
-                } else if (type == Byte.class) {
-                    out.writeByte((byte) 6);
-                    out.writeByte((Byte) field);
-                } else if (type == Short.class) {
-                    out.writeByte((byte) 7);
-                    out.writeShort((Short) field);
-                } else if (type == Boolean.class) {
-                    out.writeByte((byte) 8);
-                    out.writeBoolean((Boolean) field);
-                } else if (type == BytesRef.class) {
-                    out.writeByte((byte) 9);
-                    out.writeBytesRef((BytesRef) field);
-                } else {
-                    throw new IOException("Can't handle sort field value of type [" + type + "]");
-                }
-            }
+            writeSortValue(out, field);
         }
         out.writeVInt(fieldDoc.doc);
         out.writeFloat(fieldDoc.score);
@@ -487,8 +526,51 @@ public class Lucene {
         return SortField.Type.values()[in.readVInt()];
     }
 
+    public static SortField readSortField(StreamInput in) throws IOException {
+        String field = null;
+        if (in.readBoolean()) {
+            field = in.readString();
+        }
+        SortField.Type sortType = readSortType(in);
+        Object missingValue = readMissingValue(in);
+        boolean reverse = in.readBoolean();
+        SortField sortField = new SortField(field, sortType, reverse);
+        if (missingValue != null) {
+            sortField.setMissingValue(missingValue);
+        }
+        return sortField;
+    }
+
     public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {
         out.writeVInt(sortType.ordinal());
+    }
+
+    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+        if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
+            // for geo sorting, we replace the SortField with a SortField that assumes a double field.
+            // this works since the SortField is only used for merging top docs
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
+        }
+        if (sortField.getClass() != SortField.class) {
+            throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
+        }
+        if (sortField.getField() == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(sortField.getField());
+        }
+        if (sortField.getComparatorSource() != null) {
+            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
+            writeSortType(out, comparatorSource.reducedType());
+            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
+        } else {
+            writeSortType(out, sortField.getType());
+            writeMissingValue(out, sortField.getMissingValue());
+        }
+        out.writeBoolean(sortField.getReverse());
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {

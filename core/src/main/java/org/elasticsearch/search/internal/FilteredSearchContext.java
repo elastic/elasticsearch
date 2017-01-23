@@ -39,6 +39,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -527,5 +528,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean isCancelled() {
         return in.isCancelled();
+    }
+
+    @Override
+    public SearchContext collapse(CollapseContext collapse) {
+        return in.collapse(collapse);
+    }
+
+    @Override
+    public CollapseContext collapse() {
+        return in.collapse();
     }
 }

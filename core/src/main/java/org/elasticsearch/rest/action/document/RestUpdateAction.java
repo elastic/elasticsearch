@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +44,6 @@ public class RestUpdateAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
-    @Inject
     public RestUpdateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);

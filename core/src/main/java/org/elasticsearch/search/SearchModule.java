@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -101,6 +102,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -220,6 +223,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
+import org.elasticsearch.search.collapse.ExpandCollapseSearchResponseListener;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
@@ -254,7 +258,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -283,6 +286,10 @@ public class SearchModule {
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
+        this(settings, transportClient, plugins, null);
+    }
+
+    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins, Client client) {
         this.settings = settings;
         this.transportClient = transportClient;
         registerSuggesters(plugins);
@@ -298,7 +305,9 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
-        registerSearchResponseListeners(plugins);
+        if (false == transportClient) {
+            registerSearchResponseListeners(client, plugins);
+        }
         registerShapes();
     }
 
@@ -371,6 +380,8 @@ public class SearchModule {
                 FilterAggregationBuilder::parse).addResultReader(InternalFilter::new));
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,
                 FiltersAggregationBuilder::parse).addResultReader(InternalFilters::new));
+        registerAggregation(new AggregationSpec(AdjacencyMatrixAggregationBuilder.NAME, AdjacencyMatrixAggregationBuilder::new,
+                AdjacencyMatrixAggregationBuilder.getParser()).addResultReader(InternalAdjacencyMatrix::new));
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new,
                 SamplerAggregationBuilder::parse)
                     .addResultReader(InternalSampler.NAME, InternalSampler::new)
@@ -688,7 +699,10 @@ public class SearchModule {
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
     }
 
-    private void registerSearchResponseListeners(List<SearchPlugin> plugins) {
+    private void registerSearchResponseListeners(Client client, List<SearchPlugin> plugins) {
+        if (client != null) {
+            registerSearchResponseListener(new ExpandCollapseSearchResponseListener(client));
+        }
         registerFromPlugin(plugins, p -> p.getSearchResponseListeners(), this::registerSearchResponseListener);
     }
 

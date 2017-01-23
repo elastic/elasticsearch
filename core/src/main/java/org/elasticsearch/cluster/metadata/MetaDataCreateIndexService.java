@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
@@ -33,6 +32,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -72,7 +72,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -121,6 +120,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
@@ -136,6 +136,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -226,7 +227,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
@@ -480,6 +481,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         super.onFailure(source, e);
                     }
                 });
+    }
+
+    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
+        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {

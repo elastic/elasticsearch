@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,8 +47,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
-
-    @Inject
     public RestIndicesStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_stats", this);
@@ -58,7 +55,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
     }
 
-    static Map<String, Consumer<IndicesStatsRequest>> METRICS;
+    static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {
         final Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();

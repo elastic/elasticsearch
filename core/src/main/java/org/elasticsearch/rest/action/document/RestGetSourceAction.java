@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,8 +40,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetSourceAction extends BaseRestHandler {
-
-    @Inject
     public RestGetSourceAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);

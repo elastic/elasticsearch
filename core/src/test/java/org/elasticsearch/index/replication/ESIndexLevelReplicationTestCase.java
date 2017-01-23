@@ -330,7 +330,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;
 
-        protected abstract void performOnReplica(ReplicaRequest request, IndexShard replica);
+        protected abstract void performOnReplica(ReplicaRequest request, IndexShard replica) throws IOException;
 
         class PrimaryRef implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult> {
 
@@ -450,7 +450,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected void performOnReplica(IndexRequest request, IndexShard replica) {
+        protected void performOnReplica(IndexRequest request, IndexShard replica) throws IOException {
             final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
             TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
         }

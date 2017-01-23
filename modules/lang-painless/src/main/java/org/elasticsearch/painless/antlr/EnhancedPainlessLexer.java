@@ -26,13 +26,15 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.misc.Pair;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 
 /**
  * A lexer that is customized for painless. It:
  * <ul>
- * <li>Overrides the default error behavior to fail on the first error
- * <li>Stores the last token in case we need to do lookbehind for semicolon insertion and regex vs division detection
+ * <li>Overrides the default error behavior to fail on the first error.
+ * <li>Stores the last token in case we need to do lookbehind for semicolon insertion and regex vs division detection.
+ * <li>Implements the regex vs division detection.
  * <li>Insert semicolons where they'd improve the language's readability. Rather than hack this into the parser and create a ton of
  * ambiguity we hack them here where we can use heuristics to do it quickly.
  * <li>Enhances the error message when a string contains invalid escape sequences to include a list of valid escape sequences.
@@ -87,6 +89,33 @@ final class EnhancedPainlessLexer extends PainlessLexer {
                     + firstChar + "].";
         }
         throw location.createError(new IllegalArgumentException(message, lnvae));
+    }
+
+    @Override
+    protected boolean isSimpleType(String name) {
+        return Definition.isSimpleType(name);
+    }
+
+    @Override
+    protected boolean slashIsRegex() {
+        Token lastToken = getPreviousToken();
+        if (lastToken == null) {
+            return true;
+        }
+        switch (lastToken.getType()) {
+        case PainlessLexer.RBRACE:
+        case PainlessLexer.RP:
+        case PainlessLexer.OCTAL:
+        case PainlessLexer.HEX:
+        case PainlessLexer.INTEGER:
+        case PainlessLexer.DECIMAL:
+        case PainlessLexer.ID:
+        case PainlessLexer.DOTINTEGER:
+        case PainlessLexer.DOTID:
+            return false;
+        default:
+            return true;
+        }
     }
 
     private static boolean insertSemicolon(Token previous, Token next) {

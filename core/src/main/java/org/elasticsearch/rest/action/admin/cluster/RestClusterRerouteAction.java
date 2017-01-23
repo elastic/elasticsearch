@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -58,7 +57,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestClusterRerouteAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         this.settingsFilter = settingsFilter;

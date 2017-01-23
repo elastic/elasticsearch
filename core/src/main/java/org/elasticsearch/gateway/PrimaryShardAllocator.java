@@ -479,9 +479,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         // don't use the setting directly, not to trigger verbose deprecation logging
         return (metaData.isOnSharedFilesystem(metaData.getSettings()) || metaData.isOnSharedFilesystem(this.settings))
             && (metaData.getSettings().getAsBooleanLenientForPreEs6Indices(
-                metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false) ||
+                metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger) ||
                 this.settings.getAsBooleanLenientForPreEs6Indices
-                    (metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false));
+                    (metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger));
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

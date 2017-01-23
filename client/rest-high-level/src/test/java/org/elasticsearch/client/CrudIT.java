@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
-    public void testGet() throws IOException {
+    public void testGetAndExists() throws IOException {
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
         StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
         Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
@@ -50,6 +50,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(getResponse.isSourceEmpty());
             assertEquals(1L, getResponse.getVersion());
             assertEquals(document, getResponse.getSourceAsString());
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
@@ -61,6 +62,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(-1, getResponse.getVersion());
             assertTrue(getResponse.isSourceEmpty());
             assertNull(getResponse.getSourceAsString());
+            assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -73,6 +75,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(getResponse.isSourceEmpty());
             assertEquals(1L, getResponse.getVersion());
             assertNull(getResponse.getSourceAsString());
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -92,6 +95,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             assertEquals("value1", sourceAsMap.get("field1"));
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
 

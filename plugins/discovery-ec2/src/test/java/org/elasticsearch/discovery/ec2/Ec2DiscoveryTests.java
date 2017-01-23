@@ -24,20 +24,32 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -50,6 +62,25 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     protected static ThreadPool threadPool;
     protected MockTransportService transportService;
+    private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
+
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+    private static final InetAddress META_ADDRESS;
+    static {
+        try {
+            META_ADDRESS = InetAddress.getByName("0.0.0.0");
+        } catch (UnknownHostException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Generates a new transport address using 0.0.0.0 with an incrementing port number.
+     * The port number starts at 0 and is reset after each test suite run.
+     */
+    public static TransportAddress buildNewFakeTransportAddress() {
+        return new InetSocketTransportAddress(META_ADDRESS, portGenerator.incrementAndGet());
+    }
 
     @BeforeClass
     public static void createThreadPool() {
@@ -66,7 +97,18 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),
+            Version.CURRENT) {
+            @Override
+            public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+                // we just need to ensure we don't resolve DNS here
+                return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
+            }
+        };
+        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes) {
@@ -91,41 +133,52 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
-                .build();
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
+            .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(AmazonEC2Mock.PREFIX_PRIVATE_IP + node++);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PRIVATE_IP + node++);
+            assertEquals(address, expected);
         }
     }
 
     public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
-                .build();
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
+            .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(AmazonEC2Mock.PREFIX_PUBLIC_IP + node++);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PUBLIC_IP + node++);
+            assertEquals(address, expected);
         }
     }
 
     public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            String instanceId = "node" + (i+1);
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId +
+                AmazonEC2Mock.SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
-                .build();
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
+            .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
         // We check that we are using here expected address
@@ -133,17 +186,22 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             String instanceId = "node" + node++;
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(
-                    AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId + AmazonEC2Mock.SUFFIX_PRIVATE_DNS);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(
+                AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId + AmazonEC2Mock.SUFFIX_PRIVATE_DNS);
+            assertEquals(address, expected);
         }
     }
 
     public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            String instanceId = "node" + (i+1);
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId
+                + AmazonEC2Mock.SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
-                .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
-                .build();
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
+            .build();
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
         // We check that we are using here expected address
@@ -151,9 +209,9 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             String instanceId = "node" + node++;
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(
-                    AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId + AmazonEC2Mock.SUFFIX_PUBLIC_DNS);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(
+                AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId + AmazonEC2Mock.SUFFIX_PUBLIC_DNS);
+            assertEquals(address, expected);
         }
     }
 
@@ -161,12 +219,11 @@ public class Ec2DiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
-        try {
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             buildDynamicNodes(nodeSettings, 1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("No enum constant"));
-        }
+        });
+        assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
     public void testFilterByTags() throws InterruptedException {
@@ -224,6 +281,39 @@ public class Ec2DiscoveryTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
         assertThat(discoveryNodes, hasSize(prodInstances));
     }
+
+    public void testReadHostFromTag() throws InterruptedException, UnknownHostException {
+        int nodes = 2;//randomIntBetween(5, 10);
+
+        String[] addresses = new String[nodes];
+
+        for (int node = 0; node < nodes; node++) {
+            addresses[node] = "192.168.0." + (node + 1);
+            poorMansDNS.put("node" + (node + 1), new InetSocketTransportAddress(InetAddress.getByName(addresses[node]), 9300));
+        }
+
+        Settings nodeSettings = Settings.builder()
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "tag:foo")
+            .build();
+
+        List<List<Tag>> tagsList = new ArrayList<>();
+
+        for (int node = 0; node < nodes; node++) {
+            List<Tag> tags = new ArrayList<>();
+            tags.add(new Tag("foo", "node" + (node + 1)));
+            tagsList.add(tags);
+        }
+
+        logger.info("started [{}] instances", nodes);
+        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
+        assertThat(discoveryNodes, hasSize(nodes));
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
+            TransportAddress address = discoveryNode.getAddress();
+            TransportAddress expected = poorMansDNS.get(discoveryNode.getName());
+            assertEquals(address, expected);
+        }
+    }
+
 
     abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
         public int fetchCount = 0;

@@ -20,27 +20,12 @@ dependencies {
     testCompile group: 'org.ini4j', name: 'ini4j', version:"${ini4jVersion}"
 }
 
-test {
-    exclude '**/*NoBootstrapTests.class'
-}
-
-task noBootstrapTest(type: Test,
-        dependsOn: test.dependsOn) {
-    classpath = project.test.classpath
-    testClassesDir = project.test.testClassesDir
-    include '**/*NoBootstrapTests.class'
-}
-check.dependsOn noBootstrapTest
-noBootstrapTest.mustRunAfter test
-
 integTest {
     cluster {
         //setting 'useNativeProcess', 'true'
         distribution = 'zip'
     }
 }
-
-integTest.mustRunAfter noBootstrapTest
 
 bundlePlugin {
   if (project.cppLocalDists) {

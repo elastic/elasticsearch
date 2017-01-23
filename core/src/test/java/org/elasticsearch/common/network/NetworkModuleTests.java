@@ -40,6 +40,8 @@ import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
@@ -231,8 +234,21 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+        AtomicInteger called = new AtomicInteger(0);
 
         TransportInterceptor interceptor = new TransportInterceptor() {
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                            boolean forceExecution,
+                                                                                            TransportRequestHandler<T> actualHandler) {
+                called.incrementAndGet();
+                if ("foo/bar/boom".equals(action)) {
+                    assertTrue(forceExecution);
+                } else {
+                    assertFalse(forceExecution);
+                }
+                return actualHandler;
+            }
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
@@ -242,6 +258,11 @@ public class NetworkModuleTests extends ModuleTestCase {
             });
 
         TransportInterceptor transportInterceptor = module.getTransportInterceptor();
+        assertEquals(0, called.get());
+        transportInterceptor.interceptHandler("foo/bar/boom", null, true, null);
+        assertEquals(1, called.get());
+        transportInterceptor.interceptHandler("foo/baz/boom", null, false, null);
+        assertEquals(2, called.get());
         assertTrue(transportInterceptor instanceof  NetworkModule.CompositeTransportInterceptor);
         assertEquals(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.size(), 1);
         assertSame(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.get(0), interceptor);

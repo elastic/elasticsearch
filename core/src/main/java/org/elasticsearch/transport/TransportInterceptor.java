@@ -34,6 +34,21 @@ public interface TransportInterceptor {
      * used instead of the passed in handler. By default the provided handler is returned.
      */
     default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                     boolean forceExecution,
+                                                                                     TransportRequestHandler<T> actualHandler) {
+        return interceptHandler(action, executor, actualHandler);
+    }
+
+    /**
+     * This is called for each handler that is registered via
+     * {@link TransportService#registerRequestHandler(String, Supplier, String, boolean, boolean, TransportRequestHandler)} or
+     * {@link TransportService#registerRequestHandler(String, Supplier, String, TransportRequestHandler)}. The returned handler is
+     * used instead of the passed in handler. By default the provided handler is returned.
+     * @deprecated use {@link #interceptHandler(String, String, boolean, TransportRequestHandler)} instead this method will be removed
+     * in the next minor release due to serious system stability implications
+     */
+    @Deprecated
+    default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
                                                                                      TransportRequestHandler<T> actualHandler) {
         return actualHandler;
     }

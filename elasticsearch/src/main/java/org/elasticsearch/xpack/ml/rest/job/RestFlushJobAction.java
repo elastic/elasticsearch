@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,7 +25,6 @@ public class RestFlushJobAction extends BaseRestHandler {
     private final String DEFAULT_END = "";
     private final String DEFAULT_ADVANCE_TIME = "";
 
-    @Inject
     public RestFlushJobAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH

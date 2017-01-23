@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,7 +20,6 @@ import java.io.IOException;
 
 public class RestStopDatafeedAction extends BaseRestHandler {
 
-    @Inject
     public RestStopDatafeedAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH + "datafeeds/{"

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,7 +20,6 @@ import java.io.IOException;
 
 public class RestPutJobAction extends BaseRestHandler {
 
-    @Inject
     public RestPutJobAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT,

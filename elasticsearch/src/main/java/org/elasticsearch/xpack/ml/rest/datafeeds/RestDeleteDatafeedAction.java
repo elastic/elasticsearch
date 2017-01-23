@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,7 +19,6 @@ import java.io.IOException;
 
 public class RestDeleteDatafeedAction extends BaseRestHandler {
 
-    @Inject
     public RestDeleteDatafeedAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, MlPlugin.BASE_PATH + "datafeeds/{"

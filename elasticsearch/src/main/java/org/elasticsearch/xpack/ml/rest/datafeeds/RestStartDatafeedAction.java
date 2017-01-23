@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,8 +17,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
 
@@ -27,7 +26,6 @@ public class RestStartDatafeedAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
-    @Inject
     public RestStartDatafeedAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST,

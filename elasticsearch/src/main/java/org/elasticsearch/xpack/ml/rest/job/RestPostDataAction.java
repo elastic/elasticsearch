@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -24,7 +23,6 @@ public class RestPostDataAction extends BaseRestHandler {
     private static final String DEFAULT_RESET_START = "";
     private static final String DEFAULT_RESET_END = "";
 
-    @Inject
     public RestPostDataAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, MlPlugin.BASE_PATH

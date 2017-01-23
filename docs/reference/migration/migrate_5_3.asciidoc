@@ -36,6 +36,7 @@ settings deprecated.
 [float]
 === REST API changes
 
+[float]
 ==== Lenient boolean representations are deprecated
 
 Usage of any value other than `false`, `"false", `true` and `"true"` for
@@ -46,6 +47,7 @@ is deprecated.
 [float]
 === Mapping changes
 
+[float]
 ==== Lenient boolean representations are deprecated
 
 Usage of any value other than `false`, `"false", `true` and `"true"` for

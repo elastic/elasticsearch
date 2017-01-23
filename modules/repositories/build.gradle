@@ -22,12 +22,6 @@ esplugin {
     classname 'org.elasticsearch.plugin.repositories.RepositoriesPlugin'
 }
 
-dependencies {
-}
-
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
 
-thirdPartyAudit.excludes = [
-
-]

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.blobstore.url;
 
 import com.sun.net.httpserver.HttpServer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
 
+@SuppressForbidden(reason = "use http server")
 public class URLBlobStoreTests extends ESTestCase {
 
     private static HttpServer httpServer;

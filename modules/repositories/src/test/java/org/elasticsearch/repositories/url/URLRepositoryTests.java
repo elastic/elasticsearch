@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.url.URLRepository;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,8 +54,9 @@ public class URLRepositoryTests extends ESTestCase {
             new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            String msg = "[url] file url [%s] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls";
-            assertEquals(String.format(msg, repoPath), e.getMessage());
+            String msg = "[url] file url [" + repoPath
+                + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls";
+            assertEquals(msg, e.getMessage());
         }
     }
 
@@ -74,7 +74,7 @@ public class URLRepositoryTests extends ESTestCase {
             new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            assertEquals(String.format("[url] unsupported url protocol [file] from URL [%s]", repoPath), e.getMessage());
+            assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());
         }
     }
 

@@ -35,7 +35,6 @@ public class URLRepositoryTests extends ESTestCase {
 
     public void testWhiteListingRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
-        System.out.println(repoPath);
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoPath)

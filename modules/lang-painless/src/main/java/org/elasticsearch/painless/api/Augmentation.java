@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.api;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

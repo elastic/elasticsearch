@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;

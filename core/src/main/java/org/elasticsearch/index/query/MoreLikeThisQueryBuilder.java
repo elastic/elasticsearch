@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -161,6 +162,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private String type;
         private String id;
         private BytesReference doc;
+        private XContentType xContentType;
         private String[] fields;
         private Map<String, String> perFieldAnalyzer;
         private String routing;
@@ -178,6 +180,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.type = copy.type;
             this.id = copy.id;
             this.doc = copy.doc;
+            this.xContentType = copy.xContentType;
             this.fields = copy.fields;
             this.perFieldAnalyzer = copy.perFieldAnalyzer;
             this.version = copy.version;
@@ -214,6 +217,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.index = index;
             this.type = type;
             this.doc = doc.bytes();
+            this.xContentType = doc.contentType();
         }
 
         /**
@@ -224,6 +228,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
+                if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                    xContentType = XContentType.readFrom(in);
+                } else {
+                    xContentType = XContentFactory.xContentType(doc);
+                }
             } else {
                 id = in.readString();
             }
@@ -241,6 +250,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
+                if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                    xContentType.writeTo(out);
+                }
             } else {
                 out.writeString(id);
             }
@@ -325,6 +337,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return this;
         }
 
+        public XContentType xContentType() {
+            return xContentType;
+        }
+
         /**
          * Convert this to a {@link TermVectorsRequest} for fetching the terms of the document.
          */
@@ -342,7 +358,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
-                termVectorsRequest.doc(doc, true);
+                termVectorsRequest.doc(doc, true, xContentType);
                 this.id = termVectorsRequest.id();
             }
             return termVectorsRequest;
@@ -366,6 +382,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         item.id = parser.text();
                     } else if (Field.DOC.match(currentFieldName)) {
                         item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
+                        item.xContentType = XContentType.JSON;
                     } else if (Field.FIELDS.match(currentFieldName)) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
@@ -416,12 +433,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 builder.field(Field.ID.getPreferredName(), this.id);
             }
             if (this.doc != null) {
-                XContentType contentType = XContentFactory.xContentType(this.doc);
-                if (contentType == builder.contentType()) {
-                    builder.rawField(Field.DOC.getPreferredName(), this.doc);
-                } else {
-                    builder.rawField(Field.DOC.getPreferredName(), doc);
-                }
+                builder.rawField(Field.DOC.getPreferredName(), this.doc, xContentType);
             }
             if (this.fields != null) {
                 builder.array(Field.FIELDS.getPreferredName(), this.fields);

@@ -55,16 +55,16 @@ public class XContentHelper {
         }
     }
 
+    /**
+     * Converts the given bytes into a map that is optionally ordered.
+     * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
+     *             instead with the proper {@link XContentType}
+     */
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
             throws ElasticsearchParseException {
-        return convertToMap(bytes, ordered, null);
-    }
-
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-        throws ElasticsearchParseException {
         try {
-            XContentType contentType = xContentType;
+            final XContentType contentType;
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
@@ -72,17 +72,36 @@ public class XContentHelper {
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
-                if (contentType == null) {
-                    contentType = XContentFactory.xContentType(compressedStreamInput);
-                }
+                contentType = XContentFactory.xContentType(compressedStreamInput);
                 input = compressedStreamInput;
             } else {
-                if (contentType == null) {
-                    contentType = XContentFactory.xContentType(bytes);
-                }
+                contentType = XContentFactory.xContentType(bytes);
                 input = bytes.streamInput();
             }
             return new Tuple<>(contentType, convertToMap(XContentFactory.xContent(contentType), input, ordered));
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+        throws ElasticsearchParseException {
+        try {
+            InputStream input;
+            Compressor compressor = CompressorFactory.compressor(bytes);
+            if (compressor != null) {
+                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                input = compressedStreamInput;
+            } else {
+                input = bytes.streamInput();
+            }
+            return new Tuple<>(Objects.requireNonNull(xContentType), convertToMap(XContentFactory.xContent(xContentType), input, ordered));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }

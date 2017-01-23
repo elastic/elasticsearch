@@ -28,16 +28,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source) {
-        return source(Origin.PRIMARY, index, type, id, source, XContentFactory.xContentType(source));
-    }
-
     public static SourceToParse source(String index, String type, String id, BytesReference source, XContentType contentType) {
         return source(Origin.PRIMARY, index, type, id, source, contentType);
-    }
-
-    public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source) {
-        return source(origin, index, type, id, source, XContentFactory.xContentType(source));
     }
 
     public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source,
@@ -103,6 +95,10 @@ public class SourceToParse {
 
     public String routing() {
         return this.routing;
+    }
+
+    public XContentType getXContentType() {
+        return this.xContentType;
     }
 
     public SourceToParse routing(String routing) {

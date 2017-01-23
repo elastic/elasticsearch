@@ -241,7 +241,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         if (filter != null) {
             // we don't update the context source if we filter, we want to keep it as is...
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
+            Tuple<XContentType, Map<String, Object>> mapTuple = context.sourceToParse().getXContentType() == null ?
+                XContentHelper.convertToMap(source, true) :
+                XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
             Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentType contentType = mapTuple.v1();

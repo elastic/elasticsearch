@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -107,7 +108,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             return new PercolateQueryBuilder(queryField, docType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
                     indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
         } else {
-            return new PercolateQueryBuilder(queryField, docType, documentSource);
+            return new PercolateQueryBuilder(queryField, docType, documentSource, XContentType.JSON);
         }
     }
 
@@ -155,7 +156,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
         QueryBuilder rewrite = pqb.rewrite(createShardContext());
-        PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource);
+        PercolateQueryBuilder geoShapeQueryBuilder =
+            new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource, XContentType.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
 
@@ -176,14 +178,16 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testRequiredParameters() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new PercolateQueryBuilder(null, null, new BytesArray("{}"));
+            new PercolateQueryBuilder(null, null, new BytesArray("{}"), XContentType.JSON);
         });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> new PercolateQueryBuilder("_field", null, new BytesArray("{}")));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> new PercolateQueryBuilder("_field", null, new BytesArray("{}"), XContentType.JSON));
         assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> new PercolateQueryBuilder("_field", "_document_type", null));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> new PercolateQueryBuilder("_field", "_document_type", null, null));
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {

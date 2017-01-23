@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
@@ -270,7 +271,8 @@ public class TermVectorsService  {
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc());
+        ParsedDocument parsedDocument =
+            parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc(), request.xContentType());
 
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
@@ -293,13 +295,15 @@ public class TermVectorsService  {
             String[] values = doc.getValues(field.name());
             getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(indexShard, XContentHelper.convertToMap(parsedDocument.source(), true).v2(), getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
+        return generateTermVectors(indexShard, XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(),
+            getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) {
+    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,
+                                                XContentType xContentType) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", doc));
+        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", doc, xContentType));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

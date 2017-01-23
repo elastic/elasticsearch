@@ -801,6 +801,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         builder.endObject();
         builder.flush();
         logger.info(builder.string());
-        return XContentHelper.convertToMap(builder.bytes(), false).v2();
+        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
     }
 }

@@ -79,7 +79,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         BytesReference bytes = builder.endObject().bytes();
 
-        request.source(XContentHelper.convertToMap(bytes, true).v2());
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
@@ -137,7 +137,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         BytesReference bytes = builder.endObject().bytes();
 
-        request.source(XContentHelper.convertToMap(bytes, true).v2());
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());

@@ -214,7 +214,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             builder.startObject();
             fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), builder.bytes()));
+            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), builder.bytes(), builder.contentType()));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
         }

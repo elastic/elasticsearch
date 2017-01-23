@@ -137,12 +137,18 @@ public enum XContentType implements Writeable {
         }
     };
 
+    /**
+     * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
+     * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
+     * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
+     * format query parameter. This method will return {@code null} if no match is found
+     */
     public static XContentType fromMediaTypeOrFormat(String mediaType) {
         if (mediaType == null) {
             return null;
         }
         for (XContentType type : values()) {
-            if (isSameMediaTypeAs(mediaType, type)) {
+            if (isSameMediaTypeOrFormatAs(mediaType, type)) {
                 return type;
             }
         }
@@ -153,17 +159,22 @@ public enum XContentType implements Writeable {
         return null;
     }
 
+    /**
+     * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
+     * The provided media type should not included any parameters. This method is suitable for parsing part of the {@code Content-Type}
+     * HTTP header. This method will return {@code null} if no match is found
+     */
     public static XContentType fromMediaTypeStrict(String mediaType) {
         final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
         for (XContentType type : values()) {
-            if (type.mediaTypeWithoutParameters().equals(mediaType)) {
+            if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
                 return type;
             }
         }
         return null;
     }
 
-    private static boolean isSameMediaTypeAs(String stringType, XContentType type) {
+    private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
         return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
                 stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
                 type.shortName().equalsIgnoreCase(stringType);
@@ -189,6 +200,9 @@ public enum XContentType implements Writeable {
 
     public abstract String mediaTypeWithoutParameters();
 
+    /**
+     * Returns {@code true} if this {@link XContentType} can be represented as a String and is not a binary only format
+     */
     public abstract boolean hasStringRepresentation();
 
     public static XContentType readFrom(StreamInput in) throws IOException {

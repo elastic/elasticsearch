@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An internal implementation of {@link ValueCount}.
@@ -87,5 +88,16 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     @Override
     public String toString() {
         return "count[" + value + "]";
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(value);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalValueCount that = (InternalValueCount) obj;
+        return Objects.equals(this.value, that.value);
     }
 }

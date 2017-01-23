@@ -20,7 +20,6 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,8 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestNoopSearchAction extends BaseRestHandler {
-
-    @Inject
     public RestNoopSearchAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_noop_search", this);

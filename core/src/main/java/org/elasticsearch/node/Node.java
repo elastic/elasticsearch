@@ -350,13 +350,13 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class), client);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
-                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class), client,
-                circuitBreakerService);
+                    settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                    threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService);
             modules.add(actionModule);
             modules.add(new GatewayModule());
 
@@ -484,6 +484,10 @@ public class Node implements Closeable {
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
                     () -> clusterService.localNode().getId());
 
+            if (NetworkModule.HTTP_ENABLED.get(settings)) {
+                logger.debug("initializing HTTP handlers ...");
+                actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            }
             logger.info("initialized");
 
             success = true;

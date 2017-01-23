@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,7 +44,6 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
 
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
 
-    @Inject
     public RestGetSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
 

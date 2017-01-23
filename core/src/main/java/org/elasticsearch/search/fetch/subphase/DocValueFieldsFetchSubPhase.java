@@ -27,6 +27,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 
 /**
@@ -38,6 +39,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.collapse() != null) {
+            // retrieve the `doc_value` associated with the collapse field
+            String name = context.collapse().getFieldType().name();
+            if (context.docValueFieldsContext() == null) {
+                context.docValueFieldsContext(new DocValueFieldsContext(Collections.singletonList(name)));
+            } else if (context.docValueFieldsContext().fields().contains(name) == false) {
+                context.docValueFieldsContext().fields().add(name);
+            }
+        }
         if (context.docValueFieldsContext() == null) {
             return;
         }

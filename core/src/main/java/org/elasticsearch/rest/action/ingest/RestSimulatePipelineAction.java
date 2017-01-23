@@ -21,19 +21,15 @@ package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
 public class RestSimulatePipelineAction extends BaseRestHandler {
-
-    @Inject
     public RestSimulatePipelineAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/{id}/_simulate", this);

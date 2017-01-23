@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
-import groovy.transform.PackageScope
 import org.gradle.api.GradleScriptException
 import org.gradle.api.logging.Logger
 import org.gradle.logging.ProgressLogger

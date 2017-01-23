@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +45,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         }, AliasActions.PARSER, new ParseField("actions"));
     }
 
-    @Inject
     public RestIndicesAliasesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_aliases", this);

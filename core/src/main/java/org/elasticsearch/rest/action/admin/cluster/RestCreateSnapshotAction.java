@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -38,8 +37,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Creates a new snapshot
  */
 public class RestCreateSnapshotAction extends BaseRestHandler {
-
-    @Inject
     public RestCreateSnapshotAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);

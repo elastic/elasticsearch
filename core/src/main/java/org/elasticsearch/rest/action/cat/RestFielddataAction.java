@@ -20,12 +20,12 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestController;
@@ -39,8 +39,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about the size of fielddata fields per node
  */
 public class RestFielddataAction extends AbstractCatAction {
-
-    @Inject
     public RestFielddataAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/fielddata", this);

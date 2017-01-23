@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestController;
@@ -60,7 +59,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Inject
     public RestIndicesAction(Settings settings, RestController controller, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;

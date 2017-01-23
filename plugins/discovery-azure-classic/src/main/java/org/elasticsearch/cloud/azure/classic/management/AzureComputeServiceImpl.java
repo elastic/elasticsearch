@@ -20,9 +20,7 @@
 package org.elasticsearch.cloud.azure.classic.management;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
@@ -31,7 +29,6 @@ import com.microsoft.windowsazure.Configuration;
 import com.microsoft.windowsazure.core.Builder;
 import com.microsoft.windowsazure.core.DefaultBuilder;
 import com.microsoft.windowsazure.core.utils.KeyStoreType;
-import com.microsoft.windowsazure.exception.ServiceException;
 import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
 import com.microsoft.windowsazure.management.compute.ComputeManagementService;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
@@ -43,9 +40,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.xml.sax.SAXException;
-
-import javax.xml.parsers.ParserConfigurationException;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
@@ -99,10 +93,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
 
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HostedServiceGetDetailedResponse>)
                 () -> client.getHostedServicesOperations().getDetailed(serviceName));

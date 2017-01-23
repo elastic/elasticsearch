@@ -36,12 +36,10 @@ import java.security.PrivilegedExceptionAction;
  */
 public final class SocketAccess {
 
-    private static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
-
     private SocketAccess() {}
 
     public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException, URISyntaxException {
-        checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
@@ -50,7 +48,7 @@ public final class SocketAccess {
     }
 
     public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
-        checkSpecialPermission();
+        SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 action.executeCouldThrow();
@@ -63,13 +61,6 @@ public final class SocketAccess {
             } else {
                 throw (URISyntaxException) cause;
             }
-        }
-    }
-
-    private static void checkSpecialPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SPECIAL_PERMISSION);
         }
     }
 

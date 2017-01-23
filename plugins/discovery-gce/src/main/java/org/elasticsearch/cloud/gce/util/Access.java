@@ -35,17 +35,15 @@ import java.security.PrivilegedExceptionAction;
  */
 public final class Access {
 
-    private static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
-
     private Access() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
-        checkSpecialPermission();
+        SpecialPermission.check();
         return AccessController.doPrivileged(operation);
     }
 
     public static void doPrivilegedVoid(DiscoveryRunnable action) {
-        checkSpecialPermission();
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             action.execute();
             return null;
@@ -53,18 +51,11 @@ public final class Access {
     }
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
-        }
-    }
-
-    private static void checkSpecialPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SPECIAL_PERMISSION);
         }
     }
 

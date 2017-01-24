@@ -81,7 +81,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs("data-2", numDocs2, oneWeekAgo, now);
 
-        Job.Builder job = createJob();
+        Job.Builder job = createJob("lookback-job");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
@@ -122,7 +122,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         long lastWeek = now - 604800000;
         indexDocs("data", numDocs1, lastWeek, now);
 
-        Job.Builder job = createJob();
+        Job.Builder job = createJob("realtime-job");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
@@ -193,7 +193,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         logger.info("Indexed [{}] documents", numDocs);
     }
 
-    private Job.Builder createJob() {
+    private Job.Builder createJob(String jobId) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.JSON);
         dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
@@ -202,7 +202,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
 
         Job.Builder builder = new Job.Builder();
-        builder.setId("my_job_id");
+        builder.setId(jobId);
 
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);

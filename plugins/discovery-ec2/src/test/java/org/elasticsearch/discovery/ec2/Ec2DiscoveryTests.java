@@ -268,7 +268,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
         for (int node = 0; node < nodes; node++) {
             addresses[node] = "192.168.0." + (node + 1);
-            poorMansDNS.put("bar_" + node, new TransportAddress(InetAddress.getByName(addresses[node]), 9300));
+            poorMansDNS.put("node" + (node + 1), new TransportAddress(InetAddress.getByName(addresses[node]), 9300));
         }
 
         Settings nodeSettings = Settings.builder()
@@ -279,7 +279,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
-            tags.add(new Tag("foo", "bar_" + node));
+            tags.add(new Tag("foo", "node" + (node + 1)));
             tagsList.add(tags);
         }
 
@@ -287,7 +287,9 @@ public class Ec2DiscoveryTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
         assertThat(discoveryNodes, hasSize(nodes));
         for (DiscoveryNode discoveryNode : discoveryNodes) {
-            assertThat(discoveryNode.getHostName(), isOneOf(addresses));
+            TransportAddress address = discoveryNode.getAddress();
+            TransportAddress expected = poorMansDNS.get(discoveryNode.getName());
+            assertEquals(address, expected);
         }
     }
 

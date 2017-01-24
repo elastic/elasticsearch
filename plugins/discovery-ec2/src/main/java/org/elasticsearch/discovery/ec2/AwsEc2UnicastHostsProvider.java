@@ -181,7 +181,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
+                            discoNodes.add(new DiscoveryNode(instance.getInstanceId(), "#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
                                     emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {

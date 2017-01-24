@@ -174,8 +174,9 @@ public interface AwsEc2Service {
 
         /**
          * discovery.ec2.host_type: The type of host type to use to communicate with other instances.
-         * Can be one of private_ip, public_ip, private_dns, public_dns or meta:XXXX where
-         * XXXX is the metadata field name we will read the address from. Defaults to private_ip.
+         * Can be one of private_ip, public_ip, private_dns, public_dns or tag:XXXX where
+         * XXXX refers to a name of a tag configured for all EC2 instances. Instances which don't
+         * have this tag set will be ignored by the discovery process. Defaults to private_ip.
          */
         Setting<String> HOST_TYPE_SETTING =
             new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP, Function.identity(), Property.NodeScope);

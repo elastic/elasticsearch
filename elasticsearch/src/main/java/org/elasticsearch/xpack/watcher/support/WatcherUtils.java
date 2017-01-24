@@ -24,7 +24,7 @@ public final class WatcherUtils {
     }
 
     public static Map<String, Object> responseToData(ToXContentObject response) throws IOException {
-        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON), false).v2();
+        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON, false), false).v2();
     }
 
     public static Map<String, Object> flattenModel(Map<String, Object> map) {

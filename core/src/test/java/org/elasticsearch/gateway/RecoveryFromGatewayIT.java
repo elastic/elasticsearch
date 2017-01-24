@@ -386,7 +386,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     }
 
     // test fails with seed FE6770A74885D66E
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE")
+    @TestLogging("org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard.StoreRecovery:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = Settings.builder()
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)

@@ -16,11 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle
 
-import org.codehaus.groovy.control.customizers.ImportCustomizer
+/**
+ * Wraps a ProgressLogger so that code in src/main/groovy does not need to
+ * define imports on Gradle 2.13/2.14+ ProgressLoggers
+ */
+class ProgressLogger {
+    @Delegate org.gradle.logging.ProgressLogger progressLogger
 
-def imports = new ImportCustomizer()
-imports.addImports(
-        'org.gradle.internal.logging.progress.ProgressLogger',
-        'org.gradle.internal.logging.progress.ProgressLoggerFactory')
-configuration.addCompilationCustomizers(imports)
+    ProgressLogger(org.gradle.logging.ProgressLogger progressLogger) {
+        this.progressLogger = progressLogger
+    }
+}

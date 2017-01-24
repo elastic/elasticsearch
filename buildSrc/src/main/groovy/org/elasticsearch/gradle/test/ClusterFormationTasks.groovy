@@ -276,8 +276,7 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test',
-                'repositories.url.allowed_urls': 'http://snapshot.test*'
+                'node.attr.testattr'           : 'test'
         ]
         // we set min master nodes to the total number of nodes in the cluster and
         // basically skip initial state recovery to allow the cluster to form using a realistic master election

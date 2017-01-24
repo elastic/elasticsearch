@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortMode;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,7 +55,6 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     }
 
     private String field;
-    private SortMode multiValueMode;
     private InnerHitBuilder innerHit;
 
     private CollapseBuilder() {}
@@ -72,14 +70,12 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
-        this.multiValueMode = in.readOptionalWriteable(SortMode::readFromStream);
         this.innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeOptionalWriteable(multiValueMode);
         out.writeOptionalWriteable(innerHit);
     }
 
@@ -143,7 +139,7 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.field, this.multiValueMode, this.innerHit);
+        return Objects.hash(this.field, this.innerHit);
     }
 
     public CollapseContext build(SearchContext context) {

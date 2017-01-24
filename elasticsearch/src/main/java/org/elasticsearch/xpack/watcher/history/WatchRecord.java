@@ -80,7 +80,10 @@ public abstract class WatchRecord implements ToXContentObject {
         }
         if (executionResult.conditionResult().met()) {
             final Collection<ActionWrapper.Result> values = executionResult.actionsResults().values();
-            if (values.stream().anyMatch((r) -> r.action().status() == Action.Result.Status.THROTTLED)) {
+            // acknowledged as state wins because the user had explicitely set this, where as throttled may happen due to execution
+            if (values.stream().anyMatch((r) -> r.action().status() == Action.Result.Status.ACKNOWLEDGED)) {
+                return ExecutionState.ACKNOWLEDGED;
+            } else if (values.stream().anyMatch((r) -> r.action().status() == Action.Result.Status.THROTTLED)) {
                 return ExecutionState.THROTTLED;
             } else {
                 return ExecutionState.EXECUTED;

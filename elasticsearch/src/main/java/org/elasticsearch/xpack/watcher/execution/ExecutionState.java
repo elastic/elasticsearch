@@ -12,8 +12,11 @@ public enum ExecutionState {
     // the condition of the watch was not met
     EXECUTION_NOT_NEEDED,
 
-    // Execution has been throttled due to ack/time-based throttling
+    // Execution has been throttled due to time-based throttling - this might only affect a single action though
     THROTTLED,
+
+    // Execution has been throttled due to ack-based throttling/muting of an action - this might only affect a single action though
+    ACKNOWLEDGED,
 
     // regular execution
     EXECUTED,

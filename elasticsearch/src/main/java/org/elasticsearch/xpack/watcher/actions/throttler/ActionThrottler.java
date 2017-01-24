@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.time.Clock;
 
+import static org.elasticsearch.xpack.watcher.actions.throttler.Throttler.Type.LICENSE;
+
 public class ActionThrottler implements Throttler {
 
     private static final AckThrottler ACK_THROTTLER = new AckThrottler();
@@ -37,7 +39,7 @@ public class ActionThrottler implements Throttler {
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
         if (licenseState.isWatcherAllowed() == false) {
-            return Result.throttle("watcher license does not allow action execution");
+            return Result.throttle(LICENSE, "watcher license does not allow action execution");
         }
         if (periodThrottler != null) {
             Result throttleResult = periodThrottler.throttle(actionId, ctx);

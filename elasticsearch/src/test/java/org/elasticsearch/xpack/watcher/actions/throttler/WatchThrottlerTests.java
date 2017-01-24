@@ -21,7 +21,7 @@ public class WatchThrottlerTests extends ESTestCase {
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(periodThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
-        Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
+        Throttler.Result expectedResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isWatcherAllowed()).thenReturn(true);
@@ -35,7 +35,7 @@ public class WatchThrottlerTests extends ESTestCase {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
+        Throttler.Result expectedResult = Throttler.Result.throttle(Throttler.Type.PERIOD, "_reason");
         when(periodThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -50,9 +50,9 @@ public class WatchThrottlerTests extends ESTestCase {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        Throttler.Result periodResult = Throttler.Result.throttle("_reason_period");
+        Throttler.Result periodResult = Throttler.Result.throttle(Throttler.Type.PERIOD, "_reason_period");
         when(periodThrottler.throttle("_action", ctx)).thenReturn(periodResult);
-        Throttler.Result ackResult = Throttler.Result.throttle("_reason_ack");
+        Throttler.Result ackResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason_ack");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isWatcherAllowed()).thenReturn(true);
@@ -101,5 +101,6 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result.reason(), is("watcher license does not allow action execution"));
+        assertThat(result.type(), is(Throttler.Type.LICENSE));
     }
 }

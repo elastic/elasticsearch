@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus.AckStatus;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
+import static org.elasticsearch.xpack.watcher.actions.throttler.Throttler.Type.ACK;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 
 public class AckThrottler implements Throttler {
@@ -18,7 +19,7 @@ public class AckThrottler implements Throttler {
         ActionStatus actionStatus = ctx.watch().status().actionStatus(actionId);
         AckStatus ackStatus = actionStatus.ackStatus();
         if (ackStatus.state() == AckStatus.State.ACKED) {
-            return Result.throttle("action [{}] was acked at [{}]", actionId, formatDate(ackStatus.timestamp()));
+            return Result.throttle(ACK, "action [{}] was acked at [{}]", actionId, formatDate(ackStatus.timestamp()));
         }
         return Result.NO;
     }

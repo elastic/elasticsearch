@@ -87,7 +87,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         responseMap = executeWatchRequestBuilder.get().getRecordSource().getAsMap();
         status = ObjectPath.eval("result.actions.0.status", responseMap);
         if (ack) {
-            assertThat(status, equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
+            assertThat(status, equalTo(Action.Result.Status.ACKNOWLEDGED.toString().toLowerCase(Locale.ROOT)));
         } else {
             assertThat(status, equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
         }
@@ -121,7 +121,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         List<Map<String, String>> actions = ObjectPath.eval("result.actions", responseMap);
         for (Map<String, String> result : actions) {
             if (ackingActions.contains(result.get("id"))) {
-                assertThat(result.get("status"), equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
+                assertThat(result.get("status"), equalTo(Action.Result.Status.ACKNOWLEDGED.toString().toLowerCase(Locale.ROOT)));
             } else {
                 assertThat(result.get("status"), equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
             }

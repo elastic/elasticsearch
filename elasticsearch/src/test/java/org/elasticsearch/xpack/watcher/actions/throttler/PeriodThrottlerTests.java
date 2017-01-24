@@ -44,6 +44,7 @@ public class PeriodThrottlerTests extends ESTestCase {
         assertThat(result.throttle(), is(true));
         assertThat(result.reason(), notNullValue());
         assertThat(result.reason(), startsWith("throttling interval is set to [" + period.format(periodType) + "]"));
+        assertThat(result.type(), is(Throttler.Type.PERIOD));
     }
 
     public void testAbovePeriod() throws Exception {

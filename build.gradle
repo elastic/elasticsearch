@@ -71,6 +71,11 @@ task assemble(dependsOn: bundlePack) {
   description = 'Assembles the outputs of this project.'
 }
 
+task build(dependsOn: assemble) {
+  group = 'Build'
+  description = 'Assembles and tests this project.'
+}
+
 task test(dependsOn: [':prelert-legacy:elasticsearch:test', ':prelert-legacy:kibana:test']) {
   group = 'Build'
   description = 'Assembles and tests this project.'

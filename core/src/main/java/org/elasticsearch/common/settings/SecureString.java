@@ -44,7 +44,10 @@ public final class SecureString implements CharSequence, Closeable {
      *
      * NOTE: This is not actually secure, since the provided String cannot be deallocated, but
      * this constructor allows for easy compatibility between new and old apis.
+     *
+     * @deprecated Only use for compatibility between deprecated string settings and new secure strings
      */
+    @Deprecated
     public SecureString(String s) {
         this(s.toCharArray());
     }

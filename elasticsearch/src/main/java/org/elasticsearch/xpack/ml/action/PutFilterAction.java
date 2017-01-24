@@ -33,19 +33,19 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
 
-public class PutListAction extends Action<PutListAction.Request, PutListAction.Response, PutListAction.RequestBuilder> {
+public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
 
-    public static final PutListAction INSTANCE = new PutListAction();
-    public static final String NAME = "cluster:admin/ml/list/put";
+    public static final PutFilterAction INSTANCE = new PutFilterAction();
+    public static final String NAME = "cluster:admin/ml/filter/put";
 
-    private PutListAction() {
+    private PutFilterAction() {
         super(NAME);
     }
 
@@ -62,22 +62,22 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContent {
 
         public static Request parseRequest(XContentParser parser) {
-            ListDocument listDocument = ListDocument.PARSER.apply(parser, null);
-            return new Request(listDocument);
+            MlFilter filter = MlFilter.PARSER.apply(parser, null);
+            return new Request(filter);
         }
 
-        private ListDocument listDocument;
+        private MlFilter filter;
 
         Request() {
 
         }
 
-        public Request(ListDocument listDocument) {
-            this.listDocument = ExceptionsHelper.requireNonNull(listDocument, "list_document");
+        public Request(MlFilter filter) {
+            this.filter = ExceptionsHelper.requireNonNull(filter, "filter");
         }
 
-        public ListDocument getListDocument() {
-            return this.listDocument;
+        public MlFilter getFilter() {
+            return this.filter;
         }
 
         @Override
@@ -88,24 +88,24 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            listDocument = new ListDocument(in);
+            filter = new MlFilter(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            listDocument.writeTo(out);
+            filter.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            listDocument.toXContent(builder, params);
+            filter.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(listDocument);
+            return Objects.hash(filter);
         }
 
         @Override
@@ -117,13 +117,13 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(listDocument, other.listDocument);
+            return Objects.equals(filter, other.filter);
         }
     }
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, PutListAction action) {
+        public RequestBuilder(ElasticsearchClient client, PutFilterAction action) {
             super(client, action, new Request());
         }
     }
@@ -160,7 +160,7 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
                 ThreadPool threadPool, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 TransportIndexAction transportIndexAction) {
-            super(settings, PutListAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, PutFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportIndexAction = transportIndexAction;
         }
@@ -177,11 +177,11 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            ListDocument listDocument = request.getListDocument();
-            final String listId = listDocument.getId();
-            IndexRequest indexRequest = new IndexRequest(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
+            MlFilter filter = request.getFilter();
+            final String filterId = filter.getId();
+            IndexRequest indexRequest = new IndexRequest(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            indexRequest.source(listDocument.toXContent(builder, ToXContent.EMPTY_PARAMS));
+            indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
             transportIndexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
@@ -190,8 +190,8 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Could not create list with ID [" + listId + "]", e);
-                    throw new ResourceNotFoundException("Could not create list with ID [" + listId + "]", e);
+                    logger.error("Could not create filter with ID [" + filterId + "]", e);
+                    throw new ResourceNotFoundException("Could not create filter with ID [" + filterId + "]", e);
                 }
             });
         }

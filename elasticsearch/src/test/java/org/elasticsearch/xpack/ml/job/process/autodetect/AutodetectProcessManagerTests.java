@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -139,7 +139,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.getPersistStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
-        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, lists, i, e) -> autodetectProcess;
+        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
@@ -148,10 +148,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-        Set<ListDocument> lists = new HashSet<>();
+        Set<MlFilter> filters = new HashSet<>();
         doAnswer(invocationOnMock -> {
             AutodetectProcessManager.TriConsumer consumer = (AutodetectProcessManager.TriConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(modelSnapshot, quantiles, lists);
+            consumer.accept(modelSnapshot, quantiles, filters);
             return null;
         }).when(manager).gatherRequiredInformation(any(), any(), any());
 
@@ -298,20 +298,20 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, lists, i, e) -> autodetectProcess;
+        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
                 normalizerFactory));
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-        Set<ListDocument> lists = new HashSet<>();
+        Set<MlFilter> filters = new HashSet<>();
         doAnswer(invocationOnMock -> {
             AutodetectProcessManager.TriConsumer consumer = (AutodetectProcessManager.TriConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(modelSnapshot, quantiles, lists);
+            consumer.accept(modelSnapshot, quantiles, filters);
             return null;
         }).when(manager).gatherRequiredInformation(any(), any(), any());
 
-        expectThrows(EsRejectedExecutionException.class, () -> manager.create("my_id", modelSnapshot, quantiles, lists, false, e -> {}));
+        expectThrows(EsRejectedExecutionException.class, () -> manager.create("my_id", modelSnapshot, quantiles, filters, false, e -> {}));
         verify(autodetectProcess, times(1)).close();
     }
 
@@ -336,13 +336,13 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager = spy(manager);
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-        Set<ListDocument> lists = new HashSet<>();
+        Set<MlFilter> filters = new HashSet<>();
         doAnswer(invocationOnMock -> {
             AutodetectProcessManager.TriConsumer consumer = (AutodetectProcessManager.TriConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(modelSnapshot, quantiles, lists);
+            consumer.accept(modelSnapshot, quantiles, filters);
             return null;
         }).when(manager).gatherRequiredInformation(any(), any(), any());
-        doReturn(communicator).when(manager).create(any(), eq(modelSnapshot), eq(quantiles), eq(lists), anyBoolean(), any());
+        doReturn(communicator).when(manager).create(any(), eq(modelSnapshot), eq(quantiles), eq(filters), anyBoolean(), any());
         return manager;
     }
 

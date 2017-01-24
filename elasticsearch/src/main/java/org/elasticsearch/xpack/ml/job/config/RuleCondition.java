@@ -26,7 +26,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
     public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
-    public static final ParseField VALUE_LIST_FIELD = new ParseField("value_list");
+    public static final ParseField VALUE_FILTER_FIELD = new ParseField("value_filter");
 
     public static final ConstructingObjectParser<RuleCondition, Void> PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),
@@ -42,21 +42,21 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), VALUE_LIST_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), VALUE_FILTER_FIELD);
     }
 
     private final RuleConditionType conditionType;
     private final String fieldName;
     private final String fieldValue;
     private final Condition condition;
-    private final String valueList;
+    private final String valueFilter;
 
     public RuleCondition(StreamInput in) throws IOException {
         conditionType = RuleConditionType.readFromStream(in);
         condition = in.readOptionalWriteable(Condition::new);
         fieldName = in.readOptionalString();
         fieldValue = in.readOptionalString();
-        valueList = in.readOptionalString();
+        valueFilter = in.readOptionalString();
     }
 
     @Override
@@ -65,15 +65,15 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
         out.writeOptionalWriteable(condition);
         out.writeOptionalString(fieldName);
         out.writeOptionalString(fieldValue);
-        out.writeOptionalString(valueList);
+        out.writeOptionalString(valueFilter);
     }
 
-    public RuleCondition(RuleConditionType conditionType, String fieldName, String fieldValue, Condition condition, String valueList) {
+    public RuleCondition(RuleConditionType conditionType, String fieldName, String fieldValue, Condition condition, String valueFilter) {
         this.conditionType = conditionType;
         this.fieldName = fieldName;
         this.fieldValue = fieldValue;
         this.condition = condition;
-        this.valueList = valueList;
+        this.valueFilter = valueFilter;
 
         verifyFieldsBoundToType(this);
         verifyFieldValueRequiresFieldName(this);
@@ -84,7 +84,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
         this.fieldName = ruleCondition.fieldName;
         this.fieldValue = ruleCondition.fieldValue;
         this.condition = ruleCondition.condition;
-        this.valueList = ruleCondition.valueList;
+        this.valueFilter = ruleCondition.valueFilter;
     }
 
     @Override
@@ -100,8 +100,8 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
         if (fieldValue != null) {
             builder.field(FIELD_VALUE_FIELD.getPreferredName(), fieldValue);
         }
-        if (valueList != null) {
-            builder.field(VALUE_LIST_FIELD.getPreferredName(), valueList);
+        if (valueFilter != null) {
+            builder.field(VALUE_FILTER_FIELD.getPreferredName(), valueFilter);
         }
         builder.endObject();
         return builder;
@@ -134,11 +134,11 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * The unique identifier of a list. Required when the rule type is
+     * The unique identifier of a filter. Required when the rule type is
      * categorical. Should be null for all other types.
      */
-    public String getValueList() {
-        return valueList;
+    public String getValueFilter() {
+        return valueFilter;
     }
 
     @Override
@@ -154,16 +154,16 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
         RuleCondition other = (RuleCondition) obj;
         return Objects.equals(conditionType, other.conditionType) && Objects.equals(fieldName, other.fieldName)
                 && Objects.equals(fieldValue, other.fieldValue) && Objects.equals(condition, other.condition)
-                && Objects.equals(valueList, other.valueList);
+                && Objects.equals(valueFilter, other.valueFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(conditionType, fieldName, fieldValue, condition, valueList);
+        return Objects.hash(conditionType, fieldName, fieldValue, condition, valueFilter);
     }
 
-    public static RuleCondition createCategorical(String fieldName, String valueList) {
-        return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, valueList);
+    public static RuleCondition createCategorical(String fieldName, String valueFilter) {
+        return new RuleCondition(RuleConditionType.CATEGORICAL, fieldName, null, null, valueFilter);
     }
 
     private static void verifyFieldsBoundToType(RuleCondition ruleCondition) throws ElasticsearchParseException {
@@ -184,7 +184,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     private static void verifyCategorical(RuleCondition ruleCondition) throws ElasticsearchParseException {
         checkCategoricalHasNoField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         checkCategoricalHasNoField(RuleCondition.FIELD_VALUE_FIELD.getPreferredName(), ruleCondition.getFieldValue());
-        checkCategoricalHasField(RuleCondition.VALUE_LIST_FIELD.getPreferredName(), ruleCondition.getValueList());
+        checkCategoricalHasField(RuleCondition.VALUE_FILTER_FIELD.getPreferredName(), ruleCondition.getValueFilter());
     }
 
     private static void checkCategoricalHasNoField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
@@ -202,7 +202,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     }
 
     private static void verifyNumerical(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        checkNumericalHasNoField(RuleCondition.VALUE_LIST_FIELD.getPreferredName(), ruleCondition.getValueList());
+        checkNumericalHasNoField(RuleCondition.VALUE_FILTER_FIELD.getPreferredName(), ruleCondition.getValueFilter());
         checkNumericalHasField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         if (ruleCondition.getFieldName() != null && ruleCondition.getFieldValue() == null) {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_WITH_FIELD_NAME_REQUIRES_FIELD_VALUE);

@@ -141,8 +141,8 @@ public class DetectionRule extends ToXContentToBytes implements Writeable {
         return ruleConditions;
     }
 
-    public Set<String> extractReferencedLists() {
-        return ruleConditions.stream().map(RuleCondition::getValueList).filter(Objects::nonNull).collect(Collectors.toSet());
+    public Set<String> extractReferencedFilters() {
+        return ruleConditions.stream().map(RuleCondition::getValueFilter).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     @Override

@@ -398,8 +398,10 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     public void testExtractReferencedLists() {
-        DetectionRule rule1 = new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "list1")));
-        DetectionRule rule2 = new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "list2")));
+        DetectionRule rule1 =
+                new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "filter1")));
+        DetectionRule rule2 =
+                new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "filter2")));
         Detector.Builder detector1 = new Detector.Builder("count", null);
         detector1.setByFieldName("foo");
         detector1.setDetectorRules(Arrays.asList(rule1));
@@ -409,7 +411,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig config = new AnalysisConfig.Builder(
                 Arrays.asList(detector1.build(), detector2.build(), new Detector.Builder("count", null).build())).build();
 
-        assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), config.extractReferencedLists());
+        assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), config.extractReferencedFilters());
     }
 
     private static AnalysisConfig createFullyPopulatedConfig() {

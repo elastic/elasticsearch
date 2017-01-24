@@ -34,7 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -44,12 +44,12 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public class DeleteListAction extends Action<DeleteListAction.Request, DeleteListAction.Response, DeleteListAction.RequestBuilder> {
+public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response, DeleteFilterAction.RequestBuilder> {
 
-    public static final DeleteListAction INSTANCE = new DeleteListAction();
-    public static final String NAME = "cluster:admin/ml/list/delete";
+    public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
+    public static final String NAME = "cluster:admin/ml/filter/delete";
 
-    private DeleteListAction() {
+    private DeleteFilterAction() {
         super(NAME);
     }
 
@@ -65,20 +65,20 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static final ParseField LIST_ID = new ParseField("list_id");
+        public static final ParseField FILTER_ID = new ParseField("filter_id");
 
-        private String listId;
+        private String filterId;
 
         Request() {
 
         }
 
-        public Request(String listId) {
-            this.listId = ExceptionsHelper.requireNonNull(listId, LIST_ID.getPreferredName());
+        public Request(String filterId) {
+            this.filterId = ExceptionsHelper.requireNonNull(filterId, FILTER_ID.getPreferredName());
         }
 
-        public String getListId() {
-            return listId;
+        public String getFilterId() {
+            return filterId;
         }
 
         @Override
@@ -89,18 +89,18 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            listId = in.readString();
+            filterId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(listId);
+            out.writeString(filterId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(listId);
+            return Objects.hash(filterId);
         }
 
         @Override
@@ -109,13 +109,13 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(listId, other.listId);
+            return Objects.equals(filterId, other.filterId);
         }
     }
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, DeleteListAction action) {
+        public RequestBuilder(ElasticsearchClient client, DeleteFilterAction action) {
             super(client, action, new Request());
         }
     }
@@ -153,7 +153,7 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
                                ThreadPool threadPool, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                TransportDeleteAction transportAction) {
-            super(settings, DeleteListAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, DeleteFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportAction = transportAction;
         }
@@ -171,30 +171,30 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
 
-            final String listId = request.getListId();
+            final String filterId = request.getFilterId();
             MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
             Map<String, Job> jobs = currentMlMetadata.getJobs();
             List<String> currentlyUsedBy = new ArrayList<>();
             for (Job job : jobs.values()) {
                 List<Detector> detectors = job.getAnalysisConfig().getDetectors();
                 for (Detector detector : detectors) {
-                    if (detector.extractReferencedLists().contains(listId)) {
+                    if (detector.extractReferencedFilters().contains(filterId)) {
                         currentlyUsedBy.add(job.getId());
                         break;
                     }
                 }
             }
             if (!currentlyUsedBy.isEmpty()) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete List, currently used by jobs: "
+                throw ExceptionsHelper.conflictStatusException("Cannot delete filter, currently used by jobs: "
                         + currentlyUsedBy);
             }
 
-            DeleteRequest deleteRequest = new DeleteRequest(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
+            DeleteRequest deleteRequest = new DeleteRequest(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             transportAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     if (deleteResponse.status().equals(RestStatus.NOT_FOUND)) {
-                        listener.onFailure(new ResourceNotFoundException("Could not delete list with ID [" + listId
+                        listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
                                 + "] because it does not exist"));
                     } else {
                         listener.onResponse(new Response(true));
@@ -203,8 +203,8 @@ public class DeleteListAction extends Action<DeleteListAction.Request, DeleteLis
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Could not delete list with ID [" + listId + "]", e);
-                    listener.onFailure(new IllegalStateException("Could not delete list with ID [" + listId + "]", e));
+                    logger.error("Could not delete filter with ID [" + filterId + "]", e);
+                    listener.onFailure(new IllegalStateException("Could not delete filter with ID [" + filterId + "]", e));
                 }
             });
         }

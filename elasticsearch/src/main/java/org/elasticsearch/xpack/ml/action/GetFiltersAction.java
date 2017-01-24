@@ -43,7 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,12 +54,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 
-public class GetListAction extends Action<GetListAction.Request, GetListAction.Response, GetListAction.RequestBuilder> {
+public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFiltersAction.Response, GetFiltersAction.RequestBuilder> {
 
-    public static final GetListAction INSTANCE = new GetListAction();
-    public static final String NAME = "cluster:admin/ml/list/get";
+    public static final GetFiltersAction INSTANCE = new GetFiltersAction();
+    public static final String NAME = "cluster:admin/ml/filters/get";
 
-    private GetListAction() {
+    private GetFiltersAction() {
         super(NAME);
     }
 
@@ -75,22 +75,22 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private String listId;
+        private String filterId;
         private PageParams pageParams;
 
         public Request() {
         }
 
-        public void setListId(String listId) {
+        public void setFilterId(String filterId) {
             if (pageParams != null) {
-                throw new IllegalArgumentException("Param [" + ListDocument.ID.getPreferredName() + "] is incompatible with ["
+                throw new IllegalArgumentException("Param [" + MlFilter.ID.getPreferredName() + "] is incompatible with ["
                         + PageParams.FROM.getPreferredName()+ ", " + PageParams.SIZE.getPreferredName() + "].");
             }
-            this.listId = listId;
+            this.filterId = filterId;
         }
 
-        public String getListId() {
-            return listId;
+        public String getFilterId() {
+            return filterId;
         }
 
         public PageParams getPageParams() {
@@ -98,10 +98,10 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         }
 
         public void setPageParams(PageParams pageParams) {
-            if (listId != null) {
+            if (filterId != null) {
                 throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
                         + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with ["
-                        + ListDocument.ID.getPreferredName() + "].");
+                        + MlFilter.ID.getPreferredName() + "].");
             }
             this.pageParams = pageParams;
         }
@@ -109,8 +109,8 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (pageParams == null && listId == null) {
-                validationException = addValidationError("Both [" + ListDocument.ID.getPreferredName() + "] and ["
+            if (pageParams == null && filterId == null) {
+                validationException = addValidationError("Both [" + MlFilter.ID.getPreferredName() + "] and ["
                         + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "] "
                         + "cannot be null" , validationException);
             }
@@ -120,18 +120,18 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            listId = in.readOptionalString();
+            filterId = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(listId);
+            out.writeOptionalString(filterId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(listId);
+            return Objects.hash(filterId);
         }
 
         @Override
@@ -143,42 +143,42 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(listId, other.listId);
+            return Objects.equals(filterId, other.filterId);
         }
     }
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, GetListAction action) {
+        public RequestBuilder(ElasticsearchClient client, GetFiltersAction action) {
             super(client, action, new Request());
         }
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        private QueryPage<ListDocument> lists;
+        private QueryPage<MlFilter> filters;
 
-        public Response(QueryPage<ListDocument> lists) {
-            this.lists = lists;
+        public Response(QueryPage<MlFilter> filters) {
+            this.filters = filters;
         }
 
         Response() {
         }
 
-        public QueryPage<ListDocument> getLists() {
-            return lists;
+        public QueryPage<MlFilter> getFilters() {
+            return filters;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            lists = new QueryPage<>(in, ListDocument::new);
+            filters = new QueryPage<>(in, MlFilter::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            lists.writeTo(out);
+            filters.writeTo(out);
         }
 
         @Override
@@ -189,14 +189,14 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            lists.doXContentBody(builder, params);
+            filters.doXContentBody(builder, params);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lists);
+            return Objects.hash(filters);
         }
 
         @Override
@@ -208,7 +208,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(lists, other.lists);
+            return Objects.equals(filters, other.filters);
         }
 
         @SuppressWarnings("deprecation")
@@ -240,7 +240,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                                ThreadPool threadPool, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                TransportGetAction transportGetAction, TransportSearchAction transportSearchAction) {
-            super(settings, GetListAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, GetFiltersAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportGetAction = transportGetAction;
             this.transportSearchAction = transportSearchAction;
@@ -258,13 +258,13 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            final String listId = request.getListId();
-            if (!Strings.isNullOrEmpty(listId)) {
-                getList(listId, listener);
+            final String filterId = request.getFilterId();
+            if (!Strings.isNullOrEmpty(filterId)) {
+                getFilter(filterId, listener);
             } else if (request.getPageParams() != null) {
-                getLists(request.getPageParams(), listener);
+                getFilters(request.getPageParams(), listener);
             } else {
-                throw new IllegalStateException("Both listId and pageParams are null");
+                throw new IllegalStateException("Both filterId and pageParams are null");
             }
         }
 
@@ -273,25 +273,25 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         }
 
-        private void getList(String listId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
+        private void getFilter(String filterId, ActionListener<Response> listener) {
+            GetRequest getRequest = new GetRequest(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {
 
                     try {
-                        QueryPage<ListDocument> responseBody;
+                        QueryPage<MlFilter> responseBody;
                         if (getDocResponse.isExists()) {
                             BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                             XContentParser parser =
                                     XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
-                            ListDocument listDocument = ListDocument.PARSER.apply(parser, null);
-                            responseBody = new QueryPage<>(Collections.singletonList(listDocument), 1, ListDocument.RESULTS_FIELD);
+                            MlFilter filter = MlFilter.PARSER.apply(parser, null);
+                            responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
-                            Response listResponse = new Response(responseBody);
-                            listener.onResponse(listResponse);
+                            Response filterResponse = new Response(responseBody);
+                            listener.onResponse(filterResponse);
                         } else {
-                            this.onFailure(QueryPage.emptyQueryPage(ListDocument.RESULTS_FIELD));
+                            this.onFailure(QueryPage.emptyQueryPage(MlFilter.RESULTS_FIELD));
                         }
 
                     } catch (Exception e) {
@@ -306,29 +306,29 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
             });
         }
 
-        private void getLists(PageParams pageParams, ActionListener<Response> listener) {
+        private void getFilters(PageParams pageParams, ActionListener<Response> listener) {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                     .from(pageParams.getFrom())
                     .size(pageParams.getSize());
 
             SearchRequest searchRequest = new SearchRequest(new String[]{ML_INFO_INDEX}, sourceBuilder)
-                    .types(ListDocument.TYPE.getPreferredName());
+                    .types(MlFilter.TYPE.getPreferredName());
 
             transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
 
                     try {
-                        List<ListDocument> docs = new ArrayList<>();
+                        List<MlFilter> docs = new ArrayList<>();
                         for (SearchHit hit : response.getHits().getHits()) {
                             BytesReference docSource = hit.sourceRef();
                             XContentParser parser =
                                     XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
-                            docs.add(ListDocument.PARSER.apply(parser, null));
+                            docs.add(MlFilter.PARSER.apply(parser, null));
                         }
 
-                        Response listResponse = new Response(new QueryPage<>(docs, docs.size(), ListDocument.RESULTS_FIELD));
-                        listener.onResponse(listResponse);
+                        Response filterResponse = new Response(new QueryPage<>(docs, docs.size(), MlFilter.RESULTS_FIELD));
+                        listener.onResponse(filterResponse);
 
                     } catch (Exception e) {
                         this.onFailure(e);

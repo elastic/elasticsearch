@@ -1,7 +1,7 @@
 ---
 setup:
   - do:
-      xpack.ml.put_list:
+      xpack.ml.put_filter:
         body:  >
           {
             "id": "foo",
@@ -9,7 +9,7 @@ setup:
           }
 
   - do:
-      xpack.ml.put_list:
+      xpack.ml.put_filter:
         body:  >
           {
             "id": "foo2",
@@ -20,45 +20,45 @@ setup:
       indices.refresh: {}
 
 ---
-"Test get list API with bad ID":
+"Test get filter API with bad ID":
 
   - do:
       catch: missing
-      xpack.ml.get_lists:
-        list_id: "do_not_exist"
+      xpack.ml.get_filters:
+        filter_id: "do_not_exist"
 
 ---
-"Test get list API":
+"Test get filter API":
 
   - do:
-      xpack.ml.get_lists:
-        list_id: "foo"
+      xpack.ml.get_filters:
+        filter_id: "foo"
 
   - match: { count:   1 }
   - match:
-      lists.0:
+      filters.0:
         id: "foo"
         items: ["abc", "xyz"]
 
 ---
-"Test get lists API":
+"Test get filters API":
 
   - do:
-      xpack.ml.get_lists: {}
+      xpack.ml.get_filters: {}
 
   - match: { count:   2 }
   - match:
-      lists.0:
+      filters.0:
         id: "foo"
         items: ["abc", "xyz"]
 
   - match:
-      lists.1:
+      filters.1:
         id: "foo2"
         items: ["123", "lmnop"]
 
   - do:
-      xpack.ml.get_lists:
+      xpack.ml.get_filters:
         from: 1
         size: 1
 
@@ -69,26 +69,26 @@ setup:
 
   - do:
       catch: request
-      xpack.ml.get_lists:
-        list_id: "foo"
+      xpack.ml.get_filters:
+        filter_id: "foo"
         from: 0
 
   - do:
         catch: request
-        xpack.ml.get_lists:
-          list_id: "foo"
+        xpack.ml.get_filters:
+          filter_id: "foo"
           size: 1
 
   - do:
         catch: request
-        xpack.ml.get_lists:
-          list_id: "foo"
+        xpack.ml.get_filters:
+          filter_id: "foo"
           from: 0
           size: 1
 ---
-"Test create list api":
+"Test create filter api":
   - do:
-      xpack.ml.put_list:
+      xpack.ml.put_filter:
         body:  >
           {
             "id": "foo2",
@@ -98,27 +98,27 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_lists:
-        list_id: "foo2"
+      xpack.ml.get_filters:
+        filter_id: "foo2"
 
   - match: { count:   1 }
   - match:
-      lists.0:
+      filters.0:
         id: "foo2"
         items: ["abc", "xyz"]
 
 ---
-"Test create list api without ID":
+"Test create filter api without ID":
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.put_list:
+      xpack.ml.put_filter:
         body:  >
           {
             "items": ["abc", "xyz"]
           }
 
 ---
-"Test delete in-use list":
+"Test delete in-use filter":
   - do:
       xpack.ml.put_job:
         job_id: farequote2
@@ -134,7 +134,7 @@ setup:
                       "rule_conditions": [
                         {
                           "condition_type": "categorical",
-                          "value_list": "foo"
+                          "value_filter": "foo"
                         }
                       ]
                     }
@@ -148,34 +148,34 @@ setup:
           }
   - do:
       catch: conflict
-      xpack.ml.delete_list:
-        list_id: "foo"
+      xpack.ml.delete_filter:
+        filter_id: "foo"
 
 ---
-"Test non-existing list":
+"Test non-existing filter":
   - do:
       catch: missing
-      xpack.ml.delete_list:
-        list_id: "does_not_exist"
+      xpack.ml.delete_filter:
+        filter_id: "does_not_exist"
 
 ---
-"Test valid delete list":
+"Test valid delete filter":
 
   - do:
-      xpack.ml.get_lists:
-        list_id: "foo"
+      xpack.ml.get_filters:
+        filter_id: "foo"
 
   - match: { count:   1 }
   - match:
-      lists.0:
+      filters.0:
         id: "foo"
         items: ["abc", "xyz"]
 
   - do:
-      xpack.ml.delete_list:
-        list_id: "foo"
+      xpack.ml.delete_filter:
+        filter_id: "foo"
 
   - do:
       catch: missing
-      xpack.ml.get_lists:
-        list_id: "foo"
+      xpack.ml.get_filters:
+        filter_id: "foo"

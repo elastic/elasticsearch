@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -52,12 +52,12 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> list,
+    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters,
                                                      boolean ignoreDowntime, ExecutorService executorService) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
                 true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
-        createNativeProcess(job, quantiles, list, processPipes, ignoreDowntime, filesToDelete);
+        createNativeProcess(job, quantiles, filters, processPipes, ignoreDowntime, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
 
         NativeAutodetectProcess autodetect = null;
@@ -87,13 +87,13 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         }
     }
 
-    private void createNativeProcess(Job job, Quantiles quantiles, Set<ListDocument> lists, ProcessPipes processPipes,
+    private void createNativeProcess(Job job, Quantiles quantiles, Set<MlFilter> filters, ProcessPipes processPipes,
                                      boolean ignoreDowntime, List<Path> filesToDelete) {
         try {
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
                     settings, nativeController, processPipes)
                     .ignoreDowntime(ignoreDowntime)
-                    .referencedLists(lists);
+                    .referencedFilters(filters);
 
             // if state is null or empty it will be ignored
             // else it is used to restore the quantiles

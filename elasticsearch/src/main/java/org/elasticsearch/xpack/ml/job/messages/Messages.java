@@ -207,9 +207,6 @@ public final class Messages {
     public static final String JSON_DETECTOR_CONFIG_MAPPING = "json.detector.config.mapping.error";
     public static final String JSON_DETECTOR_CONFIG_PARSE = "json.detector.config.parse.error";
 
-    public static final String JSON_LIST_DOCUMENT_MAPPING_ERROR = "json.list.document.mapping.error";
-    public static final String JSON_LIST_DOCUMENT_PARSE_ERROR = "json.list.document.parse.error";
-
     public static final String JSON_TRANSFORM_CONFIG_MAPPING = "json.transform.config.mapping.error";
     public static final String JSON_TRANSFORM_CONFIG_PARSE = "json.transform.config.parse.error";
 

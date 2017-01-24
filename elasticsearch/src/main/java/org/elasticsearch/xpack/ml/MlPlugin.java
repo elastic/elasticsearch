@@ -35,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.action.DeleteListAction;
+import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.ml.action.GetListAction;
+import org.elasticsearch.xpack.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.ml.action.InternalOpenJobAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.PutListAction;
+import org.elasticsearch.xpack.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
@@ -85,6 +85,9 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
+import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
+import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
+import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
@@ -93,9 +96,6 @@ import org.elasticsearch.xpack.ml.rest.job.RestGetJobStatsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPutJobAction;
-import org.elasticsearch.xpack.ml.rest.list.RestDeleteListAction;
-import org.elasticsearch.xpack.ml.rest.list.RestGetListAction;
-import org.elasticsearch.xpack.ml.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestRevertModelSnapshotAction;
@@ -195,7 +195,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 throw new ElasticsearchException("Failed to create native process factories", e);
             }
         } else {
-            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, lists, ignoreDowntime, executorService) ->
+            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, filters, ignoreDowntime, executorService) ->
                     new BlackHoleAutodetectProcess();
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
@@ -231,9 +231,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
             new RestPutJobAction(settings, restController),
             new RestDeleteJobAction(settings, restController),
             new RestOpenJobAction(settings, restController),
-            new RestGetListAction(settings, restController),
-            new RestPutListAction(settings, restController),
-            new RestDeleteListAction(settings, restController),
+            new RestGetFiltersAction(settings, restController),
+            new RestPutFilterAction(settings, restController),
+            new RestDeleteFilterAction(settings, restController),
             new RestGetInfluencersAction(settings, restController),
             new RestGetRecordsAction(settings, restController),
             new RestGetBucketsAction(settings, restController),
@@ -268,9 +268,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(InternalOpenJobAction.INSTANCE, InternalOpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
                 new ActionHandler<>(UpdateDatafeedStatusAction.INSTANCE, UpdateDatafeedStatusAction.TransportAction.class),
-                new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),
-                new ActionHandler<>(PutListAction.INSTANCE, PutListAction.TransportAction.class),
-                new ActionHandler<>(DeleteListAction.INSTANCE, DeleteListAction.TransportAction.class),
+                new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
+                new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
+                new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),

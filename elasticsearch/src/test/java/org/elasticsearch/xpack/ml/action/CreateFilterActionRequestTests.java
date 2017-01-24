@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.action.PutListAction.Request;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.action.PutFilterAction.Request;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class CreateListActionRequestTests extends AbstractStreamableXContentTestCase<PutListAction.Request> {
+public class CreateFilterActionRequestTests extends AbstractStreamableXContentTestCase<PutFilterAction.Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -22,18 +22,18 @@ public class CreateListActionRequestTests extends AbstractStreamableXContentTest
         for (int i = 0; i < size; i++) {
             items.add(randomAsciiOfLengthBetween(1, 20));
         }
-        ListDocument listDocument = new ListDocument(randomAsciiOfLengthBetween(1, 20), items);
-        return new PutListAction.Request(listDocument);
+        MlFilter filter = new MlFilter(randomAsciiOfLengthBetween(1, 20), items);
+        return new PutFilterAction.Request(filter);
     }
 
     @Override
     protected Request createBlankInstance() {
-        return new PutListAction.Request();
+        return new PutFilterAction.Request();
     }
 
     @Override
     protected Request parseInstance(XContentParser parser) {
-        return PutListAction.Request.parseRequest(parser);
+        return PutFilterAction.Request.parseRequest(parser);
     }
 
 }

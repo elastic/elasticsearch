@@ -22,11 +22,11 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
                 new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, "field", "value", new Condition(Operator.GT, "5"), null);
         List<RuleCondition> conditions = Arrays.asList(
                 numericalCondition,
-                RuleCondition.createCategorical("foo", "list1"),
-                RuleCondition.createCategorical("bar", "list2"));
+                RuleCondition.createCategorical("foo", "filter1"),
+                RuleCondition.createCategorical("bar", "filter2"));
         DetectionRule rule = new DetectionRule(null, null, Connective.OR, conditions);
 
-        assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), rule.extractReferencedLists());
+        assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), rule.extractReferencedFilters());
     }
 
     public void testEqualsGivenSameObject() {

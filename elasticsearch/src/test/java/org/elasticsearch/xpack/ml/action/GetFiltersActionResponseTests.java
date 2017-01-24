@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.xpack.ml.action.GetListAction.Response;
+import org.elasticsearch.xpack.ml.action.GetFiltersAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.Collections;
 
-public class GetListActionResponseTests extends AbstractStreamableTestCase<GetListAction.Response> {
+public class GetFiltersActionResponseTests extends AbstractStreamableTestCase<GetFiltersAction.Response> {
 
     @Override
     protected Response createTestInstance() {
-        final QueryPage<ListDocument> result;
+        final QueryPage<MlFilter> result;
 
-        ListDocument doc = new ListDocument(
+        MlFilter doc = new MlFilter(
                 randomAsciiOfLengthBetween(1, 20), Collections.singletonList(randomAsciiOfLengthBetween(1, 20)));
-        result = new QueryPage<>(Collections.singletonList(doc), 1, ListDocument.RESULTS_FIELD);
+        result = new QueryPage<>(Collections.singletonList(doc), 1, MlFilter.RESULTS_FIELD);
         return new Response(result);
     }
 

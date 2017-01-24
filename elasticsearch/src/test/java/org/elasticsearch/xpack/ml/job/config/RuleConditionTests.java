@@ -16,12 +16,12 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
     protected RuleCondition createTestInstance() {
         Condition condition = null;
         String fieldName = null;
-        String valueList = null;
+        String valueFilter = null;
         String fieldValue = null;
         RuleConditionType r = randomFrom(RuleConditionType.values());
         switch (r) {
         case CATEGORICAL:
-            valueList = randomAsciiOfLengthBetween(1, 20);
+            valueFilter = randomAsciiOfLengthBetween(1, 20);
             if (randomBoolean()) {
                 fieldName = randomAsciiOfLengthBetween(1, 20);
             }
@@ -36,7 +36,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
             }
             break;
         }
-        return new RuleCondition(r, fieldName, fieldValue, condition, valueList);
+        return new RuleCondition(r, fieldName, fieldValue, condition, valueFilter);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
     }
 
     public void testConstructor() {
-        RuleCondition condition = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueList");
+        RuleCondition condition = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueFilter");
         assertEquals(RuleConditionType.CATEGORICAL, condition.getConditionType());
         assertNull(condition.getFieldName());
         assertNull(condition.getFieldValue());
@@ -58,17 +58,17 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
     }
 
     public void testEqualsGivenSameObject() {
-        RuleCondition condition = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueList");
+        RuleCondition condition = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueFilter");
         assertTrue(condition.equals(condition));
     }
 
     public void testEqualsGivenString() {
-        assertFalse(new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "list").equals("a string"));
+        assertFalse(new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "filter").equals("a string"));
     }
 
     public void testEqualsGivenDifferentType() {
         RuleCondition condition1 = createFullyPopulated();
-        RuleCondition condition2 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueList");
+        RuleCondition condition2 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "valueFilter");
         assertFalse(condition1.equals(condition2));
         assertFalse(condition2.equals(condition1));
     }
@@ -97,9 +97,9 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertFalse(condition2.equals(condition1));
     }
 
-    public void testEqualsGivenDifferentValueList() {
-        RuleCondition condition1 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "myList");
-        RuleCondition condition2 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "myListaaa");
+    public void testEqualsGivenDifferentValueFilter() {
+        RuleCondition condition1 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "myFilter");
+        RuleCondition condition2 = new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, "myFilteraaa");
         assertFalse(condition1.equals(condition2));
         assertFalse(condition2.equals(condition1));
     }
@@ -121,16 +121,16 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a categorical rule_condition does not support field_value", e.getMessage());
     }
 
-    public void testVerify_GivenCategoricalWithoutValueList() {
+    public void testVerify_GivenCategoricalWithoutValueFilter() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.CATEGORICAL, null, null, null, null));
-        assertEquals("Invalid detector rule: a categorical rule_condition requires value_list to be set", e.getMessage());
+        assertEquals("Invalid detector rule: a categorical rule_condition requires value_filter to be set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalActualWithValueList() {
+    public void testVerify_GivenNumericalActualWithValueFilter() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
+                () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myFilter"));
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
     }
 
     public void testVerify_GivenNumericalActualWithoutCondition() {
@@ -145,10 +145,10 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a numerical rule_condition with field_name requires that field_value is set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalTypicalWithValueList() {
+    public void testVerify_GivenNumericalTypicalWithValueFilter() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
+                () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, null, "myFilter"));
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
     }
 
     public void testVerify_GivenNumericalTypicalWithoutCondition() {
@@ -157,10 +157,10 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         assertEquals("Invalid detector rule: a numerical rule_condition requires condition to be set", e.getMessage());
     }
 
-    public void testVerify_GivenNumericalDiffAbsWithValueList() {
+    public void testVerify_GivenNumericalDiffAbsWithValueFilter() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, null, null, "myList"));
-        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_list", e.getMessage());
+                () -> new RuleCondition(RuleConditionType.NUMERICAL_DIFF_ABS, null, null, null, "myFilter"));
+        assertEquals("Invalid detector rule: a numerical rule_condition does not support value_filter", e.getMessage());
     }
 
     public void testVerify_GivenNumericalDiffAbsWithoutCondition() {
@@ -199,7 +199,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     public void testVerify_GivenValidCategorical() {
         // no validation error:
-        new RuleCondition(RuleConditionType.CATEGORICAL, "metric", null, null, "myList");
+        new RuleCondition(RuleConditionType.CATEGORICAL, "metric", null, null, "myFilter");
     }
 
     public void testVerify_GivenValidNumericalActual() {

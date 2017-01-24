@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.usage.Usage;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -1057,12 +1057,12 @@ public class JobProvider {
     }
 
     /**
-     * Retrieves the list with the given {@code listId} from the datastore.
+     * Retrieves the filter with the given {@code filterId} from the datastore.
      *
-     * @param ids the id of the requested list
+     * @param ids the id of the requested filter
      */
-    public void getLists(Consumer<Set<ListDocument>> handler, Consumer<Exception> errorHandler, String... ids) {
-        mget(ML_INFO_INDEX, ListDocument.TYPE.getPreferredName(), ids, handler, errorHandler, ListDocument.PARSER);
+    public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, String... ids) {
+        mget(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
     }
 
     /**

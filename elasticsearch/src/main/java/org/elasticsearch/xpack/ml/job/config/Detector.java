@@ -473,9 +473,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
         return analysisFields.stream().filter(item -> item != null).collect(Collectors.toList());
     }
 
-    public Set<String> extractReferencedLists() {
+    public Set<String> extractReferencedFilters() {
         return detectorRules == null ? Collections.emptySet()
-                : detectorRules.stream().map(DetectionRule::extractReferencedLists)
+                : detectorRules.stream().map(DetectionRule::extractReferencedFilters)
                 .flatMap(Set::stream).collect(Collectors.toSet());
     }
 

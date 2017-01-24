@@ -111,7 +111,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
                 new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("by", "list2")))));
 
         Detector detector = builder.build();
-        assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), detector.extractReferencedLists());
+        assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), detector.extractReferencedFilters());
     }
 
     private Detector.Builder createDetector() {

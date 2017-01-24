@@ -19,17 +19,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class ListDocument extends ToXContentToBytes implements Writeable {
-    public static final ParseField TYPE = new ParseField("list");
+public class MlFilter extends ToXContentToBytes implements Writeable {
+    public static final ParseField TYPE = new ParseField("filter");
     public static final ParseField ID = new ParseField("id");
     public static final ParseField ITEMS = new ParseField("items");
 
     // For QueryPage
-    public static final ParseField RESULTS_FIELD = new ParseField("lists");
+    public static final ParseField RESULTS_FIELD = new ParseField("filters");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ListDocument, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), a -> new ListDocument((String) a[0], (List<String>) a[1]));
+    public static final ConstructingObjectParser<MlFilter, Void> PARSER = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(), a -> new MlFilter((String) a[0], (List<String>) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
@@ -39,12 +39,12 @@ public class ListDocument extends ToXContentToBytes implements Writeable {
     private final String id;
     private final List<String> items;
 
-    public ListDocument(String id, List<String> items) {
+    public MlFilter(String id, List<String> items) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
     }
 
-    public ListDocument(StreamInput in) throws IOException {
+    public MlFilter(StreamInput in) throws IOException {
         id = in.readString();
         items = Arrays.asList(in.readStringArray());
     }
@@ -78,11 +78,11 @@ public class ListDocument extends ToXContentToBytes implements Writeable {
             return true;
         }
 
-        if (!(obj instanceof ListDocument)) {
+        if (!(obj instanceof MlFilter)) {
             return false;
         }
 
-        ListDocument other = (ListDocument) obj;
+        MlFilter other = (MlFilter) obj;
         return id.equals(other.id) && items.equals(other.items);
     }
 

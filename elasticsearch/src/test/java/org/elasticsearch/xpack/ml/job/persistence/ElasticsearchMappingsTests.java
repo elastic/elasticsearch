@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.usage.Usage;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -84,7 +84,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(CategorizerState.TYPE);
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
         overridden.add(Job.TYPE);
-        overridden.add(ListDocument.TYPE.getPreferredName());
+        overridden.add(MlFilter.TYPE.getPreferredName());
         overridden.add(ModelState.TYPE.getPreferredName());
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
@@ -93,8 +93,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         // These are not reserved because they're in the ml-int index
         // not the job indices
-        overridden.add(ListDocument.ID.getPreferredName());
-        overridden.add(ListDocument.ITEMS.getPreferredName());
+        overridden.add(MlFilter.ID.getPreferredName());
+        overridden.add(MlFilter.ITEMS.getPreferredName());
 
         // These are not reserved because they're analyzed strings, i.e. the
         // same type as user-specified fields

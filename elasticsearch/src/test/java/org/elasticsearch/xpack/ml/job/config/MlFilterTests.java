@@ -13,36 +13,37 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ListDocumentTests extends AbstractSerializingTestCase<ListDocument> {
+public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     @Override
-    protected ListDocument createTestInstance() {
+    protected MlFilter createTestInstance() {
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             items.add(randomAsciiOfLengthBetween(1, 20));
         }
-        return new ListDocument(randomAsciiOfLengthBetween(1, 20), items);
+        return new MlFilter(randomAsciiOfLengthBetween(1, 20), items);
     }
 
     @Override
-    protected Reader<ListDocument> instanceReader() {
-        return ListDocument::new;
+    protected Reader<MlFilter> instanceReader() {
+        return MlFilter::new;
     }
 
     @Override
-    protected ListDocument parseInstance(XContentParser parser) {
-        return ListDocument.PARSER.apply(parser, null);
+    protected MlFilter parseInstance(XContentParser parser) {
+        return MlFilter.PARSER.apply(parser, null);
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new ListDocument(null, Collections.emptyList()));
-        assertEquals(ListDocument.ID.getPreferredName() + " must not be null", ex.getMessage());
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, Collections.emptyList()));
+        assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
     }
 
     public void testNullItems() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new ListDocument(randomAsciiOfLengthBetween(1, 20), null));
-        assertEquals(ListDocument.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
+        NullPointerException ex =
+                expectThrows(NullPointerException.class, () -> new MlFilter(randomAsciiOfLengthBetween(1, 20), null));
+        assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
     }
 
 }

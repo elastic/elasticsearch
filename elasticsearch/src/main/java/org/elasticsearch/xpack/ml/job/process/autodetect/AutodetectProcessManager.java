@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -189,9 +189,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public void openJob(String jobId, boolean ignoreDowntime, Consumer<Exception> handler) {
-        gatherRequiredInformation(jobId, (modelSnapshot, quantiles, lists) -> {
+        gatherRequiredInformation(jobId, (modelSnapshot, quantiles, filters) -> {
             autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
-                AutodetectCommunicator communicator = create(id, modelSnapshot, quantiles, lists, ignoreDowntime, handler);
+                AutodetectCommunicator communicator = create(id, modelSnapshot, quantiles, filters, ignoreDowntime, handler);
                 try {
                     communicator.writeJobInputHeader();
                 } catch (IOException ioe) {
@@ -210,19 +210,19 @@ public class AutodetectProcessManager extends AbstractComponent {
         jobProvider.modelSnapshots(jobId, 0, 1, page -> {
             ModelSnapshot modelSnapshot = page.results().isEmpty() ? null : page.results().get(1);
             jobProvider.getQuantiles(jobId, quantiles -> {
-                String[] ids = job.getAnalysisConfig().extractReferencedLists().toArray(new String[0]);
-                jobProvider.getLists(listDocument -> handler.accept(modelSnapshot, quantiles, listDocument), errorHandler, ids);
+                String[] ids = job.getAnalysisConfig().extractReferencedFilters().toArray(new String[0]);
+                jobProvider.getFilters(filterDocument -> handler.accept(modelSnapshot, quantiles, filterDocument), errorHandler, ids);
             }, errorHandler);
         }, errorHandler);
     }
 
     interface TriConsumer {
 
-        void accept(ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> lists);
+        void accept(ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters);
 
     }
 
-    AutodetectCommunicator create(String jobId, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<ListDocument> lists,
+    AutodetectCommunicator create(String jobId, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters,
                                   boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
@@ -245,7 +245,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
             AutodetectProcess process = null;
             try {
-                process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, lists,
+                process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, filters,
                         ignoreDowntime, executorService);
                 return new AutodetectCommunicator(executorService, job, process, dataCountsReporter, processor, stateProcessor, handler);
             } catch (Exception e) {

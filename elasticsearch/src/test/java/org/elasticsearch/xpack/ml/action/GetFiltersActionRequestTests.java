@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.xpack.ml.action.GetListAction.Request;
+import org.elasticsearch.xpack.ml.action.GetFiltersAction.Request;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-public class GetListActionRequestTests extends AbstractStreamableTestCase<GetListAction.Request> {
+public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<GetFiltersAction.Request> {
 
 
     @Override
     protected Request createTestInstance() {
         Request request = new Request();
         if (randomBoolean()) {
-            request.setListId(randomAsciiOfLengthBetween(1, 20));
+            request.setFilterId(randomAsciiOfLengthBetween(1, 20));
         } else {
             if (randomBoolean()) {
                 int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);

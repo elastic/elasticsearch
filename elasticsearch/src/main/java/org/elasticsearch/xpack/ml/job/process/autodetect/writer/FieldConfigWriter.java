@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 
 public class FieldConfigWriter {
@@ -32,7 +32,7 @@ public class FieldConfigWriter {
     private static final String INFLUENCER_PREFIX = "influencer.";
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
-    private static final String LIST_PREFIX = "list.";
+    private static final String FILTER_PREFIX = "filter.";
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -40,14 +40,14 @@ public class FieldConfigWriter {
     private static final char NEW_LINE = '\n';
 
     private final AnalysisConfig config;
-    private final Set<ListDocument> lists;
+    private final Set<MlFilter> filters;
     private final OutputStreamWriter writer;
     private final Logger logger;
 
-    public FieldConfigWriter(AnalysisConfig config, Set<ListDocument> lists,
+    public FieldConfigWriter(AnalysisConfig config, Set<MlFilter> filters,
             OutputStreamWriter writer, Logger logger) {
         this.config = Objects.requireNonNull(config);
-        this.lists = Objects.requireNonNull(lists);
+        this.filters = Objects.requireNonNull(filters);
         this.writer = Objects.requireNonNull(writer);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -59,7 +59,7 @@ public class FieldConfigWriter {
         StringBuilder contents = new StringBuilder();
 
         writeDetectors(contents);
-        writeLists(contents);
+        writeFilters(contents);
         writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
                 contents, true);
 
@@ -119,24 +119,24 @@ public class FieldConfigWriter {
         contents.append(NEW_LINE);
     }
 
-    private void writeLists(StringBuilder buffer) throws IOException {
-        for (ListDocument list : lists) {
+    private void writeFilters(StringBuilder buffer) throws IOException {
+        for (MlFilter filter : filters) {
 
-            StringBuilder listAsJson = new StringBuilder();
-            listAsJson.append('[');
+            StringBuilder filterAsJson = new StringBuilder();
+            filterAsJson.append('[');
             boolean first = true;
-            for (String item : list.getItems()) {
+            for (String item : filter.getItems()) {
                 if (first) {
                     first = false;
                 } else {
-                    listAsJson.append(',');
+                    filterAsJson.append(',');
                 }
-                listAsJson.append('"');
-                listAsJson.append(item);
-                listAsJson.append('"');
+                filterAsJson.append('"');
+                filterAsJson.append(item);
+                filterAsJson.append('"');
             }
-            listAsJson.append(']');
-            buffer.append(LIST_PREFIX).append(list.getId()).append(EQUALS).append(listAsJson)
+            filterAsJson.append(']');
+            buffer.append(FILTER_PREFIX).append(filter.getId()).append(EQUALS).append(filterAsJson)
             .append(NEW_LINE);
         }
     }

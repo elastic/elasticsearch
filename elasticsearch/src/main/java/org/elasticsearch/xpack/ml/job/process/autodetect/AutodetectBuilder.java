@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AnalysisLimitsWr
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelDebugConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -44,7 +44,7 @@ public class AutodetectBuilder {
     private List<Path> filesToDelete;
     private Logger logger;
     private boolean ignoreDowntime;
-    private Set<ListDocument> referencedLists;
+    private Set<MlFilter> referencedFilters;
     private Quantiles quantiles;
     private Environment env;
     private Settings settings;
@@ -69,7 +69,7 @@ public class AutodetectBuilder {
         this.filesToDelete = Objects.requireNonNull(filesToDelete);
         this.logger = Objects.requireNonNull(logger);
         ignoreDowntime = false;
-        referencedLists = new HashSet<>();
+        referencedFilters = new HashSet<>();
     }
 
     /**
@@ -83,8 +83,8 @@ public class AutodetectBuilder {
         return this;
     }
 
-    public AutodetectBuilder referencedLists(Set<ListDocument> lists) {
-        referencedLists = lists;
+    public AutodetectBuilder referencedFilters(Set<MlFilter> filters) {
+        referencedFilters = filters;
         return this;
     }
 
@@ -174,7 +174,7 @@ public class AutodetectBuilder {
             try (OutputStreamWriter osw = new OutputStreamWriter(
                     Files.newOutputStream(fieldConfigFile),
                     StandardCharsets.UTF_8)) {
-                new FieldConfigWriter(job.getAnalysisConfig(), referencedLists, osw, logger).write();
+                new FieldConfigWriter(job.getAnalysisConfig(), referencedFilters, osw, logger).write();
             }
 
             String fieldConfig = FIELD_CONFIG_ARG + fieldConfigFile.toString();

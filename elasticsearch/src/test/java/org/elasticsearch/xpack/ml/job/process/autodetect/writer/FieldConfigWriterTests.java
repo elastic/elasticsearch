@@ -39,18 +39,18 @@ import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
-import org.elasticsearch.xpack.ml.job.config.ListDocument;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 
 public class FieldConfigWriterTests extends ESTestCase {
     private AnalysisConfig analysisConfig;
-    private Set<ListDocument> lists;
+    private Set<MlFilter> filters;
     private OutputStreamWriter writer;
 
     @Before
     public void setUpDeps() {
         analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())).build();
-        lists = new LinkedHashSet<>();
+        filters = new LinkedHashSet<>();
     }
 
     public void testMultipleDetectorsToConfFile()
@@ -202,25 +202,25 @@ public class FieldConfigWriterTests extends ESTestCase {
         assertEquals("[" + rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string() + "]\n", rulesJson);
     }
 
-    public void testWrite_GivenLists() throws IOException {
+    public void testWrite_GivenFilters() throws IOException {
         Detector d = new Detector.Builder("count", null).build();
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(d));
         analysisConfig = builder.build();
 
-        lists.add(new ListDocument("list_1", Arrays.asList("a", "b")));
-        lists.add(new ListDocument("list_2", Arrays.asList("c", "d")));
+        filters.add(new MlFilter("filter_1", Arrays.asList("a", "b")));
+        filters.add(new MlFilter("filter_2", Arrays.asList("c", "d")));
         writer = mock(OutputStreamWriter.class);
 
         createFieldConfigWriter().write();
 
         verify(writer).write("detector.0.clause = count\n" +
-                "list.list_1 = [\"a\",\"b\"]\n" +
-                "list.list_2 = [\"c\",\"d\"]\n");
+                "filter.filter_1 = [\"a\",\"b\"]\n" +
+                "filter.filter_2 = [\"c\",\"d\"]\n");
         verifyNoMoreInteractions(writer);
     }
 
     private FieldConfigWriter createFieldConfigWriter() {
-        return new FieldConfigWriter(analysisConfig, lists, writer, mock(Logger.class));
+        return new FieldConfigWriter(analysisConfig, filters, writer, mock(Logger.class));
     }
 }

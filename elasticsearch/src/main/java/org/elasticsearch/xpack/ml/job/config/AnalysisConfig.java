@@ -279,8 +279,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         return termFields;
     }
 
-    public Set<String> extractReferencedLists() {
-        return detectors.stream().map(Detector::extractReferencedLists)
+    public Set<String> extractReferencedFilters() {
+        return detectors.stream().map(Detector::extractReferencedFilters)
                 .flatMap(Set::stream).collect(Collectors.toSet());
     }
 

@@ -131,8 +131,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        //TODO change to onOrAfter once backported to 5.x
-        if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
         } else {
             for (Iterator<Map.Entry<String, List<String>>> iterator = headers.entrySet().iterator(); iterator.hasNext(); ) {
@@ -283,8 +282,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        //TODO change to onOrAfter once backported to 5.x
-        if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
         } else {

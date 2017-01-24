@@ -340,9 +340,15 @@ public class ReplicationResponseTests extends ESTestCase {
             ElasticsearchException ex = (ElasticsearchException) cause;
             for (String name : ex.getHeaderKeys()) {
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals(name.replaceFirst("es.", ""), parser.currentName());
+                assertEquals(name, parser.currentName());
                 assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
                 assertEquals(ex.getHeader(name).get(0), parser.text());
+            }
+            for (String name : ex.getMetadataKeys()) {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(name.replaceFirst("es.", ""), parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+                assertEquals(ex.getMetadata(name).get(0), parser.text());
             }
             if (ex.getCause() != null) {
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());

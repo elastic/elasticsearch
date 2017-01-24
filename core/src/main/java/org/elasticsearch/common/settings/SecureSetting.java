@@ -109,8 +109,8 @@ public abstract class SecureSetting<T> extends Setting<T> {
      *
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
-    public static SecureSetting<SecureString> secureString(String name, SecureSetting<SecureString> fallback,
-                                                           boolean allowLegacy, Property... properties) {
+    public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
+                                                     boolean allowLegacy, Property... properties) {
         final Setting<String> legacy;
         if (allowLegacy) {
             Property[] legacyProperties = ArrayUtils.concat(properties, LEGACY_PROPERTIES, Property.class);

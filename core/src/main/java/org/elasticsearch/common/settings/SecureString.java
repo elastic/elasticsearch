@@ -39,6 +39,16 @@ public final class SecureString implements CharSequence, Closeable {
         this.chars = Objects.requireNonNull(chars);
     }
 
+    /**
+     * Constructs a new SecureString from an existing String.
+     *
+     * NOTE: This is not actually secure, since the provided String cannot be deallocated, but
+     * this constructor allows for easy compatibility between new and old apis.
+     */
+    public SecureString(String s) {
+        this(s.toCharArray());
+    }
+
     /** Constant time equality to avoid potential timing attacks. */
     @Override
     public synchronized boolean equals(Object o) {

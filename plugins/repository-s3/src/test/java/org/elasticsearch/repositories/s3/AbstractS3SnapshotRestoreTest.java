@@ -197,12 +197,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
-            repositorySettings,
-            null,
-            S3Repository.Repositories.PROTOCOL_SETTING.get(settings),
-            S3Repository.Repositories.REGION_SETTING.get(settings),
-            null, randomBoolean(), null);
+        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(repositorySettings, null, randomBoolean(), null);
 
         String bucketName = bucket.get("bucket");
         logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
@@ -467,16 +462,12 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                 settings.getByPrefix("repositories.s3.external-bucket.")
         };
         for (Settings bucket : buckets) {
-            String endpoint = bucket.get("endpoint", S3Repository.Repositories.ENDPOINT_SETTING.get(settings));
-            Protocol protocol = S3Repository.Repositories.PROTOCOL_SETTING.get(settings);
-            String region = bucket.get("region", S3Repository.Repositories.REGION_SETTING.get(settings));
             String bucketName = bucket.get("bucket");
 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(Settings.EMPTY, endpoint, protocol, region, null,
-                randomBoolean(), null);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(Settings.EMPTY, null, randomBoolean(), null);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
@@ -513,7 +504,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                     client.deleteObjects(multiObjectDeleteRequest);
                 }
             } catch (Exception ex) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to delete S3 repository [{}] in [{}]", bucketName, region), ex);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to delete S3 repository [{}]", bucketName), ex);
             }
         }
     }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.repositories;
+package org.elasticsearch.plugin.repository.url;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RepositoriesPlugin extends Plugin implements RepositoryPlugin {
+public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {

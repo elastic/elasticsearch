@@ -368,3 +368,9 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation'
 ]
+
+// Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task
+// Gradle 2.14+ does not bundle this class anymore so we need to properly exclude it here.
+if (GradleVersion.current() > GradleVersion.version("2.13")) {
+  thirdPartyAudit.excludes += ['org.slf4j.impl.StaticLoggerBinder']
+}

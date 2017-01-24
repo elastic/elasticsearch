@@ -59,11 +59,11 @@ public class Debug {
         /**
          * Headers to be added to the {@link ScriptException} for structured rendering.
          */
-        Map<String, List<String>> getHeaders() {
-            Map<String, List<String>> headers = new TreeMap<>();
-            headers.put("es.class", singletonList(objectToExplain == null ? "null" : objectToExplain.getClass().getName()));
-            headers.put("es.to_string", singletonList(Objects.toString(objectToExplain)));
-            return headers;
+        Map<String, List<String>> getMetadata() {
+            Map<String, List<String>> metadata = new TreeMap<>();
+            metadata.put("es.class", singletonList(objectToExplain == null ? "null" : objectToExplain.getClass().getName()));
+            metadata.put("es.to_string", singletonList(Objects.toString(objectToExplain)));
+            return metadata;
         }
     }
 }

@@ -138,7 +138,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.field("grouped", group); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ? ExceptionsHelper.groupBy(shardFailures) : shardFailures;
+        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ?
+                ExceptionsHelper.groupBy(shardFailures) : shardFailures;
         for (ShardOperationFailedException failure : failures) {
             builder.startObject();
             failure.toXContent(builder, params);
@@ -156,7 +157,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), super.getCause());
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), getMetadata(), super.getCause());
         }
         return builder;
     }

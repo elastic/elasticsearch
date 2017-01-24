@@ -220,7 +220,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             collapse = in.readOptionalWriteable(CollapseBuilder::new);
         }
     }
@@ -271,7 +271,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeOptionalWriteable(collapse);
         }
     }

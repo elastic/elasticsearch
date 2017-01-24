@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
 import groovy.transform.PackageScope
+import org.elasticsearch.gradle.ProgressLoggerWrapper
 import org.gradle.api.GradleScriptException
 import org.gradle.api.logging.Logger
 
@@ -36,7 +37,7 @@ import java.util.regex.Matcher
  * entire TAP stream at once and won't parse it stream-wise.
  */
 public class TapLoggerOutputStream extends LoggingOutputStream {
-    private final ProgressLogger progressLogger
+    private final ProgressLoggerWrapper progressLoggerWrapper
     private boolean isStarted = false
     private final Logger logger
     private int testsCompleted = 0
@@ -47,14 +48,14 @@ public class TapLoggerOutputStream extends LoggingOutputStream {
 
     TapLoggerOutputStream(Map args) {
         logger = args.logger
-        progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
-        progressLogger.setDescription("TAP output for `${args.command}`")
+        progressLoggerWrapper = new ProgressLoggerWrapper(args.factory.newOperation(VagrantLoggerOutputStream))
+        progressLoggerWrapper.progressLogger.setDescription("TAP output for `${args.command}`")
     }
 
     @Override
     public void flush() {
         if (isStarted == false) {
-            progressLogger.started()
+            progressLoggerWrapper.progressLogger.started()
             isStarted = true
         }
         if (end == start) return
@@ -103,7 +104,7 @@ public class TapLoggerOutputStream extends LoggingOutputStream {
 
         String counts = sprintf(countsFormat,
                 [testsCompleted, testsFailed, testsSkipped, testCount])
-        progressLogger.progress("Tests $counts, $status [$suiteName] $testName")
+        progressLoggerWrapper.progressLogger.progress("Tests $counts, $status [$suiteName] $testName")
         if (!success) {
             logger.warn(line)
         }

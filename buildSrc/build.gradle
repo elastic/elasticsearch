@@ -95,15 +95,16 @@ dependencies {
 // Gradle version-specific options (allows build to run with Gradle 2.13 as well as 2.14+/3.+)
 if (GradleVersion.current() == GradleVersion.version("2.13")) {
   // ProgressLogger(-Factory) classes are part of the public Gradle API
-  // Add default imports for (org.gradle.logging)
-  compileGroovy.groovyOptions.configurationScript = file('src/compile/groovy/gradle-2.13-loggers.groovy')
+  sourceSets.main.groovy.srcDir 'src/main/gradle-2.13-groovy'
+
   dependencies {
     compile 'ru.vyarus:gradle-animalsniffer-plugin:1.0.1' // last version compatible with Gradle 2.13
   }
 } else {
   // Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
-  // Use logging dependency and add default imports for "org.gradle.internal.logging.progress"
-  compileGroovy.groovyOptions.configurationScript = file('src/compile/groovy/gradle-2.14-loggers.groovy')
+  // Use logging dependency instead
+  sourceSets.main.groovy.srcDir 'src/main/gradle-2.14-groovy'
+
   dependencies {
     compileOnly "org.gradle:gradle-logging:${GradleVersion.current().getVersion()}"
     compile 'ru.vyarus:gradle-animalsniffer-plugin:1.2.0' // Gradle 2.14 requires a version > 1.0.1

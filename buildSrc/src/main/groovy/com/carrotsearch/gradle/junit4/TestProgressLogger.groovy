@@ -25,6 +25,7 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedTestResultEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
+import org.elasticsearch.gradle.ProgressLoggerWrapper
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
 import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.ERROR
@@ -50,9 +51,7 @@ import static java.lang.Math.max
  * quick.
  */
 class TestProgressLogger implements AggregatedEventListener {
-    /** Factory to build a progress logger when testing starts */
-    ProgressLoggerFactory factory
-    ProgressLogger progressLogger
+    ProgressLoggerWrapper progressLoggerWrapper
     int totalSuites
     int totalSlaves
 
@@ -77,14 +76,17 @@ class TestProgressLogger implements AggregatedEventListener {
     /* Note that we probably overuse volatile here but it isn't hurting us and
       lets us move things around without worying about breaking things. */
 
+    TestProgressLogger(Map args) {
+        progressLoggerWrapper = new ProgressLoggerWrapper(args.factory.newOperation(TestProgressLogger))
+        progressLoggerWrapper.progressLogger.setDescription('Randomized test runner')
+    }
+
     @Subscribe
     void onStart(AggregatedStartEvent e) throws IOException {
         totalSuites = e.suiteCount
         totalSlaves = e.slaveCount
-        progressLogger = factory.newOperation(TestProgressLogger)
-        progressLogger.setDescription('Randomized test runner')
-        progressLogger.started()
-        progressLogger.progress(
+        progressLoggerWrapper.progressLogger.started()
+        progressLoggerWrapper.progressLogger.progress(
             "Starting JUnit4 for ${totalSuites} suites on ${totalSlaves} jvms")
 
         suitesFormat = "%0${widthForTotal(totalSuites)}d"
@@ -176,7 +178,7 @@ class TestProgressLogger implements AggregatedEventListener {
             log += "J${sprintf(slavesFormat, eventSlave)} "
         }
         log += "completed ${eventDescription}"
-        progressLogger.progress(log)
+        progressLoggerWrapper.progressLogger.progress(log)
     }
 
     private static int widthForTotal(int total) {

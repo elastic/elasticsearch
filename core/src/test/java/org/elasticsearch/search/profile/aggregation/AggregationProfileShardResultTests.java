@@ -74,10 +74,20 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", timings, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
-        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON);
+        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
         assertEquals("{\"aggregations\":["
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","
+                            + "\"time_in_nanos\":6000,"
+                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
+                        + "}"
+                   + "]}", xContent.utf8ToString());
+
+        xContent = toXContent(aggProfileResults, XContentType.JSON, true);
+        assertEquals("{\"aggregations\":["
+                        + "{\"type\":\"someType\","
+                            + "\"description\":\"someDescription\","
+                            + "\"time\":\"6micros\","
                             + "\"time_in_nanos\":6000,"
                             + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000}"
                         + "}"

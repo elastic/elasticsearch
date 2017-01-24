@@ -20,7 +20,6 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -85,7 +84,7 @@ public class DeleteResponse extends DocWriteResponse {
         PARSER.declareBoolean(constructorArg(), new ParseField(FOUND));
     }
 
-    public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
+    public static DeleteResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

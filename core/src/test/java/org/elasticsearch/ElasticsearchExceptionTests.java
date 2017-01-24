@@ -21,26 +21,41 @@ package org.elasticsearch;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -78,16 +93,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                         new ElasticsearchException("bar",
                                                 new ElasticsearchException("baz",
                                                         new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES)))));
-        e.addHeader("foo_0", "0");
-        e.addHeader("foo_1", "1");
-        e.addHeader("es.header_foo_0", "foo_0");
-        e.addHeader("es.header_foo_1", "foo_1");
+        e.addHeader("bar_0", "0");
+        e.addHeader("bar_1", "1");
+        e.addHeader("es.foo_0", "foo_0");
+        e.addHeader("es.foo_1", "foo_1");
 
         final String expectedJson = "{"
             + "\"type\":\"exception\","
             + "\"reason\":\"foo\","
-            + "\"header_foo_0\":\"foo_0\","
-            + "\"header_foo_1\":\"foo_1\","
+            + "\"foo_0\":\"foo_0\","
+            + "\"foo_1\":\"foo_1\","
             + "\"caused_by\":{"
                 + "\"type\":\"exception\","
                 + "\"reason\":\"bar\","
@@ -101,8 +116,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 + "}"
             + "},"
             + "\"header\":{"
-                    + "\"foo_0\":\"0\","
-                    + "\"foo_1\":\"1\""
+                    + "\"bar_0\":\"0\","
+                    + "\"bar_1\":\"1\""
                 + "}"
         + "}";
 
@@ -119,10 +134,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertNotNull(parsed);
         assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
         assertThat(parsed.getHeaderKeys(), hasSize(4));
-        assertEquals(parsed.getHeader("header_foo_0").get(0), "foo_0");
-        assertEquals(parsed.getHeader("header_foo_1").get(0), "foo_1");
-        assertEquals(parsed.getHeader("foo_0").get(0), "0");
-        assertEquals(parsed.getHeader("foo_1").get(0), "1");
+        assertEquals(parsed.getHeader("foo_0").get(0), "foo_0");
+        assertEquals(parsed.getHeader("foo_1").get(0), "foo_1");
+        assertEquals(parsed.getHeader("header.bar_0").get(0), "0");
+        assertEquals(parsed.getHeader("header.bar_1").get(0), "1");
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
@@ -220,21 +235,21 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
         assertThat(parsed.getHeaderKeys(), hasSize(2));
         assertThat(parsed.getHeader("foo_0"), hasItem("foo0"));
-        assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
+        assertThat(parsed.getHeader("header.foo_1"), hasItem("foo1"));
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
         assertThat(cause.getHeaderKeys(), hasSize(3));
         assertThat(cause.getHeader("bar_0"), hasItem("bar0"));
-        assertThat(cause.getHeader("bar_1"), hasItem("bar1"));
+        assertThat(cause.getHeader("header.bar_1"), hasItem("bar1"));
         assertThat(cause.getHeader("bar_2"), hasItem("bar2"));
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
         assertThat(cause.getHeaderKeys(), hasSize(4));
-        assertThat(cause.getHeader("baz_0"), hasItem("baz0"));
+        assertThat(cause.getHeader("header.baz_0"), hasItem("baz0"));
         assertThat(cause.getHeader("baz_1"), hasItem("baz1"));
-        assertThat(cause.getHeader("baz_2"), hasItem("baz2"));
+        assertThat(cause.getHeader("header.baz_2"), hasItem("baz2"));
         assertThat(cause.getHeader("baz_3"), hasItem("baz3"));
 
         cause = (ElasticsearchException) cause.getCause();
@@ -243,6 +258,93 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getHeaderKeys(), hasSize(2));
         assertThat(cause.getHeader("index"), hasItem("_test"));
         assertThat(cause.getHeader("index_uuid"), hasItem("_na_"));
+    }
+
+    public void testFromXContentWithExtraMetadataFields() throws IOException {
+        CircuitBreakingException exception = new CircuitBreakingException("test", randomNonNegativeLong(), randomNonNegativeLong());
+
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        BytesReference exceptionBytes = XContentHelper.toXContent(exception, xContent.type());
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, exceptionBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertThat(parsedException.getHeaderKeys(), hasSize(2));
+        assertThat(parsedException.getHeader("bytes_wanted"), hasItem(String.valueOf(exception.getBytesWanted())));
+        assertThat(parsedException.getHeader("bytes_limit"), hasItem(String.valueOf(exception.getByteLimit())));
+    }
+
+    public void testFromXContentWithExtraMetadataArrays() throws IOException {
+        Index index = new Index("test", "_na");
+        SearchShardTarget searchShardTarget = new SearchShardTarget("foo", index, 3);
+        QueryShardException queryShardException = new QueryShardException(index, "bar", new IllegalArgumentException("baz"));
+        ShardSearchFailure failure1 = new ShardSearchFailure(queryShardException, searchShardTarget);
+        ShardSearchFailure failure2 = new ShardSearchFailure(new NullPointerException("boo"), searchShardTarget);
+        ShardSearchFailure[] failures = new ShardSearchFailure[]{failure1, failure2};
+        SearchPhaseExecutionException exception = new SearchPhaseExecutionException("qux", "test", failures);
+
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        BytesReference exceptionBytes = XContentHelper.toXContent(exception, xContent.type());
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, exceptionBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        Map<String, List<String>> parsedHeaders = parsedException.getHeaders();
+        assertEquals(16, parsedHeaders.size());
+
+        assertThat(parsedHeaders, allOf(
+                hasEntry("phase", singletonList("qux")),
+                hasEntry("grouped", singletonList("true")),
+
+                hasEntry("failed_shards.0.node", singletonList("foo")),
+                hasEntry("failed_shards.0.shard", singletonList("3")),
+                hasEntry("failed_shards.0.index", singletonList("test")),
+                hasEntry("failed_shards.0.reason.type", singletonList("query_shard_exception")),
+                hasEntry("failed_shards.0.reason.reason", singletonList("bar")),
+                hasEntry("failed_shards.0.reason.index", singletonList("test")),
+                hasEntry("failed_shards.0.reason.index_uuid", singletonList("_na")),
+                hasEntry("failed_shards.0.reason.caused_by.type", singletonList("illegal_argument_exception")),
+                hasEntry("failed_shards.0.reason.caused_by.reason", singletonList("baz")),
+
+                hasEntry("failed_shards.1.node", singletonList("foo")),
+                hasEntry("failed_shards.1.shard", singletonList("3")),
+                hasEntry("failed_shards.1.index", singletonList("test")),
+                hasEntry("failed_shards.1.reason.type", singletonList("null_pointer_exception")),
+                hasEntry("failed_shards.1.reason.reason", singletonList("boo"))
+        ));
+    }
+
+    public void testFromXContentWithExtraMetadataObjects() throws IOException {
+        String json = "{\"type\":\"exception_with_objects\",\"reason\":\"test\"," +
+                "\"a\":{\"b\":true,\"c\":{\"d\":0}},\"e\":\"f\", \"g\":[\"h\",\"i\",\"j\",\"k\"]}";
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), new BytesArray(json))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        Map<String, List<String>> parsedHeaders = parsedException.getHeaders();
+        assertEquals(4, parsedHeaders.size());
+
+        assertThat(parsedHeaders, allOf(
+                hasEntry("a.b", singletonList("true")),
+                hasEntry("a.c.d", singletonList("0")),
+                hasEntry("e", singletonList("f")),
+                hasEntry("g", Arrays.asList("h", "i", "j", "k"))
+        ));
     }
 
     /**

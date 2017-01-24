@@ -38,12 +38,17 @@ public interface IndexingOperationListener {
     }
 
     /**
-     * Called after the indexing operation occurred.
+     * Called after the indexing operation occurred. Note that this is
+     * also called when indexing a document did not succeed due to document
+     * related failures. See {@link #postIndex(ShardId, Engine.Index, Exception)}
+     * for engine level failures
      */
-    default void postIndex(ShardId shardId, Engine.Index index, boolean created) {}
+    default void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {}
 
     /**
-     * Called after the indexing operation occurred with exception.
+     * Called after the indexing operation occurred with engine level exception.
+     * See {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} for document
+     * related failures
      */
     default void postIndex(ShardId shardId, Engine.Index index, Exception ex) {}
 
@@ -56,12 +61,17 @@ public interface IndexingOperationListener {
 
 
     /**
-     * Called after the delete operation occurred.
+     * Called after the delete operation occurred. Note that this is
+     * also called when deleting a document did not succeed due to document
+     * related failures. See {@link #postDelete(ShardId, Engine.Delete, Exception)}
+     * for engine level failures
      */
-    default void postDelete(ShardId shardId, Engine.Delete delete) {}
+    default void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {}
 
     /**
-     * Called after the delete operation occurred with exception.
+     * Called after the delete operation occurred with engine level exception.
+     * See {@link #postDelete(ShardId, Engine.Delete, Engine.DeleteResult)} for document
+     * related failures
      */
     default void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {}
 
@@ -91,11 +101,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
+        public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
             assert index != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postIndex(shardId, index, created);
+                    listener.postIndex(shardId, index, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
@@ -129,11 +139,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postDelete(ShardId shardId, Engine.Delete delete) {
+        public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
             assert delete != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postDelete(shardId, delete);
+                    listener.postDelete(shardId, delete, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
                 }

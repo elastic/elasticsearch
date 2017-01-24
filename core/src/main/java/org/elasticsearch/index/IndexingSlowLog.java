@@ -148,23 +148,20 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         this.reformat = reformat;
     }
 
-
     @Override
-    public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
-        final long took = index.endTime() - index.startTime();
-        postIndexing(index.parsedDoc(), took);
-    }
-
-
-    private void postIndexing(ParsedDocument doc, long tookInNanos) {
-        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+    public void postIndex(ShardId shardId, Engine.Index indexOperation, Engine.IndexResult result) {
+        if (result.hasFailure() == false) {
+            final ParsedDocument doc = indexOperation.parsedDoc();
+            final long tookInNanos = result.getTook();
+            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+                indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+                indexLogger.info("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+                indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+                indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+            }
         }
     }
 

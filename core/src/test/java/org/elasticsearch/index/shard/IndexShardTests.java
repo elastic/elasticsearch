@@ -123,6 +123,7 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -574,11 +575,15 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
-                if (created) {
-                    postIndexCreate.incrementAndGet();
+            public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    if (result.isCreated()) {
+                        postIndexCreate.incrementAndGet();
+                    } else {
+                        postIndexUpdate.incrementAndGet();
+                    }
                 } else {
-                    postIndexUpdate.incrementAndGet();
+                    postIndex(shardId, index, result.getFailure());
                 }
             }
 
@@ -594,8 +599,12 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(ShardId shardId, Engine.Delete delete) {
-                postDelete.incrementAndGet();
+            public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(shardId, delete, result.getFailure());
+                }
             }
 
             @Override
@@ -1131,13 +1140,13 @@ public class IndexShardTests extends IndexShardTestCase {
         final AtomicInteger postDelete = new AtomicInteger();
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+            public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
                 preIndex.incrementAndGet();
-                return operation;
+                return index;
             }
 
             @Override
-            public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
+            public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
                 postIndex.incrementAndGet();
             }
 
@@ -1148,9 +1157,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(ShardId shardId, Engine.Delete delete) {
+            public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
-
             }
         };
         final IndexShard newShard = reinitShard(shard, listener);
@@ -1374,8 +1382,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         System.nanoTime(),
                         -1,
                         false);
-                indexShard.index(index);
-                assertThat(index.version(), equalTo(1L));
+                Engine.IndexResult indexResult = indexShard.index(index);
+                assertThat(indexResult.getVersion(), equalTo(1L));
             }
 
             indexShard.refresh("test");
@@ -1402,8 +1410,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         System.nanoTime(),
                         -1,
                         false);
-                indexShard.index(index);
-                assertThat(index.version(), equalTo(2L));
+                Engine.IndexResult indexResult = indexShard.index(index);
+                assertThat(indexResult.getVersion(), equalTo(2L));
             }
 
             // flush the buffered deletes

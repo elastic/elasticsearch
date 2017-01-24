@@ -28,9 +28,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -71,6 +71,7 @@ public class TransportWriteActionTests extends ESTestCase {
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
@@ -92,6 +93,7 @@ public class TransportWriteActionTests extends ESTestCase {
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         responseChecker.accept(listener.response);
         verify(indexShard).refresh("refresh_flag_index");
         verify(indexShard, never()).addRefreshListener(any(), any());
@@ -125,30 +127,74 @@ public class TransportWriteActionTests extends ESTestCase {
         boolean forcedRefresh = randomBoolean();
         refreshListener.getValue().accept(forcedRefresh);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         resultChecker.accept(listener.response, forcedRefresh);
     }
 
-    private class TestAction extends TransportWriteAction<TestRequest, TestResponse> {
+    public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
+        TestRequest request = new TestRequest();
+        TestAction testAction = new TestAction(true, true);
+        TransportWriteAction<TestRequest, TestRequest, TestResponse>.WritePrimaryResult writePrimaryResult =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        writePrimaryResult.respond(listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
+    }
+
+    public void testDocumentFailureInShardOperationOnReplica() throws Exception {
+        TestRequest request = new TestRequest();
+        TestAction testAction = new TestAction(randomBoolean(), true);
+        TransportWriteAction<TestRequest, TestRequest, TestResponse>.WriteReplicaResult writeReplicaResult =
+                testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        writeReplicaResult.respond(listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
+    }
+
+    private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
+
+        private final boolean withDocumentFailureOnPrimary;
+        private final boolean withDocumentFailureOnReplica;
+
         protected TestAction() {
+            this(false, false);
+        }
+        protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "test",
                     new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null),
                     null, null, null, null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    TestRequest::new, ThreadPool.Names.SAME);
-        }
-
-        @Override
-        protected WriteResult<TestResponse> onPrimaryShard(TestRequest request, IndexShard indexShard) throws Exception {
-            return new WriteResult<>(new TestResponse(), location);
-        }
-
-        @Override
-        protected Location onReplicaShard(TestRequest request, IndexShard indexShard) {
-            return location;
+                    TestRequest::new, TestRequest::new, ThreadPool.Names.SAME);
+            this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
+            this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
 
         @Override
         protected TestResponse newResponseInstance() {
             return new TestResponse();
+        }
+
+        @Override
+        protected WritePrimaryResult shardOperationOnPrimary(TestRequest request, IndexShard primary) throws Exception {
+            final WritePrimaryResult primaryResult;
+            if (withDocumentFailureOnPrimary) {
+                primaryResult = new WritePrimaryResult(request, null, null, new RuntimeException("simulated"), primary);
+            } else {
+                primaryResult = new WritePrimaryResult(request, new TestResponse(), location, null, primary);
+            }
+            return primaryResult;
+        }
+
+        @Override
+        protected WriteReplicaResult shardOperationOnReplica(TestRequest request, IndexShard replica) throws Exception {
+            final WriteReplicaResult replicaResult;
+            if (withDocumentFailureOnReplica) {
+                replicaResult = new WriteReplicaResult(request, null, new RuntimeException("simulated"), replica);
+            } else {
+                replicaResult = new WriteReplicaResult(request, location, null, replica);
+            }
+            return replicaResult;
         }
     }
 
@@ -169,6 +215,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static class CapturingActionListener<R> implements ActionListener<R> {
         private R response;
+        private Exception failure;
 
         @Override
         public void onResponse(R response) {
@@ -176,8 +223,8 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Exception e) {
-            throw new RuntimeException(e);
+        public void onFailure(Exception failure) {
+            this.failure = failure;
         }
     }
 

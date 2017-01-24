@@ -830,13 +830,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
 
-        public Index(Engine.Index index) {
+        public Index(Engine.Index index, Engine.IndexResult indexResult) {
             this.id = index.id();
             this.type = index.type();
             this.source = index.source();
             this.routing = index.routing();
             this.parent = index.parent();
-            this.version = index.version();
+            this.version = indexResult.getVersion();
             this.timestamp = index.timestamp();
             this.ttl = index.ttl();
             this.versionType = index.versionType();
@@ -994,9 +994,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert versionType.validateVersionForWrites(this.version);
         }
 
-        public Delete(Engine.Delete delete) {
+        public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
             this.uid = delete.uid();
-            this.version = delete.version();
+            this.version = deleteResult.getVersion();
             this.versionType = delete.versionType();
         }
 

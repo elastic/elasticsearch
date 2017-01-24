@@ -53,9 +53,12 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
-                assertThat(shardId, is(randomShardId));
-                postIndex.incrementAndGet();
+            public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    postIndex.incrementAndGet();
+                } else {
+                    postIndex(shardId, index, result.getFailure());
+                }
             }
 
             @Override
@@ -72,9 +75,12 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postDelete(ShardId shardId, Engine.Delete delete) {
-                assertThat(shardId, is(randomShardId));
-                postDelete.incrementAndGet();
+            public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(shardId, delete, result.getFailure());
+                }
             }
 
             @Override
@@ -86,13 +92,14 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
         IndexingOperationListener throwingListener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+            public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
                 throw new RuntimeException();
             }
 
             @Override
-            public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
-                throw new RuntimeException();            }
+            public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+                throw new RuntimeException();
+            }
 
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
@@ -100,13 +107,14 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
+            public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 throw new RuntimeException();
             }
 
             @Override
-            public void postDelete(ShardId shardId, Engine.Delete delete) {
-                throw new RuntimeException();            }
+            public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
+                throw new RuntimeException();
+            }
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
@@ -126,7 +134,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
                 new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
         Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
-        compositeListener.postDelete(randomShardId, delete);
+        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(0, false));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -150,7 +158,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(randomShardId, index, false);
+        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

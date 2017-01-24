@@ -26,7 +26,11 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.junit.AfterClass;
@@ -48,8 +52,11 @@ import java.util.Set;
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -67,23 +74,10 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        String pathPrefixWithoutLeadingSlash;
-        if (randomBoolean()) {
-            pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiOfLengthBetween(1, 5);
-            pathPrefix = "/" + pathPrefixWithoutLeadingSlash;
-        } else {
-            pathPrefix = pathPrefixWithoutLeadingSlash = "";
-        }
-
+        pathPrefix = randomBoolean() ? "/testPathPrefix/" + randomAsciiOfLengthBetween(1, 5) : "";
         httpServer = createHttpServer();
-        int numHeaders = randomIntBetween(0, 5);
-        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
-        RestClientBuilder restClientBuilder = RestClient.builder(
-                new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())).setDefaultHeaders(defaultHeaders);
-        if (pathPrefix.length() > 0) {
-            restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
-        }
-        restClient = restClientBuilder.build();
+        defaultHeaders = generateHeaders("Header-default", "Header-array", randomIntBetween(0, 5));
+        restClient = createRestClient(false, true);
     }
 
     private static HttpServer createHttpServer() throws Exception {
@@ -131,6 +125,35 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
     }
 
+    private static RestClient createRestClient(final boolean useAuth, final boolean usePreemptiveAuth) {
+        // provide the username/password for every request
+        final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("user", "pass"));
+
+        final RestClientBuilder restClientBuilder = RestClient.builder(
+            new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())).setDefaultHeaders(defaultHeaders);
+        if (pathPrefix.length() > 0) {
+            // sometimes cut off the leading slash
+            restClientBuilder.setPathPrefix(randomBoolean() ? pathPrefix.substring(1) : pathPrefix);
+        }
+
+        if (useAuth) {
+            restClientBuilder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                @Override
+                public HttpAsyncClientBuilder customizeHttpClient(final HttpAsyncClientBuilder httpClientBuilder) {
+                    if (usePreemptiveAuth == false) {
+                        // disable preemptive auth by ignoring any authcache
+                        httpClientBuilder.disableAuthCaching();
+                    }
+
+                    return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+                }
+            });
+        }
+
+        return restClientBuilder.build();
+    }
+
     @AfterClass
     public static void stopHttpServers() throws IOException {
         restClient.close();
@@ -167,7 +190,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
             assertEquals(method, esResponse.getRequestLine().getMethod());
             assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, esResponse.getRequestLine().getUri());
+            assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().getUri());
 
             for (final Header responseHeader : esResponse.getHeaders()) {
                 final String name = responseHeader.getName();
@@ -208,7 +231,41 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         bodyTest("GET");
     }
 
-    private void bodyTest(String method) throws IOException {
+    /**
+     * Verify that credentials are sent on the first request with preemptive auth enabled (default when provided with credentials).
+     */
+    public void testPreemptiveAuthEnabled() throws IOException  {
+        final String[] methods = { "POST", "PUT", "GET", "DELETE" };
+
+        try (final RestClient restClient = createRestClient(true, true)) {
+            for (final String method : methods) {
+                final Response response = bodyTest(restClient, method);
+
+                assertThat(response.getHeader("Authorization"), startsWith("Basic"));
+            }
+        }
+    }
+
+    /**
+     * Verify that credentials are <em>not</em> sent on the first request with preemptive auth disabled.
+     */
+    public void testPreemptiveAuthDisabled() throws IOException  {
+        final String[] methods = { "POST", "PUT", "GET", "DELETE" };
+
+        try (final RestClient restClient = createRestClient(true, false)) {
+            for (final String method : methods) {
+                final Response response = bodyTest(restClient, method);
+
+                assertThat(response.getHeader("Authorization"), nullValue());
+            }
+        }
+    }
+
+    private Response bodyTest(final String method) throws IOException {
+        return bodyTest(restClient, method);
+    }
+
+    private Response bodyTest(final RestClient restClient, final String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
         int statusCode = randomStatusCode(getRandom());
@@ -220,7 +277,9 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
         assertEquals(method, esResponse.getRequestLine().getMethod());
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
-        assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, esResponse.getRequestLine().getUri());
+        assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().getUri());
         assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
+
+        return esResponse;
     }
 }

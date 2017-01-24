@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -52,13 +52,13 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 
+            final Version version = VersionUtils.randomVersion(random());
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersion(random());
-            output.setVersion(outputVersion);
+            output.setVersion(version);
             response.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(randomVersion(random()));
+            streamInput.setVersion(version);
             MonitoringBulkResponse response2 = new MonitoringBulkResponse();
             response2.readFrom(streamInput);
 

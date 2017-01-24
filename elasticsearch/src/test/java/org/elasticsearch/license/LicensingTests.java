@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -32,14 +28,17 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.TestXPackTransportClient;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -239,7 +238,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {
         ElasticsearchSecurityException ee = expectThrows(ElasticsearchSecurityException.class, runnable);
-        assertThat(ee.getHeader("es.license.expired.feature"), hasItem(XPackPlugin.SECURITY));
+        assertThat(ee.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackPlugin.SECURITY));
         assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 

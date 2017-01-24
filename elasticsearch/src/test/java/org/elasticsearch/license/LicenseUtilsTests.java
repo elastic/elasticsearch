@@ -20,9 +20,9 @@ public class LicenseUtilsTests extends ESTestCase {
         for (String feature : Arrays.asList("feature", randomAsciiOfLength(5), null, "")) {
             ElasticsearchSecurityException exception = LicenseUtils.newComplianceException(feature);
             assertNotNull(exception);
-            assertThat(exception.getHeaderKeys(), contains(LicenseUtils.EXPIRED_FEATURE_HEADER));
-            assertThat(exception.getHeader(LicenseUtils.EXPIRED_FEATURE_HEADER), hasSize(1));
-            assertThat(exception.getHeader(LicenseUtils.EXPIRED_FEATURE_HEADER).iterator().next(), equalTo(feature));
+            assertThat(exception.getMetadataKeys(), contains(LicenseUtils.EXPIRED_FEATURE_METADATA));
+            assertThat(exception.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasSize(1));
+            assertThat(exception.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA).iterator().next(), equalTo(feature));
         }
     }
 

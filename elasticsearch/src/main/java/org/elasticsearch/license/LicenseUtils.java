@@ -10,19 +10,19 @@ import org.elasticsearch.rest.RestStatus;
 
 public class LicenseUtils {
 
-    public static final String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
+    public static final String EXPIRED_FEATURE_METADATA = "es.license.expired.feature";
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license
      * has expired
      *
-     * <code>feature</code> accessible through {@link #EXPIRED_FEATURE_HEADER} in the
+     * <code>feature</code> accessible through {@link #EXPIRED_FEATURE_METADATA} in the
      * exception's rest header
      */
     public static ElasticsearchSecurityException newComplianceException(String feature) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]",
                 RestStatus.FORBIDDEN, feature);
-        e.addHeader(EXPIRED_FEATURE_HEADER, feature);
+        e.addMetadata(EXPIRED_FEATURE_METADATA, feature);
         return e;
     }
 
@@ -31,6 +31,6 @@ public class LicenseUtils {
      * requires a valid license, but the license has expired.
      */
     public static boolean isLicenseExpiredException(ElasticsearchSecurityException exception) {
-        return (exception != null) && (exception.getHeader(EXPIRED_FEATURE_HEADER) != null);
+        return (exception != null) && (exception.getMetadata(EXPIRED_FEATURE_METADATA) != null);
     }
 }

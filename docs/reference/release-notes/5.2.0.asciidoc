@@ -1,0 +1,396 @@
+[[release-notes-5.2.0]]
+== 5.2.0 Release Notes
+
+Also see <<breaking-changes-5.2>>.
+
+[[breaking-5.2.0]]
+[float]
+=== Breaking changes
+
+Core::
+* Add system call filter bootstrap check {pull}21940[#21940]
+
+
+
+[[breaking-java-5.2.0]]
+[float]
+=== Breaking Java changes
+
+Allocation::
+* Cluster Explain API uses the allocation process to explain shard allocation decisions {pull}22182[#22182] (issues: {issue}20347[#20347], {issue}20634[#20634], {issue}21103[#21103], {issue}21662[#21662], {issue}21691[#21691])
+
+Cluster::
+* Remove PROTO-based custom cluster state components {pull}22336[#22336] (issue: {issue}21868[#21868])
+
+Ingest::
+* Change type of ingest doc meta-data field 'TIMESTAMP' to `Date` {pull}22234[#22234] (issue: {issue}22074[#22074])
+
+Internal::
+* Consolidate the last easy parser construction {pull}22095[#22095]
+* Introduce XContentParser#namedObject {pull}22003[#22003]
+
+Plugins::
+* Plugins: Replace Rest filters with RestHandler wrapper {pull}21905[#21905]
+
+Query DSL::
+* Resolve index names in indices_boost {pull}21393[#21393] (issue: {issue}4756[#4756])
+
+Search::
+* Cluster search shards improvements: expose ShardId, adjust visibility of some members {pull}21752[#21752]
+
+
+
+[[deprecation-5.2.0]]
+[float]
+=== Deprecations
+
+Java API::
+* Deprecate and remove "minimumNumberShouldMatch" in BoolQueryBuilder {pull}22403[#22403]
+
+Shadow Replicas::
+* Add a deprecation notice to shadow replicas  {pull}22647[#22647] (issue: {issue}22024[#22024])
+
+
+
+[[feature-5.2.0]]
+[float]
+=== New features
+
+Analysis::
+* Synonym Graph Support (LUCENE-6664) {pull}21517[#21517]
+
+Ingest::
+* introduce KV Processor in Ingest Node {pull}22272[#22272] (issue: {issue}22222[#22222])
+
+Mapping::
+* Add the ability to set a normalizer on keyword fields. {pull}21919[#21919] (issue: {issue}18064[#18064])
+* Add RangeFieldMapper for numeric and date range types {pull}21002[#21002] (issue: {issue}20999[#20999])
+
+
+
+[[enhancement-5.2.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* `value_type` is useful regardless of scripting. {pull}22160[#22160] (issue: {issue}20163[#20163])
+* Support for partitioning set of terms  {pull}21626[#21626] (issue: {issue}21487[#21487])
+
+Allocation::
+* Adds setting level to allocation decider explanations {pull}22268[#22268] (issue: {issue}21771[#21771])
+* Improves allocation decider decision explanation messages {pull}21771[#21771]
+* Prepares allocator decision objects for use with the allocation explain API {pull}21691[#21691]
+
+Analysis::
+* Expose FlattenGraphTokenFilter {pull}22643[#22643]
+
+CRUD::
+* Use correct block levels for TRA subclasses {pull}22224[#22224]
+
+Cluster::
+* Keep NodeConnectionsService in sync with current nodes in the cluster state {pull}22509[#22509]
+* Add a generic way of checking version before serializing custom cluster object {pull}22376[#22376] (issue: {issue}22313[#22313])
+* Add validation for supported index version on node join, restore, upgrade & open index {pull}21830[#21830] (issue: {issue}21670[#21670])
+* Let ClusterStateObserver only hold onto state that's needed for change detection {pull}21631[#21631] (issue: {issue}21568[#21568])
+* Remove mutable status field from cluster state {pull}21379[#21379]
+
+Core::
+* Rename bootstrap.seccomp to bootstrap.system_call_filter {pull}22226[#22226] (issue: {issue}21940[#21940])
+* Cleanup random stats serialization code {pull}22223[#22223]
+* Avoid corruption when deserializing booleans {pull}22152[#22152]
+* Reduce memory pressure when sending large terms queries. {pull}21776[#21776]
+
+Discovery::
+* Simplify Unicast Zen Ping {pull}22277[#22277] (issues: {issue}19370[#19370], {issue}21739[#21739], {issue}22120[#22120], {issue}22194[#22194])
+* Prefer joining node with conflicting transport address when becoming master {pull}22134[#22134] (issues: {issue}22049[#22049], {issue}22120[#22120])
+
+Ingest::
+* add `ignore_missing` flag to ingest plugins {pull}22273[#22273]
+* Added ability to remove pipelines via wildcards (#22149) {pull}22191[#22191] (issue: {issue}22149[#22149])
+* Enables the ability to inject serialized json fields into root of document {pull}22179[#22179] (issue: {issue}21898[#21898])
+* compile ScriptProcessor inline scripts when creating ingest pipelines {pull}21858[#21858] (issue: {issue}21842[#21842])
+
+Internal::
+* Remove some more usages of ParseFieldMatcher {pull}22398[#22398] (issues: {issue}19552[#19552], {issue}22130[#22130])
+* Remove some more usages of ParseFieldMatcher {pull}22395[#22395] (issues: {issue}19552[#19552], {issue}22130[#22130])
+* Remove some ParseFieldMatcher usages {pull}22389[#22389] (issues: {issue}19552[#19552], {issue}22130[#22130])
+* Add infrastructure to manage network connections outside of Transport/TransportService {pull}22194[#22194]
+* Replace strict parsing mode with response headers assertions {pull}22130[#22130] (issues: {issue}11859[#11859], {issue}19552[#19552], {issue}20993[#20993])
+* Start using `ObjectParser` for aggs. {pull}22048[#22048] (issue: {issue}22009[#22009])
+* Don't output null source node in RecoveryFailedException {pull}21963[#21963]
+* ClusterService should expose "applied" cluster states (i.e., remove ClusterStateStatus) {pull}21817[#21817]
+
+Java High Level REST Client::
+* Add fromxcontent methods to index response {pull}22229[#22229]
+* Add fromXContent() methods for ReplicationResponse {pull}22196[#22196] (issue: {issue}22082[#22082])
+* Add parsing method for ElasticsearchException {pull}22143[#22143]
+* Add fromXContent method to GetResponse {pull}22082[#22082]
+
+Java REST Client::
+* Warn log deprecation warnings received from server {pull}21895[#21895]
+
+Logging::
+* Log deleting indices at info level {pull}22627[#22627] (issue: {issue}22605[#22605])
+* Log failure to connect to node at info instead of debug {pull}21809[#21809] (issue: {issue}6468[#6468])
+
+Mapping::
+* Atomic mapping updates across types {pull}22220[#22220]
+* Only update DocumentMapper if field type changes {pull}22165[#22165]
+* Better error message when `_parent` isn't an object {pull}21987[#21987]
+
+Network::
+* Disable the Netty recycler {pull}22452[#22452] (issues: {issue}22189[#22189], {issue}22360[#22360], {issue}22406[#22406], {issue}5904[#5904])
+* Tell Netty not to be unsafe in transport client {pull}22284[#22284]
+* Introduce a low level protocol handshake {pull}22094[#22094]
+* Detach handshake from connect to node {pull}22037[#22037]
+* Reduce number of connections per node depending on the nodes role {pull}21849[#21849]
+* Add a connect timeout to the ConnectionProfile to allow per node connect timeouts {pull}21847[#21847] (issue: {issue}19719[#19719])
+* Grant Netty permission to read system somaxconn {pull}21840[#21840]
+* Remove connectToNodeLight and replace it with a connection profile {pull}21799[#21799]
+
+Packaging::
+* Improve the out-of-the-box experience {pull}21920[#21920] (issues: {issue}18317[#18317], {issue}21783[#21783])
+
+Plugin Discovery EC2::
+* Add support for ca-central-1 region to EC2 and S3 plugins {pull}22458[#22458] (issue: {issue}22454[#22454])
+* Support for eu-west-2 (London) cloud-aws plugin {pull}22308[#22308] (issue: {issue}22306[#22306])
+* Add us-east-2 AWS region {pull}21961[#21961] (issue: {issue}21881[#21881])
+* Add setting to set read timeout for EC2 discovery and S3 repository plugins {pull}21956[#21956] (issue: {issue}19078[#19078])
+
+Plugin Ingest GeoIp::
+* Cache results of geoip lookups {pull}22231[#22231] (issue: {issue}22074[#22074])
+
+Plugin Lang Painless::
+* Improve painless's ScriptException generation {pull}21762[#21762] (issue: {issue}21733[#21733])
+
+Plugins::
+* Pass ThreadContext to transport interceptors to allow header modification {pull}22618[#22618] (issue: {issue}22585[#22585])
+* Provide helpful error message if a plugin exists {pull}22305[#22305] (issue: {issue}22084[#22084])
+* Add shutdown hook for closing CLI commands {pull}22126[#22126] (issue: {issue}22111[#22111])
+* Allow plugins to install bootstrap checks {pull}22110[#22110]
+
+Query DSL::
+* Un-deprecate fuzzy query {pull}22088[#22088] (issue: {issue}15760[#15760])
+* support numeric bounds with decimal parts for long/integer/short/byte datatypes {pull}21972[#21972] (issue: {issue}21600[#21600])
+
+Reindex API::
+* Reindex: Better error message for pipeline in wrong place {pull}21985[#21985]
+* Timeout improvements for rest client and reindex {pull}21741[#21741] (issue: {issue}21707[#21707])
+
+Scripting::
+* Wrap VerifyError in ScriptException {pull}21769[#21769]
+* Log ScriptException's xcontent if file script compilation fails {pull}21767[#21767] (issue: {issue}21733[#21733])
+
+Search::
+* Move SearchTransportService and SearchPhaseController creation outside of TransportSearchAction constructor {pull}21754[#21754]
+* Don't carry ShardRouting around when not needed in AbstractSearchAsyncAction {pull}21753[#21753]
+* ShardSearchRequest to take ShardId constructor argument rather than the whole ShardRouting {pull}21750[#21750]
+* Use index uuid as key in the alias filter map rather than the index name {pull}21749[#21749]
+
+Settings::
+* Speed up filter and prefix settings operations {pull}22249[#22249]
+
+Snapshot/Restore::
+* Fixes retrieval of the latest snapshot index blob {pull}22700[#22700]
+* Synchronize snapshot deletions on the cluster state {pull}22313[#22313] (issue: {issue}19957[#19957])
+
+Stats::
+* Include unindexed field in FieldStats response {pull}21821[#21821] (issue: {issue}21952[#21952])
+
+Task Manager::
+* Improve the error message if task and node isn't found {pull}22062[#22062] (issue: {issue}22027[#22027])
+* Add descriptions to create snapshot and restore snapshot tasks. {pull}21901[#21901] (issue: {issue}21768[#21768])
+* Add proper descriptions to reindex, update-by-query and delete-by-query tasks. {pull}21841[#21841] (issue: {issue}21768[#21768])
+
+
+
+[[bug-5.2.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix scaled_float numeric type in aggregations {pull}22351[#22351] (issue: {issue}22350[#22350])
+* Allow terms aggregations on pure boolean scripts. {pull}22201[#22201] (issue: {issue}20941[#20941])
+* Fix numeric terms aggregations with includes/excludes and minDocCount=0 {pull}22141[#22141] (issue: {issue}22140[#22140])
+* Fix `missing` on aggs on `boolean` fields. {pull}22135[#22135] (issue: {issue}22009[#22009])
+* IP range masks exclude the maximum address of the range. {pull}22018[#22018] (issue: {issue}22005[#22005])
+* Fix `other_bucket` on the `filters` agg to be enabled if a key is set. {pull}21994[#21994] (issue: {issue}21951[#21951])
+
+Allocation::
+* Cannot force allocate primary to a node where the shard already exists {pull}22031[#22031] (issue: {issue}22021[#22021])
+* Promote shadow replica to primary when initializing primary fails {pull}22021[#22021]
+* Trim in-sync allocations set only when it grows {pull}21976[#21976] (issue: {issue}21719[#21719])
+
+Analysis::
+* AsciiFoldingFilter's multi-term component should never preserve the original token. {pull}21982[#21982]
+* Pre-built analysis factories do not implement MultiTermAware correctly. {pull}21981[#21981]
+
+CRUD::
+* Reject external versioning and explicit version numbers on create {pull}21998[#21998]
+
+Cluster::
+* IndicesService handles all exceptions during index deletion {pull}22433[#22433]
+
+Core::
+* Streamline foreign stored context restore and allow to perserve response headers {pull}22677[#22677] (issue: {issue}22647[#22647])
+* Support negative numbers in readVLong {pull}22314[#22314]
+
+Discovery::
+* Close InputStream when receiving cluster state in PublishClusterStateAction {pull}22711[#22711]
+* Do not reply to pings from another cluster {pull}21894[#21894] (issue: {issue}21874[#21874])
+
+Engine::
+* Close and flush refresh listeners on shard close {pull}22342[#22342]
+
+Exceptions::
+* Fixing shard recovery error message to report the number of docs correctly for each node {pull}22515[#22515] (issue: {issue}21893[#21893])
+
+Highlighting::
+* Fix FiltersFunctionScoreQuery highlighting {pull}21827[#21827]
+
+Index APIs::
+* Ensure shrunk indices carry over version information from its source {pull}22469[#22469] (issue: {issue}22373[#22373])
+
+Ingest::
+* fix index out of bounds error in KV Processor {pull}22288[#22288] (issue: {issue}22272[#22272])
+* Fixes GrokProcessor's ignorance of named-captures with same name. {pull}22131[#22131] (issue: {issue}22117[#22117])
+
+Inner Hits::
+* Inner hits and ignore unmapped {pull}21693[#21693] (issue: {issue}21620[#21620])
+
+Internal::
+* Index creation and setting update may not return deprecation logging {pull}22702[#22702]
+
+Java API::
+* Don't output empty ext object in SearchSourceBuilder#toXContent {pull}22093[#22093] (issue: {issue}20969[#20969])
+
+Java REST Client::
+* Don't use null charset in RequestLogger {pull}22197[#22197] (issue: {issue}22190[#22190])
+
+Mapping::
+* The `_all` default mapper is not completely configured. {pull}22236[#22236]
+* Fix MapperService.allEnabled(). {pull}22227[#22227]
+* Dynamic `date` fields should use the `format` that was used to detect it is a date. {pull}22174[#22174] (issue: {issue}9410[#9410])
+* Sub-fields should not accept `include_in_all` parameter {pull}21971[#21971] (issue: {issue}21710[#21710])
+* Mappings: Fix get mapping when no indexes exist to not fail in response generation {pull}21924[#21924] (issue: {issue}21916[#21916])
+
+Nested Docs::
+* Fix bug in query builder rewrite that ignores the ignore_unmapped option {pull}22456[#22456]
+
+Network::
+* Pass `forceExecution` flag to transport interceptor {pull}22739[#22739]
+* Ensure new connections won't be opened if transport is closed or closing {pull}22589[#22589] (issue: {issue}22554[#22554])
+* Prevent open channel leaks if handshake times out or is interrupted {pull}22554[#22554]
+* Execute low level handshake in #openConnection {pull}22440[#22440]
+* Properly configure Netty 3 ClientBootstrap when using custom connection profile {pull}22363[#22363] (issue: {issue}22277[#22277])
+* Handle connection close / reset events gracefully during handshake {pull}22178[#22178]
+* Do not lose host information when pinging {pull}21939[#21939] (issue: {issue}21828[#21828])
+* DiscoveryNode and TransportAddress should preserve host information {pull}21828[#21828]
+
+Packaging::
+* Another fix for handling of paths on Windows {pull}22132[#22132] (issue: {issue}21921[#21921])
+* Fix handling of spaces in Windows paths {pull}21921[#21921] (issues: {issue}20809[#20809], {issue}21525[#21525])
+* Add option to skip kernel parameters on install {pull}21899[#21899] (issue: {issue}21877[#21877])
+
+Percolator::
+* Fix NPE in percolator's 'now' range check for percolator queries with range queries {pull}22356[#22356] (issue: {issue}22355[#22355])
+
+Plugin Analysis Stempel::
+* Fix thread safety of Stempel's token filter factory {pull}22610[#22610] (issue: {issue}21911[#21911])
+
+Plugin Lang Painless::
+* Whitelist some ScriptDocValues in painless {pull}22600[#22600] (issue: {issue}22584[#22584])
+* Update Painless Loop Counter to be Higher {pull}22560[#22560] (issue: {issue}22508[#22508])
+* Fix some issues with painless's strings {pull}22393[#22393] (issue: {issue}22372[#22372])
+* Test fix for def equals in Painless {pull}21945[#21945] (issue: {issue}21801[#21801])
+* Fix a VerifyError bug in Painless {pull}21765[#21765]
+
+Plugin Mapper Attachment::
+* NPE is raised when defining a non existing type within attachments type {pull}21848[#21848]
+
+Plugin Repository Azure::
+* Fixes default chunk size for Azure repositories {pull}22577[#22577] (issue: {issue}22513[#22513])
+* readonly on azure repository must be taken into account {pull}22055[#22055] (issues: {issue}22007[#22007], {issue}22053[#22053])
+
+Query DSL::
+* Fix script score function that combines `_score` and weight {pull}22713[#22713] (issue: {issue}21483[#21483])
+
+REST::
+* Adds percent-encoding for Location headers {pull}21057[#21057] (issue: {issue}21016[#21016])
+
+Recovery::
+* Fix primary relocation for shadow replicas {pull}22474[#22474] (issue: {issue}20300[#20300])
+* Don't close store under CancellableThreads {pull}22434[#22434] (issue: {issue}22325[#22325])
+* Use a fresh recovery id when retrying recoveries {pull}22325[#22325] (issue: {issue}22043[#22043])
+* Allow flush/force_merge/upgrade on shard marked as relocated {pull}22078[#22078] (issue: {issue}22043[#22043])
+
+Reindex API::
+* Fix reindex from remote clearing scroll {pull}22525[#22525] (issue: {issue}22514[#22514])
+* Fix source filtering in reindex-from-remote {pull}22514[#22514] (issue: {issue}22507[#22507])
+* Remove content type detection from reindex-from-remote {pull}22504[#22504] (issue: {issue}22329[#22329])
+* Don't close rest client from its callback {pull}22061[#22061] (issue: {issue}22027[#22027])
+* Keep context during reindex's retries {pull}21941[#21941]
+
+Scripting::
+* Expose `ip` fields as strings in scripts. {pull}21997[#21997] (issue: {issue}21977[#21977])
+
+Search::
+* Improve concurrency of ShardCoreKeyMap. {pull}22316[#22316]
+* Make `-0` compare less than `+0` consistently. {pull}22173[#22173] (issue: {issue}22167[#22167])
+* Fix boost_mode propagation when the function score query builder is rewritten {pull}22172[#22172] (issue: {issue}22138[#22138])
+* FiltersAggregationBuilder: rewriting filter queries, the same way as in FilterAggregationBuilder {pull}22076[#22076]
+* Fix cross_fields type on multi_match query with synonyms {pull}21638[#21638] (issue: {issue}21633[#21633])
+
+Search Templates::
+* SearchTemplateRequest to implement CompositeIndicesRequest {pull}21865[#21865] (issue: {issue}21747[#21747])
+
+Settings::
+* Handle spaces in `action.auto_create_index` gracefully {pull}21790[#21790] (issue: {issue}21449[#21449])
+* Fix settings diff generation for affix and group settings {pull}21788[#21788]
+
+Snapshot/Restore::
+* Gracefully handles pre 2.x compressed snapshots {pull}22267[#22267]
+* URLRepository should throw NoSuchFileException to correctly adhere to readBlob contract {pull}22069[#22069] (issue: {issue}22004[#22004])
+* Fixes shard level snapshot metadata loading when index-N file is missing {pull}21813[#21813]
+
+Stats::
+* Implement stats for geo_point and geo_shape field {pull}22391[#22391] (issue: {issue}22384[#22384])
+* Use reader for doc stats {pull}22317[#22317] (issue: {issue}22285[#22285])
+* Avoid NPE in NodeService#stats if HTTP is disabled {pull}22060[#22060] (issue: {issue}22058[#22058])
+* Add support for "include_segment_file_sizes" in indices stats REST handler {pull}21879[#21879] (issue: {issue}21878[#21878])
+
+Term Vectors::
+* Fix `_termvectors` with preference to not hit NPE {pull}21959[#21959]
+* Return correct term statistics when a field is not found in a shard {pull}21922[#21922] (issue: {issue}21906[#21906])
+
+
+
+[[regression-5.2.0]]
+[float]
+=== Regressions
+
+Core::
+* Source filtering: only accept array items if the previous include pattern matches {pull}22593[#22593] (issue: {issue}22557[#22557])
+
+Logging::
+* Restores the original default format of search slow log {pull}21770[#21770] (issue: {issue}21711[#21711])
+
+Search::
+* Handle specialized term queries in MappedFieldType.extractTerm(Query) {pull}21889[#21889] (issue: {issue}21882[#21882])
+
+
+
+[[upgrade-5.2.0]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene 6.4.0 {pull}22724[#22724]
+* Update Jackson to 2.8.6 {pull}22596[#22596] (issue: {issue}22266[#22266])
+* Upgrade to lucene-6.4.0-snapshot-084f7a0. {pull}22413[#22413]
+* Upgrade to lucene-6.4.0-snapshot-ec38570 {pull}21853[#21853]
+
+Network::
+* Upgrade to Netty 4.1.7 {pull}22587[#22587]
+
+

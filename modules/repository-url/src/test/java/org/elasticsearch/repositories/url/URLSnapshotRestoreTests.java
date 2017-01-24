@@ -41,11 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class URLSnapshotRestoreIT extends ESIntegTestCase {
-
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
+public class URLSnapshotRestoreTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

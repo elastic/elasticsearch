@@ -19,7 +19,7 @@
 
 esplugin {
     description 'Module for generic repositories'
-    classname 'org.elasticsearch.plugin.repositories.RepositoriesPlugin'
+    classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"

@@ -119,7 +119,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
-        long lastWeek = System.currentTimeMillis() - 604800000;
+        long lastWeek = now - 604800000;
         indexDocs("data", numDocs1, lastWeek, now);
 
         Job.Builder job = createJob();
@@ -177,14 +177,14 @@ public class DatafeedJobsIT extends ESIntegTestCase {
     }
 
     private void indexDocs(String index, long numDocs, long start, long end) {
-        int maxIncrement = (int) ((end - start) / numDocs);
+        int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        long timestamp = start;
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index, "type");
+            long timestamp = start + randomIntBetween(0, maxDelta);
+            assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp);
             bulkRequestBuilder.add(indexRequest);
-            timestamp += randomIntBetween(1, maxIncrement);
         }
         BulkResponse bulkResponse = bulkRequestBuilder
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

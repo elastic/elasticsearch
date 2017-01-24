@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.gradle
 
-import org.gradle.internal.logging.progress.ProgressLogger
-
 /**
  * Wraps a ProgressLogger so that code in src/main/groovy does not need to
  * define imports on Gradle 2.13/2.14+ ProgressLoggers
  */
-class ProgressLoggerWrapper {
-    ProgressLogger progressLogger
+class ProgressLogger {
+    @Delegate org.gradle.internal.logging.progress.ProgressLogger progressLogger
 
-    ProgressLoggerWrapper(ProgressLogger progressLogger) {
+    ProgressLogger(org.gradle.internal.logging.progress.ProgressLogger progressLogger) {
         this.progressLogger = progressLogger
     }
 }

@@ -33,13 +33,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.DatafeedStatusObserver;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -93,17 +93,19 @@ public class StopDatafeedAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            stopTimeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            out.writeVLong(stopTimeout.millis());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId);
+            return Objects.hash(datafeedId, stopTimeout);
         }
 
         @Override
@@ -115,7 +117,8 @@ public class StopDatafeedAction
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId);
+            return Objects.equals(datafeedId, other.datafeedId) &&
+                    Objects.equals(stopTimeout, other.stopTimeout);
         }
     }
 

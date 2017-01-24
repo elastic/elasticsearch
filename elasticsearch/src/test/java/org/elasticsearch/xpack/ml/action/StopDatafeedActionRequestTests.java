@@ -9,14 +9,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction.Request;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StopDatafeedActionRequestTests extends AbstractStreamableTestCase<StopDatafeedAction.Request> {
@@ -24,7 +24,9 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableTestCase<S
     @Override
     protected Request createTestInstance() {
         Request r = new Request(randomAsciiOfLengthBetween(1, 20));
-        r.setStopTimeout(TimeValue.timeValueSeconds(randomIntBetween(0, 999)));
+        if (randomBoolean()) {
+            r.setStopTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
         return r;
     }
 

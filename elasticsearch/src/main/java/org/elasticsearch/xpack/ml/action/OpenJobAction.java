@@ -113,7 +113,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, ignoreDowntime);
+            return Objects.hash(jobId, ignoreDowntime, openTimeout);
         }
 
         @Override
@@ -126,7 +126,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
             OpenJobAction.Request other = (OpenJobAction.Request) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(ignoreDowntime, other.ignoreDowntime);
+                    Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
+                    Objects.equals(openTimeout, other.openTimeout);
         }
     }
 

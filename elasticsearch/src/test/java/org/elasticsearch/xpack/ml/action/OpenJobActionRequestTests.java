@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.Request;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
@@ -12,7 +13,11 @@ public class OpenJobActionRequestTests extends AbstractStreamableTestCase<Reques
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            request.setOpenTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        return request;
     }
 
     @Override

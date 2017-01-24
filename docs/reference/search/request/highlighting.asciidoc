@@ -140,6 +140,7 @@ It supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting a
 * `encoder`
 * `highlight_query`
 * `pre_tags and `post_tags`
+* `require_field_match`
 
 ==== Force highlighter type
 

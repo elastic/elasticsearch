@@ -108,7 +108,12 @@ public class UnifiedHighlighter implements Highlighter {
                     mapperHighlighterEntry.passageFormatter, null, fieldValue, field.fieldOptions().noMatchSize() > 0);
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
-
+            if (field.fieldOptions().requireFieldMatch()) {
+                final String fieldName = highlighterContext.fieldName;
+                highlighter.setFieldMatcher((name) -> fieldName.equals(name));
+            } else {
+                highlighter.setFieldMatcher((name) -> true);
+            }
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
                 highlighterContext.query, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {

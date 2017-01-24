@@ -1003,7 +1003,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
 
             for (int i = 0; i < 5; i++) {
-                assertHighlight(search, i, "title", 0, 1, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+                assertHighlight(search, i, "title", 0, 1, equalTo("This is a test on the highlighting <em>bug</em> " +
+                    "present in elasticsearch"));
             }
         }
     }
@@ -2078,8 +2079,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             //lets fall back to the standard highlighter then, what people would do to highlight query matches
             logger.info("--> searching on field2, highlighting on field2, falling back to the plain highlighter");
             source = searchSource()
-             .highlighter(highlight()
-                    .field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").requireFieldMatch(false));
+                    .query(matchPhraseQuery("field2", "quick brown"))
+                    .highlighter(highlight()
+                        .field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").requireFieldMatch(false));
 
             searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
@@ -2273,7 +2275,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field("title").encoder("html").highlighterType(type)).get();
 
             for (int i = 0; i < indexRequestBuilders.length; i++) {
-                assertHighlight(searchResponse, i, "title", 0, 1, equalTo("This is a html escaping highlighting <em>test</em> for *&amp;?"));
+                assertHighlight(searchResponse, i, "title", 0, 1,
+                    equalTo("This is a html escaping highlighting <em>test</em> for *&amp;?"));
             }
         }
     }
@@ -2303,7 +2306,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             // simple search on body with standard analyzer with a simple field query
             SearchResponse searchResponse = client().prepareSearch()
                 //lets make sure we analyze the query and we highlight the resulting terms
-                .setQuery(matchQuery("title", "This is a Test")).highlighter(new HighlightBuilder().field("title").highlighterType(type)).get();
+                .setQuery(matchQuery("title", "This is a Test"))
+                .highlighter(new HighlightBuilder().field("title").highlighterType(type)).get();
 
             assertHitCount(searchResponse, 1L);
             SearchHit hit = searchResponse.getHits().getAt(0);
@@ -2317,7 +2321,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1L);
 
             //stopwords are now highlighted since we used only whitespace analyzer here
-            assertHighlight(searchResponse, 0, "title.key", 0, 1, equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> ."));
+            assertHighlight(searchResponse, 0, "title.key", 0, 1,
+                equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em> ."));
         }
     }
 

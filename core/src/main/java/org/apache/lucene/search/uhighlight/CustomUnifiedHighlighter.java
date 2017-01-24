@@ -146,6 +146,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         return rewriteCustomQuery(query);
     }
 
+
     /**
      * Translate custom queries in queries that are supported by the unified highlighter.
      */

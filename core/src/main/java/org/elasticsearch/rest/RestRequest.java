@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,6 +54,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestRequest.class));
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -59,8 +63,7 @@ public abstract class RestRequest implements ToXContent.Params {
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
-    private final XContentType xContentType;
-    private final boolean isPlainText;
+    private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
     /**
      * Creates a new RestRequest
@@ -82,8 +85,10 @@ public abstract class RestRequest implements ToXContent.Params {
         this.params = params;
         this.headers = Collections.unmodifiableMap(headers);
         final List<String> contentType = getAllHeaderValues("Content-Type");
-        this.xContentType = parseContentType(contentType);
-        this.isPlainText = xContentType == null && isPlainTextContentType(contentType);
+        final XContentType xContentType = parseContentType(contentType);
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
     }
 
     /**
@@ -100,8 +105,10 @@ public abstract class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         final List<String> contentType = getAllHeaderValues("Content-Type");
-        this.xContentType = parseContentType(contentType);
-        this.isPlainText = xContentType == null && isPlainTextContentType(contentType);
+        final XContentType xContentType = parseContentType(contentType);
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
     }
 
     public enum Method {
@@ -166,18 +173,19 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * The {@link XContentType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
      * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
-     * ({@link #isPlainText()})
      */
     @Nullable
     public final XContentType getXContentType() {
-        return xContentType;
+        return xContentType.get();
     }
 
     /**
-     * Returns {@code true} iff the request has content and the {@code Content-Type} header is a plain text header
+     * Sets the {@link XContentType}
+     * @deprecated this is only used to allow BWC with content-type detection
      */
-    public final boolean isPlainText() {
-        return isPlainText;
+    @Deprecated
+    final void setxContentType(XContentType xContentType) {
+        this.xContentType.set(xContentType);
     }
 
     @Nullable
@@ -330,10 +338,10 @@ public abstract class RestRequest implements ToXContent.Params {
         BytesReference content = content();
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
-        } else if (xContentType == null) {
+        } else if (xContentType.get() == null) {
             throw new IllegalStateException("Content-Type must be provided");
         }
-        return xContentType.xContent().createParser(xContentRegistry, content);
+        return xContentType.get().xContent().createParser(xContentRegistry, content);
     }
 
     /**
@@ -393,10 +401,10 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
         if (hasContent()) {
-            if (xContentType == null) {
+            if (xContentType.get() == null) {
                 throw new IllegalStateException("Content-Type must be provided");
             }
-            return new Tuple<>(xContentType, content());
+            return new Tuple<>(xContentType.get(), content());
         }
         String source = param("source");
         if (source != null) {
@@ -406,6 +414,8 @@ public abstract class RestRequest implements ToXContent.Params {
             if (typeParam != null) {
                 xContentType = parseContentType(Collections.singletonList(typeParam));
             } else {
+                DEPRECATION_LOGGER.deprecated("Deprecated use of the [source] parameter without the [source_content_type] parameter. Use " +
+                    "the [source_content_type] parameter to specify the content type of the source such as [application/json]");
                 xContentType = XContentFactory.xContentType(bytes);
             }
 
@@ -425,7 +435,7 @@ public abstract class RestRequest implements ToXContent.Params {
     @Deprecated
     public final void withContentOrSourceParamParserOrNullLenient(CheckedConsumer<XContentParser, IOException> withParser)
         throws IOException {
-        if (hasContent() && isPlainText) {
+        if (hasContent() && xContentType.get() == null) {
             withParser.accept(null);
         }
 
@@ -481,29 +491,5 @@ public abstract class RestRequest implements ToXContent.Params {
             }
         }
         return null;
-    }
-
-    /**
-     * Parses the Content-Type header and returns true if the header matches the plain text media type
-     */
-    private static boolean isPlainTextContentType(List<String> header) {
-        if (header == null || header.isEmpty()) {
-            return false;
-        } else if (header.size() > 1) {
-            throw new IllegalArgumentException("only one Content-Type header should be provided");
-        }
-
-        String rawContentType = header.get(0);
-        final String[] elements = rawContentType.split("[ \t]*;");
-        if (elements.length > 0) {
-            final String[] splitMediaType = elements[0].split("/");
-            if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
-                && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
-                return splitMediaType[0].equals("text") && (splitMediaType[1].equals("plain") || splitMediaType[1].equals("plain;"));
-            } else {
-                throw new IllegalArgumentException("invalid Content-Type header [" + rawContentType + "]");
-            }
-        }
-        return false;
     }
 }

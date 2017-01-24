@@ -43,6 +43,8 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -69,6 +71,10 @@ public class RestController extends AbstractComponent {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
 
+    private final boolean isContentTypeRequired;
+
+    private final DeprecationLogger deprecationLogger;
+
     public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
                           NodeClient client, CircuitBreakerService circuitBreakerService) {
         super(settings);
@@ -79,9 +85,9 @@ public class RestController extends AbstractComponent {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.isContentTypeRequired = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.get(settings);
+        this.deprecationLogger = new DeprecationLogger(logger);
     }
-
-
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
@@ -168,7 +174,8 @@ public class RestController extends AbstractComponent {
         RestChannel responseChannel = channel;
         try {
             final int contentLength = request.hasContent() ? request.content().length() : 0;
-            if (checkForContentType(request, responseChannel, contentLength)) {
+            final RestHandler handler = getHandler(request);
+            if (checkForContentType(request, responseChannel, contentLength, handler)) {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
@@ -176,7 +183,7 @@ public class RestController extends AbstractComponent {
                 }
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-                dispatchRequest(request, responseChannel, client, threadContext);
+                dispatchRequest(request, responseChannel, client, threadContext, handler);
             }
         } catch (Exception e) {
             try {
@@ -189,7 +196,8 @@ public class RestController extends AbstractComponent {
         }
     }
 
-    void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext) throws Exception {
+    void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
+                         final RestHandler handler) throws Exception {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
@@ -200,8 +208,6 @@ public class RestController extends AbstractComponent {
                     threadContext.putHeader(key, httpHeader);
                 }
             }
-
-            final RestHandler handler = getHandler(request);
 
             if (handler == null) {
                 if (request.method() == RestRequest.Method.OPTIONS) {
@@ -219,30 +225,62 @@ public class RestController extends AbstractComponent {
     }
 
     /**
-     * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present and matches an
-     * {@link XContentType} or the request is plain text.
+     * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present, matches an
+     * {@link XContentType} or the request is plain text, and content type is required. If content type is not required then this method
+     * returns true unless a content type could not be inferred from the body and the rest handler does not support plain text
      */
-    boolean checkForContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength) {
+    boolean checkForContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength,
+                                final RestHandler restHandler) {
         if (contentLength > 0) {
-            if (restRequest.getXContentType() == null && restRequest.isPlainText() == false) {
-                final List<String> contentTypeHeader = restRequest.getAllHeaderValues("Content-Type");
-                final String errorMessage;
-                if (contentTypeHeader == null) {
-                    errorMessage = "Content-Type header is missing";
+            if (restRequest.getXContentType() == null) {
+                if (restHandler != null && restHandler.supportsPlainText()) {
+                    deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                        "in a supported format.");
+                } else if (isContentTypeRequired) {
+                    sendContentTypeErrorMessage(restRequest, channel);
+                    return false;
                 } else {
-                    errorMessage = "Content-Type header [" +
-                        Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
+                    deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using" +
+                        "the [Content-Type] header.");
+                    XContentType xContentType = XContentFactory.xContentType(restRequest.content());
+                    if (xContentType == null) {
+                        if (restHandler != null) {
+                            if (restHandler.supportsPlainText()) {
+                                deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                                    "in a supported format.");
+                            } else {
+                                try {
+                                    channel.sendErrorResponse(NOT_ACCEPTABLE, "Could not determine content type from request body.");
+                                } catch (IOException e) {
+                                    logger.warn("Failed to send response", e);
+                                }
+                                return false;
+                            }
+                        }
+                    } else {
+                        restRequest.setxContentType(xContentType);
+                    }
                 }
-
-                try {
-                    channel.sendErrorResponse(NOT_ACCEPTABLE, errorMessage);
-                } catch (IOException e) {
-                    logger.warn("Failed to send response", e);
-                }
-                return false;
             }
         }
         return true;
+    }
+
+    private void sendContentTypeErrorMessage(RestRequest restRequest, RestChannel channel) {
+        final List<String> contentTypeHeader = restRequest.getAllHeaderValues("Content-Type");
+        final String errorMessage;
+        if (contentTypeHeader == null) {
+            errorMessage = "Content-Type header is missing";
+        } else {
+            errorMessage = "Content-Type header [" +
+                Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
+        }
+
+        try {
+            channel.sendErrorResponse(NOT_ACCEPTABLE, errorMessage);
+        } catch (IOException e) {
+            logger.warn("Failed to send response", e);
+        }
     }
 
     /**

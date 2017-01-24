@@ -64,6 +64,7 @@ public class RestRequestTests extends ESTestCase {
             new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParam().v2());
         assertEquals(new BytesArray("{\"foo\": \"stuff\"}"),
             new ContentRestRequest("", singletonMap("source", "{\"foo\": \"stuff\"}")).contentOrSourceParam().v2());
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -80,6 +81,7 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamParser().map());
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
@@ -89,6 +91,7 @@ public class RestRequestTests extends ESTestCase {
                 assertEquals(emptyMap(), parser.map()));
         new ContentRestRequest("", singletonMap("source", "{}")).withContentOrSourceParamParserOrNull(parser ->
                 assertEquals(emptyMap(), parser.map()));
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
     }
 
     public void testContentTypeParsing() {
@@ -97,13 +100,11 @@ public class RestRequestTests extends ESTestCase {
             map.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             ContentRestRequest restRequest = new ContentRestRequest("", Collections.emptyMap(), map);
             assertEquals(xContentType, restRequest.getXContentType());
-            assertFalse(restRequest.isPlainText());
 
             map = new HashMap<>();
             map.put("Content-Type", Collections.singletonList(xContentType.mediaTypeWithoutParameters()));
             restRequest = new ContentRestRequest("", Collections.emptyMap(), map);
             assertEquals(xContentType, restRequest.getXContentType());
-            assertFalse(restRequest.isPlainText());
         }
     }
 
@@ -112,7 +113,6 @@ public class RestRequestTests extends ESTestCase {
             Collections.singletonMap("Content-Type",
                 Collections.singletonList(randomFrom("text/plain", "text/plain; charset=utf-8", "text/plain;charset=utf-8"))));
         assertNull(restRequest.getXContentType());
-        assertTrue(restRequest.isPlainText());
     }
 
     public void testMalformedContentTypeHeader() {
@@ -125,7 +125,6 @@ public class RestRequestTests extends ESTestCase {
     public void testNoContentTypeHeader() {
         ContentRestRequest contentRestRequest = new ContentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
         assertNull(contentRestRequest.getXContentType());
-        assertFalse(contentRestRequest.isPlainText());
     }
 
     public void testMultipleContentTypeHeaders() {

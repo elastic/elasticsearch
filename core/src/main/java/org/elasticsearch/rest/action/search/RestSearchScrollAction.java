@@ -59,7 +59,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
         request.withContentOrSourceParamParserOrNull(xContentParser -> {
             if (xContentParser == null) {
-                if (request.hasContent() && request.isPlainText()) {
+                if (request.hasContent()) {
                     // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
                     BytesReference body = request.getContentOrSourceParamOnly();
                     if (scrollId == null) {
@@ -77,6 +77,11 @@ public class RestSearchScrollAction extends BaseRestHandler {
             }
         });
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean supportsPlainText() {
+        return true;
     }
 
     public static void buildFromContent(XContentParser parser, SearchScrollRequest searchScrollRequest) throws IOException {

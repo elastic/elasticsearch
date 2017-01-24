@@ -290,7 +290,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private void ensureNoWarnings() throws IOException {
-        //Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+        //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);

@@ -50,7 +50,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
         request.withContentOrSourceParamParserOrNullLenient((xContentParser -> {
             if (xContentParser == null) {
-                if (request.hasContent() && request.isPlainText()) {
+                if (request.hasContent()) {
                     // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
                     BytesReference body = request.content();
                     String bodyScrollIds = body.utf8ToString();
@@ -68,6 +68,11 @@ public class RestClearScrollAction extends BaseRestHandler {
         }));
 
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean supportsPlainText() {
+        return true;
     }
 
     private static String[] splitScrollIds(String scrollIds) {

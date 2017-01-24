@@ -37,4 +37,9 @@ public interface RestHandler {
     default boolean canTripCircuitBreaker() {
         return true;
     }
+
+    @Deprecated
+    default boolean supportsPlainText() {
+        return false;
+    }
 }

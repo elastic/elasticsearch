@@ -1,6 +1,8 @@
 [[modules-cross-cluster-search]]
 == Cross cluster search
 
+experimental[]
+
 The _cross cluster search_ feature allows any node to act as a federated client across
 multiple clusters. In contrast to the _tribe_ feature, a  _cross cluster search_ node won't
 join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute

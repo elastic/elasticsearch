@@ -52,7 +52,8 @@ public class GetResultTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
         GetResult expectedGetResult = tuple.v2();
-        BytesReference originalBytes = toXContent(getResult, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(getResult, xContentType, humanReadable);
         //test that we can parse what we print out
         GetResult parsedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -61,7 +62,7 @@ public class GetResultTests extends ESTestCase {
         }
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
-        BytesReference finalBytes = toXContent(parsedGetResult, xContentType);
+        BytesReference finalBytes = toXContent(parsedGetResult, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResult.sourceAsString(), parsedGetResult.sourceAsString());
@@ -93,7 +94,8 @@ public class GetResultTests extends ESTestCase {
         GetResult expectedGetResult = new GetResult(null, null, null, -1,
                 tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields());
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContentEmbedded(getResult, xContentType, humanReadable);
 
         // Test that we can parse the result of toXContentEmbedded()
         GetResult parsedEmbeddedGetResult;
@@ -105,7 +107,7 @@ public class GetResultTests extends ESTestCase {
 
         assertEquals(expectedGetResult, parsedEmbeddedGetResult);
         //print the parsed object out and test that the output is the same as the original output
-        BytesReference finalBytes = toXContentEmbedded(parsedEmbeddedGetResult, xContentType);
+        BytesReference finalBytes = toXContentEmbedded(parsedEmbeddedGetResult, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResult.sourceAsString(), parsedEmbeddedGetResult.sourceAsString());
@@ -119,7 +121,7 @@ public class GetResultTests extends ESTestCase {
         GetResult getResult = new GetResult("index", "type", "id", 2, true,
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON);
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}," +
                 "\"fields\":{\"foo\":[\"bar\"],\"baz\":[\"baz_0\",\"baz_1\"]}}", originalBytes.utf8ToString());
     }
@@ -127,7 +129,7 @@ public class GetResultTests extends ESTestCase {
     public void testToXContentEmbeddedNotFound() throws IOException {
         GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
 
-        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON);
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
     }
 
@@ -213,7 +215,8 @@ public class GetResultTests extends ESTestCase {
         return Tuple.tuple(fields, expectedFields);
     }
 
-    private static BytesReference toXContentEmbedded(GetResult getResult, XContentType xContentType) throws IOException {
-        return XContentHelper.toXContent(getResult::toXContentEmbedded, xContentType);
+    private static BytesReference toXContentEmbedded(GetResult getResult, XContentType xContentType, boolean humanReadable)
+            throws IOException {
+        return XContentHelper.toXContent(getResult::toXContentEmbedded, xContentType, humanReadable);
     }
 }

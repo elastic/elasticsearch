@@ -38,12 +38,12 @@ public final class SocketAccess {
     private SocketAccess() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
-        checkSpecialPermission();
+        SpecialPermission.check();
         return AccessController.doPrivileged(operation);
     }
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        checkSpecialPermission();
+        SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
@@ -51,21 +51,12 @@ public final class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoid(StorageRunnable action) {
-        checkSpecialPermission();
+    public static void doPrivilegedVoid(Runnable action) {
+        SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            action.execute();
+            action.run();
             return null;
         });
-    }
-
-    private static void checkSpecialPermission() {
-        SpecialPermission.check();
-    }
-
-    @FunctionalInterface
-    public interface StorageRunnable {
-        void execute();
     }
 
 }

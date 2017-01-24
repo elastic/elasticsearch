@@ -19,9 +19,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
-import org.gradle.api.logging.Logger
-import org.gradle.logging.ProgressLogger
-import org.gradle.logging.ProgressLoggerFactory
+import org.elasticsearch.gradle.ProgressLoggerWrapper
 
 /**
  * Adapts an OutputStream being written to by vagrant into a ProcessLogger. It
@@ -47,7 +45,7 @@ import org.gradle.logging.ProgressLoggerFactory
 public class VagrantLoggerOutputStream extends LoggingOutputStream {
     private static final String HEADING_PREFIX = '==> '
 
-    private final ProgressLogger progressLogger
+    private final ProgressLoggerWrapper progressLoggerWrapper
     private boolean isStarted = false
     private String squashedPrefix
     private String lastLine = ''
@@ -55,15 +53,15 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
     private String heading = ''
 
     VagrantLoggerOutputStream(Map args) {
-        progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
-        progressLogger.setDescription("Vagrant output for `$args.command`")
+        progressLoggerWrapper = new ProgressLoggerWrapper(args.factory.newOperation(VagrantLoggerOutputStream))
+        progressLoggerWrapper.progressLogger.setDescription("Vagrant output for `$args.command`")
         squashedPrefix = args.squashedPrefix
     }
 
     @Override
     public void flush() {
         if (isStarted == false) {
-            progressLogger.started()
+            progressLoggerWrapper.progressLogger.started()
             isStarted = true
         }
         if (end == start) return
@@ -98,6 +96,6 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
         } else {
             return
         }
-        progressLogger.progress(line)
+        progressLoggerWrapper.progressLogger.progress(line)
     }
 }

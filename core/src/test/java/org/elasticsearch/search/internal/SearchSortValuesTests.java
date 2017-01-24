@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -66,25 +66,20 @@ public class SearchSortValuesTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         SearchSortValues sortValues = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        builder.startObject(); // we need to wrap xContent output in proper object to create a parser for it
-        builder = sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(sortValues, xcontentType, humanReadable);
 
-        XContentParser parser = createParser(builder);
-        parser.nextToken(); // skip to the elements start array token, fromXContent advances from there if called
-        parser.nextToken();
-        parser.nextToken();
-        if (sortValues.sortValues().length > 0) {
-            SearchSortValues parsed = SearchSortValues.fromXContent(parser);
-            assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
+        SearchSortValues parsed;
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            parser.nextToken(); // skip to the elements start array token, fromXContent advances from there if called
             parser.nextToken();
+            parser.nextToken();
+            parsed = SearchSortValues.fromXContent(parser);
+            parser.nextToken();
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
         }
-        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertNull(parser.nextToken());
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, humanReadable), xcontentType);
     }
 
     public void testToXContent() throws IOException {

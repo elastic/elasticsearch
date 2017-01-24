@@ -35,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -191,6 +190,10 @@ public class OsProbe {
     // pattern for lines in /proc/self/cgroup
     private static final Pattern CONTROL_GROUP_PATTERN = Pattern.compile("\\d+:([^:,]+(?:,[^:,]+)?):(/.*)");
 
+    // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
+    // respect to /proc/self/cgroup; for Docker containers this should be set to "/"
+    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("es.cgroups.hierarchy.override");
+
     /**
      * A map of the control groups to which the Elasticsearch process belongs. Note that this is a map because the control groups can vary
      * from subsystem to subsystem. Additionally, this map can not be cached because a running process can be reclassified.
@@ -209,7 +212,16 @@ public class OsProbe {
             // at this point we have captured the subsystems and the control group
             final String[] controllers = matcher.group(1).split(",");
             for (final String controller : controllers) {
-                controllerMap.put(controller, matcher.group(2));
+                if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {
+                    /*
+                     * Docker violates the relationship between /proc/self/cgroups and the /sys/fs/cgroup hierarchy. It's possible that this
+                     * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
+                     * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
+                     */
+                    controllerMap.put(controller, CONTROL_GROUPS_HIERARCHY_OVERRIDE);
+                } else {
+                    controllerMap.put(controller, matcher.group(2));
+                }
             }
         }
         return controllerMap;

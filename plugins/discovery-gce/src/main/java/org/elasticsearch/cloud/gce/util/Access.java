@@ -42,10 +42,10 @@ public final class Access {
         return AccessController.doPrivileged(operation);
     }
 
-    public static void doPrivilegedVoid(DiscoveryRunnable action) {
+    public static void doPrivilegedVoid(Runnable action) {
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            action.execute();
+            action.run();
             return null;
         });
     }
@@ -57,10 +57,5 @@ public final class Access {
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
         }
-    }
-
-    @FunctionalInterface
-    public interface DiscoveryRunnable {
-        void execute();
     }
 }

@@ -82,16 +82,17 @@ public class UpdateResponseTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
+        boolean humanReadable = randomBoolean();
 
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(tuple.v1(), xContentType))) {
+        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(tuple.v1(), xContentType, humanReadable))) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
         final UpdateResponse expectedUpdateResponse = tuple.v2();
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType))) {
+        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType, humanReadable))) {
             IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parser.map());
         }
         assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());

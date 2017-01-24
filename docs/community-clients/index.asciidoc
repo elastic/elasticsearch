@@ -217,7 +217,7 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
 * https://github.com/ankane/searchkick[Searchkick]:
   Intelligent search made easy
 
-* https://github.com/artsy/stella[Stella]:
+* https://github.com/artsy/estella[Estella]:
   Make your Ruby models searchable
 
 The following projects appear to be abandoned:

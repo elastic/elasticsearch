@@ -8,22 +8,23 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
-import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
@@ -63,7 +64,7 @@ public class AutodetectCommunicator implements Closeable {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         boolean usePerPartitionNormalization = analysisConfig.getUsePerPartitionNormalization();
         autoDetectExecutor.execute(() ->
-            autoDetectResultProcessor.process(job.getId(), process.getProcessOutStream(), usePerPartitionNormalization)
+            autoDetectResultProcessor.process(process.getProcessOutStream(), usePerPartitionNormalization)
         );
         autoDetectExecutor.execute(() ->
             stateProcessor.process(job.getId(), process.getPersistStream())
@@ -152,20 +153,20 @@ public class AutodetectCommunicator implements Closeable {
         return autodetectProcess.getProcessStartTime();
     }
 
-    public Optional<ModelSizeStats> getModelSizeStats() {
+    public ModelSizeStats getModelSizeStats() {
         return autoDetectResultProcessor.modelSizeStats();
     }
 
-    public Optional<DataCounts> getDataCounts() {
-        return Optional.ofNullable(dataCountsReporter.runningTotalStats());
+    public DataCounts getDataCounts() {
+        return dataCountsReporter.runningTotalStats();
     }
 
-    private <T> T checkAndRun(Supplier<String> errorMessage, Callback<T> callback, boolean wait) throws IOException {
+    private <T> T checkAndRun(Supplier<String> errorMessage, CheckedSupplier<T, IOException> callback, boolean wait) throws IOException {
         CountDownLatch latch = new CountDownLatch(1);
         if (inUse.compareAndSet(null, latch)) {
             try {
                 checkProcessIsAlive();
-                return callback.run();
+                return callback.get();
             } finally {
                 latch.countDown();
                 inUse.set(null);
@@ -182,17 +183,11 @@ public class AutodetectCommunicator implements Closeable {
                     }
                 }
                 checkProcessIsAlive();
-                return callback.run();
+                return callback.get();
             } else {
                 throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
             }
         }
-    }
-
-    private interface Callback<T> {
-
-        T run() throws IOException;
-
     }
 
 }

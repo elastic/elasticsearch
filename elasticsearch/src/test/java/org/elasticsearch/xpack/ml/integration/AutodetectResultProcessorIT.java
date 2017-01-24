@@ -11,23 +11,23 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.noop.NoOpRenormalizer;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
@@ -62,7 +62,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private JobProvider jobProvider;
 
     @Before
-    private void createComponents() {
+    public void createComponents() {
         renormalizer = new NoOpRenormalizer();
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
         autodetectResultsParser = new AutodetectResultsParser(nodeSettings());
@@ -73,7 +73,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(renormalizer, jobResultsPersister, autodetectResultsParser);
+                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
 
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream);
@@ -108,7 +108,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             }
         }).start();
 
-        resultProcessor.process(JOB_ID, inputStream, false);
+        resultProcessor.process(inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
@@ -149,7 +149,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(renormalizer, jobResultsPersister, autodetectResultsParser);
+                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
 
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream);
@@ -173,7 +173,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             }
         }).start();
 
-        resultProcessor.process(JOB_ID, inputStream, false);
+        resultProcessor.process(inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -194,7 +194,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(renormalizer, jobResultsPersister, autodetectResultsParser);
+                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
 
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream);
@@ -222,7 +222,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             }
         }).start();
 
-        resultProcessor.process(JOB_ID, inputStream, false);
+        resultProcessor.process(inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -240,7 +240,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(renormalizer, jobResultsPersister, autodetectResultsParser);
+                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
 
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream);
@@ -263,7 +263,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             }
         }).start();
 
-        resultProcessor.process(JOB_ID, inputStream, false);
+        resultProcessor.process(inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());

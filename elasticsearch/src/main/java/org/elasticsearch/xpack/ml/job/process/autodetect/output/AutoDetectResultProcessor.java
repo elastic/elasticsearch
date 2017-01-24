@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -25,13 +25,12 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process(String, InputStream, boolean)} method and persists parsed
+ * {@link #process(InputStream, boolean)} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -50,6 +49,7 @@ public class AutoDetectResultProcessor {
 
     private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
 
+    private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
     private final AutodetectResultsParser parser;
@@ -59,19 +59,24 @@ public class AutoDetectResultProcessor {
 
     private volatile ModelSizeStats latestModelSizeStats;
 
-    public AutoDetectResultProcessor(Renormalizer renormalizer, JobResultsPersister persister, AutodetectResultsParser parser) {
-        this(renormalizer, persister, parser, new FlushListener());
+    public AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+                                     AutodetectResultsParser parser) {
+        this(jobId, renormalizer, persister, parser, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Renormalizer renormalizer, JobResultsPersister persister, AutodetectResultsParser parser,
+    AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister, AutodetectResultsParser parser,
                               FlushListener flushListener) {
+        this.jobId = jobId;
         this.renormalizer = renormalizer;
         this.persister = persister;
         this.parser = parser;
         this.flushListener = flushListener;
+
+        ModelSizeStats.Builder builder = new ModelSizeStats.Builder(jobId);
+        latestModelSizeStats = builder.build();
     }
 
-    public void process(String jobId, InputStream in, boolean isPerPartitionNormalization) {
+    public void process(InputStream in, boolean isPerPartitionNormalization) {
         try (Stream<AutodetectResult> stream = parser.parseResults(in)) {
             int bucketCount = 0;
             Iterator<AutodetectResult> iterator = stream.iterator();
@@ -209,8 +214,8 @@ public class AutoDetectResultProcessor {
         }
     }
 
-    public Optional<ModelSizeStats> modelSizeStats() {
-        return Optional.ofNullable(latestModelSizeStats);
+    public ModelSizeStats modelSizeStats() {
+        return latestModelSizeStats;
     }
 
 }

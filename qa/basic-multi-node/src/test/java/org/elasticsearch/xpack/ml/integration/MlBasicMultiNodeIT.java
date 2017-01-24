@@ -16,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -63,10 +64,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("closed", true), responseEntityToMap(response));
 
-        response = client().performRequest("get", "/.ml-anomalies-" + jobId + "/data_counts/" + jobId + "-data-counts");
+        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         assertEquals(200, response.getStatusLine().getStatusCode());
         @SuppressWarnings("unchecked")
-        Map<String, Object> dataCountsDoc = (Map<String, Object>) responseEntityToMap(response).get("_source");
+        Map<String, Object> dataCountsDoc = (Map<String, Object>)
+                ((Map)((List) responseEntityToMap(response).get("jobs")).get(0)).get("data_counts");
         assertEquals(2, dataCountsDoc.get("processed_record_count"));
         assertEquals(4, dataCountsDoc.get("processed_field_count"));
         assertEquals(177, dataCountsDoc.get("input_bytes"));

@@ -9,6 +9,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +47,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -55,6 +56,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 public class AutodetectProcessManager extends AbstractComponent {
 
@@ -234,7 +236,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                     normalizerFactory);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
                     threadPool.executor(MlPlugin.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormalizer, jobResultsPersister, parser);
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(jobId, renormalizer, jobResultsPersister, parser);
 
             AutodetectProcess process = null;
             try {
@@ -336,21 +338,12 @@ public class AutodetectProcessManager extends AbstractComponent {
         client.execute(UpdateJobStatusAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
     }
 
-    public Optional<ModelSizeStats> getModelSizeStats(String jobId) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            return Optional.empty();
-        }
-
-        return communicator.getModelSizeStats();
-    }
-
-    public Optional<DataCounts> getDataCounts(String jobId) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            return Optional.empty();
-        }
-
-        return communicator.getDataCounts();
+    public Stream<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {
+        return autoDetectCommunicatorByJob.entrySet().stream()
+                .filter(entry -> jobId.equals(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .map(autodetectCommunicator -> {
+                    return new Tuple<>(autodetectCommunicator.getDataCounts(), autodetectCommunicator.getModelSizeStats());
+                });
     }
 }

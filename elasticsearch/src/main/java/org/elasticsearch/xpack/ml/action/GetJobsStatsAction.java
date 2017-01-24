@@ -7,14 +7,15 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -28,24 +29,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -74,18 +75,27 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         return new Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends BaseTasksRequest<Request> {
 
         private String jobId;
 
+        // used internally to expand _all jobid to encapsulate all jobs in cluster:
+        private List<String> expandedJobsIds;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.expandedJobsIds = Collections.singletonList(jobId);
         }
 
         Request() {}
 
         public String getJobId() {
             return jobId;
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return jobId.equals(Job.ALL) || InternalOpenJobAction.JobTask.match(task, jobId);
         }
 
         @Override
@@ -97,12 +107,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
+            expandedJobsIds = in.readList(StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
+            out.writeStringList(expandedJobsIds);
         }
 
         @Override
@@ -130,7 +142,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
 
         public static class JobStats implements ToXContent, Writeable {
             private final String jobId;
@@ -215,10 +227,19 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         private QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
+            super(Collections.emptyList(), Collections.emptyList());
             this.jobsStats = jobsStats;
         }
 
-        public Response() {}
+        Response(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures,
+                 QueryPage<JobStats> jobsStats) {
+            super(taskFailures, nodeFailures);
+            this.jobsStats = jobsStats;
+        }
+
+        public Response() {
+            super(Collections.emptyList(), Collections.emptyList());
+        }
 
         public QueryPage<JobStats> getResponse() {
             return jobsStats;
@@ -278,80 +299,121 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends TransportTasksAction<InternalOpenJobAction.JobTask, Request, Response,
+            QueryPage<Response.JobStats>> {
 
         private final ClusterService clusterService;
-        private final JobManager jobManager;
         private final AutodetectProcessManager processManager;
         private final JobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, AutodetectProcessManager processManager, JobProvider jobProvider) {
-            super(settings, GetJobsStatsAction.NAME, false, threadPool, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                               AutodetectProcessManager processManager, JobProvider jobProvider) {
+            super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                    indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT);
             this.clusterService = clusterService;
-            this.jobManager = jobManager;
             this.processManager = processManager;
             this.jobProvider = jobProvider;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            if (Job.ALL.equals(request.getJobId())) {
+                MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+                request.expandedJobsIds = mlMetadata.getJobs().keySet().stream().collect(Collectors.toList());
+            }
+
+            ActionListener<Response> finalListener = listener;
+            listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(request, response, finalListener), listener::onFailure);
+            super.doExecute(task, request, listener);
+        }
+
+        @Override
+        protected Response newResponse(Request request, List<QueryPage<Response.JobStats>> tasks,
+                                       List<TaskOperationFailure> taskOperationFailures,
+                                       List<FailedNodeException> failedNodeExceptions) {
+            List<Response.JobStats> stats = new ArrayList<>();
+            for (QueryPage<Response.JobStats> task : tasks) {
+                stats.addAll(task.results());
+            }
+            return new Response(taskOperationFailures, failedNodeExceptions, new QueryPage<>(stats, stats.size(), Job.RESULTS_FIELD));
+        }
+
+        @Override
+        protected QueryPage<Response.JobStats> readTaskResponse(StreamInput in) throws IOException {
+            return new QueryPage<>(in, Response.JobStats::new);
+        }
+
+        @Override
+        protected boolean accumulateExceptions() {
+            return true;
+        }
+
+        @Override
+        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task,
+                                     ActionListener<QueryPage<Response.JobStats>> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
-            ClusterState clusterState = clusterService.state();
-            QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), clusterState);
-            if (jobs.count() == 0) {
-                listener.onResponse(new GetJobsStatsAction.Response(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
+            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            List<Response.JobStats> stats = processManager.getStatistics(request.getJobId()).map(t -> {
+                String jobId = t.v1().getJobid();
+                return new Response.JobStats(jobId, t.v1(), t.v2(), mlMetadata.getAllocations().get(jobId).getStatus());
+            }).collect(Collectors.toList());
+            listener.onResponse(new QueryPage<>(stats, stats.size(), Job.RESULTS_FIELD));
+        }
+
+        // Up until now we gathered the stats for jobs that were open,
+        // This method will fetch the stats for missing jobs, that was stored in the jobs index
+        void gatherStatsForClosedJobs(Request request, Response response, ActionListener<Response> listener) {
+            List<String> jobIds = determineJobIdsWithoutLiveStats(request.expandedJobsIds, response.jobsStats.results());
+            if (jobIds.isEmpty()) {
+                listener.onResponse(response);
                 return;
             }
 
-            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            AtomicInteger counter = new AtomicInteger(0);
-            AtomicArray<Response.JobStats> jobsStats = new AtomicArray<>(jobs.results().size());
-            for (int i  = 0; i < jobs.results().size(); i++) {
+            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            AtomicInteger counter = new AtomicInteger(jobIds.size());
+            AtomicArray<Response.JobStats> jobStats = new AtomicArray<>(jobIds.size());
+            for (int i = 0; i < jobIds.size(); i++) {
                 int slot = i;
-                Job job = jobs.results().get(slot);
-                gatherDataCountsAndModelSizeStats(job.getId(), (dataCounts, modelSizeStats) -> {
-                    JobStatus status = mlMetadata.getAllocations().get(job.getId()).getStatus();
-                    jobsStats.setOnce(slot, new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status));
-
-                    if (counter.incrementAndGet() == jobsStats.length()) {
-                        List<Response.JobStats> results =
-                                jobsStats.asList().stream().map(entry ->  entry.value).collect(Collectors.toList());
-                        QueryPage<Response.JobStats> jobsStatsPage = new QueryPage<>(results, results.size(), Job.RESULTS_FIELD);
-                        listener.onResponse(new GetJobsStatsAction.Response(jobsStatsPage));
+                String jobId = jobIds.get(i);
+                gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
+                    JobStatus jobStatus = mlMetadata.getAllocations().get(jobId).getStatus();
+                    jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobStatus));
+                    if (counter.decrementAndGet() == 0) {
+                        List<Response.JobStats> results = response.getResponse().results();
+                        results.addAll(jobStats.asList().stream()
+                                .map(e -> e.value)
+                                .collect(Collectors.toList()));
+                        listener.onResponse(new Response(response.getTaskFailures(), response.getNodeFailures(),
+                                new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }
                 }, listener::onFailure);
             }
         }
 
-        private void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
+        void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                        Consumer<Exception> errorHandler) {
-            readDataCounts(jobId, dataCounts -> {
-                readModelSizeStats(jobId, modelSizeStats -> {
+            jobProvider.dataCounts(jobId, dataCounts -> {
+                jobProvider.modelSizeStats(jobId, modelSizeStats -> {
                     handler.accept(dataCounts, modelSizeStats);
                 }, errorHandler);
             }, errorHandler);
         }
 
-        private void readDataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
-            Optional<DataCounts> counts = processManager.getDataCounts(jobId);
-            if (counts.isPresent()) {
-                handler.accept(counts.get());
-            } else {
-                jobProvider.dataCounts(jobId, handler, errorHandler);
+        static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds, List<Response.JobStats> stats) {
+            List<String> jobIds = new ArrayList<>();
+            outer: for (String jobId : requestedJobIds) {
+                for (Response.JobStats stat : stats) {
+                    if (stat.getJobid().equals(jobId)) {
+                        // we already have stats, no need to get stats for this job from an index
+                        continue outer;
+                    }
+                }
+                jobIds.add(jobId);
             }
+            return jobIds;
         }
 
-        private void readModelSizeStats(String jobId, Consumer<ModelSizeStats> handler, Consumer<Exception> errorHandler) {
-            Optional<ModelSizeStats> sizeStats = processManager.getModelSizeStats(jobId);
-            if (sizeStats.isPresent()) {
-                handler.accept(sizeStats.get());
-            } else {
-                jobProvider.modelSizeStats(jobId, handler, errorHandler);
-            }
-        }
     }
 }

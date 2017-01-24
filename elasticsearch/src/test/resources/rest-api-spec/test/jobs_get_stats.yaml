@@ -52,20 +52,6 @@ setup:
             "types":["response"]
           }
 
-  - do:
-      index:
-        index:  .ml-anomalies-job-stats-test
-        type:   result
-        id:     job-stats-test-model_size_stats
-        body:   {
-                  "job_id": "job-stats-test",
-                  "result_type": "model_size_stats",
-                  "log_time": 1480896000000,
-                  "timestamp": 1480896000000,
-                  "model_bytes": 100,
-                  "total_by_field_count": 2
-                }
-
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
 
@@ -89,8 +75,33 @@ setup:
   - match: { jobs.0.data_counts.processed_record_count: 2 }
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
-  - match: { jobs.0.model_size_stats.model_bytes: 100 }
+  - match: { jobs.0.model_size_stats.model_bytes: 0 }
   - match: { jobs.0.status: OPENED }
+
+---
+"Test get job stats for closed job":
+
+  - do:
+      xpack.ml.post_data:
+        job_id: job-stats-test
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+
+  - do:
+      xpack.ml.close_job:
+        job_id: job-stats-test
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: job-stats-test
+  - match: { jobs.0.job_id : job-stats-test }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - match: { jobs.0.data_counts.processed_field_count: 4}
+  - match: { jobs.0.data_counts.input_field_count: 4 }
+  - match: { jobs.0.model_size_stats.model_bytes: 9105 }
+  - match: { jobs.0.status: CLOSED }
 
 ---
 "Test get job stats of datafeed job that has not received and data":
@@ -100,7 +111,7 @@ setup:
         job_id: datafeed-job
   - match: { jobs.0.job_id : datafeed-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
-  - is_false: jobs.0.model_size_stats
+  - match: { jobs.0.model_size_stats.model_bytes : 0 }
   - match: { jobs.0.status: OPENED }
 
 ---

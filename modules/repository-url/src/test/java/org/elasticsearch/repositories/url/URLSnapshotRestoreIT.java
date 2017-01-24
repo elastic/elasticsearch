@@ -30,7 +30,6 @@ import org.elasticsearch.plugin.repository.url.URLRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -75,11 +74,27 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        CreateSnapshotResponse createSnapshotResponse = client
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx")
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        int actualTotalShards = createSnapshotResponse.getSnapshotInfo().totalShards();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(actualTotalShards));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        SnapshotState state = client
+            .admin()
+            .cluster()
+            .prepareGetSnapshots("test-repo")
+            .setSnapshots("test-snap")
+            .get()
+            .getSnapshots()
+            .get(0)
+            .state();
+        assertThat(state, equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -90,7 +105,14 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
                 .put("url", repositoryLocation.toUri().toURL())
                 .put("list_directories", randomBoolean())));
         logger.info("--> restore index after deletion");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("url-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client
+            .admin()
+            .cluster()
+            .prepareRestoreSnapshot("url-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx")
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));

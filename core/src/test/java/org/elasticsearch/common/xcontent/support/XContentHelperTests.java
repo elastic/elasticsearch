@@ -90,9 +90,9 @@ public class XContentHelperTests extends ESTestCase {
             }
         }
         if (error) {
-            expectThrows(IOException.class, () -> XContentHelper.toXContent(toXContent, xContentType));
+            expectThrows(IOException.class, () -> XContentHelper.toXContent(toXContent, xContentType, randomBoolean()));
         } else {
-            BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType);
+            BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, randomBoolean());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());

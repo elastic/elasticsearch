@@ -74,7 +74,7 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", timings, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
-        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON);
+        BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, randomBoolean());
         assertEquals("{\"aggregations\":["
                         + "{\"type\":\"someType\","
                             + "\"description\":\"someDescription\","

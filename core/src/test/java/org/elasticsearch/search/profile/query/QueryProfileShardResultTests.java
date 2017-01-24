@@ -53,7 +53,8 @@ public class QueryProfileShardResultTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         QueryProfileShardResult profileResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(profileResult, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
 
         QueryProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -62,7 +63,7 @@ public class QueryProfileShardResultTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType), xContentType);
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
 }

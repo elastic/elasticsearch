@@ -379,10 +379,6 @@ public class XContentHelper {
         }
     }
 
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType) throws IOException {
-        return toXContent(toXContent, xContentType, false);
-    }
-
     /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object.

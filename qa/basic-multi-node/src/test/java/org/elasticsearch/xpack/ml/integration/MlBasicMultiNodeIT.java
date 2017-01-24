@@ -12,8 +12,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
@@ -24,14 +28,20 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String jobId = "foo";
         createFarequoteJob(jobId);
 
-        Response response = client().performRequest("post", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
+        try {
+            Response response = client().performRequest("post", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
+        } catch (Exception e) {
+            Response response = client().performRequest("get", "/_cluster/nodes/hotthreads");
+            logger.warn("hot_threads:\n" + responseEntityToString(response));
+            throw e;
+        }
 
         String postData =
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}";
-        response = client().performRequest("post", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
+        Response response = client().performRequest("post", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
                 Collections.emptyMap(), new StringEntity(postData));
         assertEquals(202, response.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = responseEntityToMap(response);
@@ -101,5 +111,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
     private static Map<String, Object> responseEntityToMap(Response response) throws Exception {
         return XContentHelper.convertToMap(JSON.xContent(), response.getEntity().getContent(), false);
+    }
+
+    private static String responseEntityToString(Response response) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+            return reader.lines().collect(Collectors.joining("\n"));
+        }
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -68,20 +69,24 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
+    }
 
-        // send to old and read from old with a bad content type and see that we find the correct one
-        request = new SimulatePipelineRequest(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.YAML);
-        assertEquals(XContentType.YAML, request.getXContentType());
+    public void testSerializationWithXContentBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AAAAAnt9AAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            SimulatePipelineRequest request = new SimulatePipelineRequest();
+            request.readFrom(in);
+            assertEquals(XContentType.JSON, request.getXContentType());
+            assertEquals("{}", request.getSource().utf8ToString());
 
-        output = new BytesStreamOutput();
-        output.setVersion(Version.V_5_0_0);
-        request.writeTo(output);
-        in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
-
-        serialized = new SimulatePipelineRequest();
-        serialized.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
-        assertEquals("{}", serialized.getSource().utf8ToString());
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                request.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
     }
 }

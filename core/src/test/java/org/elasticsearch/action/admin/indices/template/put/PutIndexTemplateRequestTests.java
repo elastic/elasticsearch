@@ -73,27 +73,38 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
         BytesReference mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
         request.patterns(Collections.singletonList("foo"));
-        // THIS IS NOT A BUG! Intentionally specifying the wrong type so we serialize it
-        request.mapping("bar", mapping, XContentType.JSON);
+        request.mapping("bar", mapping, XContentType.YAML);
         assertEquals(mapping, request.mappings().get("bar").v2());
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0);
         request.writeTo(out);
 
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
         PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
         serialized.readFrom(in);
         assertEquals(mapping, serialized.mappings().get("bar").v2());
         assertEquals(XContentType.YAML, serialized.mappings().get("bar").v1());
+    }
 
-        out = new BytesStreamOutput();
-        request.writeTo(out);
-        in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        serialized = new PutIndexTemplateRequest();
-        serialized.readFrom(in);
-        assertEquals(mapping, serialized.mappings().get("bar").v2());
-        assertEquals(XContentType.JSON, serialized.mappings().get("bar").v1());
+    public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ADwDAANmb28IdGVtcGxhdGUAAAAAAAABA2Jhcg8tLS0KZm9vOiAiYmFyIgoAAAAAAAAAAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+            request.readFrom(in);
+            assertEquals(XContentType.YAML, request.mappings().get("bar").v1());
+            BytesReference mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
+            assertEquals(mapping, request.mappings().get("bar").v2());
+            assertEquals("foo", request.name());
+            assertEquals("template", request.patterns().get(0));
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                request.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
     }
 }

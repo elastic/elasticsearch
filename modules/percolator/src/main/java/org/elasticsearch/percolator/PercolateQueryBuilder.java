@@ -461,6 +461,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         return document;
     }
 
+    //pkg-private for testing
+    XContentType getXContentType() {
+        return xContentType;
+    }
+
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
         RAMDirectory ramDirectory = new RAMDirectory();
         try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(analyzer))) {

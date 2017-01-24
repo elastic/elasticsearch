@@ -35,30 +35,39 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 public class PipelineConfigurationTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         PipelineConfiguration configuration = new PipelineConfiguration("1",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.YAML);
-        assertEquals(XContentType.YAML, configuration.getXContentType());
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        assertEquals(XContentType.JSON, configuration.getXContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.YAML, serialized.getXContentType());
-        assertEquals("{}", serialized.getConfig().utf8ToString());
-
-        out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0);
-        configuration.writeTo(out);
-        in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
-
-        serialized = PipelineConfiguration.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getConfig().utf8ToString());
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ATECe30AAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PipelineConfiguration configuration = PipelineConfiguration.readFrom(in);
+            assertEquals(XContentType.JSON, configuration.getXContentType());
+            assertEquals("{}", configuration.getConfig().utf8ToString());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                configuration.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
     }
 
     public void testParser() throws IOException {

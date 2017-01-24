@@ -127,8 +127,10 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         scriptLang = in.readString();
         id = in.readOptionalString();
         script = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(script);
         }
     }
 
@@ -139,12 +141,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeOptionalString(id);
         out.writeBytesReference(script);
         if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-            if (xContentType == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
                 xContentType.writeTo(out);
-            }
         }
     }
 

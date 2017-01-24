@@ -551,9 +551,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 final XContentType xContentType = XContentType.readFrom(in);
                 mappings.put(type, new Tuple<>(xContentType, bytesReference));
             } else {
+                final String type = in.readString();
                 final BytesReference bytesReference = new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8));
                 final XContentType xContentType = XContentFactory.xContentType(bytesReference);
-                mappings.put(in.readString(), new Tuple<>(xContentType, bytesReference));
+                mappings.put(type, new Tuple<>(xContentType, bytesReference));
             }
         }
         int customSize = in.readVInt();

@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Base64;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -73,34 +74,40 @@ public class PutMappingRequestTests extends ESTestCase {
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
 
-    public void testPutMappingRequestFromOldVersion() throws IOException {
-        // this is hacky but here goes
+    public void testPutMappingRequestSerialization() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
         String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-        request.source(mapping, XContentType.JSON);
+        request.source(mapping, XContentType.YAML);
         assertEquals(mapping, request.source().utf8ToString());
 
-        // output version doesn't matter
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        bytesStreamOutput.setVersion(Version.V_5_0_0);
         request.writeTo(bytesStreamOutput);
-
         StreamInput in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
         PutMappingRequest serialized = new PutMappingRequest();
         serialized.readFrom(in);
 
         BytesReference source = serialized.source();
         assertEquals(mapping, source.utf8ToString());
+        assertEquals(XContentType.YAML, request.getXContentType());
+    }
 
-        // reading from a fixed version does no translation
-        bytesStreamOutput = new BytesStreamOutput();
-        request.writeTo(bytesStreamOutput);
-        in = StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes);
-        assertEquals(Version.CURRENT, in.getVersion());
-        serialized = new PutMappingRequest();
-        serialized.readFrom(in);
-        assertEquals(mapping, serialized.source().utf8ToString());
-        assertEquals(XContentType.JSON, serialized.getXContentType());
+    public void testSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ADwDAQNmb28MAA8tLS0KZm9vOiAiYmFyIgoAPAMAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PutMappingRequest request = new PutMappingRequest();
+            request.readFrom(in);
+            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            assertEquals(mapping, request.source().utf8ToString());
+            assertEquals(XContentType.YAML, request.getXContentType());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                request.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
     }
 }

@@ -17,56 +17,58 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.storedscripts;
+package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
 
-public class PutStoredScriptRequestTests extends ESTestCase {
+public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar");
-        storedScriptRequest.script(new BytesArray("{}"), XContentType.JSON);
+        CreateIndexRequest request = new CreateIndexRequest("foo");
+        BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
+        request.mapping("my_type", bytesReference, XContentType.JSON);
 
-        assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
+        assertEquals(XContentType.JSON, request.mappings().get("my_type").v1());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            storedScriptRequest.writeTo(output);
+            request.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
-                PutStoredScriptRequest serialized = new PutStoredScriptRequest();
+                CreateIndexRequest serialized = new CreateIndexRequest();
                 serialized.readFrom(in);
-                assertEquals(XContentType.JSON, serialized.xContentType());
-                assertEquals(storedScriptRequest.scriptLang(), serialized.scriptLang());
-                assertEquals(storedScriptRequest.id(), serialized.id());
+                assertEquals(XContentType.JSON, serialized.mappings().get("my_type").v1());
+                assertEquals(request.index(), serialized.index());
+                assertEquals(bytesReference, serialized.mappings().get("my_type").v2());
             }
         }
     }
 
     public void testSerializationBwc() throws IOException {
-        final byte[] rawStreamBytes = Base64.getDecoder().decode("ADwDCG11c3RhY2hlAQZzY3JpcHQCe30A");
+        final byte[] data = Base64.getDecoder().decode("ADwDAANmb28APAMBB215X3R5cGULeyJ0eXBlIjp7fX0AAAD////+AA==");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
             Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
-        try (StreamInput in = StreamInput.wrap(rawStreamBytes)) {
+        try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
-            PutStoredScriptRequest serialized = new PutStoredScriptRequest();
+            CreateIndexRequest serialized = new CreateIndexRequest();
             serialized.readFrom(in);
-            assertEquals(XContentType.JSON, serialized.xContentType());
-            assertEquals("mustache", serialized.scriptLang());
-            assertEquals("script", serialized.id());
-            assertEquals(new BytesArray("{}"), serialized.script());
+            assertEquals(XContentType.JSON, serialized.mappings().get("my_type").v1());
+            assertEquals("foo", serialized.index());
+            BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
+            assertEquals(bytesReference, serialized.mappings().get("my_type").v2());
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
                 serialized.writeTo(out);
                 out.flush();
-                assertArrayEquals(rawStreamBytes, out.bytes().toBytesRef().bytes);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
             }
         }
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -167,21 +169,20 @@ public class IndexRequestTests extends ESTestCase {
         IndexRequest serialized = new IndexRequest();
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
+        assertEquals(new BytesArray("{}"), serialized.source());
+    }
 
-        // test with an incorrect content type and send it to an old version then see that we get the right content type when reading
-        indexRequest = new IndexRequest("foo", "bar", "1");
-        indexRequest.source("{}", XContentType.YAML);
-        assertEquals(XContentType.YAML, indexRequest.getContentType());
-
-        out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0);
-        indexRequest.writeTo(out);
-        in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(Version.V_5_0_0);
-
-        serialized = new IndexRequest();
-        serialized.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getContentType());
-        assertEquals("{}", serialized.source().utf8ToString());
+    public void testIndexRequestXContentSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AAD////+AgQDZm9vAAAAAQNiYXIBATEAAAAAAnt9AP/////////9AAAA//////////8AAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            IndexRequest serialized = new IndexRequest();
+            serialized.readFrom(in);
+            assertEquals(XContentType.JSON, serialized.getContentType());
+            assertEquals("{}", serialized.source().utf8ToString());
+            // don't test writing to earlier versions since output differs due to no timestamp
+        }
     }
 }

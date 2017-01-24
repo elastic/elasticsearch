@@ -120,6 +120,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
         }
 
+        //pkg-private for testing
+        XContentType getXContentType() {
+            return xContentType;
+        }
+
+        //pkg-private for testing
+        BytesReference getSource() {
+            return source;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("full_name", fullName);

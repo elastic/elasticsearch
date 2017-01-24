@@ -18,7 +18,6 @@
  */
 
 import org.apache.tools.ant.types.Path
-import org.gradle.api.file.FileTree
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'

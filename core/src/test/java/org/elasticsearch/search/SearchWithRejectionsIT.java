@@ -54,7 +54,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
 
         int numSearches = 10;
         Future<SearchResponse>[] responses = new Future[numSearches];
-        SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_AND_FETCH, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_AND_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
+        SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_AND_FETCH, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);
         for (int i = 0; i < numSearches; i++) {
             responses[i] = client().prepareSearch()

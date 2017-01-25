@@ -426,7 +426,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+        throws ConnectTransportException {
         connectionProfile = resolveConnectionProfile(connectionProfile);
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");

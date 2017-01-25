@@ -204,7 +204,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
             if (connectionProfile == null) {
                 if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
                     throw new ConnectTransportException(node, "simulated");

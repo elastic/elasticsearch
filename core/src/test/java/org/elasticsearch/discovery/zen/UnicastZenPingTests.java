@@ -151,7 +151,8 @@ public class UnicastZenPingTests extends ESTestCase {
             v) {
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
             }
         };

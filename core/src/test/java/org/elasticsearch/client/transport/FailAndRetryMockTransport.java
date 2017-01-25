@@ -183,7 +183,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+        throws ConnectTransportException {
 
     }
 

@@ -869,8 +869,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.search.SearchContextException::new, 127, UNKNOWN_VERSION_ADDED),
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.elasticsearch.search.builder.SearchSourceBuilderException.class,
                 org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
-        ENGINE_CLOSED_EXCEPTION(org.elasticsearch.index.engine.EngineClosedException.class,
-                org.elasticsearch.index.engine.EngineClosedException::new, 129, UNKNOWN_VERSION_ADDED),
+        // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(org.elasticsearch.action.NoShardAvailableActionException.class,
                 org.elasticsearch.action.NoShardAvailableActionException::new, 130, UNKNOWN_VERSION_ADDED),
         UNAVAILABLE_SHARDS_EXCEPTION(org.elasticsearch.action.UnavailableShardsException.class,

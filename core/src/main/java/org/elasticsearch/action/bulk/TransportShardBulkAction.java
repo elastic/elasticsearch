@@ -177,7 +177,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 location = locationToSync(location, operationResult.getTranslogLocation());
                 BulkItemResponse primaryResponse = new BulkItemResponse(replicaRequest.id(), opType, response);
                 replicaRequest.setPrimaryResponse(primaryResponse);
-                // set the ShardInfo to 0 so we can safely send it to the replicas. We won't use it in the real response though.
+                // set an empty ShardInfo to indicate no shards participated in the request execution
+                // so we can safely send it to the replicas. We won't use it in the real response though.
                 primaryResponse.getResponse().setShardInfo(new ShardInfo());
             } else {
                 DocWriteRequest docWriteRequest = replicaRequest.request();
@@ -311,6 +312,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // set translated request as replica request
                         replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
                         break;
+                    default: throw new IllegalStateException("Illegal update operation " +
+                            updateOperationResult.getOperationType().getLowercase());
                 }
                 // successful operation
                 break; // out of retry loop

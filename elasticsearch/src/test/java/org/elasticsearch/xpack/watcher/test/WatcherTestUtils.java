@@ -256,7 +256,6 @@ public final class WatcherTestUtils {
         return randomFrom(
                 SearchType.QUERY_AND_FETCH,
                 SearchType.QUERY_THEN_FETCH,
-                SearchType.DFS_QUERY_THEN_FETCH,
-                SearchType.DFS_QUERY_AND_FETCH);
+                SearchType.DFS_QUERY_THEN_FETCH);
     }
 }

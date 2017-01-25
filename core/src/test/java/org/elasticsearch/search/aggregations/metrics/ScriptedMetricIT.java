@@ -351,6 +351,52 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs));
     }
 
+    public void testMapWithParamsAndNoImplicitAggMap() {
+        Map<String, Object> params = new HashMap<>();
+        // don't put any _agg map in params
+        params.put("param1", "12");
+        params.put("param2", 1);
+
+        // The _agg hashmap will be available even if not declared in the params map
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg[param1] = param2", params);
+
+        SearchResponse response = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(scriptedMetric("scripted").params(params).mapScript(mapScript))
+            .get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
+
+        Aggregation aggregation = response.getAggregations().get("scripted");
+        assertThat(aggregation, notNullValue());
+        assertThat(aggregation, instanceOf(ScriptedMetric.class));
+        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
+        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
+        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
+        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
+        List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
+        assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+        long totalCount = 0;
+        for (Object object : aggregationList) {
+            assertThat(object, notNullValue());
+            assertThat(object, instanceOf(Map.class));
+            Map<?,?> map = (Map<?,?>) object;
+            for (Map.Entry<?,?> entry : map.entrySet()) {
+                assertThat(entry, notNullValue());
+                assertThat(entry.getKey(), notNullValue());
+                assertThat(entry.getKey(), instanceOf(String.class));
+                assertThat(entry.getValue(), notNullValue());
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                String stringValue = (String) entry.getKey();
+                assertThat(stringValue, equalTo("12"));
+                Number numberValue = (Number) entry.getValue();
+                assertThat(numberValue, equalTo((Number) 1));
+                totalCount += numberValue.longValue();
+            }
+        }
+        assertThat(totalCount, equalTo(numDocs));
+    }
+
     public void testInitMapWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);

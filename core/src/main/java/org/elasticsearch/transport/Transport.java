@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -68,7 +68,7 @@ public interface Transport extends LifecycleComponent {
      * Once a successful is established, it can be validated before being exposed.
      */
     void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                       CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException;
+                       CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException;
 
     /**
      * Disconnected from the given node, if not connected, will do nothing.
@@ -97,16 +97,16 @@ public interface Transport extends LifecycleComponent {
      * implementation.
      *
      * @throws NodeNotConnectedException if the node is not connected
-     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedConsumer)
+     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)
      */
     Connection getConnection(DiscoveryNode node);
 
     /**
      * Opens a new connection to the given node and returns it. In contrast to
-     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedConsumer)} the returned connection is not managed by
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)} the returned connection is not managed by
      * the transport implementation. This connection must be closed once it's not needed anymore.
      * This connection type can be used to execute a handshake between two nodes before the node will be published via
-     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedConsumer)}.
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)}.
      */
     Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
 

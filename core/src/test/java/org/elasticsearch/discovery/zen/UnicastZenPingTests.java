@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -151,7 +151,7 @@ public class UnicastZenPingTests extends ESTestCase {
             v) {
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
                 throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
             }
         };

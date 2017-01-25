@@ -22,7 +22,7 @@ package org.elasticsearch.test.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -200,7 +200,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
@@ -244,7 +244,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
                 original.connectToNode(node, connectionProfile, connectionValidator);
             }
 
@@ -279,7 +279,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
 
@@ -322,7 +322,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNode(node, connectionProfile, connectionValidator);
@@ -452,7 +452,7 @@ public final class MockTransportService extends TransportService {
 
         @Override
         public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
             getTransport(node).connectToNode(node, connectionProfile, connectionValidator);
         }
 
@@ -507,7 +507,7 @@ public final class MockTransportService extends TransportService {
 
         @Override
         public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
             transport.connectToNode(node, connectionProfile, connectionValidator);
         }
 

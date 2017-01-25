@@ -27,7 +27,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -199,6 +200,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -424,8 +426,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
-        connectionProfile = connectionProfile == null ? defaultConnectionProfile : connectionProfile;
+                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+        connectionProfile = resolveConnectionProfile(connectionProfile);
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
@@ -441,7 +443,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 try {
                     try {
                         nodeChannels = openConnection(node, connectionProfile);
-                        connectionValidator.accept(nodeChannels);
+                        connectionValidator.accept(nodeChannels, connectionProfile);
                     } catch (Exception e) {
                         logger.trace(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -468,6 +470,27 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         } finally {
             globalLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * takes a {@link ConnectionProfile} that have been passed as a parameter to the public methods
+     * and resolves it to a fully specified (i.e., no nulls) profile
+     */
+    protected ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile) {
+        if (connectionProfile == null) {
+            return defaultConnectionProfile;
+        } else if (connectionProfile.getConnectTimeout() != null && connectionProfile.getHandshakeTimeout() != null) {
+            return connectionProfile;
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(connectionProfile);
+            if (connectionProfile.getHandshakeTimeout() == null) {
+                builder.setConnectTimeout(defaultConnectionProfile.getConnectTimeout());
+            }
+            if (connectionProfile.getHandshakeTimeout() == null) {
+                builder.setHandshakeTimeout(defaultConnectionProfile.getHandshakeTimeout());
+            }
+            return builder.build();
         }
     }
 

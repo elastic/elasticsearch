@@ -58,7 +58,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private String jobId;
         private boolean ignoreDowntime;
-        private TimeValue openTimeout = TimeValue.timeValueSeconds(30);
+        private TimeValue openTimeout = TimeValue.timeValueSeconds(20);
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());

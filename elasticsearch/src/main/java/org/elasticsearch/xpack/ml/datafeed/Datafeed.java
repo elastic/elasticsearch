@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -90,5 +91,20 @@ public class Datafeed extends AbstractDiffable<Datafeed> implements ToXContent {
     @Override
     public int hashCode() {
         return Objects.hash(config, status);
+    }
+
+    // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
+    @SuppressWarnings("deprecation")
+    @Override
+    public final String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            // So we have a stack trace logged somewhere
+            return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
+        }
     }
 }

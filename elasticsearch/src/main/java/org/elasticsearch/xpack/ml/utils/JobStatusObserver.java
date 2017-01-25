@@ -34,6 +34,7 @@ public class JobStatusObserver {
     public void waitForStatus(String jobId, TimeValue waitTimeout, JobStatus expectedStatus, Consumer<Exception> handler) {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());
+        JobStatusPredicate jobStatusPredicate = new JobStatusPredicate(jobId, expectedStatus);
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -49,11 +50,15 @@ public class JobStatusObserver {
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                Exception e = new IllegalArgumentException("Timeout expired while waiting for job status to change to ["
-                        + expectedStatus + "]");
-                handler.accept(e);
+                if (jobStatusPredicate.test(clusterService.state())) {
+                    handler.accept(null);
+                } else {
+                    Exception e = new IllegalArgumentException("Timeout expired while waiting for job status to change to ["
+                            + expectedStatus + "]");
+                    handler.accept(e);
+                }
             }
-        }, new JobStatusPredicate(jobId, expectedStatus), waitTimeout);
+        }, jobStatusPredicate, waitTimeout);
     }
 
     private static class JobStatusPredicate implements Predicate<ClusterState> {

@@ -67,7 +67,7 @@ public class StopDatafeedAction
     public static class Request extends ActionRequest {
 
         private String datafeedId;
-        private TimeValue stopTimeout = TimeValue.timeValueSeconds(30);
+        private TimeValue stopTimeout = TimeValue.timeValueSeconds(20);
 
         public Request(String jobId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(jobId, DatafeedConfig.ID.getPreferredName());

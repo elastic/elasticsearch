@@ -65,7 +65,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     public static class Request extends ActionRequest {
 
         private String jobId;
-        private TimeValue closeTimeout = TimeValue.timeValueMinutes(30);
+        private TimeValue closeTimeout = TimeValue.timeValueMinutes(20);
 
         Request() {}
 

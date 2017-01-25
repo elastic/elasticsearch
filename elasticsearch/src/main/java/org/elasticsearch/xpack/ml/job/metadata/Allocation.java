@@ -126,7 +126,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         return Objects.hash(nodeId, jobId, ignoreDowntime, status, statusReason);
     }
 
-    // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
+    // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
     @SuppressWarnings("deprecation")
     @Override
     public final String toString() {

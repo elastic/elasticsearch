@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -24,6 +25,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
+import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
+import org.elasticsearch.xpack.persistent.PersistentActionService;
+import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -165,8 +174,12 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new)
-        );
+                new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
+                new NamedWriteableRegistry.Entry(PersistentActionCoordinator.Status.class,
+                        PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
+                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom)
+                );
     }
 
     @Override
@@ -218,6 +231,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
+        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, clusterService, client);
+        PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
 
         return Arrays.asList(
                 jobProvider,
@@ -225,7 +240,10 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 dataProcessor,
                 new MlInitializationService(settings, threadPool, clusterService, jobProvider),
                 jobDataCountsPersister,
-                datafeedJobRunner
+                datafeedJobRunner,
+                persistentActionService,
+                persistentActionRegistry,
+                new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService)
                 );
     }
 
@@ -302,7 +320,10 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(InternalStartDatafeedAction.INSTANCE, InternalStartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
-                new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class)
+                new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
+                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
+                new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
+                new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class)
                 );
     }
 

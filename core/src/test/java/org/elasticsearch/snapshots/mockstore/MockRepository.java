@@ -259,9 +259,7 @@ public class MockRepository extends FsRepository {
                             }
                         }
                     }
-                }
-                // don't block on the index-N files, as getRepositoryData depends on it
-                else if (blobName.startsWith("index-") == false) {
+                } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
@@ -316,17 +314,9 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
-                if (RandomizedContext.current().getRandom().nextBoolean()) {
-                    // simulate a non-atomic move, since many blob container implementations
-                    // will not have an atomic move, and we should be able to handle that
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
-                    super.deleteBlob(sourceBlob);
-                } else {
-                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.move(sourceBlob, targetBlob);
-                }
+                // atomic move since this inherits from FsBlobContainer which provides atomic moves
+                maybeIOExceptionOrBlock(targetBlob);
+                super.move(sourceBlob, targetBlob);
             }
 
             @Override

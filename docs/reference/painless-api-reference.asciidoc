@@ -1,4 +1,4 @@
-["appendix",role="exclude",id="painless-api-reference"]
+["appendix",id="painless-api-reference"]
 = Painless API Reference
 
 <<modules-scripting-painless,Painless>> has a strict whitelist for methods and

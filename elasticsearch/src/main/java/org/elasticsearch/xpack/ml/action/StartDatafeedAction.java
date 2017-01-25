@@ -30,12 +30,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.DatafeedStatusObserver;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -152,13 +152,16 @@ public class StartDatafeedAction
             if (endTime != null) {
                 builder.field(END_TIME.getPreferredName(), endTime);
             }
+            if (startTimeout != null) {
+                builder.field(START_TIMEOUT.getPreferredName(), startTimeout.getStringRep());
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime);
+            return Objects.hash(datafeedId, startTime, endTime, startTimeout);
         }
 
         @Override
@@ -172,7 +175,8 @@ public class StartDatafeedAction
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(startTime, other.startTime) &&
-                    Objects.equals(endTime, other.endTime);
+                    Objects.equals(endTime, other.endTime) &&
+                    Objects.equals(startTimeout, other.startTimeout);
         }
     }
 

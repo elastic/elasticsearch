@@ -34,38 +34,38 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
-import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
+import org.elasticsearch.xpack.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
-import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.InternalOpenJobAction;
+import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
-import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.ml.action.PutFilterAction;
+import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction;
 import org.elasticsearch.xpack.ml.action.ValidateTransformsAction;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
@@ -73,9 +73,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
@@ -83,16 +85,21 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
-import org.elasticsearch.xpack.ml.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestGetJobStatsAction;
+import org.elasticsearch.xpack.ml.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.ml.rest.job.RestPutJobAction;
@@ -104,16 +111,9 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
-import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformsAction;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -124,6 +124,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+
 public class MlPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
@@ -132,13 +134,18 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
     // NORELEASE - temporary solution
-    static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
+    public static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
             Property.Deprecated);
+
+    /** Setting for enabling or disabling machine learning. Defaults to true. */
+    public static final Setting<Boolean> ML_ENABLED = Setting.boolSetting("xpack.ml.enabled", true, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;
+    private boolean enabled;
 
     public MlPlugin(Settings settings) {
+        this.enabled = ML_ENABLED.get(settings);
         this.settings = settings;
         this.env = new Environment(settings);
     }
@@ -147,6 +154,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
+                        ML_ENABLED,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
@@ -177,6 +185,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
+        if (false == enabled) {
+            return emptyList();
+        }
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0);
         JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings, client);
@@ -225,6 +236,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
+        if (false == enabled) {
+            return emptyList();
+        }
         return Arrays.asList(
             new RestGetJobsAction(settings, restController),
             new RestGetJobStatsAction(settings, restController),
@@ -259,6 +273,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (false == enabled) {
+            return emptyList();
+        }
         return Arrays.asList(
                 new ActionHandler<>(GetJobsAction.INSTANCE, GetJobsAction.TransportAction.class),
                 new ActionHandler<>(GetJobsStatsAction.INSTANCE, GetJobsStatsAction.TransportAction.class),
@@ -301,6 +318,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        if (false == enabled) {
+            return emptyList();
+        }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
         FixedExecutorBuilder ml = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
                 maxNumberOfJobs * 2, 1000, "xpack.ml.thread_pool");

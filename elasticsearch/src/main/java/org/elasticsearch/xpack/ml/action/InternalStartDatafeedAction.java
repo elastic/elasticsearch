@@ -95,9 +95,10 @@ public class InternalStartDatafeedAction extends
 
         /* public for testing */
         public void stop() {
-            if (holder != null) {
-                holder.stop(null);
+            if (holder == null) {
+                throw new IllegalStateException("task cancel ran before datafeed runner assigned the holder");
             }
+            holder.stop("cancel", null);
         }
     }
 

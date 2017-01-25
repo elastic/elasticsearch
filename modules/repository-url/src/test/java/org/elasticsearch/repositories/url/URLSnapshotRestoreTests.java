@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugin.repository.url.URLRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -54,10 +55,10 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repositoryLocation)
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+            .setType(FsRepository.TYPE).setSettings(Settings.builder()
+                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -98,7 +99,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
         logger.info("--> create read-only URL repository");
         assertAcked(client.admin().cluster().preparePutRepository("url-repo")
             .setType(URLRepository.TYPE).setSettings(Settings.builder()
-                .put("url", repositoryLocation.toUri().toURL())
+                .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL())
                 .put("list_directories", randomBoolean())));
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client

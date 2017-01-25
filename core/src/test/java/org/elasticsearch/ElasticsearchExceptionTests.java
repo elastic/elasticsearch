@@ -56,7 +56,11 @@ import org.hamcrest.Matcher;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -524,9 +528,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
         final Throwable throwable = exceptions.v1();
 
-        BytesReference throwableBytes = XContentHelper.toXContent((b, p) -> {
-            ElasticsearchException.generateThrowableXContent(b, ToXContent.EMPTY_PARAMS, throwable);
-            return b;
+        BytesReference throwableBytes = XContentHelper.toXContent((builder, params) -> {
+            ElasticsearchException.generateThrowableXContent(builder, params, throwable);
+            return builder;
         }, xContent.type(), randomBoolean());
 
         ElasticsearchException parsedException;
@@ -543,12 +547,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(expected.getMessage(), parsedException.getMessage());
             assertEquals(expected.getHeaders(), parsedException.getHeaders());
             assertEquals(expected.getMetadata(), parsedException.getMetadata());
+            assertEquals(expected.getResourceType(), parsedException.getResourceType());
+            assertEquals(expected.getResourceId(), parsedException.getResourceId());
 
-            if (expected.getCause() != null) {
-                expected = (ElasticsearchException) expected.getCause();
-                parsedException = (ElasticsearchException) parsedException.getCause();
-            } else {
-                assertNull(parsedException.getCause());
+            expected = (ElasticsearchException) expected.getCause();
+            parsedException = (ElasticsearchException) parsedException.getCause();
+            if (expected == null) {
+                assertNull(parsedException);
             }
         }
     }
@@ -614,7 +619,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 actual = new ElasticsearchException("Parsing failed",
                             new ParsingException(9, 42, "Wrong state",
                                 new NullPointerException("Unexpected null value")));
-                ((ElasticsearchException) actual).addHeader("doc_id", "test");
 
                 ElasticsearchException expectedCause = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, " +
                         "reason=Wrong state]", new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " +
@@ -623,10 +627,68 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expectedCause.addMetadata("es.col", "42");
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
-                expected.addHeader("doc_id", "test");
                 break;
             default:
-                throw new IllegalArgumentException("No randomized exceptions generated for type [" + type + "]");
+                throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
+        }
+
+        if (actual instanceof ElasticsearchException) {
+            if (randomBoolean()) {
+                Map<String, List<String>> randomHeaders = new HashMap<>();
+
+                int nbHeaders = randomIntBetween(1, 5);
+                for (int i = 0; i < nbHeaders; i++) {
+                    List<String> values = new ArrayList<>();
+
+                    int nbValues = randomIntBetween(1, 3);
+                    for (int j = 0; j < nbValues; j++) {
+                        values.add(frequently() ? randomAsciiOfLength(5) : null);
+                    }
+                    randomHeaders.put("header_" + i, values);
+                }
+
+                for (Map.Entry<String, List<String>> entry : randomHeaders.entrySet()) {
+                    ((ElasticsearchException) actual).addHeader(entry.getKey(), entry.getValue());
+                    expected.addHeader(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (randomBoolean()) {
+                Map<String, List<String>> randomMetadata = new HashMap<>();
+
+                int nbMetadata = randomIntBetween(1, 5);
+                for (int i = 0; i < nbMetadata; i++) {
+                    List<String> values = new ArrayList<>();
+
+                    int nbValues = randomIntBetween(1, 3);
+                    for (int j = 0; j < nbValues; j++) {
+                        values.add(frequently() ? randomAsciiOfLength(5) : null);
+                    }
+                    randomMetadata.put("es.metadata_" + i, values);
+                }
+
+                for (Map.Entry<String, List<String>> entry : randomMetadata.entrySet()) {
+                    ((ElasticsearchException) actual).addMetadata(entry.getKey(), entry.getValue());
+                    expected.addMetadata(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (randomBoolean()) {
+                int nbResources = randomIntBetween(1, 5);
+                for (int i = 0; i < nbResources; i++) {
+                    String resourceType = "type_" + i;
+                    String[] resourceIds = null;
+                    if (frequently()) {
+                        resourceIds = new String[randomIntBetween(0, 3)];
+                        for (int j = 0; j < resourceIds.length; j++) {
+                            resourceIds[j] = frequently() ? randomAsciiOfLength(5) : null;
+                        }
+                    }
+
+                    ((ElasticsearchException) actual).setResources(resourceType, resourceIds);
+                    expected.setResources(resourceType, resourceIds);
+                }
+            }
         }
         return new Tuple<>(actual, expected);
     }

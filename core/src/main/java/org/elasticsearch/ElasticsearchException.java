@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -400,7 +401,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-
         return innerFromXContent(parser);
     }
 
@@ -408,7 +408,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
-        Map<String, Object> headers = new HashMap<>();
+        Map<String, List<String>> headers = new HashMap<>();
 
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
@@ -418,7 +418,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 token = parser.nextToken();
             }
 
-            if ( token != null && token.isValue()) {
+            if (token != null && token.isValue()) {
                 if (TYPE.equals(currentFieldName)) {
                     type = parser.text();
                 } else if (REASON.equals(currentFieldName)) {
@@ -432,16 +432,43 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 if (CAUSED_BY.equals(currentFieldName)) {
                     cause = fromXContent(parser);
                 } else if (HEADER.equals(currentFieldName)) {
-                    headers.putAll(parser.map());
+                    Map<String, Object> headerMap = parser.map();
+                    if (headerMap != null) {
+                        for (Map.Entry<String, Object> header : headerMap.entrySet()) {
+                            List<String> values = headers.getOrDefault(header.getKey(), new ArrayList<>());
+                            if (header.getValue() instanceof Iterable) {
+                                for (Object value : (Iterable) header.getValue()) {
+                                    values.add(String.valueOf(value));
+                                }
+                            } else {
+                                values.add(String.valueOf(header.getValue()));
+                            }
+                            headers.put(header.getKey(), values);
+                        }
+                    }
                 } else {
-                    // Additional metadata added by the metadataToXContent method is ignored
-                    // and skipped, so that the parser does not fail on unknown fields.
+                    // Any additional metadata object added by the metadataToXContent method is ignored
+                    // and skipped, so that the parser does not fail on unknown fields. The parser only
+                    // support metadata key-pairs and metadata arrays of values.
                     parser.skipChildren();
                 }
-            }else if (token == XContentParser.Token.START_ARRAY) {
-                // Additional metadata added by the metadataToXContent method is ignored
-                // and skipped, so that the parser does not fail on unknown fields.
-                parser.skipChildren();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                // Parse the array and add each item to the corresponding list of metadata.
+                // Arrays of objects are not supported yet and just ignored and skipped.
+                List<String> values = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
+                        values.add(parser.textOrNull());
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+                if (values.size() > 0) {
+                    if (metadata.containsKey(currentFieldName)) {
+                        values.addAll(metadata.get(currentFieldName));
+                    }
+                    metadata.put(currentFieldName, values);
+                }
             }
         } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
 
@@ -464,8 +491,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
-        for (Map.Entry<String, Object> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), String.valueOf(header.getValue()));
+        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+            e.addHeader(header.getKey(), header.getValue());
         }
         return e;
     }

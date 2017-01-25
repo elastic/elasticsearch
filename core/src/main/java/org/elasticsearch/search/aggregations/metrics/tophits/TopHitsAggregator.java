@@ -124,7 +124,13 @@ public class TopHitsAggregator extends MetricsAggregator {
                     // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
+                    TopDocsCollector<?> topLevelCollector;
+                    if (sort == null) {
+                        topLevelCollector = TopScoreDocCollector.create(topN);
+                    } else {
+                        topLevelCollector = TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(),
+                                subSearchContext.trackScores());
+                    }
                     collectors = new TopDocsAndLeafCollector(topLevelCollector);
                     collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(ctx);
                     collectors.leafCollector.setScorer(scorer);
@@ -172,8 +178,8 @@ public class TopHitsAggregator extends MetricsAggregator {
                     searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
                 }
             }
-            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), pipelineAggregators(),
-                metaData());
+            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(),
+                    pipelineAggregators(), metaData());
         }
         return topHits;
     }
@@ -186,7 +192,8 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(), pipelineAggregators(), metaData());
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(),
+                pipelineAggregators(), metaData());
     }
 
     @Override

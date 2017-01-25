@@ -18,7 +18,7 @@
  */
 
 esplugin {
-    description 'Module for generic repositories'
+    description 'Module for URL repository'
     classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.uri;
+package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -127,8 +127,12 @@ public class URLRepository extends BlobStoreRepository {
                 // We didn't match white list - try to resolve against path.repo
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
-                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting or by {} setting: [{}] ", url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
-                    throw new RepositoryException(getMetadata().name(), "file url [" + url + "] doesn't match any of the locations specified by path.repo or " + ALLOWED_URLS_SETTING.getKey());
+                    String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the " +
+                        "path.repo setting or by {} setting: [{}] ";
+                    logger.warn(logMessage, url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    String exceptionMessage = "file url [" + url + "] doesn't match any of the locations specified by path.repo or "
+                        + ALLOWED_URLS_SETTING.getKey();
+                    throw new RepositoryException(getMetadata().name(), exceptionMessage);
                 }
                 return normalizedUrl;
             }

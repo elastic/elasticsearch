@@ -31,6 +31,7 @@ List projects = [
   'modules:transport-netty4',
   'modules:reindex',
   'modules:percolator',
+  'modules:repository-url',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',

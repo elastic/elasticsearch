@@ -57,7 +57,8 @@ public class GetFieldTests extends ESTestCase {
         Tuple<GetField, GetField> tuple = randomGetField(xContentType);
         GetField getField = tuple.v1();
         GetField expectedGetField = tuple.v2();
-        BytesReference originalBytes = toXContent(getField, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(getField, xContentType, humanReadable);
         //test that we can parse what we print out
         GetField parsedGetField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -70,7 +71,7 @@ public class GetFieldTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetField, parsedGetField);
-        BytesReference finalBytes = toXContent(parsedGetField, xContentType);
+        BytesReference finalBytes = toXContent(parsedGetField, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 

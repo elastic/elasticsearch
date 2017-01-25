@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -37,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class DeleteResponseTests extends ESTestCase {
 
-    public void testToXContent() throws IOException {
+    public void testToXContent() {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "type", "id", 3, 5, true);
             String output = Strings.toString(response);
@@ -59,7 +60,8 @@ public class DeleteResponseTests extends ESTestCase {
 
         // Create a random DeleteResponse and converts it to XContent in bytes
         DeleteResponse deleteResponse = randomDeleteResponse();
-        BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType, humanReadable);
 
         // Parse the XContent bytes to obtain a parsed
         DeleteResponse parsedDeleteResponse;
@@ -73,7 +75,7 @@ public class DeleteResponseTests extends ESTestCase {
         // and those exceptions are not parsed back with the same types.
 
         // Print the parsed object out and test that the output is the same as the original output
-        BytesReference parsedDeleteResponseBytes = toXContent(parsedDeleteResponse, xContentType);
+        BytesReference parsedDeleteResponseBytes = toXContent(parsedDeleteResponse, xContentType, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), parsedDeleteResponseBytes)) {
             assertDeleteResponse(deleteResponse, parser.map());
         }
@@ -92,8 +94,8 @@ public class DeleteResponseTests extends ESTestCase {
         ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
-        long seqNo = randomIntBetween(-2, 5);
-        long version = (long) randomIntBetween(0, 5);
+        long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
+        long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();
 
         DeleteResponse response = new DeleteResponse(shardId, type, id, seqNo, version, found);

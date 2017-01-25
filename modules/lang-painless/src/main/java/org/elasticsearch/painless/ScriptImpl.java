@@ -123,7 +123,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
             return executable.execute(variables, scorer, doc, aggregationValue);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (Debug.PainlessExplainError e) {
-            throw convertToScriptException(e, e.getHeaders());
+            throw convertToScriptException(e, e.getMetadata());
         } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
             throw convertToScriptException(e, emptyMap());
         }
@@ -135,7 +135,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * @param t The throwable to build an exception around.
      * @return The generated ScriptException.
      */
-    private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> headers) {
+    private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> metadata) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -179,8 +179,8 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
             name = executable.getName();
         }
         ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
-        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
-            scriptException.addHeader(header.getKey(), header.getValue());
+        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
+            scriptException.addMetadata(entry.getKey(), entry.getValue());
         }
         return scriptException;
     }

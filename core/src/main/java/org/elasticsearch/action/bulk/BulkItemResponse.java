@@ -304,7 +304,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             opType = OpType.fromId(in.readByte());
         } else {
             opType = OpType.fromString(in.readString());
@@ -317,6 +317,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         } else if (type == 1) {
             response = new DeleteResponse();
             response.readFrom(in);
+
         } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
             response = new UpdateResponse();
             response.readFrom(in);
@@ -330,7 +331,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeByte(opType.getId());
         } else {
             out.writeString(opType.getLowercase());

@@ -39,14 +39,14 @@ public class DebugTests extends ScriptTestCase {
         Debug.PainlessExplainError e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec(
                 "Debug.explain(params.a)", params, true));
         assertSame(dummy, e.getObjectToExplain());
-        assertThat(e.getHeaders(), hasEntry("es.class", singletonList("java.lang.Object")));
-        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList(dummy.toString())));
+        assertThat(e.getMetadata(), hasEntry("es.class", singletonList("java.lang.Object")));
+        assertThat(e.getMetadata(), hasEntry("es.to_string", singletonList(dummy.toString())));
 
         // Null should be ok
         e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec("Debug.explain(null)"));
         assertNull(e.getObjectToExplain());
-        assertThat(e.getHeaders(), hasEntry("es.class", singletonList("null")));
-        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList("null")));
+        assertThat(e.getMetadata(), hasEntry("es.class", singletonList("null")));
+        assertThat(e.getMetadata(), hasEntry("es.to_string", singletonList("null")));
 
         // You can't catch the explain exception
         e = expectScriptThrows(Debug.PainlessExplainError.class, () -> exec(
@@ -64,15 +64,15 @@ public class DebugTests extends ScriptTestCase {
     public void testPainlessExplainErrorSerialization() throws IOException {
         Map<String, Object> params = singletonMap("a", "jumped over the moon");
         ScriptException e = expectThrows(ScriptException.class, () -> exec("Debug.explain(params.a)", params, true));
-        assertEquals(singletonList("java.lang.String"), e.getHeader("es.class"));
-        assertEquals(singletonList("jumped over the moon"), e.getHeader("es.to_string"));
+        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.class"));
+        assertEquals(singletonList("jumped over the moon"), e.getMetadata("es.to_string"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
             try (StreamInput in = out.bytes().streamInput()) {
                 ElasticsearchException read = (ScriptException) in.readException();
-                assertEquals(singletonList("java.lang.String"), read.getHeader("es.class"));
-                assertEquals(singletonList("jumped over the moon"), read.getHeader("es.to_string"));
+                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.class"));
+                assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
             }
         }
     }

@@ -76,6 +76,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -272,9 +273,135 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract void index(Index operation) throws EngineException;
+    /**
+     * Perform document index operation on the engine
+     * @param index operation to perform
+     * @return {@link IndexResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
+    public abstract IndexResult index(final Index index);
 
-    public abstract void delete(Delete delete) throws EngineException;
+    /**
+     * Perform document delete operation on the engine
+     * @param delete operation to perform
+     * @return {@link DeleteResult} containing updated translog location, version and
+     * document specific failures
+     *
+     * Note: engine level failures (i.e. persistent engine failures) are thrown
+     */
+    public abstract DeleteResult delete(final Delete delete);
+
+    /**
+     * Base class for index and delete operation results
+     * Holds result meta data (e.g. translog location, updated version)
+     * for an executed write {@link Operation}
+     **/
+    public abstract static class Result {
+        private final Operation.TYPE operationType;
+        private final long version;
+        private final Exception failure;
+        private final SetOnce<Boolean> freeze = new SetOnce<>();
+        private Translog.Location translogLocation;
+        private long took;
+
+        protected Result(Operation.TYPE operationType, Exception failure, long version) {
+            this.operationType = operationType;
+            this.failure = failure;
+            this.version = version;
+        }
+
+        protected Result(Operation.TYPE operationType, long version) {
+            this(operationType, null, version);
+        }
+
+        /** whether the operation had failure */
+        public boolean hasFailure() {
+            return failure != null;
+        }
+
+        /** get the updated document version */
+        public long getVersion() {
+            return version;
+        }
+
+        /** get the translog location after executing the operation */
+        public Translog.Location getTranslogLocation() {
+            return translogLocation;
+        }
+
+        /** get document failure while executing the operation {@code null} in case of no failure */
+        public Exception getFailure() {
+            return failure;
+        }
+
+        /** get total time in nanoseconds */
+        public long getTook() {
+            return took;
+        }
+
+        public Operation.TYPE getOperationType() {
+            return operationType;
+        }
+
+        void setTranslogLocation(Translog.Location translogLocation) {
+            if (freeze.get() == null) {
+                assert failure == null : "failure has to be null to set translog location";
+                this.translogLocation = translogLocation;
+            } else {
+                throw new IllegalStateException("result is already frozen");
+            }
+        }
+
+        void setTook(long took) {
+            if (freeze.get() == null) {
+                this.took = took;
+            } else {
+                throw new IllegalStateException("result is already frozen");
+            }
+        }
+
+        void freeze() {
+            freeze.set(true);
+        }
+    }
+
+    public static class IndexResult extends Result {
+        private final boolean created;
+
+        public IndexResult(long version, boolean created) {
+            super(Operation.TYPE.INDEX, version);
+            this.created = created;
+        }
+
+        public IndexResult(Exception failure, long version) {
+            super(Operation.TYPE.INDEX, failure, version);
+            this.created = false;
+        }
+
+        public boolean isCreated() {
+            return created;
+        }
+    }
+
+    public static class DeleteResult extends Result {
+        private final boolean found;
+
+        public DeleteResult(long version, boolean found) {
+            super(Operation.TYPE.DELETE, version);
+            this.found = found;
+        }
+
+        public DeleteResult(Exception failure, long version) {
+            super(Operation.TYPE.DELETE, failure, version);
+            this.found = false;
+        }
+
+        public boolean isFound() {
+            return found;
+        }
+    }
 
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
@@ -762,13 +889,27 @@ public abstract class Engine implements Closeable {
     }
 
     public abstract static class Operation {
+
+        /** type of operation (index, delete), subclasses use static types */
+        public enum TYPE {
+            INDEX, DELETE;
+
+            private final String lowercase;
+
+            TYPE() {
+                this.lowercase = this.toString().toLowerCase(Locale.ROOT);
+            }
+
+            public String getLowercase() {
+                return lowercase;
+            }
+        }
+
         private final Term uid;
-        private long version;
+        private final long version;
         private final VersionType versionType;
         private final Origin origin;
-        private Translog.Location location;
         private final long startTime;
-        private long endTime;
 
         public Operation(Term uid, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
@@ -801,27 +942,7 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
-        public void updateVersion(long version) {
-            this.version = version;
-        }
-
-        public void setTranslogLocation(Translog.Location location) {
-            this.location = location;
-        }
-
-        public Translog.Location getTranslogLocation() {
-            return this.location;
-        }
-
-        public int sizeInBytes() {
-            if (location != null) {
-                return location.size;
-            } else {
-                return estimatedSizeInBytes();
-            }
-        }
-
-        protected abstract int estimatedSizeInBytes();
+        public abstract int estimatedSizeInBytes();
 
         public VersionType versionType() {
             return this.versionType;
@@ -834,20 +955,11 @@ public abstract class Engine implements Closeable {
             return this.startTime;
         }
 
-        public void endTime(long endTime) {
-            this.endTime = endTime;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-
-        abstract String type();
+        public abstract String type();
 
         abstract String id();
+
+        abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -855,7 +967,6 @@ public abstract class Engine implements Closeable {
         private final ParsedDocument doc;
         private final long autoGeneratedIdTimestamp;
         private final boolean isRetry;
-        private boolean created;
 
         public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime,
                      long autoGeneratedIdTimestamp, boolean isRetry) {
@@ -888,6 +999,11 @@ public abstract class Engine implements Closeable {
             return this.doc.id();
         }
 
+        @Override
+        TYPE operationType() {
+            return TYPE.INDEX;
+        }
+
         public String routing() {
             return this.doc.routing();
         }
@@ -898,12 +1014,6 @@ public abstract class Engine implements Closeable {
 
         public long ttl() {
             return this.doc.ttl();
-        }
-
-        @Override
-        public void updateVersion(long version) {
-            super.updateVersion(version);
-            this.doc.version().setLongValue(version);
         }
 
         public String parent() {
@@ -918,16 +1028,8 @@ public abstract class Engine implements Closeable {
             return this.doc.source();
         }
 
-        public boolean isCreated() {
-            return created;
-        }
-
-        public void setCreated(boolean created) {
-            this.created = created;
-        }
-
         @Override
-        protected int estimatedSizeInBytes() {
+        public int estimatedSizeInBytes() {
             return (id().length() + type().length()) * 2 + source().length() + 12;
         }
 
@@ -954,21 +1056,19 @@ public abstract class Engine implements Closeable {
 
         private final String type;
         private final String id;
-        private boolean found;
 
-        public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
+        public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime) {
             super(uid, version, versionType, origin, startTime);
             this.type = type;
             this.id = id;
-            this.found = found;
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
+            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
-            this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime(), template.found());
+            this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime());
         }
 
         @Override
@@ -981,20 +1081,15 @@ public abstract class Engine implements Closeable {
             return this.id;
         }
 
-        public void updateVersion(long version, boolean found) {
-            updateVersion(version);
-            this.found = found;
-        }
-
-        public boolean found() {
-            return this.found;
+        @Override
+        TYPE operationType() {
+            return TYPE.DELETE;
         }
 
         @Override
-        protected int estimatedSizeInBytes() {
+        public int estimatedSizeInBytes() {
             return (uid().field().length() + uid().text().length()) * 2 + 20;
         }
-
     }
 
     public static class Get {

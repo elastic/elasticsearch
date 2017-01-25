@@ -45,81 +45,63 @@ import java.util.function.Supplier;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
+ * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
  */
 public abstract class TransportWriteAction<
             Request extends ReplicatedWriteRequest<Request>,
+            ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse
-        > extends TransportReplicationAction<Request, Request, Response> {
+        > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-            String executor) {
+                                   Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, request, executor);
+                indexNameExpressionResolver, request, replicaRequest, executor);
     }
 
     /**
-     * Called on the primary with a reference to the {@linkplain IndexShard} to modify.
-     */
-    protected abstract WriteResult<Response> onPrimaryShard(Request request, IndexShard indexShard) throws Exception;
-
-    /**
-     * Called once per replica with a reference to the {@linkplain IndexShard} to modify.
+     * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      *
-     * @return the translog location of the {@linkplain IndexShard} after the write was completed or null if no write occurred
+     * @return the result of the operation on primary, including current translog location and operation response and failure
+     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
-    protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
-
     @Override
-    protected final WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception {
-        WriteResult<Response> result = onPrimaryShard(request, primary);
-        return new WritePrimaryResult(request, result.getResponse(), result.getLocation(), primary);
-    }
-
-    @Override
-    protected final WriteReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
-        Translog.Location location = onReplicaShard(request, replica);
-        return new WriteReplicaResult(replica, request, location);
-    }
+    protected abstract WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception;
 
     /**
-     * Simple result from a write action. Write actions have static method to return these so they can integrate with bulk.
+     * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
+     *
+     * @return the result of the operation on replica, including current translog location and operation response and failure
+     * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
      */
-    public static class WriteResult<Response extends ReplicationResponse> {
-        private final Response response;
-        private final Translog.Location location;
-
-        public WriteResult(Response response, @Nullable Location location) {
-            this.response = response;
-            this.location = location;
-        }
-
-        public Response getResponse() {
-            return response;
-        }
-
-        public Translog.Location getLocation() {
-            return location;
-        }
-    }
+    @Override
+    protected abstract WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
 
     /**
      * Result of taking the action on the primary.
      */
-    class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
+    protected class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         ActionListener<Response> listener = null;
 
-        public WritePrimaryResult(Request request, Response finalResponse,
-                                  @Nullable Translog.Location location,
-                                  IndexShard indexShard) {
-            super(request, finalResponse);
-            /*
-             * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
-             * refresh in parallel on the primary and on the replica.
-             */
-            new AsyncAfterWriteAction(indexShard, request, location, this, logger).run();
+        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
+                                  @Nullable Location location, @Nullable Exception operationFailure,
+                                  IndexShard primary) {
+            super(request, finalResponse, operationFailure);
+            assert location == null || operationFailure == null
+                    : "expected either failure to be null or translog location to be null, " +
+                    "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
+            if (operationFailure != null) {
+                this.finishedAsyncActions = true;
+            } else {
+                /*
+                 * We call this before replication because this might wait for a refresh and that can take a while.
+                 * This way we wait for the refresh in parallel on the primary and on the replica.
+                 */
+                new AsyncAfterWriteAction(primary, request, location, this, logger).run();
+            }
         }
 
         @Override
@@ -148,7 +130,7 @@ public abstract class TransportWriteAction<
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
-            finalResponse.setForcedRefresh(forcedRefresh);
+            finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
             respondIfPossible(null);
         }
@@ -157,12 +139,18 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
+    protected class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
-        public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
-            new AsyncAfterWriteAction(indexShard, request, location, this, logger).run();
+        public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
+                                  @Nullable Exception operationFailure, IndexShard replica) {
+            super(operationFailure);
+            if (operationFailure != null) {
+                this.finishedAsyncActions = true;
+            } else {
+                new AsyncAfterWriteAction(replica, request, location, this, logger).run();
+            }
         }
 
         @Override

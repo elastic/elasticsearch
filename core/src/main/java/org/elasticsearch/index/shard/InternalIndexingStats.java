@@ -74,14 +74,18 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(ShardId shardId, Engine.Index index, boolean created) {
-        if (!index.origin().isRecovery()) {
-            long took = index.endTime() - index.startTime();
-            totalStats.indexMetric.inc(took);
-            totalStats.indexCurrent.dec();
-            StatsHolder typeStats = typeStats(index.type());
-            typeStats.indexMetric.inc(took);
-            typeStats.indexCurrent.dec();
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        if (result.hasFailure() == false) {
+            if (!index.origin().isRecovery()) {
+                long took = result.getTook();
+                totalStats.indexMetric.inc(took);
+                totalStats.indexCurrent.dec();
+                StatsHolder typeStats = typeStats(index.type());
+                typeStats.indexMetric.inc(took);
+                typeStats.indexCurrent.dec();
+            }
+        } else {
+            postIndex(shardId, index, result.getFailure());
         }
     }
 
@@ -106,14 +110,18 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postDelete(ShardId shardId, Engine.Delete delete) {
-        if (!delete.origin().isRecovery()) {
-            long took = delete.endTime() - delete.startTime();
-            totalStats.deleteMetric.inc(took);
-            totalStats.deleteCurrent.dec();
-            StatsHolder typeStats = typeStats(delete.type());
-            typeStats.deleteMetric.inc(took);
-            typeStats.deleteCurrent.dec();
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+        if (result.hasFailure() == false) {
+            if (!delete.origin().isRecovery()) {
+                long took = result.getTook();
+                totalStats.deleteMetric.inc(took);
+                totalStats.deleteCurrent.dec();
+                StatsHolder typeStats = typeStats(delete.type());
+                typeStats.deleteMetric.inc(took);
+                typeStats.deleteCurrent.dec();
+            }
+        } else {
+            postDelete(shardId, delete, result.getFailure());
         }
     }
 

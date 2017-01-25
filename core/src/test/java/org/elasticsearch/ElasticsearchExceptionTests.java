@@ -27,8 +27,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -516,6 +518,41 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
     }
 
+    public void testThrowableToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final Throwable throwable = exceptions.v1();
+
+        BytesReference throwableBytes = XContentHelper.toXContent((b, p) -> {
+            ElasticsearchException.generateThrowableXContent(b, ToXContent.EMPTY_PARAMS, throwable);
+            return b;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, throwableBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertNotNull(parsedException);
+
+        ElasticsearchException expected = exceptions.v2();
+        while (expected != null) {
+            assertEquals(expected.getMessage(), parsedException.getMessage());
+            assertEquals(expected.getHeaders(), parsedException.getHeaders());
+            assertEquals(expected.getMetadata(), parsedException.getMetadata());
+
+            if (expected.getCause() != null) {
+                expected = (ElasticsearchException) expected.getCause();
+                parsedException = (ElasticsearchException) parsedException.getCause();
+            } else {
+                assertNull(parsedException.getCause());
+            }
+        }
+    }
+
     /**
      * Builds a {@link ToXContent} using a JSON XContentBuilder and check the resulting string with the given {@link Matcher}.
      *
@@ -532,5 +569,65 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
+    }
+
+    private static Tuple<Throwable, ElasticsearchException> randomExceptions() {
+        Throwable actual;
+        ElasticsearchException expected;
+
+        int type = randomIntBetween(0, 5);
+        switch (type) {
+            case 0:
+                actual = new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+                expected = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                        "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
+                break;
+            case 1:
+                actual = new CircuitBreakingException("Data too large", 123, 456);
+                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=Data too large]");
+                expected.addMetadata("es.bytes_wanted", "123");
+                expected.addMetadata("es.bytes_limit", "456");
+                break;
+            case 2:
+                actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
+                expected.addMetadata("es.line", "12");
+                expected.addMetadata("es.col", "98");
+                break;
+            case 3:
+                actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
+                expected = new ElasticsearchException("Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
+                                new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                break;
+            case 4:
+                actual = new SearchPhaseExecutionException("search", "all shards failed",
+                            new ShardSearchFailure[]{
+                                    new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                                            new SearchShardTarget("node_1", new Index("foo", "_na_"), 1))
+                            });
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                        "reason=all shards failed]");
+                expected.addMetadata("es.grouped", "true");
+                expected.addMetadata("es.phase", "search");
+                break;
+            case 5:
+                actual = new ElasticsearchException("Parsing failed",
+                            new ParsingException(9, 42, "Wrong state",
+                                new NullPointerException("Unexpected null value")));
+                ((ElasticsearchException) actual).addHeader("doc_id", "test");
+
+                ElasticsearchException expectedCause = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, " +
+                        "reason=Wrong state]", new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " +
+                        "reason=Unexpected null value]"));
+                expectedCause.addMetadata("es.line", "9");
+                expectedCause.addMetadata("es.col", "42");
+
+                expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
+                expected.addHeader("doc_id", "test");
+                break;
+            default:
+                throw new IllegalArgumentException("No randomized exceptions generated for type [" + type + "]");
+        }
+        return new Tuple<>(actual, expected);
     }
 }

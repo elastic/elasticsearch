@@ -50,7 +50,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -402,15 +401,24 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
+        return innerFromXContent(parser);
+    }
+
+    private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, Object> headers = new HashMap<>();
 
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
         do {
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
-            if (token.isValue()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                token = parser.nextToken();
+            }
+
+            if ( token != null && token.isValue()) {
                 if (TYPE.equals(currentFieldName)) {
                     type = parser.text();
                 } else if (REASON.equals(currentFieldName)) {
@@ -426,8 +434,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 } else if (HEADER.equals(currentFieldName)) {
                     headers.putAll(parser.map());
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    // Additional metadata added by the metadataToXContent method is ignored
+                    // and skipped, so that the parser does not fail on unknown fields.
+                    parser.skipChildren();
                 }
+            }else if (token == XContentParser.Token.START_ARRAY) {
+                // Additional metadata added by the metadataToXContent method is ignored
+                // and skipped, so that the parser does not fail on unknown fields.
+                parser.skipChildren();
             }
         } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
 
@@ -461,7 +475,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
      * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
      *
-     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
+     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
+     * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);

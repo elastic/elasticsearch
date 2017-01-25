@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkIndexByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,7 +48,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     public void testDeleteByQuery() {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        BulkIndexByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2").get();
+        BulkByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2").get();
         assertNotNull(response);
 
         response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test*").get();
@@ -63,7 +62,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     public void testUpdateByQuery() {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        BulkIndexByScrollResponse response = UpdateByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2").get();
+        BulkByScrollResponse response = UpdateByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2").get();
         assertNotNull(response);
 
         response = UpdateByQueryAction.INSTANCE.newRequestBuilder(client()).source("test*").get();
@@ -77,7 +76,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     public void testReindex() {
         createIndicesWithRandomAliases("test1", "test2", "test3", "dest");
 
-        BulkIndexByScrollResponse response = ReindexAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2")
+        BulkByScrollResponse response = ReindexAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2")
                 .destination("dest").get();
         assertNotNull(response);
 

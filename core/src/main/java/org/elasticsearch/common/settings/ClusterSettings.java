@@ -81,7 +81,6 @@ import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -348,9 +347,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,
-                    URLRepository.ALLOWED_URLS_SETTING,
-                    URLRepository.REPOSITORIES_URL_SETTING,
-                    URLRepository.SUPPORTED_PROTOCOLS_SETTING,
                     TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
                     AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,

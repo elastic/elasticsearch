@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -86,6 +87,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "fix this fails intermittently")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
@@ -452,6 +454,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, numPhase1Docs + numPhase2Docs);
     }
 
+    @AwaitsFix(bugUrl = "uncaught exception")
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()

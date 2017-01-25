@@ -117,11 +117,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     resolver,
                     null,
                     expected::get) {
-                @Override
-                public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-                    expected.set(1000000);
-                    super.executeBulk(bulkRequest, listener);
-                }
 
                 @Override
                 void executeBulk(
@@ -146,12 +141,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     resolver,
                     null,
                     System::nanoTime) {
-                @Override
-                public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-                    long elapsed = spinForAtLeastOneMillisecond();
-                    expected.set(elapsed);
-                    super.executeBulk(bulkRequest, listener);
-                }
 
                 @Override
                 void executeBulk(

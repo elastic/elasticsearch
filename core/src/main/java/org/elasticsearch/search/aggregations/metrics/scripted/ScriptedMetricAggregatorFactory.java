@@ -68,7 +68,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         } else {
             params = new HashMap<>();
         }
-        if (!params.containsKey("_agg")) {
+        if (params.containsKey("_agg") == false) {
             params.put("_agg", new HashMap<String, Object>());
         }
 

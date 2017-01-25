@@ -318,55 +318,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    public void testDfsQueryAndFetch() throws Exception {
-        prepareData(3);
-
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
-                .from(0).size(20).explain(true);
-
-        Set<String> expectedIds = new HashSet<>();
-        for (int i = 0; i < 100; i++) {
-            expectedIds.add(Integer.toString(i));
-        }
-
-
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setScroll("10m").setSource(source).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat(hit.explanation(), notNullValue());
-            assertThat(hit.explanation().getDetails().length, equalTo(1));
-            assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
-                equalTo("docFreq"));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
-                equalTo(100.0f));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
-                equalTo("docCount"));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
-                equalTo(100.0f));
-            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-        }
-
-        do {
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
-
-            assertThat(searchResponse.getHits().totalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
-            for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
-                SearchHit hit = searchResponse.getHits().hits()[i];
-                // we don't do perfect sorting when it comes to scroll with Query+Fetch
-                assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-            }
-        } while (searchResponse.getHits().hits().length > 0);
-        clearScroll(searchResponse.getScrollId());
-        assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
-    }
-
     public void testSimpleFacets() throws Exception {
         prepareData();
 

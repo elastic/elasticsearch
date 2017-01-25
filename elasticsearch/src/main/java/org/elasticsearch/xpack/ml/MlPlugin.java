@@ -141,9 +141,13 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     private boolean enabled;
 
     public MlPlugin(Settings settings) {
+        this(settings, new Environment(settings));
+    }
+
+    public MlPlugin(Settings settings, Environment env) {
         this.enabled = ML_ENABLED.get(settings);
         this.settings = settings;
-        this.env = new Environment(settings);
+        this.env = env;
     }
 
     @Override

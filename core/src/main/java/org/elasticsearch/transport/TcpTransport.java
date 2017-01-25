@@ -502,6 +502,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         boolean success = false;
         NodeChannels nodeChannels = null;
+        connectionProfile = resolveConnectionProfile(connectionProfile);
         globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();

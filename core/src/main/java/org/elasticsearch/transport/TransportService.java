@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -307,7 +308,16 @@ public class TransportService extends AbstractLifecycleComponent {
         if (isLocalNode(node)) {
             return;
         }
-        transport.connectToNode(node, connectionProfile);
+        transport.connectToNode(node, connectionProfile, newConnection -> {
+            TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout();
+            if (handshakeTimeout == null) {
+                handshakeTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.get(settings);
+            }
+            final DiscoveryNode remote = handshake(newConnection, handshakeTimeout.millis(), clusterName::equals);
+            if (node.equals(remote) == false) {
+                throw new IllegalStateException("handshake failed with " + node + ". unexpected remote node " + remote);
+            }
+        });
     }
 
     /**

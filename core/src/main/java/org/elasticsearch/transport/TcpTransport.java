@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -422,7 +423,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                              CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
         connectionProfile = connectionProfile == null ? defaultConnectionProfile : connectionProfile;
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
@@ -435,9 +437,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 if (nodeChannels != null) {
                     return;
                 }
+                boolean success = false;
                 try {
                     try {
                         nodeChannels = openConnection(node, connectionProfile);
+                        connectionValidator.accept(nodeChannels);
                     } catch (Exception e) {
                         logger.trace(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -450,10 +454,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         logger.debug("connected to node [{}]", node);
                     }
                     transportServiceAdapter.onNodeConnected(node);
+                    success = true;
                 } catch (ConnectTransportException e) {
                     throw e;
                 } catch (Exception e) {
                     throw new ConnectTransportException(node, "general node connection failure", e);
+                } finally {
+                    if (success == false) {
+                        connectedNodes.remove(node);
+                        IOUtils.closeWhileHandlingException(nodeChannels);
+                    }
                 }
             }
         } finally {

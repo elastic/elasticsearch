@@ -22,6 +22,7 @@ package org.elasticsearch.test.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -198,7 +199,8 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
@@ -241,8 +243,9 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                original.connectToNode(node, connectionProfile);
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+                original.connectToNode(node, connectionProfile, connectionValidator);
             }
 
             @Override
@@ -275,7 +278,8 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
 
@@ -317,10 +321,11 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
-                    original.connectToNode(node, connectionProfile);
+                    original.connectToNode(node, connectionProfile, connectionValidator);
                     return;
                 }
 
@@ -329,7 +334,7 @@ public final class MockTransportService extends TransportService {
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
-                        original.connectToNode(node, connectionProfile);
+                        original.connectToNode(node, connectionProfile, connectionValidator);
                     } else {
                         Thread.sleep(connectingTimeout.millis());
                         throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -445,10 +450,10 @@ public final class MockTransportService extends TransportService {
             return getTransport(node).nodeConnected(node);
         }
 
-
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-            getTransport(node).connectToNode(node, connectionProfile);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+            getTransport(node).connectToNode(node, connectionProfile, connectionValidator);
         }
 
         @Override
@@ -501,8 +506,9 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-            transport.connectToNode(node, connectionProfile);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedConsumer<Connection, IOException> connectionValidator) throws ConnectTransportException {
+            transport.connectToNode(node, connectionProfile, connectionValidator);
         }
 
         @Override

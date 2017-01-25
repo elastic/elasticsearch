@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
 
     @Override
@@ -37,19 +39,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
-        if (randomBoolean()) {
+        int scriptsSize = randomInt(3);
+        List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
+        for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
+            scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
+                    randomBoolean()));
+        }
+        if (randomBoolean() && scriptsSize == 0) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xconent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
             aggs.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)).field(randomAsciiOfLength(10)));
             builder.setAggregations(aggs);
-        }
-        int scriptsSize = randomInt(3);
-        List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
-        for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-            scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
-                    randomBoolean()));
         }
         builder.setScriptFields(scriptFields);
         if (randomBoolean()) {
@@ -236,6 +238,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setScrollSize(-1000));
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
+    }
+
+    public void testBuild_GivenScriptFieldsAndAggregations() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
+        datafeed.setIndexes(Arrays.asList("my_index"));
+        datafeed.setTypes(Arrays.asList("my_type"));
+        datafeed.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10),
+                new Script(randomAsciiOfLength(10)), randomBoolean())));
+        datafeed.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> datafeed.build());
+
+        assertThat(e.getMessage(), equalTo("script_fields cannot be used in combination with aggregations"));
     }
 
     public static String randomValidDatafeedId() {

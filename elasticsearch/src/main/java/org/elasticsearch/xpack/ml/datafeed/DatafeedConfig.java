@@ -422,6 +422,9 @@ public class DatafeedConfig extends ToXContentToBytes implements Writeable {
             if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
+            if (aggregations != null && (scriptFields != null && !scriptFields.isEmpty())) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+            }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize,
                     source);
         }

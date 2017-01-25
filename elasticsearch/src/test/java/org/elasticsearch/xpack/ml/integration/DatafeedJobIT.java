@@ -28,8 +28,22 @@ public class DatafeedJobIT extends ESRestTestCase {
 
     @Before
     public void setUpData() throws Exception {
-        // Create index with source = enabled, doc_values = enabled, stored = false
+        // Create empty index
         String mappings = "{"
+                + "  \"mappings\": {"
+                + "    \"response\": {"
+                + "      \"properties\": {"
+                + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
+                + "        \"airline\": { \"type\":\"keyword\"},"
+                + "        \"responsetime\": { \"type\":\"float\"}"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}";
+        client().performRequest("put", "airline-data-empty", Collections.emptyMap(), new StringEntity(mappings));
+
+        // Create index with source = enabled, doc_values = enabled, stored = false
+        mappings = "{"
                 + "  \"mappings\": {"
                 + "    \"response\": {"
                 + "      \"properties\": {"
@@ -103,6 +117,37 @@ public class DatafeedJobIT extends ESRestTestCase {
         client().performRequest("put", "nested-data/response/2", Collections.emptyMap(),
                 new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}"));
 
+        // Create index with multiple docs per time interval for aggregation testing
+        mappings = "{"
+                + "  \"mappings\": {"
+                + "    \"response\": {"
+                + "      \"properties\": {"
+                + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
+                + "        \"airline\": { \"type\":\"keyword\"},"
+                + "        \"responsetime\": { \"type\":\"float\"}"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}";
+        client().performRequest("put", "airline-data-aggs", Collections.emptyMap(), new StringEntity(mappings));
+
+        client().performRequest("put", "airline-data-aggs/response/1", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":100.0}"));
+        client().performRequest("put", "airline-data-aggs/response/2", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"AAA\",\"responsetime\":200.0}"));
+        client().performRequest("put", "airline-data-aggs/response/3", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"BBB\",\"responsetime\":1000.0}"));
+        client().performRequest("put", "airline-data-aggs/response/4", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"BBB\",\"responsetime\":2000.0}"));
+        client().performRequest("put", "airline-data-aggs/response/5", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"AAA\",\"responsetime\":300.0}"));
+        client().performRequest("put", "airline-data-aggs/response/6", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"AAA\",\"responsetime\":400.0}"));
+        client().performRequest("put", "airline-data-aggs/response/7", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"BBB\",\"responsetime\":3000.0}"));
+        client().performRequest("put", "airline-data-aggs/response/8", Collections.emptyMap(),
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"BBB\",\"responsetime\":4000.0}"));
+
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
     }
@@ -140,11 +185,39 @@ public class DatafeedJobIT extends ESRestTestCase {
         executeTestLookbackOnlyWithNestedFields("lookback-8", true);
     }
 
+    public void testLookbackOnlyGivenEmptyIndex() throws Exception {
+        new LookbackOnlyTestHelper("lookback-9", "airline-data-empty").setShouldSucceedInput(false).setShouldSucceedProcessing(false)
+                .execute();
+    }
+
+    public void testLookbackOnlyGivenAggregations() throws Exception {
+        String jobId = "aggs-job";
+        String job = "{\"description\":\"Aggs job\",\"analysis_config\" :{\"bucket_span\":3600,\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
+                + "\"data_description\" : {\"time_field\":\"time stamp\"}"
+                + "}";
+        client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"time stamp\":{\"histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+                + "\"aggregations\":{\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
+                + "\"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
     public void testRealtime() throws Exception {
         String jobId = "job-realtime-1";
         createJob(jobId);
         String datafeedId = jobId + "-datafeed";
-        createDatafeed(datafeedId, jobId, "airline-data", false, false);
+        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
         openJob(client(), jobId);
 
         Response response = client().performRequest("post",
@@ -222,7 +295,11 @@ public class DatafeedJobIT extends ESRestTestCase {
         public void execute() throws Exception {
             createJob(jobId);
             String datafeedId = "datafeed-" + jobId;
-            createDatafeed(datafeedId, jobId, dataIndex, enableDatafeedSource, addScriptedFields);
+            new DatafeedBuilder(datafeedId, jobId, dataIndex, "response")
+                    .setSource(enableDatafeedSource)
+                    .setScriptedFields(addScriptedFields ?
+                            "{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : null)
+                    .build();
             openJob(client(), jobId);
 
             startDatafeedAndWaitUntilStopped(datafeedId);
@@ -270,16 +347,6 @@ public class DatafeedJobIT extends ESRestTestCase {
                 Collections.emptyMap(), new StringEntity(job));
     }
 
-    private Response createDatafeed(String datafeedId, String jobId, String dataIndex, boolean source, boolean addScriptedFields)
-            throws IOException {
-        String datafeedConfig = "{" + "\"job_id\": \"" + jobId + "\",\n" + "\"indexes\":[\"" + dataIndex + "\"],\n"
-                + "\"types\":[\"response\"]" + (source ? ",\"_source\":true" : "") + (addScriptedFields ?
-                        ",\"script_fields\":{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : "")
-                +"}";
-        return client().performRequest("put", MlPlugin.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
-                new StringEntity(datafeedConfig));
-    }
-
     private static String responseEntityToString(Response response) throws Exception {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
@@ -298,7 +365,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
 
         String datafeedId = jobId + "-datafeed";
-        createDatafeed(datafeedId, jobId, "nested-data", source, false);
+        new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").setSource(source).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -312,5 +379,48 @@ public class DatafeedJobIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(client(), this).clearMlMetadata();
+    }
+
+    private static class DatafeedBuilder {
+        String datafeedId;
+        String jobId;
+        String index;
+        String type;
+        boolean source;
+        String scriptedFields;
+        String aggregations;
+
+        DatafeedBuilder(String datafeedId, String jobId, String index, String type) {
+            this.datafeedId = datafeedId;
+            this.jobId = jobId;
+            this.index = index;
+            this.type = type;
+        }
+
+        DatafeedBuilder setSource(boolean enableSource) {
+            this.source = enableSource;
+            return this;
+        }
+
+        DatafeedBuilder setScriptedFields(String scriptedFields) {
+            this.scriptedFields = scriptedFields;
+            return this;
+        }
+
+        DatafeedBuilder setAggregations(String aggregations) {
+            this.aggregations = aggregations;
+            return this;
+        }
+
+        Response build() throws IOException {
+            String datafeedConfig = "{"
+                    + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
+                    + (source ? ",\"_source\":true" : "")
+                    + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
+                    + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
+                    + "}";
+            return client().performRequest("put", MlPlugin.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
+                    new StringEntity(datafeedConfig));
+        }
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
@@ -198,7 +199,8 @@ public class DatafeedJobRunner extends AbstractComponent {
     }
 
     DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
-        return new ScrollDataExtractorFactory(client, datafeedConfig, job);
+        return datafeedConfig.getAggregations() == null ? new ScrollDataExtractorFactory(client, datafeedConfig, job)
+                : new AggregationDataExtractorFactory(client, datafeedConfig, job);
     }
 
     private static DataDescription buildDataDescription(Job job) {

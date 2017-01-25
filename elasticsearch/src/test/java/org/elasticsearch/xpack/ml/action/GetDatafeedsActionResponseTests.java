@@ -40,8 +40,8 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
             if (randomBoolean()) {
                 datafeedConfig.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
             }
+            int scriptsSize = randomInt(3);
             if (randomBoolean()) {
-                int scriptsSize = randomInt(3);
                 List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
                 for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
                     scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
@@ -52,7 +52,7 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
             if (randomBoolean()) {
                 datafeedConfig.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            if (randomBoolean()) {
+            if (randomBoolean() && scriptsSize == 0) {
                 AggregatorFactories.Builder aggsBuilder = new AggregatorFactories.Builder();
                 aggsBuilder.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)));
                 datafeedConfig.setAggregations(aggsBuilder);

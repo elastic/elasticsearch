@@ -170,6 +170,7 @@ public final class Messages {
     public static final String JOB_DATA_CONCURRENT_USE_UPLOAD = "job.data.concurrent.use.upload";
 
     public static final String DATAFEED_CONFIG_INVALID_OPTION_VALUE = "datafeed.config.invalid.option.value";
+    public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS = "datafeed.config.cannot.use.script.fields.with.aggs";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "datafeed.does.not.support.job.with.latency";
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =

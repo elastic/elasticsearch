@@ -14,14 +14,11 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -104,7 +101,8 @@ class ScrollDataExtractor implements DataExtractor {
                 .setIndices(context.indexes)
                 .setTypes(context.types)
                 .setSize(context.scrollSize)
-                .setQuery(createQuery());
+                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
+                        context.query, context.extractedFields.timeField(), context.start, context.end));
 
         for (String docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField);
@@ -115,10 +113,7 @@ class ScrollDataExtractor implements DataExtractor {
         } else {
             searchRequestBuilder.setFetchSource(sourceFields, null);
         }
-
-        for (SearchSourceBuilder.ScriptField scriptField : context.scriptFields) {
-            searchRequestBuilder.addScriptField(scriptField.fieldName(), scriptField.script());
-        }
+        context.scriptFields.forEach(f -> searchRequestBuilder.addScriptField(f.fieldName(), f.script()));
         return searchRequestBuilder;
     }
 
@@ -164,15 +159,6 @@ class ScrollDataExtractor implements DataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
                 .get();
-    }
-
-    private QueryBuilder createQuery() {
-        QueryBuilder userQuery = context.query;
-        QueryBuilder timeQuery = new RangeQueryBuilder(context.extractedFields.timeField())
-                .gte(context.start)
-                .lt(context.end)
-                .format("epoch_millis");
-        return new BoolQueryBuilder().filter(userQuery).filter(timeQuery);
     }
 
     void clearScroll(String scrollId) {

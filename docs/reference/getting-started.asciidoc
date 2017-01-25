@@ -1162,15 +1162,15 @@ GET /bank/_search
         "ranges": [
           {
             "from": 20,
-            "to": 30
+            "to": 29
           },
           {
             "from": 30,
-            "to": 40
+            "to": 39
           },
           {
             "from": 40,
-            "to": 50
+            "to": 49
           }
         ]
       },

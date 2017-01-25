@@ -338,7 +338,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
             logger.trace(
-                "{} preparing for sequence number-based recovery starting at local checkpoint [{}] from [{}]",
+                "{} preparing for sequence-number-based recovery starting at local checkpoint [{}] from [{}]",
                 recoveryTarget.shardId(),
                 startingSeqNo,
                 recoveryTarget.sourceNode());

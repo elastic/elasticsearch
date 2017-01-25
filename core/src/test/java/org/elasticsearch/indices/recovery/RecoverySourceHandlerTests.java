@@ -325,7 +325,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         };
         expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
-        // phase1 should only be attempted if we are not doing a sequence number-based recovery
+        // phase1 should only be attempted if we are not doing a sequence-number-based recovery
         assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
         assertTrue(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -371,7 +371,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         };
 
         final Function<String, Releasable> delayNewRecoveries = s -> {
-            // phase1 should only be attempted if we are not doing a sequence number-based recovery
+            // phase1 should only be attempted if we are not doing a sequence-number-based recovery
             assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
             assertTrue(prepareTargetForTranslogCalled.get());
             assertTrue(phase2Called.get());
@@ -417,7 +417,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         handler.recoverToTarget();
         assertTrue(ensureClusterStateVersionCalled.get());
-        // phase1 should only be attempted if we are not doing a sequence number-based recovery
+        // phase1 should only be attempted if we are not doing a sequence-number-based recovery
         assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
         assertTrue(prepareTargetForTranslogCalled.get());
         assertTrue(phase2Called.get());

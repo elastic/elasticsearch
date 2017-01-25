@@ -55,6 +55,6 @@ teardown:
   - do:
       xpack.watcher.get_watch:
         id: "my_watch1"
-  - match: { found : true}
+  - match: { found : true }
   - match: { _id: "my_watch1" }
   - match: { watch.actions.test_index.condition.compare: { "ctx.payload.value": { lt: 10 } } }

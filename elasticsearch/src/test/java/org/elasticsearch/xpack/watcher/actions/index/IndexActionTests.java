@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,13 +55,24 @@ import static org.joda.time.DateTimeZone.UTC;
 public class IndexActionTests extends ESIntegTestCase {
 
     public void testIndexActionExecuteSingleDoc() throws Exception {
+        boolean customId = randomBoolean();
+        boolean docIdAsParam = customId && randomBoolean();
+        String docId = randomAsciiOfLength(5);
         String timestampField = randomFrom("@timestamp", null);
         boolean customTimestampField = timestampField != null;
 
-        IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);
+        IndexAction action = new IndexAction("test-index", "test-type", docIdAsParam ? docId : null, timestampField, null, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
         DateTime executionTime = DateTime.now(UTC);
-        Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", singletonMap("foo", "bar"));
+        Payload payload;
+
+        if (customId && docIdAsParam == false) {
+            // intentionally immutable because the other side needs to cut out _id
+            payload = new Payload.Simple("_doc", MapBuilder.newMapBuilder().put("foo", "bar").put("_id", docId).immutableMap());
+        } else {
+            payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", singletonMap("foo", "bar"));
+        }
+
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -89,6 +101,10 @@ public class IndexActionTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         SearchHit hit = searchResponse.getHits().getAt(0);
 
+        if (customId) {
+            assertThat(hit.getId(), is(docId));
+        }
+
         if (customTimestampField) {
             assertThat(hit.getSource().size(), is(2));
             assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
@@ -112,18 +128,26 @@ public class IndexActionTests extends ESIntegTestCase {
         assertAcked(prepareCreate("test-index")
                 .addMapping("test-type", "foo", "type=keyword"));
 
+        List<Map> idList = Arrays.asList(
+                MapBuilder.newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap(),
+                MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map()
+        );
+
         Object list = randomFrom(
                 new Map[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
                 Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
-                unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1")))
+                unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
+                idList
         );
 
-        IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);
+        boolean customId = list == idList;
+
+        IndexAction action = new IndexAction("test-index", "test-type", null, timestampField, null, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
         DateTime executionTime = DateTime.now(UTC);
-        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("watch_id", executionTime, new Payload.Simple("_doc", list));
 
-        Action.Result result = executable.execute("_id", ctx, ctx.payload());
+        Action.Result result = executable.execute("watch_id", ctx, ctx.payload());
 
         assertThat(result.status(), equalTo(Status.SUCCESS));
         assertThat(result, instanceOf(IndexAction.Result.class));
@@ -147,23 +171,20 @@ public class IndexActionTests extends ESIntegTestCase {
                 .get();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
-        SearchHit hit = searchResponse.getHits().getAt(0);
-        if (customTimestampField) {
-            assertThat(hit.getSource().size(), is(2));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
-            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
-        } else {
-            assertThat(hit.getSource().size(), is(1));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
-        }
-        hit = searchResponse.getHits().getAt(1);
-        if (customTimestampField) {
-            assertThat(hit.getSource().size(), is(2));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar1"));
-            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
-        } else {
-            assertThat(hit.getSource().size(), is(1));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar1"));
+        final int fields = customTimestampField ? 2 : 1;
+        for (int i = 0; i < 2; ++i) {
+            final SearchHit hit = searchResponse.getHits().getAt(i);
+            final String value = "bar" + (i != 0 ? i : "");
+
+            assertThat(hit.getSource().size(), is(fields));
+
+            if (customId) {
+                assertThat(hit.getId(), is(Integer.toString(i)));
+            }
+            if (customTimestampField) {
+                assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+            }
+            assertThat(hit.getSource(), hasEntry("foo", (Object) value));
         }
     }
 
@@ -234,7 +255,7 @@ public class IndexActionTests extends ESIntegTestCase {
         client().prepareIndex("test-index", "test-type", "_id").setSource("foo", true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        IndexAction action = new IndexAction("test-index", "test-type", "@timestamp", null, null);
+        IndexAction action = new IndexAction("test-index", "test-type", null, "@timestamp", null, null);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
 
         List<Map<String, Object>> docs = new ArrayList<>();
@@ -253,5 +274,36 @@ public class IndexActionTests extends ESIntegTestCase {
         } else {
             assertThat(result.status(), is(Status.FAILURE));
         }
+    }
+
+    public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
+        final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null);
+        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+        final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
+        final DateTime executionTime = DateTime.now(UTC);
+
+        // using doc_id with bulk fails regardless of using ID
+        expectThrows(IllegalStateException.class, () -> {
+            final List<Map> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
+
+            final Object list = randomFrom(
+                    new Map[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
+                    Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
+                    unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
+                    idList
+            );
+
+            final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
+
+            executable.execute("_id", ctx, ctx.payload());
+        });
+
+        // using doc_id with _id
+        expectThrows(IllegalStateException.class, () -> {
+            final Payload payload = randomBoolean() ? new Payload.Simple("_doc", docWithId) : new Payload.Simple(docWithId);
+            final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
+
+            executable.execute("_id", ctx, ctx.payload());
+        });
     }
 }

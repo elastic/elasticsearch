@@ -471,7 +471,7 @@ public class WatchTests extends ESTestCase {
         if (randomBoolean()) {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
-            IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
+            IndexAction action = new IndexAction("_index", "_type", randomBoolean() ? "123" : null, null, timeout, timeZone);
             list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
                     new ExecutableIndexAction(action, logger, client, null)));

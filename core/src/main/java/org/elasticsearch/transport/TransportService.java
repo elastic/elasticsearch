@@ -310,7 +310,7 @@ public class TransportService extends AbstractLifecycleComponent {
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), clusterName::equals);
             if (node.equals(remote) == false) {
-                throw new IllegalStateException("handshake failed with " + node + ". unexpected remote node " + remote);
+                throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
         });
     }

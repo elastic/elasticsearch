@@ -310,7 +310,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                         Thread.currentThread().interrupt();
                     }
                     logger.info("Action on node {} finished", node);
-                    return new NodeResponse(testNodes[node].discoveryNode);
+                    return new NodeResponse(testNodes[node].discoveryNode());
                 }
             };
         }
@@ -370,10 +370,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
 
         // Coordinating node
-        assertEquals(2, response.getPerNodeTasks().get(testNodes[0].discoveryNode.getId()).size());
+        assertEquals(2, response.getPerNodeTasks().get(testNodes[0].getNodeId()).size());
         // Other nodes node
         for (int i = 1; i < testNodes.length; i++) {
-            assertEquals(1, response.getPerNodeTasks().get(testNodes[i].discoveryNode.getId()).size());
+            assertEquals(1, response.getPerNodeTasks().get(testNodes[i].getNodeId()).size());
         }
         // There should be a single main task when grouped by tasks
         assertEquals(1, response.getTaskGroups().size());
@@ -535,7 +535,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Try to cancel main task using action name
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setNodes(testNodes[0].discoveryNode.getId());
+        request.setNodes(testNodes[0].getNodeId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)
@@ -550,7 +550,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Try to cancel main task using id
         request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].discoveryNode.getId(), task.getId()));
+        request.setTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
         response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request).get();
 
         // Shouldn't match any tasks since testAction doesn't support cancellation
@@ -766,11 +766,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         byNodes = (Map<String, Object>) byNodes.get("nodes");
         // One element on the top level
         assertEquals(testNodes.length, byNodes.size());
-        Map<String, Object> firstNode = (Map<String, Object>) byNodes.get(testNodes[0].discoveryNode.getId());
+        Map<String, Object> firstNode = (Map<String, Object>) byNodes.get(testNodes[0].getNodeId());
         firstNode = (Map<String, Object>) firstNode.get("tasks");
         assertEquals(2, firstNode.size()); // two tasks for the first node
         for (int i = 1; i < testNodes.length; i++) {
-            Map<String, Object> otherNode = (Map<String, Object>) byNodes.get(testNodes[i].discoveryNode.getId());
+            Map<String, Object> otherNode = (Map<String, Object>) byNodes.get(testNodes[i].getNodeId());
             otherNode = (Map<String, Object>) otherNode.get("tasks");
             assertEquals(1, otherNode.size()); // one tasks for the all other nodes
         }

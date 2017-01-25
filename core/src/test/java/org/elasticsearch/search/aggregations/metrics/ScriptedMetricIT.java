@@ -91,6 +91,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             scripts.put("_agg.add(1)", vars ->
                     aggScript(vars, agg -> ((List) agg).add(1)));
 
+            scripts.put("_agg[param1] = param2", vars ->
+                    aggScript(vars, agg -> ((Map) agg).put(XContentMapValues.extractValue("params.param1", vars),
+                        XContentMapValues.extractValue("params.param2", vars))));
+
             scripts.put("vars.multiplier = 3", vars ->
                     ((Map<String, Object>) vars.get("vars")).put("multiplier", 3));
 

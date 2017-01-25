@@ -90,11 +90,7 @@ public class PainlessDocGenerator {
                     typeStream.print("* [[");
                     emitAnchor(typeStream, type.struct);
                     typeStream.print("]]");
-                    typeStream.print(type.name);
-
-                    typeStream.print("[afterthought]##(");
-                    emitJavadocLink(typeStream, type.struct);
-                    typeStream.println("[reference])##");
+                    typeStream.println(type.name);
 
                     Consumer<Field> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
                     Consumer<Method> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
@@ -304,18 +300,6 @@ public class PainlessDocGenerator {
         stream.print(field.owner.clazz.getName().replace('.', '/'));
         stream.print(".html#");
         stream.print(field.javaName);
-    }
-
-    /**
-     * Emit an external link to Javadoc for a {@link Struct}.
-     */
-    private static void emitJavadocLink(PrintStream stream, Struct struct) {
-        stream.print("link:{");
-        stream.print(javadocRoot(struct));
-        stream.print("-javadoc}/");
-        stream.print(struct.clazz.getName().replace('.', '/'));
-        stream.print(".html#");
-        stream.print(struct.name);
     }
 
     /**

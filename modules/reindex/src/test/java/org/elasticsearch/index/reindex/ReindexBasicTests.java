@@ -26,6 +26,9 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
@@ -81,5 +84,35 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.size(half); // The real "size" of the request.
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), half);
+    }
+
+    public void testCopyManyWithSlices() throws Exception {
+        int workers = between(2, 10);
+
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        int max = between(150, 500);
+        for (int i = 0; i < max; i++) {
+            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+        }
+
+        indexRandom(true, docs);
+        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true).setSlices(workers);
+        // Use a small batch size so we have to use more than one batch
+        copy.source().setSize(5);
+        assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(workers)));
+        assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), max);
+
+        // Copy some of the docs
+        int half = max / 2;
+        copy = reindex().source("source").destination("dest", "half").refresh(true).setSlices(workers);
+        // Use a small batch size so we have to use more than one batch
+        copy.source().setSize(5);
+        copy.size(half); // The real "size" of the request.
+        BulkIndexByScrollResponse response = copy.get();
+        assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(workers)));
+        assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), response.getCreated());
     }
 }

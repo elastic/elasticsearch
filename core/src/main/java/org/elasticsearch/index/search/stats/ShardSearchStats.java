@@ -33,8 +33,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
-/**
- */
 public final class ShardSearchStats implements SearchOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();

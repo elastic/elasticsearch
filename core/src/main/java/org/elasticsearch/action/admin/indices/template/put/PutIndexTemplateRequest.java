@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -32,7 +33,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,10 +45,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -56,11 +63,13 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  */
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
+
     private String name;
 
     private String cause = "";
 
-    private String template;
+    private List<String> indexPatterns;
 
     private int order;
 
@@ -73,6 +82,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private final Set<Alias> aliases = new HashSet<>();
 
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+
+    private Integer version;
 
     public PutIndexTemplateRequest() {
     }
@@ -90,8 +101,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
         }
-        if (template == null) {
-            validationException = addValidationError("template is missing", validationException);
+        if (indexPatterns == null || indexPatterns.size() == 0) {
+            validationException = addValidationError("pattern is missing", validationException);
         }
         return validationException;
     }
@@ -111,13 +122,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this.name;
     }
 
-    public PutIndexTemplateRequest template(String template) {
-        this.template = template;
+    public PutIndexTemplateRequest patterns(List<String> indexPatterns) {
+        this.indexPatterns = indexPatterns;
         return this;
     }
 
-    public String template() {
-        return this.template;
+    public List<String> patterns() {
+        return this.indexPatterns;
     }
 
     public PutIndexTemplateRequest order(int order) {
@@ -129,9 +140,18 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this.order;
     }
 
+    public PutIndexTemplateRequest version(Integer version) {
+        this.version = version;
+        return this;
+    }
+
+    public Integer version() {
+        return this.version;
+    }
+
     /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
-     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
+     * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequest create(boolean create) {
         this.create = create;
@@ -275,19 +295,39 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("template")) {
-                template(entry.getValue().toString());
+                // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
+                if(entry.getValue() instanceof String) {
+                    DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
+                    patterns(Collections.singletonList((String) entry.getValue()));
+                }
+            } else if (name.equals("index_patterns")) {
+                if(entry.getValue() instanceof String) {
+                    patterns(Collections.singletonList((String) entry.getValue()));
+                } else if (entry.getValue() instanceof List) {
+                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
+                    patterns(elements);
+                } else {
+                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
+                }
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
+            } else if ("version".equals(name)) {
+                if ((entry.getValue() instanceof Integer) == false) {
+                    throw new IllegalArgumentException("Malformed [version] value, should be an integer");
+                }
+                version((Integer)entry.getValue());
             } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("Malformed settings section, should include an inner object");
+                if ((entry.getValue() instanceof Map) == false) {
+                    throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     if (!(entry1.getValue() instanceof Map)) {
-                        throw new IllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
+                        throw new IllegalArgumentException(
+                            "Malformed [mappings] section for type [" + entry1.getKey() +
+                                "], should include an inner object describing the mapping");
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
@@ -312,11 +352,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource) {
-        try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
-            return source(parser.mapOrdered());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
-        }
+        return source(XContentHelper.convertToMap(XContentFactory.xContent(templateSource), templateSource, true));
     }
 
     /**
@@ -330,22 +366,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
-        try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
+        return source(new BytesArray(source, offset, length));
     }
 
     /**
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
+        return source(XContentHelper.convertToMap(source, true).v2());
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
@@ -393,7 +421,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
+        // EMPTY is safe here because we never call namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -418,7 +447,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public String[] indices() {
-        return new String[]{template};
+        return indexPatterns.toArray(new String[indexPatterns.size()]);
     }
 
     @Override
@@ -431,7 +460,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.readFrom(in);
         cause = in.readString();
         name = in.readString();
-        template = in.readString();
+
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            indexPatterns = in.readList(StreamInput::readString);
+        } else {
+            indexPatterns = Collections.singletonList(in.readString());
+        }
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
@@ -449,6 +483,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
+        version = in.readOptionalVInt();
     }
 
     @Override
@@ -456,7 +491,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(name);
-        out.writeString(template);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeStringList(indexPatterns);
+        } else {
+            out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
+        }
         out.writeInt(order);
         out.writeBoolean(create);
         writeSettingsToStream(settings, out);
@@ -474,5 +513,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
+        out.writeOptionalVInt(version);
     }
 }

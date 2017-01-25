@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,9 +51,10 @@ public class SettingsModule implements Module {
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.")
         && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
-    private final ESLogger logger;
+    private final Logger logger;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
+    private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
         this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
@@ -137,12 +138,13 @@ public class SettingsModule implements Module {
         final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.negate();
         clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
+        this.settingsFilter = new SettingsFilter(settings, settingsFilterPattern);
      }
 
     @Override
     public void configure(Binder binder) {
         binder.bind(Settings.class).toInstance(settings);
-        binder.bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
+        binder.bind(SettingsFilter.class).toInstance(settingsFilter);
         binder.bind(ClusterSettings.class).toInstance(clusterSettings);
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
@@ -217,5 +219,9 @@ public class SettingsModule implements Module {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public SettingsFilter getSettingsFilter() {
+        return settingsFilter;
     }
 }

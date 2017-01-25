@@ -19,13 +19,13 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 
 public final class CorruptionUtils {
-    private static ESLogger logger = ESLoggerFactory.getLogger("test");
+    private static Logger logger = ESLoggerFactory.getLogger("test");
     private CorruptionUtils() {}
 
     /**

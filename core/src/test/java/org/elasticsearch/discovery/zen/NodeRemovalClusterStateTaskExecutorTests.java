@@ -26,16 +26,13 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -69,7 +66,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
                         .map(node -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
                         .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
                 = executor.execute(clusterState, tasks);
         assertThat(result.resultingState, equalTo(clusterState));
     }
@@ -80,17 +77,12 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AllocationService allocationService = mock(AllocationService.class);
 
-        final AtomicBoolean rejoined = new AtomicBoolean();
-        final AtomicReference<ClusterState> rejoinedClusterState = new AtomicReference<>();
-        final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
-            rejoined.set(true);
-            rejoinedClusterState.set(ClusterState.builder(cs).build());
-            return rejoinedClusterState.get();
-        };
+        final AtomicBoolean rejoinCalled = new AtomicBoolean();
+        final Consumer<String> submitRejoin = source -> rejoinCalled.set(true);
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, logger) {
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, submitRejoin, logger) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -113,18 +105,18 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
 
         // ensure that we did not reroute
         verifyNoMoreInteractions(allocationService);
-        assertTrue(rejoined.get());
-        assertThat(result.resultingState, equalTo(rejoinedClusterState.get()));
+        assertTrue(rejoinCalled.get());
+        assertThat(result.resultingState, equalTo(clusterState));
 
         for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
-            assertNull(result.resultingState.nodes().get(task.node().getId()));
+            assertNotNull(result.resultingState.nodes().get(task.node().getId()));
         }
     }
 
@@ -134,16 +126,13 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
-            .thenReturn(mock(RoutingAllocation.Result.class));
+            .thenAnswer(im -> im.getArguments()[0]);
 
-        final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
-            fail("rejoin should not be invoked");
-            return cs;
-        };
+        final Consumer<String> submitRejoin = source -> fail("rejoin should not be invoked");
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, logger) {
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, submitRejoin, logger) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -166,7 +155,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
@@ -179,7 +168,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return new DiscoveryNode(Integer.toString(id), LocalTransportAddress.buildUnique(), Version.CURRENT);
+        return new DiscoveryNode(Integer.toString(id), buildNewFakeTransportAddress(), Version.CURRENT);
     }
 
 }

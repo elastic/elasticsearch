@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.WriterConstants;
 
 import java.util.Objects;
 import java.util.Set;
@@ -87,15 +88,8 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
-
-        writer.writeDebugInfo(location);
-
-        getter.write(writer);
-
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
-        }
+        setup(writer, globals);
+        load(writer, globals);
     }
 
     @Override
@@ -116,6 +110,9 @@ final class PSubListShortcut extends AStoreable {
     @Override
     void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
+        writeIndexFlip(writer, w -> {
+            w.invokeInterface(WriterConstants.COLLECTION_TYPE, WriterConstants.COLLECTION_SIZE);
+        });
     }
 
     @Override
@@ -136,5 +133,10 @@ final class PSubListShortcut extends AStoreable {
         setter.write(writer);
 
         writer.writePop(setter.rtn.sort.size);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
     }
 }

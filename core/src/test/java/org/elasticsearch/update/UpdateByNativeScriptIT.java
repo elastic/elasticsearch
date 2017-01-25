@@ -26,8 +26,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptEngineService;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -42,9 +41,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
@@ -61,7 +57,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("foo", "SETVALUE");
         client().prepareUpdate("test", "type", "1")
-                .setScript(new Script("custom", ScriptService.ScriptType.INLINE, NativeScriptEngineService.NAME, params)).get();
+                .setScript(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "custom", params)).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));

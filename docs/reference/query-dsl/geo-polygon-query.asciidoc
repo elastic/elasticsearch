@@ -69,7 +69,7 @@ GET /_search
                     "person.location" : {
                         "points" : [
                             [-70, 40],
-                        [-80, 30],
+                            [-80, 30],
                             [-90, 20]
                         ]
                     }

@@ -24,6 +24,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) query;
         assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));
@@ -84,7 +85,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testBlendedRewriteMethod() throws IOException {
         String rewrite = "top_terms_blended_freqs_10";
-        Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
         assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));

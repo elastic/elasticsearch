@@ -24,9 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BlobStoreWrapper implements BlobStore {
 
     private BlobStore delegate;

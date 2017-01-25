@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Factory factory;
@@ -36,8 +33,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         super(indexSettings, name, settings);
         Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
-        Boolean outputUnigrams = settings.getAsBoolean("output_unigrams", true);
-        Boolean outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
+        Boolean outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams", true, deprecationLogger);
+        Boolean outputUnigramsIfNoShingles = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams_if_no_shingles", false, deprecationLogger);
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
         factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);

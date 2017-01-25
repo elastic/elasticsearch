@@ -27,19 +27,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class UpdateSettingsValidationIT extends ESIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {
-        internalCluster().startNodesAsync(
+        internalCluster().startNodes(
                 Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build(),
                 Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(),
                 Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()
-        ).get();
+        );
 
         createIndex("test");
         NumShards test = getNumShards("test");

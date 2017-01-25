@@ -28,28 +28,23 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- *
- */
 public class RestGetMappingAction extends BaseRestHandler {
-
-    @Inject
     public RestGetMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
@@ -59,30 +54,33 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
+        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
+
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty()) {
                     if (indices.length != 0 && types.length != 0) {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     } else if (indices.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new TypeMissingException("_all", types[0]));
                     } else {
-                        return new BytesRestResponse(OK, builder.endObject());
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
                     }
                 }
 
+                builder.startObject();
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
                     if (indexEntry.value.isEmpty()) {
                         continue;

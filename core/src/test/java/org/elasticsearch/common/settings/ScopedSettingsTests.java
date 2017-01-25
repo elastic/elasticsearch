@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -31,15 +33,73 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class ScopedSettingsTests extends ESTestCase {
+
+    public void testResetSetting() {
+        Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> staticSetting = Setting.intSetting("some.static.setting", 1, Property.NodeScope);
+        Settings currentSettings = Settings.builder().put("some.dyn.setting", 5).put("some.static.setting", 6).put("archived.foo.bar", 9)
+            .build();
+        ClusterSettings service = new ClusterSettings(currentSettings
+            , new HashSet<>(Arrays.asList(dynamicSetting, staticSetting)));
+
+        expectThrows(IllegalArgumentException.class, () ->
+        service.updateDynamicSettings(Settings.builder().put("some.dyn.setting", 8).putNull("some.static.setting").build(),
+            Settings.builder().put(currentSettings), Settings.builder(), "node"));
+
+        Settings.Builder target = Settings.builder().put(currentSettings);
+        Settings.Builder update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().put("some.dyn.setting", 8).build(),
+            target, update, "node"));
+        assertEquals(8, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("some.dyn.setting").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("archived.foo.bar").build(),
+            target, update, "node"));
+        assertEquals(5, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertNull(target.build().getAsInt("archived.foo.bar", null));
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("some.*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertEquals(9, target.build().getAsInt("archived.foo.bar", null).intValue());
+
+        target = Settings.builder().put(currentSettings);
+        update = Settings.builder();
+        assertTrue(service.updateDynamicSettings(Settings.builder().putNull("*").build(),
+            target, update, "node"));
+        assertEquals(1, dynamicSetting.get(target.build()).intValue());
+        assertEquals(6, staticSetting.get(target.build()).intValue());
+        assertNull(target.build().getAsInt("archived.foo.bar", null));
+    }
 
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
@@ -67,6 +127,52 @@ public class ScopedSettingsTests extends ESTestCase {
         service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(2, consumer.get());
         assertEquals(0, consumer2.get());
+    }
+
+    public void testAddConsumerAffix() {
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, List<Integer>> listResults = new HashMap<>();
+        Map<String, Integer> intResults = new HashMap<>();
+
+        BiConsumer<String, Integer> intConsumer = intResults::put;
+        BiConsumer<String, List<Integer>> listConsumer = listResults::put;
+
+        service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
+        assertEquals(0, listResults.size());
+        assertEquals(0, intResults.size());
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putArray("foo.test_list.list", "16", "17")
+            .putArray("foo.test_list_1.list", "18", "19", "20")
+            .build());
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+        listResults.clear();
+        intResults.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 8)
+            .putArray("foo.test_list.list", "16", "17")
+            .putNull("foo.test_list_1.list")
+            .build());
+        assertNull("test wasn't changed", intResults.get("test"));
+        assertEquals(8, intResults.get("test_1").intValue());
+        assertNull("test_list wasn't changed", listResults.get("test_list"));
+        assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertEquals(1, listResults.size());
+        assertEquals(1, intResults.size());
     }
 
     public void testApply() {
@@ -154,16 +260,106 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testDiff() throws IOException {
-        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
-        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Settings> someGroup = Setting.groupSetting("some.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", (key) -> Setting.boolSetting(key, true,
+            Property.NodeScope));
+        Setting<List<String>> foorBarQuux =
+                Setting.listSetting("foo.bar.quux", Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
+            someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(1));
+        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
 
-        diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
+        diff = settings.diff(
+                Settings.builder().put("foo.bar", 5).build(),
+                Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
+        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
+
+        diff = settings.diff(
+            Settings.builder().put("some.group.foo", 5).build(),
+            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
+        assertNull(diff.get("some.group.foo"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18).build());
+        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+    }
+
+    public void testDiffWithAffixAndComplexMatcher() {
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Settings> someGroup = Setting.groupSetting("some.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", (key) -> Setting.boolSetting(key, true,
+            Property.NodeScope));
+        Setting<List<String>> foorBarQuux = Setting.affixKeySetting("foo.", "quux",
+            (key) -> Setting.listSetting(key,  Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope));
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
+            someGroup, someAffix)));
+        Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
+        assertEquals(1, diff.getAsMap().size());
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+
+        diff = settings.diff(
+            Settings.builder().put("foo.bar", 5).build(),
+            Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
+        assertEquals(4, diff.getAsMap().size());
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
+
+        diff = settings.diff(
+            Settings.builder().put("some.group.foo", 5).build(),
+            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+        assertEquals(3, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
+        assertNull(diff.get("some.group.foo"));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18).build());
+        assertEquals(3, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18)
+            .putArray("foo.bar.quux", "x", "y", "z")
+            .putArray("foo.baz.quux", "d", "e", "f")
+                .build());
+        assertEquals(9, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"x", "y", "z"});
+        assertArrayEquals(diff.getAsArray("foo.baz.quux", null), new String[] {"d", "e", "f"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }
 
     public void testUpdateTracer() {
@@ -302,45 +498,44 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdates() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
-        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = randomFrom(ESLoggerFactory.LogLevel.values()).toString();
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        Level property = randomFrom(Level.values());
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            try {
-                settings.validate(Settings.builder().put("logger._root", "boom").build());
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
-            }
+            IllegalArgumentException ex =
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build()));
+            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
             assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
-            ESLoggerFactory.getLogger("test").setLevel(testLevel);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
         }
     }
 
     public void testFallbackToLoggerLevel() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
         try {
-            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(),
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterSettings settings =
+                new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
-            assertEquals("ERROR", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
     }
 

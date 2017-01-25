@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import com.bmuschko.gradle.nexus.NexusPlugin
+import java.nio.file.Path
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
@@ -28,6 +28,11 @@ subprojects {
   group = 'org.elasticsearch'
   version = org.elasticsearch.gradle.VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
+}
+
+Path rootPath = rootDir.toPath()
+// setup pom license info, but only for artifacts that are part of elasticsearch
+configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
@@ -47,68 +52,6 @@ subprojects {
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
             developer.appendNode('url', 'http://www.elastic.co')
-          }
-        }
-      }
-    }
-  }
-
-  plugins.withType(NexusPlugin).whenPluginAdded {
-    modifyPom {
-      project {
-        url 'https://github.com/elastic/elasticsearch'
-        inceptionYear '2009'
-
-        scm {
-          url 'https://github.com/elastic/elasticsearch'
-          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
-          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
-        }
-
-        licenses {
-          license {
-            name 'The Apache Software License, Version 2.0'
-            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-            distribution 'repo'
-          }
-        }
-      }
-    }
-    extraArchive {
-      javadoc = true
-      tests = false
-    }
-    nexus {
-      String buildSnapshot = System.getProperty('build.snapshot', 'true')
-      if (buildSnapshot == 'false') {
-        Repository repo = new RepositoryBuilder().findGitDir(project.rootDir).build()
-        String shortHash = repo.resolve('HEAD')?.name?.substring(0,7)
-        repositoryUrl = project.hasProperty('build.repository') ? project.property('build.repository') : "file://${System.getenv('HOME')}/elasticsearch-releases/${version}-${shortHash}/"
-      }
-    }
-    // we have our own username/password prompts so that they only happen once
-    // TODO: add gpg signing prompts, which is tricky, as the buildDeb/buildRpm tasks are executed before this code block
-    project.gradle.taskGraph.whenReady { taskGraph ->
-      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
-        Console console = System.console()
-        // no need for username/password on local deploy
-        if (project.nexus.repositoryUrl.startsWith('file://')) {
-          project.rootProject.allprojects.each {
-            it.ext.nexusUsername = 'foo'
-            it.ext.nexusPassword = 'bar'
-          }
-        } else {
-          if (project.hasProperty('nexusUsername') == false) {
-            String nexusUsername = console.readLine('\nNexus username: ')
-            project.rootProject.allprojects.each {
-              it.ext.nexusUsername = nexusUsername
-            }
-          }
-          if (project.hasProperty('nexusPassword') == false) {
-            String nexusPassword = new String(console.readPassword('\nNexus password: '))
-            project.rootProject.allprojects.each {
-              it.ext.nexusPassword = nexusPassword
-            }
           }
         }
       }
@@ -175,7 +118,6 @@ subprojects {
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
-    "org.elasticsearch.plugin:transport-netty3-client:${version}": ':modules:transport-netty3',
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
     "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
@@ -264,6 +206,14 @@ allprojects {
       }
     }
   }
+
+  task cleanIdeaBuildDir(type: Delete) {
+    delete 'build-idea'
+  }
+  cleanIdeaBuildDir.setGroup("ide")
+  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
+
+  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
 }
 
 idea {

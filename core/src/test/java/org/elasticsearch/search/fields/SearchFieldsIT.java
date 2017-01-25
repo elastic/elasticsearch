@@ -30,13 +30,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -80,7 +79,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CustomScriptPlugin.class);
+        return Collections.singletonList(CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -285,32 +284,32 @@ public class SearchFieldsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("sNum1_field", new Script("_fields['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("date1", new Script("doc['date'].date.millis", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("sNum1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+                .addScriptField("sNum1_field",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields['num1'].value", Collections.emptyMap()))
+                .addScriptField("date1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.millis", Collections.emptyMap()))
                 .execute().actionGet();
 
         assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).hasSource(), equalTo(true));
+        assertFalse(response.getHits().getAt(0).hasSource());
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field", "date1")));
         assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(0).fields().get("date1").values().get(0), equalTo(0L));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
         fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field", "date1")));
         assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).fields().get("date1").values().get(0), equalTo(25000L));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
         fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field", "date1")));
         assertThat(response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
         assertThat(response.getHits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
@@ -321,23 +320,20 @@ public class SearchFieldsIT extends ESIntegTestCase {
         response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value * factor", ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", params))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("sNum1")));
         assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
         fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("sNum1")));
         assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
         fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("sNum1")));
         assertThat(response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
     }
@@ -357,7 +353,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("uid", new Script("_fields._uid.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -366,7 +362,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
-            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
             assertThat(fields, equalTo(singleton("uid")));
             assertThat(response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
         }
@@ -375,7 +370,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", new Script("_fields._id.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -384,7 +379,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
-            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
             assertThat(fields, equalTo(singleton("id")));
             assertThat(response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
         }
@@ -393,7 +387,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("type", new Script("_fields._type.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("type",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -402,7 +397,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
-            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
             assertThat(fields, equalTo(singleton("type")));
             assertThat(response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
         }
@@ -411,9 +405,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", new Script("_fields._id.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("uid", new Script("_fields._uid.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("type", new Script("_fields._type.value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
+                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
+                .addScriptField("type",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -422,7 +417,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).fields().keySet());
-            fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
             assertThat(fields, equalTo(newHashSet("uid", "type", "id")));
             assertThat(response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
             assertThat(response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
@@ -444,11 +438,13 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", new Script("_source.obj1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj1_test", new Script("_source.obj1.test", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj2", new Script("_source.obj2", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_obj2_arr2", new Script("_source.obj2.arr2", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
-                .addScriptField("s_arr3", new Script("_source.arr3", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("s_obj1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1", Collections.emptyMap()))
+                .addScriptField("s_obj1_test",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1.test", Collections.emptyMap()))
+                .addScriptField("s_obj2", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2", Collections.emptyMap()))
+                .addScriptField("s_obj2_arr2",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2.arr2", Collections.emptyMap()))
+                .addScriptField("s_arr3", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", Collections.emptyMap()))
                 .get();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -481,7 +477,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("test_script_1", new Script("return null", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("test_script_1",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);
@@ -592,7 +589,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
                 "float_field", "double_field", "date_field", "boolean_field", "binary_field")));
 
@@ -770,6 +766,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
                             .startObject("binary_field")
                                 .field("type", "binary")
                             .endObject()
+                            .startObject("ip_field")
+                                .field("type", "ip")
+                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
@@ -788,6 +787,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
                 .field("boolean_field", true)
+                .field("ip_field", "::1")
                 .endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -802,15 +802,16 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addDocValueField("float_field")
                 .addDocValueField("double_field")
                 .addDocValueField("date_field")
-                .addDocValueField("boolean_field");
+                .addDocValueField("boolean_field")
+                .addDocValueField("ip_field");
         SearchResponse searchResponse = builder.execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
-                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field")));
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "ip_field")));
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
@@ -819,9 +820,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) 1L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("ip_field").value(), equalTo("::1"));
     }
 
     public void testScriptFields() throws Exception {
@@ -847,7 +849,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
-            req.addScriptField(field, new Script("doc['" + field + "'].values", ScriptType.INLINE, CustomScriptPlugin.NAME, null));
+            req.addScriptField(field,
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
         }
         SearchResponse resp = req.get();
         assertSearchResponse(resp);
@@ -871,8 +874,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("test", "my-type1", "1")
                         .setRouting("1")
-                        .setTimestamp("205097")
-                        .setTTL(10000000000000L)
                         .setParent("parent_1")
                         .setSource(jsonBuilder().startObject().field("field1", "value").endObject()));
 

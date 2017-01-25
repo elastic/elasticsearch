@@ -21,136 +21,46 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
+    static final ObjectParser<IndicesAliasesRequest, Void> PARSER = new ObjectParser<>("aliases");
+    static {
+        PARSER.declareObjectArray((request, actions) -> {
+            for (AliasActions action: actions) {
+                request.addAliasAction(action);
+            }
+        }, AliasActions.PARSER, new ParseField("actions"));
+    }
 
-    @Inject
     public RestIndicesAliasesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_aliases", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
-        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            // {
-            //     actions : [
-            //         { add : { index : "test1", alias : "alias1", filter : {"user" : "kimchy"} } }
-            //         { remove : { index : "test1", alias : "alias1" } }
-            //     ]
-            // }
-            indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                throw new IllegalArgumentException("No action is specified");
-            }
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            String action = parser.currentName();
-                            AliasAction.Type type;
-                            if ("add".equals(action)) {
-                                type = AliasAction.Type.ADD;
-                            } else if ("remove".equals(action)) {
-                                type = AliasAction.Type.REMOVE;
-                            } else {
-                                throw new IllegalArgumentException("Alias action [" + action + "] not supported");
-                            }
-                            String[] indices = null;
-                            String[] aliases = null;
-                            Map<String, Object> filter = null;
-                            String routing = null;
-                            boolean routingSet = false;
-                            String indexRouting = null;
-                            boolean indexRoutingSet = false;
-                            String searchRouting = null;
-                            boolean searchRoutingSet = false;
-                            String currentFieldName = null;
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token.isValue()) {
-                                    if ("index".equals(currentFieldName)) {
-                                        indices = new String[] { parser.text() };
-                                    } else if ("alias".equals(currentFieldName)) {
-                                        aliases = new String[] { parser.text() };
-                                    } else if ("routing".equals(currentFieldName)) {
-                                        routing = parser.textOrNull();
-                                        routingSet = true;
-                                    } else if ("indexRouting".equals(currentFieldName)
-                                            || "index-routing".equals(currentFieldName) || "index_routing".equals(currentFieldName)) {
-                                        indexRouting = parser.textOrNull();
-                                        indexRoutingSet = true;
-                                    } else if ("searchRouting".equals(currentFieldName)
-                                            || "search-routing".equals(currentFieldName) || "search_routing".equals(currentFieldName)) {
-                                        searchRouting = parser.textOrNull();
-                                        searchRoutingSet = true;
-                                    }
-                                } else if (token == XContentParser.Token.START_ARRAY) {
-                                    if ("indices".equals(currentFieldName)) {
-                                        List<String> indexNames = new ArrayList<>();
-                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                            String index = parser.text();
-                                            indexNames.add(index);
-                                        }
-                                        indices = indexNames.toArray(new String[indexNames.size()]);
-                                    }
-                                    if ("aliases".equals(currentFieldName)) {
-                                        List<String> aliasNames = new ArrayList<>();
-                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                            String alias = parser.text();
-                                            aliasNames.add(alias);
-                                        }
-                                        aliases = aliasNames.toArray(new String[aliasNames.size()]);
-                                    }
-                                } else if (token == XContentParser.Token.START_OBJECT) {
-                                    if ("filter".equals(currentFieldName)) {
-                                        filter = parser.mapOrdered();
-                                    }
-                                }
-                            }
-
-                            if (type == AliasAction.Type.ADD) {
-                                AliasActions aliasActions = new AliasActions(type, indices, aliases).filter(filter);
-                                if (routingSet) {
-                                    aliasActions.routing(routing);
-                                }
-                                if (indexRoutingSet) {
-                                    aliasActions.indexRouting(indexRouting);
-                                }
-                                if (searchRoutingSet) {
-                                    aliasActions.searchRouting(searchRouting);
-                                }
-                                indicesAliasesRequest.addAliasAction(aliasActions);
-                            } else if (type == AliasAction.Type.REMOVE) {
-                                indicesAliasesRequest.removeAlias(indices, aliases);
-                            }
-                        }
-                    }
-                }
-            }
+        indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
+        try (XContentParser parser = request.contentParser()) {
+            PARSER.parse(parser, indicesAliasesRequest, null);
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+        if (indicesAliasesRequest.getAliasActions().isEmpty()) {
+            throw new IllegalArgumentException("No action specified");
+        }
+        return channel -> client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<>(channel));
     }
 }

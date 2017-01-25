@@ -25,7 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -40,16 +43,17 @@ public class EsExecutors {
      * This is used to adjust thread pools sizes etc. per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Math.min(32, Runtime.getRuntime().availableProcessors()), 1, Property.NodeScope);
+        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
 
     /**
-     * Returns the number of processors available but at most <tt>32</tt>.
+     * Returns the number of available processors. Defaults to
+     * {@link Runtime#availableProcessors()} but can be overridden by passing a {@link Settings}
+     * instance with the key "processors" set to the desired value.
+     *
+     * @param settings a {@link Settings} instance from which to derive the available processors
+     * @return the number of available processors
      */
-    public static int boundedNumberOfProcessors(Settings settings) {
-        /* This relates to issues where machines with large number of cores
-         * ie. >= 48 create too many threads and run into OOM see #3478
-         * We just use an 32 core upper-bound here to not stress the system
-         * too much with too many created threads */
+    public static int numberOfProcessors(final Settings settings) {
         return PROCESSORS_SETTING.get(settings);
     }
 
@@ -72,6 +76,50 @@ public class EsExecutors {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
         return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
+    }
+
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+
+        @Override
+        public void shutdown() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
+        }
+
+    };
+
+    /**
+     * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being
+     * shutdown.
+     *
+     * @return an {@link ExecutorService} that executes submitted tasks on the current thread
+     */
+    public static ExecutorService newDirectExecutorService() {
+        return DIRECT_EXECUTOR_SERVICE;
     }
 
     public static String threadName(Settings settings, String ... names) {

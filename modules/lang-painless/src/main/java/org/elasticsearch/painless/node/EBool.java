@@ -114,4 +114,9 @@ public final class EBool extends AExpression {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(left, operation.symbol, right);
+    }
 }

@@ -1,9 +1,0 @@
-{
-    "person":{
-        "properties":{
-            "file":{
-                "type":"attachment"
-            }
-        }
-    }
-}

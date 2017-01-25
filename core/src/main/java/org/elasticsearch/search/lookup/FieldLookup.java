@@ -24,9 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class FieldLookup {
 
     // we can cached fieldType completely per name, since its on an index/shard level (the lookup, and it does not change within the scope of a search request)

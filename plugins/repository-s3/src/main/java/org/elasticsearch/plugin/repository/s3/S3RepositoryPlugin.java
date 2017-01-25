@@ -26,11 +26,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -42,23 +44,19 @@ import org.elasticsearch.repositories.s3.S3Repository;
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    // ClientConfiguration clinit has some classloader problems
-    // TODO: fix that
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    Class.forName("com.amazonaws.ClientConfiguration");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
+        SpecialPermission.check();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                // kick jackson to do some static caching of declared members info
+                Jackson.jsonNodeOf("{}");
+                // ClientConfiguration clinit has some classloader problems
+                // TODO: fix that
+                Class.forName("com.amazonaws.ClientConfiguration");
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 
@@ -68,9 +66,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(S3Repository.TYPE,
-            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings())));
+            (metadata) -> new S3Repository(metadata, env.settings(), namedXContentRegistry, createStorageService(env.settings())));
     }
 
     @Override
@@ -93,6 +91,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         AwsS3Service.PROXY_PASSWORD_SETTING,
         AwsS3Service.SIGNER_SETTING,
         AwsS3Service.REGION_SETTING,
+        AwsS3Service.READ_TIMEOUT,
 
         // Register S3 specific settings: cloud.aws.s3
         AwsS3Service.CLOUD_S3.KEY_SETTING,
@@ -105,6 +104,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         AwsS3Service.CLOUD_S3.SIGNER_SETTING,
         AwsS3Service.CLOUD_S3.REGION_SETTING,
         AwsS3Service.CLOUD_S3.ENDPOINT_SETTING,
+        AwsS3Service.CLOUD_S3.READ_TIMEOUT,
 
         // Register S3 repositories settings: repositories.s3
         S3Repository.Repositories.KEY_SETTING,

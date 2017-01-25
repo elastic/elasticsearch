@@ -29,9 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class MergeStats implements Streamable, ToXContent {
 
     private long total;
@@ -183,12 +180,6 @@ public class MergeStats implements Streamable, ToXContent {
 
     public ByteSizeValue getCurrentSize() {
         return new ByteSizeValue(currentSizeInBytes);
-    }
-
-    public static MergeStats readMergeStats(StreamInput in) throws IOException {
-        MergeStats stats = new MergeStats();
-        stats.readFrom(in);
-        return stats;
     }
 
     @Override

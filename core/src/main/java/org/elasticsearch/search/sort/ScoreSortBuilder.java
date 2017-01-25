@@ -20,13 +20,10 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,7 +37,6 @@ import java.util.Objects;
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
-    public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
             new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
@@ -86,26 +82,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        XContentParser parser = context.parser();
-        ParseFieldMatcher matcher = context.getParseFieldMatcher();
+        return PARSER.apply(context.parser(), context);
+    }
 
-        XContentParser.Token token;
-        String currentName = parser.currentName();
-        ScoreSortBuilder result = new ScoreSortBuilder();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentName = parser.currentName();
-            } else if (token.isValue()) {
-                if (matcher.match(currentName, ORDER_FIELD)) {
-                    result.order(SortOrder.fromString(parser.text()));
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unexpected token [" + token + "]");
-            }
-        }
-        return result;
+    private static ObjectParser<ScoreSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
+
+    static {
+        PARSER.declareString((builder, order) -> builder.order(SortOrder.fromString(order)), ORDER_FIELD);
     }
 
     @Override

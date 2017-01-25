@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,12 +36,11 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -56,6 +54,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -125,7 +124,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * Read from a stream.
      */
-    PhraseSuggestionBuilder(StreamInput in) throws IOException {
+    public PhraseSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         maxErrors = in.readFloat();
         realWordErrorLikelihood = in.readFloat();
@@ -173,7 +172,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         } else {
             out.writeBoolean(false);
         }
-        out.writeMap(collateParams);
+        out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
         out.writeVInt(this.generators.size());
         for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
@@ -392,7 +391,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery = new Script(collateQuery, ScriptService.ScriptType.INLINE, "mustache", Collections.emptyMap());
+        this.collateQuery = new Script(ScriptType.INLINE, "mustache", collateQuery, Collections.emptyMap());
         return this;
     }
 
@@ -487,10 +486,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         return builder;
     }
 
-    static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static PhraseSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -498,56 +495,56 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
                     tmpSuggestion.analyzer(parser.text());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
                     fieldname = parser.text();
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.size(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.shardSize(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD)) {
+                } else if (PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD.match(currentFieldName)) {
                     tmpSuggestion.realWordErrorLikelihood(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.CONFIDENCE_FIELD)) {
+                } else if (PhraseSuggestionBuilder.CONFIDENCE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.confidence(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.SEPARATOR_FIELD)) {
+                } else if (PhraseSuggestionBuilder.SEPARATOR_FIELD.match(currentFieldName)) {
                     tmpSuggestion.separator(parser.text());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.MAXERRORS_FIELD)) {
+                } else if (PhraseSuggestionBuilder.MAXERRORS_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxErrors(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.GRAMSIZE_FIELD)) {
+                } else if (PhraseSuggestionBuilder.GRAMSIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.gramSize(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD)) {
+                } else if (PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD.match(currentFieldName)) {
                     tmpSuggestion.forceUnigrams(parser.booleanValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD)) {
+                } else if (PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD.match(currentFieldName)) {
                     tmpSuggestion.tokenLimit(parser.intValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "suggester[phrase] doesn't support field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_ARRAY) {
-                if (parseFieldMatcher.match(currentFieldName, DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD)) {
+                if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.fromXContent(parseContext));
+                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_OBJECT) {
-                if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD)) {
+                if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName)) {
                     ensureNoSmoothing(tmpSuggestion);
-                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parseContext));
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.HIGHLIGHT_FIELD)) {
+                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parser));
+                } else if (PhraseSuggestionBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
                     String preTag = null;
                     String postTag = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.PRE_TAG_FIELD)) {
+                            if (PhraseSuggestionBuilder.PRE_TAG_FIELD.match(currentFieldName)) {
                                 preTag = parser.text();
-                            } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.POST_TAG_FIELD)) {
+                            } else if (PhraseSuggestionBuilder.POST_TAG_FIELD.match(currentFieldName)) {
                                 postTag = parser.text();
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
@@ -556,21 +553,21 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                         }
                     }
                     tmpSuggestion.highlight(preTag, postTag);
-                } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_FIELD)) {
+                } else if (PhraseSuggestionBuilder.COLLATE_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_FIELD)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_FIELD.match(currentFieldName)) {
                             if (tmpSuggestion.collateQuery() != null) {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
                                         + currentFieldName + "]");
                             }
-                            Script template = Script.parse(parser, parseFieldMatcher, "mustache");
+                            Script template = Script.parse(parser, "mustache");
                             tmpSuggestion.collateQuery(template);
-                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName)) {
                             tmpSuggestion.collateParams(parser.map());
-                        } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE.match(currentFieldName)) {
                             if (parser.isBooleanValue()) {
                                 tmpSuggestion.collatePrune(parser.booleanValue());
                             } else {
@@ -633,8 +630,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
+                ScriptContext.Standard.SEARCH);
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);

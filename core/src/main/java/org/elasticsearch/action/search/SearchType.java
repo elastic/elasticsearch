@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-
 /**
  * Search type represent the manner at which the search operation is executed.
  *
@@ -91,7 +89,7 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch" and "query_and_fetch"/"queryAndFetch".
      */
-    public static SearchType fromString(String searchType, ParseFieldMatcher parseFieldMatcher) {
+    public static SearchType fromString(String searchType) {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }

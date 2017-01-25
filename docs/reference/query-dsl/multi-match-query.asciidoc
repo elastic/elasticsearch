@@ -136,7 +136,7 @@ follows:
   * plus `tie_breaker * _score` for all other matching fields
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
 and `cutoff_frequency`, as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
@@ -232,7 +232,7 @@ The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
 and `cutoff_frequency`, as explained in <<query-dsl-match-query,match query>>, but
 *see <<operator-min>>*.
 
@@ -277,7 +277,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Also, accepts `analyzer`, `boost`, `slop` and `zero_terms_query`  as explained
+Also, accepts `analyzer`, `boost`, `lenient`, `slop` and `zero_terms_query`  as explained
 in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
 `max_expansions`.
 
@@ -374,7 +374,7 @@ explanation:
     +blended("smith", fields: [first_name, last_name])
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`zero_terms_query` and `cutoff_frequency`, as explained in
+`lenient`, `zero_terms_query` and `cutoff_frequency`, as explained in
 <<query-dsl-match-query, match query>>.
 
 ===== `cross_field` and analysis

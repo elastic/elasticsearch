@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -45,7 +45,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
         char separator = FingerprintTokenFilterFactory.parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
+        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
     }

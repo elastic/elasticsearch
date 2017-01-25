@@ -25,14 +25,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,10 +43,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int maxDocsPerValue;
     private final String executionHint;
 
-    public DiversifiedAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
-            String executionHint, AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+    public DiversifiedAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
+            String executionHint, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;
@@ -65,7 +64,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint);
             }
 
             // In some cases using ordinals is just not supported: override

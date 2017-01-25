@@ -19,28 +19,45 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testTypeDisabled() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
@@ -102,6 +119,51 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("123", values[0]);
         assertEquals("456", values[1]);
         assertEquals("789", values[2]);
+    }
+
+    public void testDotsWithExistingNestedMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("type", "nested").startObject("properties")
+            .startObject("bar").field("type", "integer")
+            .endObject().endObject().endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo.bar", 123)
+            .endObject().bytes();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals(
+                "Cannot add a value for field [foo.bar] since one of the intermediate objects is mapped as a nested object: [foo]",
+                e.getMessage());
+    }
+
+    public void testDotsWithDynamicNestedMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("objects_as_nested")
+                            .field("match_mapping_type", "object")
+                            .startObject("mapping")
+                                .field("type", "nested")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo.bar",42)
+            .endObject().bytes();
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals(
+                "It is forbidden to create dynamic nested objects ([foo]) through `copy_to` or dots in field names",
+                e.getMessage());
     }
 
     public void testPropagateDynamicWithExistingMapper() throws Exception {
@@ -177,7 +239,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        ParseContext context = new ParseContext.InternalParseContext(Settings.EMPTY,
+        ParseContext context = new ParseContext.InternalParseContext(
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
             mapperService.documentMapperParser(), mapperService.documentMapper("type"), null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
@@ -276,7 +339,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
-                .startObject("mapping").field("type", "geo_point").endObject()
+                .startObject("mapping").field("type", "geo_point").field("doc_values", false).endObject()
             .endObject().endObject().endArray().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
@@ -356,7 +419,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     public void testMappedGeoPointArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("foo").field("type", "geo_point")
+                .startObject("properties").startObject("foo").field("type", "geo_point").field("doc_values", false)
                 .endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
@@ -1153,5 +1216,50 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
         assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testDynamicDateDetectionDisabledOnNumbers() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy")
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("foo", "2016")
+            .endObject().bytes();
+
+        // Even though we matched the dynamic format, we do not match on numbers,
+        // which are too likely to be false positives
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper dateMapper = update.root().getMapper("foo");
+        assertNotNull(dateMapper);
+        assertThat(dateMapper, not(instanceOf(DateFieldMapper.class)));
+    }
+
+    public void testDynamicDateDetectionEnabledWithNoSpecialCharacters() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy MM")
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("foo", "2016 12")
+            .endObject().bytes();
+
+        // We should have generated a date field
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper dateMapper = update.root().getMapper("foo");
+        assertNotNull(dateMapper);
+        assertThat(dateMapper, instanceOf(DateFieldMapper.class));
     }
 }

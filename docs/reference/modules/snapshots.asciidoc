@@ -1,9 +1,20 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
-The snapshot and restore module allows to create snapshots of individual indices or an entire cluster into a remote
-repository. At the time of the initial release only shared file system repository was supported, but now a range of
-backends are available via officially supported repository plugins.
+The snapshot and restore module allows to create snapshots of individual
+indices or an entire cluster into a remote repository like shared file system,
+S3, or HDFS. These snapshots are great for backups because they can be restored
+relatively quickly but they are not archival because they can only be restored
+to versions of Elasticsearch that can read the index. That means that:
+
+* A snapshot of an index created in 2.x can be restored to 5.x.
+* A snapshot of an index created in 1.x can be restored to 2.x.
+* A snapshot of an index created in 1.x can **not** be restored to 5.x.
+
+To restore a snapshot of an index created in 1.x to 5.x you can restore it to
+a 2.x cluster and use <<reindex-from-remote,reindex-from-remote>> to rebuild
+the index in a 5.x cluster. This is as time consuming as restoring from
+archival copies of the original data.
 
 [float]
 === Repositories
@@ -277,7 +288,7 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // CONSOLE
 
-The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
+The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unavailable` can be used to
 return all snapshots that are currently available.
 
 A currently running snapshot can be retrieved using the following command:
@@ -353,7 +364,7 @@ existing index can be only restored if it's <<indices-open-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster. If cluster state is restored
-with `include_cluster_state` (defaults to `false`), the restored templates that
+with `include_global_state` (defaults to `false`), the restored templates that
 don't currently exist in the cluster are added and existing templates with the
 same name are replaced by the restored templates. The restored persistent
 settings are added to the existing persistent settings.
@@ -498,6 +509,12 @@ running snapshot was executed by mistake, or takes unusually long, it can be ter
 The snapshot delete operation checks if the deleted snapshot is currently running and if it does, the delete operation stops
 that snapshot before deleting the snapshot data from the repository.
 
+[source,sh]
+-----------------------------------
+DELETE /_snapshot/my_backup/snapshot_1
+-----------------------------------
+// CONSOLE
+
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
 from the cluster as a result of this operation.
@@ -510,5 +527,3 @@ well as the global metadata were readable. The restore operation requires the gl
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
 Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.
-
-

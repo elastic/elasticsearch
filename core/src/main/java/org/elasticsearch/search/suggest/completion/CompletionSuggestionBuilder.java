@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,21 +31,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.search.suggest.completion2x.context.CategoryContextMapping;
-import org.elasticsearch.search.suggest.completion2x.context.ContextMapping.ContextQuery;
-import org.elasticsearch.search.suggest.completion2x.context.GeolocationContextMapping;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,27 +65,26 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *     "payload" : STRING_ARRAY
      * }
      */
-    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, ParseFieldMatcherSupplier> TLP_PARSER =
-        new ObjectParser<>(SUGGESTION_NAME, null);
+    private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME, null);
     static {
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
+        PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                     if (parser.booleanValue()) {
                         completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
                     }
                 } else {
-                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser, context);
+                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
                 }
             },
             FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
-            completionSuggestionContext.regexOptions = RegexOptions.parse(parser, context),
+        PARSER.declareField((parser, completionSuggestionContext, context) ->
+            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
-        TLP_PARSER.declareField((p, v, c) -> {
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
+        PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.copyCurrentStructure(p);
@@ -215,105 +207,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         return this;
     }
 
-    public CompletionSuggestionBuilder contexts(Contexts2x contexts2x) {
-        Objects.requireNonNull(contexts2x, "contexts must not be null");
-        try {
-            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-            contentBuilder.startObject();
-            for (ContextQuery contextQuery : contexts2x.contextQueries) {
-                contextQuery.toXContent(contentBuilder, EMPTY_PARAMS);
-            }
-            contentBuilder.endObject();
-            return contexts(contentBuilder);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-    }
-
-    // for 2.x context support
-    public static class Contexts2x {
-        private List<ContextQuery> contextQueries = new ArrayList<>();
-
-        @SuppressWarnings("unchecked")
-        private Contexts2x addContextQuery(ContextQuery ctx) {
-            this.contextQueries.add(ctx);
-            return this;
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param lat Latitude of the location
-         * @param lon Longitude of the Location
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addGeoLocation(String name, double lat, double lon, int ... precisions) {
-            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param lat Latitude of the location
-         * @param lon Longitude of the Location
-         * @param precisions precisions as string var-args
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addGeoLocationWithPrecision(String name, double lat, double lon, String ... precisions) {
-            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
-        }
-
-        /**
-         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
-         * @param geohash Geohash of the location
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addGeoLocation(String name, String geohash) {
-            return addContextQuery(GeolocationContextMapping.query(name, geohash));
-        }
-
-        /**
-         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
-         * @param categories name of the category
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addCategory(String name, CharSequence...categories) {
-            return addContextQuery(CategoryContextMapping.query(name, categories));
-        }
-
-        /**
-         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
-         * @param categories name of the category
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addCategory(String name, Iterable<? extends CharSequence> categories) {
-            return addContextQuery(CategoryContextMapping.query(name, categories));
-        }
-
-        /**
-         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param fieldvalues name of the category
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addContextField(String name, CharSequence...fieldvalues) {
-            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
-        }
-
-        /**
-         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param fieldvalues name of the category
-         * @return this
-         */
-        @Deprecated
-        public Contexts2x addContextField(String name, Iterable<? extends CharSequence> fieldvalues) {
-            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
-        }
-    }
-
     private static class InnerBuilder extends CompletionSuggestionBuilder {
         private String field;
 
@@ -336,17 +229,14 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
-                builder.field(CONTEXTS_FIELD.getPreferredName());
-                builder.copyCurrentStructure(contextParser);
-            }
+            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
         }
         return builder;
     }
 
-    static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static CompletionSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
-        TLP_PARSER.parse(parseContext.parser(), builder, parseContext);
+        PARSER.parse(parser, builder, null);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
@@ -366,15 +256,15 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         suggestionContext.setRegexOptions(regexOptions);
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
         if (mappedFieldType == null ||
-            (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false
-                && mappedFieldType instanceof CompletionFieldMapper2x.CompletionFieldType == false)) {
+            mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
         if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(context.getXContentRegistry(),
+                        contextBytes)) {
                     if (type.hasContextMappings() && contextParser != null) {
                         ContextMappings contextMappings = type.getContextMappings();
                         contextParser.nextToken();
@@ -395,23 +285,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             } else if (contextBytes != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
-        } else if (mappedFieldType instanceof CompletionFieldMapper2x.CompletionFieldType) {
-            CompletionFieldMapper2x.CompletionFieldType type = ((CompletionFieldMapper2x.CompletionFieldType) mappedFieldType);
-            suggestionContext.setFieldType2x(type);
-            if (type.requiresContext()) {
-                if (contextBytes != null) {
-                    try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
-                        contextParser.nextToken();
-                        suggestionContext.setContextQueries(ContextQuery.parseQueries(type.getContextMapping(), contextParser));
-                    }
-                } else {
-                    throw new IllegalArgumentException("suggester [completion] requires context to be setup");
-                }
-            } else if (contextBytes != null) {
-                throw new IllegalArgumentException("suggester [completion] doesn't expect any context");
-            }
         }
-        assert suggestionContext.getFieldType() != null || suggestionContext.getFieldType2x() != null : "no completion field type set";
+        assert suggestionContext.getFieldType() != null : "no completion field type set";
         return suggestionContext;
     }
 

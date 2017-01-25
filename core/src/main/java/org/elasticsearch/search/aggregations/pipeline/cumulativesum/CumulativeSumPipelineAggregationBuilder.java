@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +45,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_sum";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String format;
 
@@ -143,16 +141,16 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (BUCKETS_PATH.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

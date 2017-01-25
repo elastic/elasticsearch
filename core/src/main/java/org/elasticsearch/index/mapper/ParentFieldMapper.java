@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -114,7 +114,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, FIELDDATA)) {
+                } else if (FIELDDATA.match(fieldName)) {
                     // for bw compat only
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
                     if (fieldDataSettings.containsKey("loading")) {
@@ -122,7 +122,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode, "eager_global_ordinals"));
                     iterator.remove();
                 }
             }
@@ -130,7 +130,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            final String typeName = context.type();
             KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
             MappedFieldType childJoinFieldType = new ParentFieldType(Defaults.FIELD_TYPE, typeName);
             childJoinFieldType.setName(ParentFieldMapper.NAME);
@@ -227,7 +229,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         boolean parent = context.docMapper().isParent(context.sourceToParse().type());
         if (parent) {
             fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.sourceToParse().id())));

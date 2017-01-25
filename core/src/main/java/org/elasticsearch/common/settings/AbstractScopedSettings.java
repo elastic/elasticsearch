@@ -19,8 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,11 +36,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -56,6 +57,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-\\w]+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -85,7 +87,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     protected void validateSettingKey(Setting setting) {
-        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
+            || isValidAffixKey(setting.getKey())) == false) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
@@ -110,6 +113,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
+    private static boolean isValidAffixKey(String key) {
+        return AFFIX_KEY_PATTERN.matcher(key).matches();
+    }
+
     public Setting.Property getScope() {
         return this.scope;
     }
@@ -129,7 +136,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
-                logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
             }
         }
         // here we are exhaustive and record all settings that failed.
@@ -157,7 +164,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
-                    logger.warn("failed to prepareCommit settings for [{}]", ex, settingUpdater);
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
                 }
             }
@@ -185,6 +193,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
+    }
+
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly.
+     */
+    public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
+                                                        BiConsumer<String, T> validator) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
     }
 
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
@@ -231,11 +252,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        // we want them sorted for deterministic error messages
-        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
-        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+        for (String key : settings.getAsMap().keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(entry.getKey(), settings);
+                validate(key, settings);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -370,9 +389,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public Settings diff(Settings source, Settings defaultSettings) {
         Settings.Builder builder = Settings.builder();
         for (Setting<?> setting : keySettings.values()) {
-            if (setting.exists(source) == false) {
-                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
-            }
+            setting.diff(builder, source, defaultSettings);
+        }
+        for (Setting<?> setting : complexMatchers.values()) {
+            setting.diff(builder, source, defaultSettings);
         }
         return builder.build();
     }
@@ -439,10 +459,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
+        final Predicate<String> canUpdate = (key) -> (onlyDynamic == false && get(key) != null) || hasDynamicSetting(key);
+        final Predicate<String> canRemove = (key) ->( // we can delete if
+            onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+            || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+            || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null) {
+            if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
+                // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
+                // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(entry.getKey());
-            } else if ((onlyDynamic == false && get(entry.getKey()) != null) || hasDynamicSetting(entry.getKey())) {
+                // we don't set changed here it's set after we apply deletes below if something actually changed
+            } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
                 validate(entry.getKey(), toApply);
                 settingsBuilder.put(entry.getKey(), entry.getValue());
                 updates.put(entry.getKey(), entry.getValue());
@@ -450,20 +478,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else {
                 throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
             }
-
         }
-        changed |= applyDeletes(toRemove, target);
+        changed |= applyDeletes(toRemove, target, canRemove);
         target.put(settingsBuilder.build());
         return changed;
     }
 
-    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
+    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();
             Set<String> keySet = builder.internalMap().keySet();
             for (String key : keySet) {
-                if (Regex.simpleMatch(entry, key)) {
+                if (Regex.simpleMatch(entry, key) && canRemove.test(key)) {
+                    // we have to re-check with canRemove here since we might have a wildcard expression foo.* that matches
+                    // dynamic as well as static settings if that is the case we might remove static settings since we resolve the
+                    // wildcards late
                     keysToRemove.add(key);
                 }
             }
@@ -492,11 +522,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Archives broken or unknown settings. Any setting that is not recognized or fails
-     * validation will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
-     * and remains in the settings object. This can be used to detect broken settings via APIs.
+     * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
+     * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
+     * and remains in the settings object. This can be used to detect invalid settings via APIs.
+     *
+     * @param settings        the {@link Settings} instance to scan for unknown or invalid settings
+     * @param unknownConsumer callback on unknown settings (consumer receives unknown key and its
+     *                        associated value)
+     * @param invalidConsumer callback on invalid settings (consumer receives invalid key, its
+     *                        associated value and an exception)
+     * @return a {@link Settings} instance with the unknown or invalid settings archived
      */
-    public Settings archiveUnknownOrBrokenSettings(Settings settings) {
+    public Settings archiveUnknownOrInvalidSettings(
+        final Settings settings,
+        final Consumer<Map.Entry<String, String>> unknownConsumer,
+        final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer) {
         Settings.Builder builder = Settings.builder();
         boolean changed = false;
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
@@ -510,10 +550,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                         builder.put(entry.getKey(), entry.getValue());
                     } else {
                         changed = true;
-                        logger.warn("found unknown setting: {} value: {} - archiving", entry.getKey(), entry.getValue());
+                        unknownConsumer.accept(entry);
                         /*
-                         * We put them back in here such that tools can check from the outside if there are any indices with broken
-                         * settings. The setting can remain there but we want users to be aware that some of their setting are broken and
+                         * We put them back in here such that tools can check from the outside if there are any indices with invalid
+                         * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
                         builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
@@ -521,10 +561,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
-                logger.warn("found invalid setting: {} value: {} - archiving",ex , entry.getKey(), entry.getValue());
+                invalidConsumer.accept(entry, ex);
                 /*
-                 * We put them back in here such that tools can check from the outside if there are any indices with broken settings. The
-                 * setting can remain there but we want users to be aware that some of their setting are broken and they can research why
+                 * We put them back in here such that tools can check from the outside if there are any indices with invalid settings. The
+                 * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
                 builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());

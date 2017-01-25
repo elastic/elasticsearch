@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
@@ -49,14 +48,14 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
      *
      * @param settings {@link Settings} used by this {@link AllocationDecider}
      */
-    @Inject
     public MaxRetryAllocationDecider(Settings settings) {
         super(settings);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        final Decision decision;
         if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
@@ -64,20 +63,33 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 // if we are called via the _reroute API we ignore the failure counter and try to allocate
                 // this improves the usability since people don't need to raise the limits to issue retries since a simple _reroute call is
                 // enough to manually retry.
-                return allocation.decision(Decision.YES, NAME, "shard has already failed allocating ["
-                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
-                    + unassignedInfo.toString() + " - retrying once on manual allocation");
+                decision = allocation.decision(Decision.YES, NAME, "shard has exceeded the maximum number of retries [%d] on " +
+                    "failed allocation attempts - retrying once due to a manual reroute command, [%s]",
+                    maxRetry, unassignedInfo.toString());
             } else if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
-                return allocation.decision(Decision.NO, NAME, "shard has already failed allocating ["
-                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
-                    + unassignedInfo.toString() + " - manually call [/_cluster/reroute?retry_failed=true] to retry");
+                decision = allocation.decision(Decision.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
+                    "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                    maxRetry, unassignedInfo.toString());
+            } else {
+                decision = allocation.decision(Decision.YES, NAME, "shard has failed allocating [%d] times but [%d] retries are allowed",
+                    unassignedInfo.getNumFailedAllocations(), maxRetry);
             }
+        } else {
+            decision = allocation.decision(Decision.YES, NAME, "shard has no previous failures");
         }
-        return allocation.decision(Decision.YES, NAME, "shard has no previous failures");
+        return decision;
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, allocation);
+    }
+
+    @Override
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+        // check if we have passed the maximum retry threshold through canAllocate,
+        // if so, we don't want to force the primary allocation here
+        return canAllocate(shardRouting, node, allocation);
     }
 }

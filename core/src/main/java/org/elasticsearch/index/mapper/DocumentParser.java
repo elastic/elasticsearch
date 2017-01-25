@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -59,7 +57,7 @@ final class DocumentParser {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        try (XContentParser parser = XContentHelper.createParser(source.source())) {
+        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source())) {
             context = new ParseContext.InternalParseContext(indexSettings.getSettings(),
                     docMapperParser, docMapper, source, parser);
             validateStart(parser);
@@ -149,11 +147,10 @@ final class DocumentParser {
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.version(),
+            context.seqID(),
             context.sourceToParse().id(),
             context.sourceToParse().type(),
             source.routing(),
-            source.timestamp(),
-            source.ttl(),
             context.docs(),
             context.sourceToParse().source(),
             update
@@ -341,6 +338,12 @@ final class DocumentParser {
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
             context = nestedContext(context, mapper);
+        }
+
+        // update the default value of include_in_all if necessary
+        Boolean includeInAll = mapper.includeInAll();
+        if (includeInAll != null) {
+            context = context.setIncludeInAllDefault(includeInAll);
         }
 
         // if we are at the end of the previous object, advance
@@ -629,80 +632,78 @@ final class DocumentParser {
     }
 
     private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
-        } else {
-            return new LegacyLongFieldMapper.Builder(name);
-        }
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
 
     private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
-        } else {
-            return new LegacyFloatFieldMapper.Builder(name);
-        }
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
     private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
-            DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-            if (dateTimeFormatter != null) {
-                builder.dateTimeFormatter(dateTimeFormatter);
-            }
-            return builder;
-        } else {
-            LegacyDateFieldMapper.Builder builder = new LegacyDateFieldMapper.Builder(name);
-            if (dateTimeFormatter != null) {
-                builder.dateTimeFormatter(dateTimeFormatter);
-            }
-            return builder;
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+        if (dateTimeFormatter != null) {
+            builder.dateTimeFormatter(dateTimeFormatter);
         }
+        return builder;
     }
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
-            if (context.root().dateDetection()) {
-                String text = context.parser().text();
-                // a safe check since "1" gets parsed as well
-                if (Strings.countOccurrencesOf(text, ":") > 1 || Strings.countOccurrencesOf(text, "-") > 1 || Strings.countOccurrencesOf(text, "/") > 1) {
-                    for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
-                        try {
-                            dateTimeFormatter.parser().parseMillis(text);
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
-                            if (builder == null) {
-                                builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
-                            }
-                            return builder;
-                        } catch (Exception e) {
-                            // failure to parse this, continue
+            String text = context.parser().text();
+
+            boolean parseableAsLong = false;
+            try {
+                Long.parseLong(text);
+                parseableAsLong = true;
+            } catch (NumberFormatException e) {
+                // not a long number
+            }
+
+            boolean parseableAsDouble = false;
+            try {
+                Double.parseDouble(text);
+                parseableAsDouble = true;
+            } catch (NumberFormatException e) {
+                // not a double number
+            }
+
+            if (parseableAsLong && context.root().numericDetection()) {
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
+                if (builder == null) {
+                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                }
+                return builder;
+            } else if (parseableAsDouble && context.root().numericDetection()) {
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
+                if (builder == null) {
+                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                }
+                return builder;
+            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
+                // We refuse to match pure numbers, which are too likely to be
+                // false positives with date formats that include eg.
+                // `epoch_millis` or `YYYY`
+                for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                    try {
+                        dateTimeFormatter.parser().parseMillis(text);
+                    } catch (IllegalArgumentException e) {
+                        // failure to parse this, continue
+                        continue;
+                    }
+                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
+                    if (builder == null) {
+                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
+                    }
+                    if (builder instanceof DateFieldMapper.Builder) {
+                        DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
+                        if (dateBuilder.isDateTimeFormatterSet() == false) {
+                            dateBuilder.dateTimeFormatter(dateTimeFormatter);
                         }
                     }
+                    return builder;
                 }
             }
-            if (context.root().numericDetection()) {
-                String text = context.parser().text();
-                try {
-                    Long.parseLong(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
-                    if (builder == null) {
-                        builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                    }
-                    return builder;
-                } catch (NumberFormatException e) {
-                    // not a long number
-                }
-                try {
-                    Double.parseDouble(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
-                    if (builder == null) {
-                        builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                    }
-                    return builder;
-                } catch (NumberFormatException e) {
-                    // not a long number
-                }
-            }
+
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName)
@@ -852,7 +853,8 @@ final class DocumentParser {
                             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                             mapper = (ObjectMapper) builder.build(builderContext);
                             if (mapper.nested() != ObjectMapper.Nested.NO) {
-                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
+                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i])
+                                        + "]) through `copy_to` or dots in field names");
                             }
                             context.addDynamicMapper(mapper);
                             break;
@@ -902,6 +904,11 @@ final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
+            if (objectMapper.nested().isNested()) {
+                throw new MapperParsingException("Cannot add a value for field ["
+                        + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
+                        + mapper.name() + "]");
+            }
         }
         return objectMapper.getMapper(subfields[subfields.length - 1]);
     }

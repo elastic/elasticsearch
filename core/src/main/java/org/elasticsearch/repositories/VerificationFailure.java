@@ -25,8 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-/**
- */
 public class VerificationFailure implements Streamable {
 
     private String nodeId;

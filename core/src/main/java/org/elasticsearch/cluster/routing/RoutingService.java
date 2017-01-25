@@ -19,11 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -94,12 +95,7 @@ public class RoutingService extends AbstractLifecycleComponent {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
-                    if (!routingResult.changed()) {
-                        // no state changed
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                    return allocationService.reroute(currentState, reason);
                 }
 
                 @Override
@@ -113,16 +109,16 @@ public class RoutingService extends AbstractLifecycleComponent {
                     rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
-                        logger.error("unexpected failure during [{}], current state:\n{}", e, source, state.prettyPrint());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state), e);
                     } else {
-                        logger.error("unexpected failure during [{}], current state version [{}]", e, source, state.version());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
                     }
                 }
             });
         } catch (Exception e) {
             rerouting.set(false);
             ClusterState state = clusterService.state();
-            logger.warn("failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
         }
     }
 }

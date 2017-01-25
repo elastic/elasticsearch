@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.logging.ESLogger;
 
 import java.util.Objects;
 
@@ -36,7 +36,7 @@ public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
     /**
      * The service's logger (note: this is passed in!).
      */
-    private final ESLogger logger;
+    private final Logger logger;
 
     /**
      * {@link AbstractLifecycleRunnable} must be aware of the actual {@code lifecycle} to react properly.
@@ -45,7 +45,7 @@ public abstract class AbstractLifecycleRunnable extends AbstractRunnable {
      * @param logger The logger to use when logging
      * @throws NullPointerException if any parameter is {@code null}
      */
-    public AbstractLifecycleRunnable(Lifecycle lifecycle, ESLogger logger) {
+    public AbstractLifecycleRunnable(Lifecycle lifecycle, Logger logger) {
         this.lifecycle = Objects.requireNonNull(lifecycle, "lifecycle must not be null");
         this.logger = Objects.requireNonNull(logger, "logger must not be null");
     }

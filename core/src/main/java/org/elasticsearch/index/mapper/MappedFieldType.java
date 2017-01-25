@@ -20,24 +20,27 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -133,7 +136,7 @@ public abstract class MappedFieldType extends FieldType {
             eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
-    // norelease: we need to override freeze() and add safety checks that all settings are actually set
+    // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
@@ -303,7 +306,7 @@ public abstract class MappedFieldType extends FieldType {
     /** Given a value that comes from the stored fields API, convert it to the
      *  expected type. For instance a date field would store dates as longs and
      *  format it back to a string in this method. */
-    public Object valueForSearch(Object value) {
+    public Object valueForDisplay(Object value) {
         return value;
     }
 
@@ -343,7 +346,7 @@ public abstract class MappedFieldType extends FieldType {
         return new ConstantScoreQuery(builder.build());
     }
 
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
@@ -373,14 +376,16 @@ public abstract class MappedFieldType extends FieldType {
      */
     public FieldStats stats(IndexReader reader) throws IOException {
         int maxDoc = reader.maxDoc();
-        Terms terms = MultiFields.getTerms(reader, name());
-        if (terms == null) {
+        FieldInfo fi = MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+        if (fi == null) {
             return null;
         }
+        Terms terms = MultiFields.getTerms(reader, name());
+        if (terms == null) {
+            return new FieldStats.Text(maxDoc, 0, -1, -1, isSearchable(), isAggregatable());
+        }
         FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
-            terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
-            isSearchable(), isAggregatable(),
-            terms.getMin(), terms.getMax());
+            terms.getSumDocFreq(), terms.getSumTotalTermFreq(), isSearchable(), isAggregatable(), terms.getMin(), terms.getMax());
         return stats;
     }
 
@@ -399,10 +404,10 @@ public abstract class MappedFieldType extends FieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-            IndexReader reader,
-            Object from, Object to,
-            boolean includeLower, boolean includeUpper,
-            DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+        IndexReader reader,
+        Object from, Object to,
+        boolean includeLower, boolean includeUpper,
+        DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -461,6 +466,12 @@ public abstract class MappedFieldType extends FieldType {
     public static Term extractTerm(Query termQuery) {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
+        }
+        if (termQuery instanceof AllTermQuery) {
+            return ((AllTermQuery) termQuery).getTerm();
+        } else if (termQuery instanceof TypeFieldMapper.TypesQuery) {
+            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
+            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
         }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type "

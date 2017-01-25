@@ -19,6 +19,10 @@
 
 package org.elasticsearch.cloud.aws;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Random;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
@@ -30,28 +34,18 @@ import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Random;
-
-/**
- *
- */
-public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements AwsEc2Service {
+public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
     private AmazonEC2Client client;
 
-    @Inject
     public AwsEc2ServiceImpl(Settings settings) {
         super(settings);
     }
@@ -71,7 +65,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
         return this.client;
     }
 
-    protected static AWSCredentialsProvider buildCredentials(ESLogger logger, Settings settings) {
+    protected static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings) {
         AWSCredentialsProvider credentials;
 
         String key = CLOUD_EC2.KEY_SETTING.get(settings);
@@ -87,7 +81,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
         return credentials;
     }
 
-    protected static ClientConfiguration buildConfiguration(ESLogger logger, Settings settings) {
+    protected static ClientConfiguration buildConfiguration(Logger logger, Settings settings) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -131,11 +125,12 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
             10,
             false);
         clientConfiguration.setRetryPolicy(retryPolicy);
+        clientConfiguration.setSocketTimeout((int) CLOUD_EC2.READ_TIMEOUT.get(settings).millis());
 
         return clientConfiguration;
     }
 
-    protected static String findEndpoint(ESLogger logger, Settings settings) {
+    protected static String findEndpoint(Logger logger, Settings settings) {
         String endpoint = null;
         if (CLOUD_EC2.ENDPOINT_SETTING.exists(settings)) {
             endpoint = CLOUD_EC2.ENDPOINT_SETTING.get(settings);
@@ -146,6 +141,9 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
                 case "us-east-1":
                 case "us-east":
                     endpoint = "ec2.us-east-1.amazonaws.com";
+                    break;
+                case "us-east-2":
+                    endpoint = "ec2.us-east-2.amazonaws.com";
                     break;
                 case "us-west":
                 case "us-west-1":
@@ -158,6 +156,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
                 case "ap-southeast-1":
                     endpoint = "ec2.ap-southeast-1.amazonaws.com";
                     break;
+                case "ap-south":
                 case "ap-south-1":
                     endpoint = "ec2.ap-south-1.amazonaws.com";
                     break;
@@ -179,6 +178,9 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
                 case "eu-west-1":
                     endpoint = "ec2.eu-west-1.amazonaws.com";
                     break;
+                case "eu-west-2":
+                    endpoint = "ec2.eu-west-2.amazonaws.com";
+                    break;
                 case "eu-central":
                 case "eu-central-1":
                     endpoint = "ec2.eu-central-1.amazonaws.com";
@@ -191,6 +193,10 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
                 case "cn-north-1":
                     endpoint = "ec2.cn-north-1.amazonaws.com.cn";
                     break;
+                case "ca-central":
+                case "ca-central-1":
+                    endpoint = "ec2.ca-central-1.amazonaws.com";
+                    break;
                 default:
                     throw new IllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }
@@ -200,15 +206,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
+    public void close() throws IOException {
         if (client != null) {
             client.shutdown();
         }

@@ -43,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -121,7 +120,7 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
@@ -228,10 +227,5 @@ public class IngestClientIT extends ESIntegTestCase {
             assertNotNull(ex);
             assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Collections.singletonList(TestSeedPlugin.class);
     }
 }

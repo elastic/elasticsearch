@@ -38,8 +38,6 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class IndicesStatsResponse extends BroadcastResponse implements ToXContent {
 
     private ShardStats[] shards;
@@ -137,28 +135,24 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shards = new ShardStats[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardStats.readShardStats(in);
-        }
+        shards = in.readArray(ShardStats::readShardStats, (size) -> new ShardStats[size]);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardStats shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        String level = params.param("level", "indices");
-        boolean isLevelValid = "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level) || "cluster".equalsIgnoreCase(level);
+        final String level = params.param("level", "indices");
+        final boolean isLevelValid =
+            "cluster".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
         if (!isLevelValid) {
-            return builder;
+            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
+
 
         builder.startObject("_all");
 

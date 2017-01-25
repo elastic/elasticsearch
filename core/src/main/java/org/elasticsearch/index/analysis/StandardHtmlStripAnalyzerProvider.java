@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
     private final StandardHtmlStripAnalyzer analyzer;
@@ -36,7 +33,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
     public StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  String name, Settings settings) {
         super(indexSettings, name, settings);
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, defaultStopwords);
         analyzer = new StandardHtmlStripAnalyzer(stopWords);
         analyzer.setVersion(version);
     }

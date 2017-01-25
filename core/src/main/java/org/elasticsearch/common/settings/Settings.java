@@ -19,12 +19,15 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -42,6 +45,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,16 +58,15 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -75,11 +80,24 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private SortedMap<String, String> settings;
+    /** The raw settings from the full key to raw string value. */
+    private Map<String, String> settings;
 
-    Settings(Map<String, String> settings) {
+    /** The secure settings storage associated with these settings. */
+    private SecureSettings secureSettings;
+
+    Settings(Map<String, String> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
+        this.secureSettings = secureSettings;
+    }
+
+    /**
+     * Retrieve the secure settings in these settings.
+     */
+    SecureSettings getSecureSettings() {
+        // pkg private so it can only be accessed by local subclasses of SecureSetting
+        return secureSettings;
     }
 
     /**
@@ -87,7 +105,8 @@ public final class Settings implements ToXContent {
      * @return an unmodifiable map of settings
      */
     public Map<String, String> getAsMap() {
-        return Collections.unmodifiableMap(this.settings);
+        // settings is always unmodifiable
+        return this.settings;
     }
 
     /**
@@ -186,30 +205,16 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
-                if (entry.getKey().length() < prefix.length()) {
-                    // ignore this. one
-                    continue;
-                }
-                builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
-            }
-        }
-        return builder.build();
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix),
+            secureSettings == null ? null : new PrefixedSecureSettings(secureSettings, prefix));
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
+     * Secure settings may not be accessed through a filter.
      */
     public Settings filter(Predicate<String> predicate) {
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (predicate.test(entry.getKey())) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return builder.build();
+        return new Settings(new FilteredMap(this.settings, predicate, null), null);
     }
 
     /**
@@ -308,6 +313,36 @@ public final class Settings implements ToXContent {
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
+    }
+
+    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
+    /**
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
+     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
+     *
+     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
+     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
+     *
+     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
+     */
+    @Deprecated
+    public Boolean getAsBooleanLenientForPreEs6Indices(
+        final Version indexVersion,
+        final String setting,
+        final Boolean defaultValue,
+        final DeprecationLogger deprecationLogger) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            //Only emit a warning if the setting's value is not a proper boolean
+            final String value = get(setting, "false");
+            if (Booleans.isBoolean(value) == false) {
+                @SuppressWarnings("deprecation")
+                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
+                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
+                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
+                return convertedValue;
+            }
+        }
+        return getAsBoolean(setting, defaultValue);
     }
 
     /**
@@ -443,6 +478,7 @@ public final class Settings implements ToXContent {
         }
         return getGroupsInternal(settingPrefix, ignoreNonGrouped);
     }
+
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         // we don't really care that it might happen twice
         Map<String, Map<String, String>> map = new LinkedHashMap<>();
@@ -470,7 +506,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -582,6 +618,9 @@ public final class Settings implements ToXContent {
         return builder;
     }
 
+    public static final Set<String> FORMAT_PARAMS =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
+
     /**
      * Returns <tt>true</tt> if this settings object contains no settings
      * @return <tt>true</tt> if this settings object contains no settings
@@ -599,7 +638,10 @@ public final class Settings implements ToXContent {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
-        private final Map<String, String> map = new LinkedHashMap<>();
+        // we use a sorted map for consistent serialization when using getAsMap()
+        private final Map<String, String> map = new TreeMap<>();
+
+        private SetOnce<SecureSettings> secureSettings = new SetOnce<>();
 
         private Builder() {
 
@@ -621,6 +663,14 @@ public final class Settings implements ToXContent {
          */
         public String get(String key) {
             return map.get(key);
+        }
+
+        public Builder setSecureSettings(SecureSettings secureSettings) {
+            if (secureSettings.isLoaded() == false) {
+                throw new IllegalStateException("Secure settings must already be loaded");
+            }
+            this.secureSettings.set(secureSettings);
+            return this;
         }
 
         /**
@@ -1029,7 +1079,154 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(Collections.unmodifiableMap(map));
+            return new Settings(map, secureSettings.get());
+        }
+    }
+
+    // TODO We could use an FST internally to make things even faster and more compact
+    private static final class FilteredMap extends AbstractMap<String, String> {
+        private final Map<String, String> delegate;
+        private final Predicate<String> filter;
+        private final String prefix;
+        // we cache that size since we have to iterate the entire set
+        // this is safe to do since this map is only used with unmodifiable maps
+        private int size = -1;
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            Set<Entry<String, String>> delegateSet = delegate.entrySet();
+            AbstractSet<Entry<String, String>> filterSet = new AbstractSet<Entry<String, String>>() {
+
+                @Override
+                public Iterator<Entry<String, String>> iterator() {
+                    Iterator<Entry<String, String>> iter = delegateSet.iterator();
+
+                    return new Iterator<Entry<String, String>>() {
+                        private int numIterated;
+                        private Entry<String, String> currentElement;
+                        @Override
+                        public boolean hasNext() {
+                            if (currentElement != null) {
+                                return true; // protect against calling hasNext twice
+                            } else {
+                                if (numIterated == size) { // early terminate
+                                    assert size != -1 : "size was never set: " + numIterated + " vs. " + size;
+                                    return false;
+                                }
+                                while (iter.hasNext()) {
+                                    if (filter.test((currentElement = iter.next()).getKey())) {
+                                        numIterated++;
+                                        return true;
+                                    }
+                                }
+                                // we didn't find anything
+                                currentElement = null;
+                                return false;
+                            }
+                        }
+
+                        @Override
+                        public Entry<String, String> next() {
+                            if (currentElement == null && hasNext() == false) { // protect against no #hasNext call or not respecting it
+
+                                throw new NoSuchElementException("make sure to call hasNext first");
+                            }
+                            final Entry<String, String> current = this.currentElement;
+                            this.currentElement = null;
+                            if (prefix == null) {
+                                return current;
+                            }
+                            return new Entry<String, String>() {
+                                @Override
+                                public String getKey() {
+                                    return current.getKey().substring(prefix.length());
+                                }
+
+                                @Override
+                                public String getValue() {
+                                    return current.getValue();
+                                }
+
+                                @Override
+                                public String setValue(String value) {
+                                    throw new UnsupportedOperationException();
+                                }
+                            };
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return FilteredMap.this.size();
+                }
+            };
+            return filterSet;
+        }
+
+        private FilteredMap(Map<String, String> delegate, Predicate<String> filter, String prefix) {
+            this.delegate = delegate;
+            this.filter = filter;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public String get(Object key) {
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String)key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.get(theKey);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String) key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.containsKey(theKey);
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int size() {
+            if (size == -1) {
+                size = Math.toIntExact(delegate.keySet().stream().filter((e) -> filter.test(e)).count());
+            }
+            return size;
+        }
+    }
+
+    private static class PrefixedSecureSettings implements SecureSettings {
+        private SecureSettings delegate;
+        private String prefix;
+
+        PrefixedSecureSettings(SecureSettings delegate, String prefix) {
+            this.delegate = delegate;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean isLoaded() {
+            return delegate.isLoaded();
+        }
+
+        @Override
+        public boolean hasSetting(String setting) {
+            return delegate.hasSetting(prefix + setting);
+        }
+
+        @Override
+        public SecureString getString(String setting) throws GeneralSecurityException{
+            return delegate.getString(prefix + setting);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

@@ -31,6 +31,7 @@ The result of the above index operation is:
     "_id" : "1",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result" : created
 }
 --------------------------------------------------
@@ -40,7 +41,7 @@ The `_shards` header provides information about the replication process of the i
 
 * `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
 * `successful`- Indicates the number of shard copies the index operation succeeded on.
-* `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
+* `failed` - An array that contains replication related errors in the case an index operation failed on a replica shard.
 
 The index operation is successful in the case `successful` is at least 1.
 
@@ -69,8 +70,7 @@ section for more information on mapping definitions.
 Automatic index creation can be disabled by setting
 `action.auto_create_index` to `false` in the config file of all nodes.
 Automatic mapping creation can be disabled by setting
-`index.mapper.dynamic` to `false` in the config files of all nodes (or
-on the specific index settings).
+`index.mapper.dynamic` to `false` per-index as an index setting.
 
 Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
@@ -155,12 +155,10 @@ than the version of the stored document. If there is no existing document
 the operation will succeed as well. The given version will be used as the new version
 and will be stored with the new document. The supplied version must be a non-negative long number.
 
-`force`:: the document will be indexed regardless of the version of the stored document or if there
-is no existing document. The given version will be used as the new version and will be stored
-with the new document. This version type is typically used for correcting errors.
-
-*NOTE*: The `external_gte` & `force` version types are meant for special use cases and should be used
-with care. If used incorrectly, they can result in loss of data.
+*NOTE*: The `external_gte` version type is meant for special use cases and
+should be used with care. If used incorrectly, it can result in loss of data.
+There is another option, `force`, which is deprecated because it can cause
+primary and replica shards to diverge.
 
 [float]
 [[operation-type]]
@@ -231,6 +229,7 @@ The result of the above index operation is:
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
     "created" : true,
+    "_seq_no" : 0,
     "result": "created"
 }
 --------------------------------------------------
@@ -327,7 +326,7 @@ of configured copies per shard in the index (which is `number_of_replicas+1`).
 Specifying a negative value or a number greater than the number of 
 shard copies will throw an error.
 
-For example, suppose we have a cluster of three nodes, `A, `B`, and `C` and
+For example, suppose we have a cluster of three nodes, `A`, `B`, and `C` and
 we create an index `index` with the number of replicas set to 3 (resulting in 
 4 shard copies, one more copy than there are nodes). If we 
 attempt an indexing operation, by default the operation will only ensure

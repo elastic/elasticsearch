@@ -20,18 +20,25 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +46,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -87,7 +95,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("counter += param1"));
+        assertThat(script.getIdOrCode(), equalTo("counter += param1"));
         assertThat(script.getLang(), equalTo("javascript"));
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());
@@ -111,7 +119,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest<?>> requests = new ArrayList<>();
+        List<DocWriteRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));
@@ -125,49 +133,34 @@ public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk6() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk6.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 1");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 1: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [1], expected a simple value for field [_source] but found [START_OBJECT]"), equalTo(true));
-        }
+        ParsingException exc = expectThrows(ParsingException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
     }
 
     public void testSimpleBulk7() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk7.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 5");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 5: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(),
+            containsString("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk8() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk8.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the unknown parameter _foo");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the unknown parameter _foo: " + e.getMessage(),
-                    e.getMessage().contains("Action/metadata line [3] contains an unknown parameter [_foo]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
     }
 
     public void testSimpleBulk9() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the wrong format of line 3");
-        } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the wrong format of line 3: " + e.getMessage(),
-                    e.getMessage().contains("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"), equalTo(true));
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+        assertThat(exc.getMessage(), containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk10() throws Exception {
@@ -217,5 +210,42 @@ public class BulkRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));
         expectThrows(NullPointerException.class, () -> bulkRequest.add((UpdateRequest) null));
         expectThrows(NullPointerException.class, () -> bulkRequest.add((DeleteRequest) null));
+    }
+
+    public void testSmileIsSupported() throws IOException {
+        XContentType xContentType = XContentType.SMILE;
+        BytesReference data;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.startObject("index");
+                builder.field("_index", "index");
+                builder.field("_type", "type");
+                builder.field("_id", "test");
+                builder.endObject();
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+                builder.startObject();
+                builder.field("field", "value");
+                builder.endObject();
+            }
+            out.write(xContentType.xContent().streamSeparator());
+            data = out.bytes();
+        }
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(data, null, null);
+        assertEquals(1, bulkRequest.requests().size());
+        DocWriteRequest docWriteRequest = bulkRequest.requests().get(0);
+        assertEquals(DocWriteRequest.OpType.INDEX, docWriteRequest.opType());
+        assertEquals("index", docWriteRequest.index());
+        assertEquals("type", docWriteRequest.type());
+        assertEquals("test", docWriteRequest.id());
+        assertThat(docWriteRequest, instanceOf(IndexRequest.class));
+        IndexRequest request = (IndexRequest) docWriteRequest;
+        assertEquals(1, request.sourceAsMap().size());
+        assertEquals("value", request.sourceAsMap().get("field"));
     }
 }

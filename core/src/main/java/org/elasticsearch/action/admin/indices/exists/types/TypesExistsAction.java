@@ -21,8 +21,6 @@ package org.elasticsearch.action.admin.indices.exists.types;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();

@@ -44,8 +44,6 @@ import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- */
 public class IndexSearcherWrapperTests extends ESTestCase {
 
     public void testReaderCloseListenerIsCalled() throws IOException {

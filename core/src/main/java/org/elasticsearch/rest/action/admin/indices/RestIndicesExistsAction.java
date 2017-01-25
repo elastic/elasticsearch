@@ -25,37 +25,34 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- *
- */
 public class RestIndicesExistsAction extends BaseRestHandler {
-
-    @Inject
     public RestIndicesExistsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(HEAD, "/{index}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions());
+        indicesExistsRequest.expandWilcardsOpen(indicesOptions.expandWildcardsOpen());
+        indicesExistsRequest.expandWilcardsClosed(indicesOptions.expandWildcardsClosed());
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));
-        client.admin().indices().exists(indicesExistsRequest, new RestResponseListener<IndicesExistsResponse>(channel) {
+        return channel -> client.admin().indices().exists(indicesExistsRequest, new RestResponseListener<IndicesExistsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesExistsResponse response) {
                 if (response.isExists()) {

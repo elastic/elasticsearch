@@ -19,6 +19,8 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -386,6 +388,30 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             out.writeLong(totalWriteKilobytes);
         }
 
+        public DeviceStats[] getDevicesStats() {
+            return devicesStats;
+        }
+
+        public long getTotalOperations() {
+            return totalOperations;
+        }
+
+        public long getTotalReadOperations() {
+            return totalReadOperations;
+        }
+
+        public long getTotalWriteOperations() {
+            return totalWriteOperations;
+        }
+
+        public long getTotalReadKilobytes() {
+            return totalReadKilobytes;
+        }
+
+        public long getTotalWriteKilobytes() {
+            return totalWriteKilobytes;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (devicesStats.length > 0) {
@@ -410,16 +436,24 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
     }
 
-    final long timestamp;
-    final Path[] paths;
-    final IoStats ioStats;
-    Path total;
+    private final long timestamp;
+    private final Path[] paths;
+    private final IoStats ioStats;
+    private final Path total;
+    private final DiskUsage leastDiskEstimate;
+    private final DiskUsage mostDiskEstimate;
 
     public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
+        this(timestamp, ioStats, paths, null, null);
+    }
+
+    public FsInfo(long timestamp, IoStats ioStats, Path[] paths, @Nullable DiskUsage leastUsage, @Nullable DiskUsage mostUsage) {
         this.timestamp = timestamp;
         this.ioStats = ioStats;
         this.paths = paths;
-        this.total = null;
+        this.total = total();
+        this.leastDiskEstimate = leastUsage;
+        this.mostDiskEstimate = mostUsage;
     }
 
     /**
@@ -432,6 +466,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         for (int i = 0; i < paths.length; i++) {
             paths[i] = new Path(in);
         }
+        this.total = total();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+            this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+        } else {
+            this.leastDiskEstimate = null;
+            this.mostDiskEstimate = null;
+        }
     }
 
     @Override
@@ -442,16 +484,27 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         for (Path path : paths) {
             path.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeOptionalWriteable(this.leastDiskEstimate);
+            out.writeOptionalWriteable(this.mostDiskEstimate);
+        }
     }
 
     public Path getTotal() {
-        return total();
+        return total;
     }
 
-    public Path total() {
-        if (total != null) {
-            return total;
-        }
+    @Nullable
+    public DiskUsage getLeastDiskEstimate() {
+        return this.leastDiskEstimate;
+    }
+
+    @Nullable
+    public DiskUsage getMostDiskEstimate() {
+        return this.mostDiskEstimate;
+    }
+
+    private Path total() {
         Path res = new Path();
         Set<String> seenDevices = new HashSet<>(paths.length);
         for (Path subPath : paths) {
@@ -462,7 +515,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             }
             res.add(subPath);
         }
-        total = res;
         return res;
     }
 
@@ -485,6 +537,27 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         builder.field(Fields.TIMESTAMP, timestamp);
         builder.field(Fields.TOTAL);
         total().toXContent(builder, params);
+        if (leastDiskEstimate != null) {
+            builder.startObject(Fields.LEAST_ESTIMATE);
+            {
+                builder.field(Fields.PATH, leastDiskEstimate.getPath());
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, leastDiskEstimate.getTotalBytes());
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, leastDiskEstimate.getFreeBytes());
+                builder.field(Fields.USAGE_PERCENTAGE, leastDiskEstimate.getUsedDiskAsPercentage());
+            }
+            builder.endObject();
+        }
+
+        if (mostDiskEstimate != null) {
+            builder.startObject(Fields.MOST_ESTIMATE);
+            {
+                builder.field(Fields.PATH, mostDiskEstimate.getPath());
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mostDiskEstimate.getTotalBytes());
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, mostDiskEstimate.getFreeBytes());
+                builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());
+            }
+            builder.endObject();
+        }
         builder.startArray(Fields.DATA);
         for (Path path : paths) {
             path.toXContent(builder, params);
@@ -504,7 +577,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         static final String TIMESTAMP = "timestamp";
         static final String DATA = "data";
         static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
         static final String IO_STATS = "io_stats";
+        static final String LEAST_ESTIMATE = "least_usage_estimate";
+        static final String MOST_ESTIMATE = "most_usage_estimate";
+        static final String USAGE_PERCENTAGE = "used_disk_percent";
+        static final String AVAILABLE = "available";
+        static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+        static final String PATH = "path";
     }
-
 }

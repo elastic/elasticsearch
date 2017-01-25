@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -65,7 +65,7 @@ import java.util.Map;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
-public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "scaled_float";
     // use the same default as numbers
@@ -124,10 +124,8 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
                 throw new IllegalArgumentException("Field [" + name + "] misses required parameter [scaling_factor]");
             }
             setupFieldType(context);
-            ScaledFloatFieldMapper fieldMapper =
-                new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (ScaledFloatFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -146,16 +144,16 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(NumberFieldMapper.NumberType.DOUBLE.parse(propNode));
+                    builder.nullValue(NumberFieldMapper.NumberType.DOUBLE.parse(propNode, false));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("scaling_factor")) {
-                    builder.scalingFactor(NumberFieldMapper.NumberType.DOUBLE.parse(propNode).doubleValue());
+                    builder.scalingFactor(NumberFieldMapper.NumberType.DOUBLE.parse(propNode, false).doubleValue());
                     iterator.remove();
                 }
             }
@@ -209,7 +207,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value).doubleValue();
+            double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false).doubleValue();
             long scaledValue = Math.round(queryValue * scalingFactor);
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
             if (boost() != 1f) {
@@ -223,7 +221,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value).doubleValue();
+                double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false).doubleValue();
                 long scaledValue = Math.round(queryValue * scalingFactor);
                 scaledValues.add(scaledValue);
             }
@@ -235,19 +233,19 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(lowerTerm).doubleValue();
+                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(lowerTerm, false).doubleValue();
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
                 lo = Math.round(Math.ceil(dValue * scalingFactor));
             }
             Long hi = null;
-            if (lowerTerm != null) {
-                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(upperTerm).doubleValue();
+            if (upperTerm != null) {
+                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(upperTerm, false).doubleValue();
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
@@ -290,7 +288,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -336,6 +334,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
@@ -346,6 +345,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -364,40 +364,9 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
     }
 
     @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -410,17 +379,19 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
                 && parser.textLength() == 0) {
             value = null;
         } else {
-            value = parser.textOrNull();
-            if (value != null) {
-                try {
-                    numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(parser, coerce.value());
-                } catch (IllegalArgumentException e) {
-                    if (ignoreMalformed.value()) {
-                        return;
-                    } else {
-                        throw e;
-                    }
+            try {
+                numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(parser, coerce.value());
+            } catch (IllegalArgumentException e) {
+                if (ignoreMalformed.value()) {
+                    return;
+                } else {
+                    throw e;
                 }
+            }
+            if (includeInAll) {
+                value = parser.textOrNull(); // preserve formatting
+            } else {
+                value = numericValue;
             }
         }
 
@@ -433,10 +404,10 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         }
 
         if (numericValue == null) {
-            numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(value);
+            numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false);
         }
 
-        if (context.includeInAll(includeInAll, this)) {
+        if (includeInAll) {
             context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
         }
 
@@ -533,7 +504,10 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
 
         @Override
         public NumericType getNumericType() {
-            return scaledFieldData.getNumericType();
+            /**
+             * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
+             */
+            return NumericType.DOUBLE;
         }
 
     }

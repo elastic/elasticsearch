@@ -44,9 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class GeoBoundingBoxIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -58,9 +55,6 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -132,9 +126,6 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -187,9 +178,6 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();

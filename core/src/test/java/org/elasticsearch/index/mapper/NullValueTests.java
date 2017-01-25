@@ -30,8 +30,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NullValueTests extends ESSingleNodeTestCase {
     public void testNullNullValue() throws Exception {
         IndexService indexService = createIndex("test", Settings.builder().build());

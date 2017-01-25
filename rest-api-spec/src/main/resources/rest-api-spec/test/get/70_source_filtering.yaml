@@ -1,5 +1,17 @@
 ---
 "Source filtering":
+
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings:
+            test:
+              properties:
+                count:
+                  type: integer
+                  store: true
+
   - do:
       index:
         index:  test_1
@@ -46,7 +58,7 @@
         index:  test_1
         type:   test
         id:     1
-        fields: count
+        stored_fields: count
         _source: true
 
   - match:   { _index:   test_1  }

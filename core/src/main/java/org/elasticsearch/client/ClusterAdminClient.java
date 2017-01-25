@@ -564,6 +564,11 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     DeletePipelineRequestBuilder prepareDeletePipeline();
 
     /**
+     * Deletes a stored ingest pipeline
+     */
+    DeletePipelineRequestBuilder prepareDeletePipeline(String id);
+
+    /**
      * Returns a stored ingest pipeline
      */
     void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener);

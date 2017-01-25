@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -40,7 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -91,7 +93,7 @@ public class TaskResultsService extends AbstractComponent {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             doStoreResult(taskResult, listener);
@@ -163,7 +165,9 @@ public class TaskResultsService extends AbstractComponent {
             Streams.copy(is, out);
             return out.toString(IOUtils.UTF_8);
         } catch (Exception e) {
-            logger.error("failed to create tasks results index template [{}]", e, TASK_RESULT_INDEX_MAPPING_FILE);
+            logger.error(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failed to create tasks results index template [{}]", TASK_RESULT_INDEX_MAPPING_FILE), e);
             throw new IllegalStateException("failed to create tasks results index template [" + TASK_RESULT_INDEX_MAPPING_FILE + "]", e);
         }
 

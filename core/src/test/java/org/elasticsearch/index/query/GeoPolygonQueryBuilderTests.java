@@ -22,15 +22,12 @@ package org.elasticsearch.index.query;
 import com.vividsolutions.jts.geom.Coordinate;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.search.geo.GeoPolygonQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
@@ -45,8 +42,6 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
     @Override
@@ -64,53 +59,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Version version = context.indexVersionCreated();
-        if (version.before(Version.V_2_2_0)) {
-            assertLegacyQuery(queryBuilder, query);
-        } else {
-            assertGeoPointQuery(queryBuilder, query);
-        }
-    }
-
-    private void assertLegacyQuery(GeoPolygonQueryBuilder queryBuilder, Query query) {
-        assertThat(query, instanceOf(GeoPolygonQuery.class));
-        GeoPolygonQuery geoQuery = (GeoPolygonQuery) query;
-        assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
-        List<GeoPoint> queryBuilderPoints = queryBuilder.points();
-        GeoPoint[] queryPoints = geoQuery.points();
-        assertThat(queryPoints.length, equalTo(queryBuilderPoints.size()));
-        if (GeoValidationMethod.isCoerce(queryBuilder.getValidationMethod())) {
-            for (int i = 0; i < queryBuilderPoints.size(); i++) {
-                GeoPoint queryBuilderPoint = queryBuilderPoints.get(i);
-                GeoPoint pointCopy = new GeoPoint(queryBuilderPoint);
-                GeoUtils.normalizePoint(pointCopy, true, true);
-                assertThat(queryPoints[i], equalTo(pointCopy));
-            }
-        } else {
-            for (int i = 0; i < queryBuilderPoints.size(); i++) {
-                assertThat(queryPoints[i], equalTo(queryBuilderPoints.get(i)));
-            }
-        }
-    }
-
-    private void assertGeoPointQuery(GeoPolygonQueryBuilder queryBuilder, Query query) {
-        assertThat(query, instanceOf(GeoPointInPolygonQuery.class));
-        GeoPointInPolygonQuery geoQuery = (GeoPointInPolygonQuery) query;
-        assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
-        List<GeoPoint> queryBuilderPoints = queryBuilder.points();
-        assertEquals(1, geoQuery.getPolygons().length);
-        double[] lats = geoQuery.getPolygons()[0].getPolyLats();
-        double[] lons = geoQuery.getPolygons()[0].getPolyLons();
-        assertThat(lats.length, equalTo(queryBuilderPoints.size()));
-        assertThat(lons.length, equalTo(queryBuilderPoints.size()));
-        for (int i=0; i < queryBuilderPoints.size(); ++i) {
-            final GeoPoint queryBuilderPoint = queryBuilderPoints.get(i);
-            final GeoPoint pointCopy = new GeoPoint(queryBuilderPoint);
-            GeoUtils.normalizePoint(pointCopy);
-            assertThat(lats[i], closeTo(pointCopy.getLat(), 1E-5D));
-            assertThat(lons[i], closeTo(pointCopy.getLon(), 1E-5D));
-        }
+    protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        // todo LatLonPointInPolygon is package private
     }
 
     /**
@@ -189,8 +139,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         builder.field("normalize", true); // deprecated
         builder.endObject();
         builder.endObject();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(builder.string()));
-        assertEquals("Deprecated field [normalize] used, replaced by [use validation_method instead]", e.getMessage());
+        parseQuery(builder.string());
+        assertWarnings("Deprecated field [normalize] used, replaced by [validation_method]");
     }
 
     public void testParsingAndToQueryParsingExceptions() throws IOException {
@@ -282,35 +232,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     private void assertGeoPolygonQuery(String query) throws IOException {
         QueryShardContext context = createShardContext();
-        Version version = context.indexVersionCreated();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        if (version.before(Version.V_2_2_0)) {
-            GeoPolygonQuery filter = (GeoPolygonQuery) parsedQuery;
-            assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-            assertThat(filter.points().length, equalTo(4));
-            assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
-            assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
-            assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
-            assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
-            assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
-            assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
-        } else {
-            GeoPointInPolygonQuery q = (GeoPointInPolygonQuery) parsedQuery;
-            assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
-            assertEquals(1, q.getPolygons().length);
-            final double[] lats = q.getPolygons()[0].getPolyLats();
-            final double[] lons = q.getPolygons()[0].getPolyLons();
-            assertThat(lats.length, equalTo(4));
-            assertThat(lons.length, equalTo(4));
-            assertThat(lats[0], closeTo(40, 1E-5));
-            assertThat(lons[0], closeTo(-70, 1E-5));
-            assertThat(lats[1], closeTo(30, 1E-5));
-            assertThat(lons[1], closeTo(-80, 1E-5));
-            assertThat(lats[2], closeTo(20, 1E-5));
-            assertThat(lons[2], closeTo(-90, 1E-5));
-            assertThat(lats[3], equalTo(lats[0]));
-            assertThat(lons[3], equalTo(lons[0]));
-        }
+        // todo LatLonPointInPolygon is package private, need a closeTo check on the query
+        // since some points can be computed from the geohash
     }
 
     public void testFromJson() throws IOException {
@@ -341,9 +265,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-
+        parseQuery(json);
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     public void testFromJsonCoerceDeprecated() throws IOException {
@@ -358,8 +281,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     @Override

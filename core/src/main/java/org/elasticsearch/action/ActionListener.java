@@ -19,6 +19,11 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedConsumer;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -45,7 +50,8 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a listener that listens for responses and invokes the consumer when received
      */
-    static <Response> ActionListener<Response> wrap(Consumer<Response> onResponse, Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
+            Consumer<Exception> onFailure) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
@@ -61,5 +67,42 @@ public interface ActionListener<Response> {
                 onFailure.accept(e);
             }
         };
+    }
+
+    /**
+     * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
+     * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
+     * listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onResponse(Iterable<ActionListener<Response>> listeners, Response response) {
+        List<Exception> exceptionList = new ArrayList<>();
+        for (ActionListener<Response> listener : listeners) {
+            try {
+                listener.onResponse(response);
+            } catch (Exception ex) {
+                try {
+                    listener.onFailure(ex);
+                } catch (Exception ex1) {
+                    exceptionList.add(ex1);
+                }
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
+    }
+
+    /**
+     * Notifies every given listener with the failure passed to {@link #onFailure(Exception)}. If a listener itself throws an exception
+     * all remaining listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onFailure(Iterable<ActionListener<Response>> listeners, Exception failure) {
+        List<Exception> exceptionList = new ArrayList<>();
+        for (ActionListener<Response> listener : listeners) {
+            try {
+                listener.onFailure(failure);
+            } catch (Exception ex) {
+                exceptionList.add(ex);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 }

@@ -1,0 +1,7 @@
+[[breaking_60_cat_changes]]
+=== Cat API changes
+
+==== Unbounded queue size in cat thread pool
+
+Previously if a queue size backing a thread pool was unbounded, the cat thread pool API would output an empty string in
+the queue_size column. This has been changed to now output -1 so that the output is always present and always numeric.

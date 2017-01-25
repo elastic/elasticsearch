@@ -1,6 +1,12 @@
 [[file-descriptors]]
 === File Descriptors
 
+[NOTE]
+This is only relevant for Linux and macOS and can be safely ignored if running
+Elasticsearch on Windows. On Windows that JVM uses an
+https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
+limited only by available resources.
+
 Elasticsearch uses a lot of file descriptors or file handles.  Running out of
 file descriptors can be disastrous and will most probably lead to data loss.
 Make sure to increase the limit on the number of open files descriptors for
@@ -18,5 +24,6 @@ using the <<cluster-nodes-stats>> API, with:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_nodes/stats/process?pretty&filter_path=**.max_file_descriptors'
+GET _nodes/stats/process?filter_path=**.max_file_descriptors
 --------------------------------------------------
+// CONSOLE

@@ -26,9 +26,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-/**
- *
- */
 public enum ClusterHealthStatus implements Writeable {
     GREEN((byte) 0),
     YELLOW((byte) 1),

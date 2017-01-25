@@ -27,23 +27,19 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class RestAliasesExistAction extends BaseRestHandler {
-
-    @Inject
     public RestAliasesExistAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
@@ -52,7 +48,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -60,7 +56,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
+        return channel -> client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
 
             @Override
             public void onResponse(AliasesExistResponse response) {
@@ -85,6 +81,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
                     logger.error("Failed to send failure response", inner);
                 }
             }
+
         });
     }
 }

@@ -123,9 +123,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
                 break;
-            case org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.TYPE:
-                suggestion = new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion();
-                break;
+            case 2: // CompletionSuggestion.TYPE
+                throw new IllegalArgumentException("Completion suggester 2.x is not supported anymore");
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
                 break;
@@ -151,18 +150,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        toInnerXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * use to write suggestion entries without <code>NAME</code> object
-     */
-    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         for (Suggestion<?> suggestion : suggestions) {
             suggestion.toXContent(builder, params);
         }
+        builder.endObject();
         return builder;
     }
 

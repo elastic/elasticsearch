@@ -42,6 +42,16 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     Map<String, String> setups = new HashMap()
 
     /**
+     * A list of files that contain snippets that *probably* should be
+     * converted to `// CONSOLE` but have yet to be converted. If a file is in
+     * this list and doesn't contain unconverted snippets this task will fail.
+     * If there are unconverted snippets not in this list then this task will
+     * fail. All files are paths relative to the docs dir.
+     */
+    @Input
+    List<String> expectedUnconvertedCandidates = []
+
+    /**
      * Root directory of the tests being generated. To make rest tests happy
      * we generate them in a testRoot() which is contained in this directory.
      */
@@ -56,6 +66,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         TestBuilder builder = new TestBuilder()
         doFirst { outputRoot().delete() }
         perSnippet builder.&handleSnippet
+        doLast builder.&checkUnconverted
         doLast builder.&finishLastTest
     }
 
@@ -65,6 +76,27 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
      */
     File outputRoot() {
         return new File(testRoot, '/rest-api-spec/test')
+    }
+
+    /**
+     * Is this snippet a candidate for conversion to `// CONSOLE`?
+     */
+    static isConsoleCandidate(Snippet snippet) {
+        /* Snippets that are responses or already marked as `// CONSOLE` or
+         * `// NOTCONSOLE` are not candidates. */
+        if (snippet.console != null || snippet.testResponse) {
+            return false
+        }
+        /* js snippets almost always should be marked with `// CONSOLE`. js
+         * snippets that shouldn't be marked `// CONSOLE`, like examples for
+         * js client, should always be marked with `// NOTCONSOLE`.
+         *
+         * `sh` snippets that contain `curl` almost always should be marked
+         * with `// CONSOLE`. In the exceptionally rare cases where they are
+         * not communicating with Elasticsearch, like the xamples in the ec2
+         * and gce discovery plugins, the snippets should be marked
+         * `// NOTCONSOLE`. */
+        return snippet.language == 'js' || snippet.curl
     }
 
     private class TestBuilder {
@@ -89,10 +121,21 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         PrintWriter current
 
         /**
+         * Files containing all snippets that *probably* should be converted
+         * to `// CONSOLE` but have yet to be converted. All files are paths
+         * relative to the docs dir.
+         */
+        Set<String> unconvertedCandidates = new HashSet<>()
+
+        /**
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
         void handleSnippet(Snippet snippet) {
+            if (RestTestsFromSnippetsTask.isConsoleCandidate(snippet)) {
+                unconvertedCandidates.add(snippet.path.toString()
+                    .replace('\\', '/'))
+            }
             if (BAD_LANGUAGES.contains(snippet.language)) {
                 throw new InvalidUserDataException(
                         "$snippet: Use `js` instead of `${snippet.language}`.")
@@ -117,11 +160,21 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
             if (false == test.continued) {
                 current.println('---')
-                current.println("\"$test.start\":")
+                current.println("\"line_$test.start\":")
+                /* The Elasticsearch test runner doesn't support the warnings
+                 * construct unless you output this skip. Since we don't know
+                 * if this snippet will use the warnings construct we emit this
+                 * warning every time. */
+                current.println("  - skip:")
+                current.println("      features: ")
+                current.println("        - warnings")
             }
             if (test.skipTest) {
-                current.println("  - skip:")
-                current.println("      features: always_skip")
+                if (test.continued) {
+                    throw new InvalidUserDataException("Continued snippets "
+                        + "can't be skipped")
+                }
+                current.println("        - always_skip")
                 current.println("      reason: $test.skipTest")
             }
             if (test.setup != null) {
@@ -146,6 +199,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         void emitDo(String method, String pathAndQuery, String body,
                 String catchPart, List warnings, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
+            if (path == null) {
+                path = '' // Catch requests to the root...
+            } else {
+                // Escape some characters that are also escaped by sense
+                path = path.replace('<', '%3C').replace('>', '%3E')
+                path = path.replace('{', '%7B').replace('}', '%7D')
+                path = path.replace('|', '%7C')
+            }
             current.println("  - do:")
             if (catchPart != null) {
                 current.println("      catch: $catchPart")
@@ -245,6 +306,36 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (current != null) {
                 current.close()
                 current = null
+            }
+        }
+
+        void checkUnconverted() {
+            List<String> listedButNotFound = []
+            for (String listed : expectedUnconvertedCandidates) {
+                if (false == unconvertedCandidates.remove(listed)) {
+                    listedButNotFound.add(listed)
+                }
+            }
+            String message = ""
+            if (false == listedButNotFound.isEmpty()) {
+                Collections.sort(listedButNotFound)
+                listedButNotFound = listedButNotFound.collect {'    ' + it}
+                message += "Expected unconverted snippets but none found in:\n"
+                message += listedButNotFound.join("\n")
+            }
+            if (false == unconvertedCandidates.isEmpty()) {
+                List<String> foundButNotListed =
+                    new ArrayList<>(unconvertedCandidates)
+                Collections.sort(foundButNotListed)
+                foundButNotListed = foundButNotListed.collect {'    ' + it}
+                if (false == "".equals(message)) {
+                    message += "\n"
+                }
+                message += "Unexpected unconverted snippets:\n"
+                message += foundButNotListed.join("\n")
+            }
+            if (false == "".equals(message)) {
+                throw new InvalidUserDataException(message);
             }
         }
     }

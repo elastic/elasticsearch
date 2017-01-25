@@ -107,15 +107,14 @@ public final class ConfigurationUtils {
             value.getClass().getName() + "]");
     }
 
-
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
      * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */
-    public static int readIntProperty(String processorType, String processorTag, Map<String, Object> configuration,
-                                      String propertyName, int defaultValue) {
+    public static Integer readIntProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                          String propertyName, Integer defaultValue) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return defaultValue;
@@ -225,7 +224,13 @@ public final class ConfigurationUtils {
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
-        ElasticsearchParseException exception = new ElasticsearchParseException("[" + propertyName + "] " + reason);
+        String msg;
+        if (propertyName == null) {
+           msg = reason;
+        } else {
+            msg = "[" + propertyName + "] " + reason;
+        }
+        ElasticsearchParseException exception = new ElasticsearchParseException(msg);
         addHeadersToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
@@ -275,6 +280,7 @@ public final class ConfigurationUtils {
 
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
+        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
@@ -282,7 +288,6 @@ public final class ConfigurationUtils {
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
@@ -304,6 +309,6 @@ public final class ConfigurationUtils {
                 throw newConfigurationException(type, tag, null, e);
             }
         }
-        throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
+        throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
     }
 }

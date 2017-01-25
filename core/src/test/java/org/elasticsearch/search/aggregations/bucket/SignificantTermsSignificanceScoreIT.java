@@ -20,20 +20,20 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -75,9 +76,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
@@ -172,7 +170,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         @Override
         public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
             return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
-                    SimpleHeuristic::new, SimpleHeuristic::parse));
+                    SimpleHeuristic::new, (context) -> SimpleHeuristic.parse(context)));
         }
 
         @Override
@@ -239,9 +237,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
         }
 
-        public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+        public static SignificanceHeuristic parse(QueryParseContext context)
                 throws IOException, QueryShardException {
-            parser.nextToken();
+            context.parser().nextToken();
             return new SimpleHeuristic();
         }
     }
@@ -510,14 +508,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     private ScriptHeuristic getScriptSignificanceHeuristic() throws IOException {
-        Script script = null;
+        Script script;
         if (randomBoolean()) {
-            Map<String, Object> params = null;
-            params = new HashMap<>();
+            Map<String, Object> params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
-            script = new Script("native_significance_score_script_with_params", ScriptType.INLINE, "native", params);
+            script = new Script(ScriptType.INLINE, "native", "native_significance_score_script_with_params", params);
         } else {
-            script = new Script("native_significance_score_script_no_params", ScriptType.INLINE, "native", null);
+            script = new Script(ScriptType.INLINE, "native", "native_significance_score_script_no_params", Collections.emptyMap());
         }
         return new ScriptHeuristic(script);
     }
@@ -546,6 +543,45 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public void testReduceFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
         SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this);
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 
 }

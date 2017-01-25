@@ -20,10 +20,8 @@ x * Licensed to Elasticsearch under one or more contributor
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -129,18 +127,18 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testReverseOptionFails() throws IOException {
         String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
 
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
 
         try {
           FieldSortBuilder.fromXContent(context, "");
           fail("adding reverse sorting option should fail with an exception");
-        } catch (ParsingException e) {
+        } catch (IllegalArgumentException e) {
             // all good
         }
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -31,6 +30,8 @@ public final class InternalSettingsPlugin extends Plugin {
 
     public static final Setting<Integer> VERSION_CREATED =
         Setting.intSetting("index.version.created", 0, Property.IndexScope, Property.NodeScope);
+    public static final Setting<String> PROVIDED_NAME_SETTING =
+        Setting.simpleString("index.provided_name",Property.IndexScope, Property.NodeScope);
     public static final Setting<Boolean> MERGE_ENABLED =
         Setting.boolSetting("index.merge.enabled", true, Property.IndexScope, Property.NodeScope);
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
@@ -38,6 +39,7 @@ public final class InternalSettingsPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED, INDEX_CREATION_DATE_SETTING);
+        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED,
+            INDEX_CREATION_DATE_SETTING, PROVIDED_NAME_SETTING);
     }
 }

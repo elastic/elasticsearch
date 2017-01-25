@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -40,19 +41,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BytesRestResponseTests extends ESTestCase {
 
     class UnknownException extends Exception {
-
-        public UnknownException(final String message, final Throwable cause) {
+        UnknownException(final String message, final Throwable cause) {
             super(message, cause);
         }
-
     }
 
     public void testWithHeaders() throws Exception {
@@ -60,6 +55,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = randomBoolean() ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 
         BytesRestResponse response = new BytesRestResponse(channel, new WithHeadersException());
+        assertEquals(2, response.getHeaders().size());
         assertThat(response.getHeaders().get("n1"), notNullValue());
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
         assertThat(response.getHeaders().get("n2"), notNullValue());
@@ -161,7 +157,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = new RestRequest(Collections.emptyMap(), path) {
+        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path) {
             @Override
             public Method method() {
                 return null;
@@ -220,6 +216,7 @@ public class BytesRestResponseTests extends ESTestCase {
             super("");
             this.addHeader("n1", "v11", "v12");
             this.addHeader("n2", "v21", "v22");
+            this.addMetadata("es.test", "value1", "value2");
         }
     }
 

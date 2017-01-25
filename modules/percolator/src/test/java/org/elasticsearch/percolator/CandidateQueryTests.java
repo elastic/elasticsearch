@@ -47,6 +47,7 @@ import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -59,9 +60,9 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -384,13 +385,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator allDocs = DocIdSetIterator.all(context.reader().maxDoc());
-                    PercolateQuery.QueryStore.Leaf leaf = queryStore.getQueries(context);
+                    CheckedFunction<Integer, Query, IOException> leaf = queryStore.getQueries(context);
                     FilteredDocIdSetIterator memoryIndexIterator = new FilteredDocIdSetIterator(allDocs) {
 
                         @Override
                         protected boolean match(int doc) {
                             try {
-                                Query query = leaf.getQuery(doc);
+                                Query query = leaf.apply(doc);
                                 float score = memoryIndex.search(query);
                                 if (score != 0f) {
                                     if (needsScores) {

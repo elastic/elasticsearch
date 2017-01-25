@@ -25,9 +25,6 @@ import org.apache.lucene.search.Explanation;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class WeightFactorFunction extends ScoreFunction {
 
     private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULTIPLY);
@@ -71,7 +68,7 @@ public class WeightFactorFunction extends ScoreFunction {
 
     @Override
     public boolean needsScores() {
-        return false;
+        return scoreFunction.needsScores();
     }
 
     public Explanation explainWeight() {

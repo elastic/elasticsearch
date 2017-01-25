@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -32,6 +33,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -112,6 +114,7 @@ public final class WriterConstants {
     public static final Method DEF_TO_LONG_EXPLICIT   = getAsmMethod(long.class   , "DefTolongExplicit"  , Object.class);
     public static final Method DEF_TO_FLOAT_EXPLICIT  = getAsmMethod(float.class  , "DefTofloatExplicit" , Object.class);
     public static final Method DEF_TO_DOUBLE_EXPLICIT = getAsmMethod(double.class , "DefTodoubleExplicit", Object.class);
+    public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Definition.DEF_TYPE.type);
 
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
@@ -157,6 +160,9 @@ public final class WriterConstants {
 
     public static final Type OBJECTS_TYPE = Type.getType(Objects.class);
     public static final Method EQUALS = getAsmMethod(boolean.class, "equals", Object.class, Object.class);
+
+    public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
+    public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

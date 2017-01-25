@@ -32,8 +32,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -50,6 +51,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
@@ -88,11 +90,12 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testCorsConfig() {
         final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
         final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
+        final String suffix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
         final Settings settings = Settings.builder()
                                       .put(SETTING_CORS_ENABLED.getKey(), true)
                                       .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToCommaDelimitedString(methods))
-                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToCommaDelimitedString(headers))
+                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", suffix, ""))
+                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", suffix, ""))
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
@@ -119,11 +122,11 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
      */
     public void testExpectContinueHeader() throws Exception {
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
-            transport.httpServerAdapter((request, channel, context) ->
-                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))));
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+                xContentRegistry(), (request, channel, context) ->
+            channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))))) {
             transport.start();
-            InetSocketTransportAddress remoteAddress = (InetSocketTransportAddress) randomFrom(transport.boundAddress().boundAddresses());
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
@@ -137,6 +140,20 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 response = client.post(remoteAddress.address(), request);
                 assertThat(response.status(), is(HttpResponseStatus.OK));
                 assertThat(new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8), is("done"));
+            }
+        }
+    }
+
+    public void testBindUnavailableAddress() {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+                xContentRegistry(), (request, channel, context) -> {})) {
+            transport.start();
+            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+                    xContentRegistry(), (request, channel, context) -> {})) {
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
+                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
         }
     }

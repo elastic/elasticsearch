@@ -42,8 +42,10 @@ The cache can be expired manually with the <<indices-clearcache,`clear-cache` AP
 
 [source,js]
 ------------------------
-curl -XPOST 'localhost:9200/kimchy,elasticsearch/_cache/clear?request_cache=true'
+POST /kimchy,elasticsearch/_cache/clear?request_cache=true
 ------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [float]
 ==== Enabling and disabling caching
@@ -53,24 +55,26 @@ index as follows:
 
 [source,js]
 -----------------------------
-curl -XPUT localhost:9200/my_index -d'
+PUT /my_index
 {
   "settings": {
     "index.requests.cache.enable": false
   }
 }
-'
 -----------------------------
+// CONSOLE
 
 It can also be enabled or disabled dynamically on an existing index with the
 <<indices-update-settings,`update-settings`>> API:
 
 [source,js]
 -----------------------------
-curl -XPUT localhost:9200/my_index/_settings -d'
+PUT /my_index/_settings
 { "index.requests.cache.enable": true }
-'
 -----------------------------
+// CONSOLE
+// TEST[continued]
+
 
 [float]
 ==== Enabling and disabling caching per request
@@ -80,7 +84,7 @@ caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
 [source,js]
 -----------------------------
-curl 'localhost:9200/my_index/_search?request_cache=true' -d'
+GET /my_index/_search?request_cache=true
 {
   "size": 0,
   "aggs": {
@@ -91,8 +95,9 @@ curl 'localhost:9200/my_index/_search?request_cache=true' -d'
     }
   }
 }
-'
 -----------------------------
+// CONSOLE
+// TEST[continued]
 
 IMPORTANT: If your query uses a script whose result is not deterministic (e.g.
 it uses a random function or references the current time) you should set the
@@ -137,12 +142,14 @@ by index, with the <<indices-stats,`indices-stats`>> API:
 
 [source,js]
 ------------------------
-curl 'localhost:9200/_stats/request_cache?pretty&human'
+GET /_stats/request_cache?human
 ------------------------
+// CONSOLE
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
 [source,js]
 ------------------------
-curl 'localhost:9200/_nodes/stats/indices/request_cache?pretty&human'
+GET /_nodes/stats/indices/request_cache?human
 ------------------------
+// CONSOLE

@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.client.Requests.indexAliasesRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -57,9 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
@@ -108,8 +104,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termQuery("text", "release"), "test")).actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termQuery("text", "beta"), "test")).actionGet();
+        client().admin().indices().prepareAliases()
+            .addAlias("test", "release", termQuery("text", "release"))
+            .addAlias("test", "beta", termQuery("text", "beta")).get();
 
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -155,8 +152,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).execute().actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias(aliasName, indexName)).actionGet();
+        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).get();
+        client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -266,9 +263,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThrows(client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(new String[] {"string_value", "int_value"}, null, new Item[] {new Item("test", "type", "1")}).minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
 
-        // mlt query with no field -> OK
+        // mlt query with no field -> No results (because _all is not enabled)
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[] {"index"}).minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(searchResponse, 0L);
 
         // mlt query with string fields
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[]{"string_value"}, new String[] {"index"}, null).minTermFreq(1).minDocFreq(1)).execute().actionGet();

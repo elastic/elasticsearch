@@ -104,3 +104,19 @@
       update_by_query:
         requests_per_second: 0
         index: test
+
+---
+"junk in slices fails":
+  - do:
+      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      update_by_query:
+        slices: junk
+        index: test
+
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be at least 1/
+      update_by_query:
+        slices: 0
+        index: test

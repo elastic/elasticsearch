@@ -29,10 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest<Request> {
+public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
 
     /**
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}

@@ -13,10 +13,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install discovery-gce
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-gce/discovery-gce-{version}.zip.
 
 [[discovery-gce-remove]]
 [float]
@@ -28,7 +30,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove discovery-gce
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -45,7 +46,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: <your-zone>
 discovery:
-      type: gce
+      zen.hosts_provider: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -271,11 +272,11 @@ If anything goes wrong, you should check logs:
 tail -f /var/log/elasticsearch/elasticsearch.log
 --------------------------------------------------
 
-If needed, you can change log level to `TRACE` by opening `logging.yml`:
+If needed, you can change log level to `trace` by opening `log4j2.properties`:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/logging.yml
+sudo vi /etc/elasticsearch/log4j2.properties
 --------------------------------------------------
 
 and adding the following line:
@@ -283,7 +284,8 @@ and adding the following line:
 [source,yaml]
 --------------------------------------------------
 # discovery
-discovery.gce: TRACE
+logger.discovery_gce.name = discovery.gce
+logger.discovery_gce.level = trace
 --------------------------------------------------
 
 

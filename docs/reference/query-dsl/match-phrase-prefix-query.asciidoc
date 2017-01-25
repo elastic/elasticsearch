@@ -59,6 +59,6 @@ for appears.
 
 For better solutions for _search-as-you-type_ see the
 <<search-suggesters-completion,completion suggester>> and
-{guide}/_index_time_search_as_you_type.html[Index-Time Search-as-You-Type].
+{defguide}/_index_time_search_as_you_type.html[Index-Time Search-as-You-Type].
 
 ===================================================

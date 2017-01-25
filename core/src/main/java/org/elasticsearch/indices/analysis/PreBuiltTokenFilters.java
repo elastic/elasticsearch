@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -27,9 +30,7 @@ import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
@@ -60,11 +61,11 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.tartarus.snowball.ext.DutchStemmer;
@@ -72,9 +73,6 @@ import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.Locale;
 
-/**
- *
- */
 public enum PreBuiltTokenFilters {
 
     WORD_DELIMITER(CachingStrategy.ONE) {
@@ -115,6 +113,10 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ASCIIFoldingFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     LENGTH(CachingStrategy.LUCENE) {
@@ -136,12 +138,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new LowerCaseFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     UPPERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new UpperCaseFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -221,6 +231,10 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ElisionFilter(tokenStream, FrenchAnalyzer.DEFAULT_ARTICLES);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     ARABIC_STEM(CachingStrategy.ONE) {
@@ -284,12 +298,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ArabicNormalizationFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     PERSIAN_NORMALIZATION(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new PersianNormalizationFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -312,12 +334,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new GermanNormalizationFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     HINDI_NORMALIZATION(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new HindiNormalizationFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -326,12 +356,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new IndicNormalizationFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     SORANI_NORMALIZATION(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new SoraniNormalizationFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -340,12 +378,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ScandinavianNormalizationFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     SCANDINAVIAN_FOLDING(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ScandinavianFoldingFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -361,12 +407,20 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new CJKWidthFilter(tokenStream);
         }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
+        }
     },
 
     DECIMAL_DIGIT(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new DecimalDigitFilter(tokenStream);
+        }
+        @Override
+        protected boolean isMultiTermAware() {
+            return true;
         }
     },
 
@@ -389,11 +443,15 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new LimitTokenCountFilter(tokenStream, LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT, LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS);
         }
-    }
+    },
 
     ;
 
-    public abstract  TokenStream create(TokenStream tokenStream, Version version);
+    protected boolean isMultiTermAware() {
+        return false;
+    }
+
+    public abstract TokenStream create(TokenStream tokenStream, Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenFilterFactory> cache;
 
@@ -402,21 +460,42 @@ public enum PreBuiltTokenFilters {
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
     }
 
+    private interface MultiTermAwareTokenFilterFactory extends TokenFilterFactory, MultiTermAwareComponent {}
+
     public synchronized TokenFilterFactory getTokenFilterFactory(final Version version) {
         TokenFilterFactory factory = cache.get(version);
         if (factory == null) {
-            final String finalName = name();
-            factory = new TokenFilterFactory() {
-                @Override
-                public String name() {
-                    return finalName.toLowerCase(Locale.ROOT);
-                }
+            final String finalName = name().toLowerCase(Locale.ROOT);
+            if (isMultiTermAware()) {
+                factory = new MultiTermAwareTokenFilterFactory() {
+                    @Override
+                    public String name() {
+                        return finalName;
+                    }
 
-                @Override
-                public TokenStream create(TokenStream tokenStream) {
-                    return valueOf(finalName).create(tokenStream, version);
-                }
-            };
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        return PreBuiltTokenFilters.this.create(tokenStream, version);
+                    }
+
+                    @Override
+                    public Object getMultiTermComponent() {
+                        return this;
+                    }
+                };
+            } else {
+                factory = new TokenFilterFactory() {
+                    @Override
+                    public String name() {
+                        return finalName;
+                    }
+
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        return PreBuiltTokenFilters.this.create(tokenStream, version);
+                    }
+                };
+            }
             cache.put(version, factory);
         }
 

@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,16 +34,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Facilitates creating template query requests.
@@ -59,12 +55,13 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Template to fill. */
     private final Script template;
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params) {
-        this(new Script(template, scriptType, "mustache", params));
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
+        this(new Script(scriptType, "mustache", template, params));
     }
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(template, scriptType, "mustache", params, ct));
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
+        this(new Script(scriptType, "mustache", template,
+            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
     }
 
     TemplateQueryBuilder(Script template) {
@@ -120,13 +117,11 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
-        BytesReference querySource = (BytesReference) executable.run();
-        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+        BytesReference querySource = queryRewriteContext.getTemplateBytes(template);
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(queryRewriteContext.getXContentRegistry(),
+                querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
-            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder().orElseThrow(
-                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query in [" + NAME + "] cannot be empty"));
+            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);
@@ -140,9 +135,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      * In the simplest case, parse template string and variables from the request,
      * compile the template and execute the template against the given variables.
      */
-    public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
-        return Optional.of(new TemplateQueryBuilder(template));
+        Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
+        return new TemplateQueryBuilder(template);
     }
 }

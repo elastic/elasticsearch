@@ -45,13 +45,14 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -94,10 +95,10 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
 
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
-            if (v.isAlpha()) continue; // no guarantees for alpha releases
-            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.isRelease() == false) continue; // no guarantees for prereleases
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we only support versions N and N-1
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add(v.toString());
         }
@@ -125,44 +126,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             createRepo("unsupportedrepo", version, repo);
             assertUnsupportedIndexFailsToRestore(repo, snapshot);
         }
-    }
-
-    public void testRestoreSnapshotWithMissingChecksum() throws Exception {
-        final String repo = "test_repo";
-        final String snapshot = "test_1";
-        final String indexName = "index-2.3.4";
-        final String repoFileId = "missing-checksum-repo-2.3.4";
-        Path repoFile = getBwcIndicesPath().resolve(repoFileId + ".zip");
-        URI repoFileUri = repoFile.toUri();
-        URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
-        logger.info("-->  creating repository [{}] for repo file [{}]", repo, repoFileId);
-        assertAcked(client().admin().cluster().preparePutRepository(repo)
-                                              .setType("url")
-                                              .setSettings(Settings.builder().put("url", repoJarUri.toString())));
-
-        logger.info("--> get snapshot and check its indices");
-        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get();
-        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
-        SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
-        assertThat(snapshotInfo.indices(), equalTo(Arrays.asList(indexName)));
-
-        logger.info("--> restoring snapshot");
-        RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
-        assertThat(response.status(), equalTo(RestStatus.OK));
-        RestoreInfo restoreInfo = response.getRestoreInfo();
-        assertThat(restoreInfo.successfulShards(), greaterThan(0));
-        assertThat(restoreInfo.successfulShards(), equalTo(restoreInfo.totalShards()));
-        assertThat(restoreInfo.failedShards(), equalTo(0));
-        String index = restoreInfo.indices().get(0);
-        assertThat(index, equalTo(indexName));
-
-        logger.info("--> check search");
-        SearchResponse searchResponse = client().prepareSearch(index).get();
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
-
-        logger.info("--> cleanup");
-        cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));
-        cluster().wipeTemplates();
     }
 
     private List<String> repoVersions() throws Exception {
@@ -224,10 +187,18 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check templates");
         IndexTemplateMetaData template = clusterState.getMetaData().templates().get("template_" + version.toLowerCase(Locale.ROOT));
         assertThat(template, notNullValue());
-        assertThat(template.template(), equalTo("te*"));
+        assertThat(template.patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
-        assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
+        assertThat(template.mappings().get("type1").string(),
+            anyOf(
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"false\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"0\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":0}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"off\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"no\"}}}")
+        ));
         assertThat(template.aliases().size(), equalTo(3));
         assertThat(template.aliases().get("alias1"), notNullValue());
         assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
@@ -244,10 +215,9 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> restoring unsupported snapshot");
         try {
             client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
-            fail("should have failed to restore");
+            fail("should have failed to restore - " + repo);
         } catch (SnapshotRestoreException ex) {
-            assertThat(ex.getMessage(), containsString("cannot restore index"));
-            assertThat(ex.getMessage(), containsString("because it cannot be upgraded"));
+            assertThat(ex.getMessage(), containsString("snapshot does not exist"));
         }
     }
 }

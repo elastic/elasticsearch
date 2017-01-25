@@ -21,14 +21,14 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -41,8 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESAllocationTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ClusterRerouteTests extends ESAllocationTestCase {
 
@@ -64,8 +65,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);
         BytesReference bytes = out.bytes();
-        NetworkModule networkModule = new NetworkModule(null, Settings.EMPTY, true);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(networkModule.getNamedWriteables());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
         StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
             namedWriteableRegistry);
         ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest();
@@ -82,7 +82,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     public void testClusterStateUpdateTask() {
         AllocationService allocationService = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         ClusterState clusterState = createInitialClusterState(allocationService);
         ClusterRerouteRequest req = new ClusterRerouteRequest();
         req.dryRun(true);
@@ -118,12 +118,12 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             assertEquals(routingTable.index("idx").shards().size(), 1);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
-            List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-                new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
+            List<FailedShard> failedShards = Collections.singletonList(
+                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
                     new UnsupportedOperationException()));
-            RoutingAllocation.Result result = allocationService.applyFailedShards(clusterState, failedShards);
-            assertTrue(result.changed());
-            clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();
+            newState = allocationService.applyFailedShards(clusterState, failedShards);
+            assertThat(newState, not(equalTo(clusterState)));
+            clusterState = newState;
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
             if (i == retries-1) {

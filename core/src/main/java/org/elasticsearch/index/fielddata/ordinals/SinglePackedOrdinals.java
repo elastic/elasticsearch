@@ -31,8 +31,6 @@ import org.apache.lucene.util.packed.PackedInts;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- */
 public class SinglePackedOrdinals extends Ordinals {
 
     // ordinals with value 0 indicates no value

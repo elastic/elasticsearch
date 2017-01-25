@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.ProfileResult;
 
 import java.io.IOException;
@@ -31,12 +32,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
 public final class AggregationProfileShardResult implements Writeable, ToXContent {
 
+    public static final String AGGREGATIONS = "aggregations";
     private final List<ProfileResult> aggProfileResults;
 
     public AggregationProfileShardResult(List<ProfileResult> aggProfileResults) {
@@ -69,11 +73,21 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("aggregations");
+        builder.startArray(AGGREGATIONS);
         for (ProfileResult p : aggProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
         return builder;
+    }
+
+    public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        List<ProfileResult> aggProfileResults = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            aggProfileResults.add(ProfileResult.fromXContent(parser));
+        }
+        return new AggregationProfileShardResult(aggProfileResults);
     }
 }

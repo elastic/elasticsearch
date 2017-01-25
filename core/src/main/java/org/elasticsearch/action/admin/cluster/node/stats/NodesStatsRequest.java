@@ -268,7 +268,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = CommonStatsFlags.readCommonStatsFlags(in);
+        indices = new CommonStatsFlags(in);
         os = in.readBoolean();
         process = in.readBoolean();
         jvm = in.readBoolean();
@@ -298,5 +298,4 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(discovery);
         out.writeBoolean(ingest);
     }
-
 }

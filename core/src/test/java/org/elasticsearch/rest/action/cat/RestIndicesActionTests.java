@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Table;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -71,7 +74,7 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet());
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table
@@ -105,7 +108,7 @@ public class RestIndicesActionTests extends ESTestCase {
             clusterState.getClusterName().value(), indicesStr, clusterState, 0, 0, 0, TimeValue.timeValueMillis(1000L)
         );
 
-        final Table table = action.buildTable(null, indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
+        final Table table = action.buildTable(new FakeRestRequest(), indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
 
         // now, verify the table is correct
         int count = 0;
@@ -134,8 +137,10 @@ public class RestIndicesActionTests extends ESTestCase {
             for (int i = 0; i < 2; i++) {
                 ShardId shardId = new ShardId(index, i);
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, null, i == 0,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, i == 0,
+                    i == 0 ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                    );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 shardRouting = shardRouting.moveToStarted();
                 CommonStats stats = new CommonStats();
@@ -153,7 +158,7 @@ public class RestIndicesActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null));
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null));
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

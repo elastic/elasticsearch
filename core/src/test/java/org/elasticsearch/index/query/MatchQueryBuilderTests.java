@@ -22,21 +22,26 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
@@ -135,7 +140,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
@@ -160,7 +165,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                     .or(instanceOf(PointRangeQuery.class)));
             break;
         }
-
+        QueryShardContext context = searchContext.getQueryShardContext();
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
@@ -305,17 +310,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);
 
         assertSerialization(qb);
 
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+                "Deprecated field [slop] used, replaced by [match_phrase query]");
     }
 
     public void testLegacyMatchPhraseQuery() throws IOException {
@@ -338,43 +341,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);
-
         assertSerialization(qb);
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-    }
-
-    public void testLegacyFuzzyMatchQuery() throws IOException {
-        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
-        String type = randomFrom("fuzzy_match", "match_fuzzy");
-        String json = "{\n" +
-                "  \"" + type + "\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(qb, equalTo(expectedQB));
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(), containsString("Deprecated field [" + type + "] used, expected [match] instead"));
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+                "Deprecated field [slop] used, replaced by [match_phrase query]");
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
@@ -430,5 +403,54 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithTermsArray() throws Exception {
+        String json1 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : [\"term1\", \"term2\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        expectThrows(ParsingException.class, () -> parseQuery(json1));
+
+        String json2 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : [\"term1\", \"term2\"]\n" +
+                "  }\n" +
+                "}";
+        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+    }
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        mapperService.merge("t_boost", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("t_boost",
+            "string_boost", "type=text,boost=4").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+    }
+
+    public void testMatchPhrasePrefixWithBoost() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        assumeTrue("test runs only when the index version is on or after V_5_0_0_alpha1",
+            context.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1));
+
+        {
+            // field boost is applied on a single term query
+            MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
+            Query query = builder.toQuery(context);
+            assertThat(query, instanceOf(BoostQuery.class));
+            assertThat(((BoostQuery) query).getBoost(), equalTo(4f));
+            Query innerQuery = ((BoostQuery) query).getQuery();
+            assertThat(innerQuery, instanceOf(MultiPhrasePrefixQuery.class));
+        }
+
+        {
+            // field boost is ignored on phrase query
+            MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo bar");
+            Query query = builder.toQuery(context);
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
+        }
+
     }
 }

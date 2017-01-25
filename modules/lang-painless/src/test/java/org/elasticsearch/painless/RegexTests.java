@@ -19,17 +19,26 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.settings.Settings;
+
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class RegexTests extends ScriptTestCase {
+    @Override
+    protected Settings scriptEngineSettings() {
+        // Enable regexes just for this test. They are disabled by default.
+        return Settings.builder()
+                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
+                .build();
+    }
+
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));

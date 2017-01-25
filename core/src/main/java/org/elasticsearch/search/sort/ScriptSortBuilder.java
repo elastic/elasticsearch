@@ -26,13 +26,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -47,19 +46,16 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
@@ -70,8 +66,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
     private final Script script;
 
@@ -218,6 +212,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return builder;
     }
 
+    private static ConstructingObjectParser<ScriptSortBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(NAME,
+            a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
+
+    static {
+        PARSER.declareField(constructorArg(), (parser, context) -> Script.parse(parser, context.getDefaultScriptLanguage()),
+                Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
+        PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
+        PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
+        PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
+    }
+
     /**
      * Creates a new {@link ScriptSortBuilder} from the query held by the {@link QueryParseContext} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
@@ -228,66 +235,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        XContentParser parser = context.parser();
-        ParseFieldMatcher parseField = context.getParseFieldMatcher();
-        Script script = null;
-        ScriptSortType type = null;
-        SortMode sortMode = null;
-        SortOrder order = null;
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
-        String nestedPath = null;
-
-        XContentParser.Token token;
-        String currentName = parser.currentName();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField);
-                } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
-                    nestedFilter = context.parseInnerQueryBuilder();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
-                }
-            } else if (token.isValue()) {
-                if (parseField.match(currentName, ORDER_FIELD)) {
-                    order = SortOrder.fromString(parser.text());
-                } else if (parseField.match(currentName, TYPE_FIELD)) {
-                    type = ScriptSortType.fromString(parser.text());
-                } else if (parseField.match(currentName, SORTMODE_FIELD)) {
-                    sortMode = SortMode.fromString(parser.text());
-                } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
-                    nestedPath = parser.text();
-                } else if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unexpected token [" + token + "]");
-            }
-        }
-
-        ScriptSortBuilder result = new ScriptSortBuilder(script, type);
-        if (order != null) {
-            result.order(order);
-        }
-        if (sortMode != null) {
-            result.sortMode(sortMode);
-        }
-        nestedFilter.ifPresent(result::setNestedFilter);
-        if (nestedPath != null) {
-            result.setNestedPath(nestedPath);
-        }
-        return result;
+        return PARSER.apply(context.parser(), context);
     }
 
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getScriptService().search(
-                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

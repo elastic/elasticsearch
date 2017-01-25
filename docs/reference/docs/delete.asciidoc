@@ -26,7 +26,7 @@ The result of the above delete operation is:
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 2,
-    "result: deleted"
+    "result": "deleted"
 }
 --------------------------------------------------
 

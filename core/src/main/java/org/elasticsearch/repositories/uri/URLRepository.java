@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -77,8 +78,9 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(metadata, environment.settings());
+    public URLRepository(RepositoryMetaData metadata, Environment environment,
+                         NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(metadata, environment.settings(), namedXContentRegistry);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");

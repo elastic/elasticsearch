@@ -26,9 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.SUITE)
 public class NodeClientIT extends ESIntegTestCase {
     @Override

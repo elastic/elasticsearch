@@ -118,7 +118,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                 new SettingsModule(settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+                assertEquals("Failed to parse value [BOOM] as only [true] or [false] are allowed.",
                         ex.getMessage());
             }
         }
@@ -144,14 +144,9 @@ public class SettingsModuleTests extends ModuleTestCase {
 
         {
             Settings settings = Settings.builder().put("logger._root", "BOOM").put("logger.transport", "WOW").build();
-            try {
-                new SettingsModule(settings);
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
-            }
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
+            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
         }
-
     }
 
     public void testRegisterSettingsFilter() {

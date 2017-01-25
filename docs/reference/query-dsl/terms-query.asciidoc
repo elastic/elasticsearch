@@ -9,18 +9,11 @@ Filters documents that have fields that match any of the provided terms
 GET /_search
 {
     "query": {
-        "constant_score" : {
-            "filter" : {
-                "terms" : { "user" : ["kimchy", "elasticsearch"]}
-            }
-        }
+        "terms" : { "user" : ["kimchy", "elasticsearch"]}
     }
 }
 --------------------------------------------------
 // CONSOLE
-
-The `terms` query is also aliased with `in` as the filter name for
-simpler usage deprecated[5.0.0,use `terms` instead].
 
 [float]
 [[query-dsl-terms-lookup]]

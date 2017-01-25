@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
-    private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
+    private static Logger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
 

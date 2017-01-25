@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,11 +34,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
 
@@ -85,7 +82,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser shapeParser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser shapeParser = createParser(shuffled);
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
             assertNotSame(testShape, parsedShape);
@@ -97,11 +94,10 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * Test serialization and deserialization of the test shape.
      */
-    @SuppressWarnings("unchecked")
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
-            SB deserializedShape = (SB) copyShape(testShape);
+            SB deserializedShape = copyShape(testShape);
             assertEquals(testShape, deserializedShape);
             assertEquals(testShape.hashCode(), deserializedShape.hashCode());
             assertNotSame(testShape, deserializedShape);
@@ -111,40 +107,15 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * Test equality and hashCode properties
      */
-    @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SB firstShape = createTestShapeBuilder();
-            assertFalse("shape is equal to null", firstShape.equals(null));
-            assertFalse("shape is equal to incompatible type", firstShape.equals(""));
-            assertTrue("shape is not equal to self", firstShape.equals(firstShape));
-            assertThat("same shape's hashcode returns different values if called multiple times", firstShape.hashCode(),
-                    equalTo(firstShape.hashCode()));
-            assertThat("different shapes should not be equal", createMutation(firstShape), not(equalTo(firstShape)));
-
-            SB secondShape = (SB) copyShape(firstShape);
-            assertTrue("shape is not equal to self", secondShape.equals(secondShape));
-            assertTrue("shape is not equal to its copy", firstShape.equals(secondShape));
-            assertTrue("equals is not symmetric", secondShape.equals(firstShape));
-            assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(firstShape.hashCode()));
-
-            SB thirdShape = (SB) copyShape(secondShape);
-            assertTrue("shape is not equal to self", thirdShape.equals(thirdShape));
-            assertTrue("shape is not equal to its copy", secondShape.equals(thirdShape));
-            assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(thirdShape.hashCode()));
-            assertTrue("equals is not transitive", firstShape.equals(thirdShape));
-            assertThat("shape copy's hashcode is different from original hashcode", firstShape.hashCode(), equalTo(thirdShape.hashCode()));
-            assertTrue("equals is not symmetric", thirdShape.equals(secondShape));
-            assertTrue("equals is not symmetric", thirdShape.equals(firstShape));
+            checkEqualsAndHashCode(createTestShapeBuilder(), AbstractShapeBuilderTestCase::copyShape, this::createMutation);
         }
     }
 
-    static ShapeBuilder copyShape(ShapeBuilder original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName()).read(in);
-            }
-        }
+    protected static <T extends NamedWriteable> T copyShape(T original) throws IOException {
+        @SuppressWarnings("unchecked")
+        Reader<T> reader = (Reader<T>) namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName());
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, reader);
     }
 }

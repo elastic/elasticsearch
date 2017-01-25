@@ -24,17 +24,24 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TokenCountFieldMapper;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -93,5 +100,30 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                 }
             };
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", ""), equalTo(7));
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
+    public void testEmptyName() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("")
+                            .field("type", "token_count")
+                            .field("analyzer", "standard")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        // Empty name not allowed in index created after 5.0
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

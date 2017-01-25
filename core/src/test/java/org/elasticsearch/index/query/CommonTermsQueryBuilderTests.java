@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -99,7 +100,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     @Override
-    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
         assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.highFreqMinimumShouldMatch()));
@@ -174,7 +175,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
         boolean disableCoord = randomBoolean();
-        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));

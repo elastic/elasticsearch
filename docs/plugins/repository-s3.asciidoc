@@ -4,6 +4,8 @@
 The S3 repository plugin adds support for using S3 as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
 [[repository-s3-install]]
 [float]
 ==== Installation
@@ -14,10 +16,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install repository-s3
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-s3/repository-s3-{version}.zip.
 
 [[repository-s3-remove]]
 [float]
@@ -29,7 +33,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove repository-s3
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -113,17 +116,20 @@ You can specifically set it for s3 only using `cloud.aws.s3.region`.
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API
@@ -134,6 +140,17 @@ signer to use.
 
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[repository-s3-repository]]
 ==== S3 Repository
@@ -214,7 +231,8 @@ The following settings are supported:
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `100mb`.
+    Multipart API and may result in upload errors. Defaults to the minimum
+    between `100mb` and `5%` of the heap size.
 
 `max_retries`::
 
@@ -224,7 +242,7 @@ The following settings are supported:
 
     Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
 
-`read_only`::
+`readonly`::
 
     Makes repository read-only. Defaults to `false`.
 
@@ -246,7 +264,7 @@ The following settings are supported:
 
 `path_style_access`::
 
-    Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
+    Activate path style access for http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html[virtual hosting of buckets].
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 
@@ -301,6 +319,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
 
@@ -344,6 +363,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
@@ -361,6 +381,7 @@ specific bucket like this:
    ]
 }
 ----
+// NOTCONSOLE
 
 [[repository-s3-endpoint]]
 ===== Using other S3 endpoint

@@ -38,12 +38,20 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false) {
+            return ;
+        }
         ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).parentFieldMapper();
         if (parentFieldMapper.active() == false) {
             return;
         }
 
         String parentId = getParentId(parentFieldMapper, hitContext.reader(), hitContext.docId());
+        if (parentId == null) {
+            // hit has no _parent field. Can happen for nested inner hits if parent hit is a p/c document.
+            return;
+        }
+
         Map<String, SearchHitField> fields = hitContext.hit().fieldsOrNull();
         if (fields == null) {
             fields = new HashMap<>();
@@ -56,8 +64,7 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
         try {
             SortedDocValues docValues = reader.getSortedDocValues(fieldMapper.name());
             BytesRef parentId = docValues.get(docId);
-            assert parentId.length > 0;
-            return parentId.utf8ToString();
+            return parentId.length > 0 ? parentId.utf8ToString() : null;
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

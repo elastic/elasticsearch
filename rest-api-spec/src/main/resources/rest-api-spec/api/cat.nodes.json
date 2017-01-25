@@ -12,6 +12,10 @@
           "type" : "string",
           "description" : "a short version of the Accept header, e.g. json, yaml"
         },
+        "full_id": {
+          "type" : "boolean",
+          "description" : "Return the full node ID instead of the shortened version (default: false)"
+        },
         "local": {
           "type" : "boolean",
           "description" : "Return local information, do not retrieve the state from master node (default: false)"
@@ -28,6 +32,10 @@
           "type": "boolean",
           "description": "Return help information",
           "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
         },
         "v": {
           "type": "boolean",

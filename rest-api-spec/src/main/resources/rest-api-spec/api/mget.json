@@ -16,9 +16,9 @@
         }
       },
       "params": {
-        "fields": {
+        "stored_fields": {
           "type": "list",
-          "description" : "A comma-separated list of fields to return in the response"
+          "description" : "A comma-separated list of stored fields to return in the response"
         },
         "preference": {
           "type" : "string",
@@ -31,6 +31,10 @@
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
         },
         "_source": {
           "type" : "list",

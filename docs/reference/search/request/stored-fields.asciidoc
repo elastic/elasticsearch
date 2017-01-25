@@ -1,4 +1,4 @@
-[[search-request-fields]]
+[[search-request-stored-fields]]
 === Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
@@ -38,12 +38,9 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
 
-For backwards compatibility, if the fields parameter specifies fields which are not stored (`store` mapping set to
-`false`), it will load the `_source` and extract it from it. This functionality has been replaced by the
-<<search-request-source-filtering,source filtering>> parameter.
-
-Field values fetched from the document it self are always returned as an array. Metadata fields like `_routing` and
+Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` and
 `_parent` fields are never returned as an array.
 
 Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
@@ -52,4 +49,22 @@ will fail.
 Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.field1` can be used, though not recommended, as
 `obj1.field1` will work as well.
+
+==== Disable stored fields entirely
+
+To disable the stored fields (and metadata fields) entirely use: `\_none_`:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "stored_fields": "_none_",
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: <<search-request-source-filtering,`_source`>> and <<search-request-version, `version`>> parameters cannot be activated if `_none_` is used.
 

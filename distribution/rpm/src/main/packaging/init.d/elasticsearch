@@ -60,9 +60,10 @@ prog="elasticsearch"
 pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
-export ES_STARTUP_SLEEP_TIME
 export JAVA_HOME
 export ES_INCLUDE
+export ES_JVM_OPTIONS
+export ES_STARTUP_SLEEP_TIME
 
 lockfile=/var/lock/subsys/$prog
 

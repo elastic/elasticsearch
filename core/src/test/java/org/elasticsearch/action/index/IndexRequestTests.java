@@ -19,9 +19,13 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -34,8 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
@@ -43,18 +45,24 @@ public class IndexRequestTests extends ESTestCase {
         String createUpper = "CREATE";
         String indexUpper = "INDEX";
 
-        assertThat(IndexRequest.OpType.fromString(create), equalTo(IndexRequest.OpType.CREATE));
-        assertThat(IndexRequest.OpType.fromString(index), equalTo(IndexRequest.OpType.INDEX));
-        assertThat(IndexRequest.OpType.fromString(createUpper), equalTo(IndexRequest.OpType.CREATE));
-        assertThat(IndexRequest.OpType.fromString(indexUpper), equalTo(IndexRequest.OpType.INDEX));
+        IndexRequest indexRequest = new IndexRequest("");
+        indexRequest.opType(create);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        indexRequest.opType(createUpper);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        indexRequest.opType(index);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        indexRequest.opType(indexUpper);
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
     }
 
     public void testReadBogusString() {
         try {
-            IndexRequest.OpType.fromString("foobar");
+            IndexRequest indexRequest = new IndexRequest("");
+            indexRequest.opType("foobar");
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("opType [foobar] not allowed"));
+            assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
         }
     }
 
@@ -92,45 +100,6 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
                 containsString("id is too long, must be no longer than 512 bytes but was: 513"));
-}
-
-    public void testSetTTLAsTimeValue() {
-        IndexRequest indexRequest = new IndexRequest();
-        TimeValue ttl = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
-        indexRequest.ttl(ttl);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testSetTTLAsString() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttlAsString);
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testSetTTLAsLong() {
-        IndexRequest indexRequest = new IndexRequest();
-        String ttlAsString = randomTimeValue();
-        TimeValue ttl = TimeValue.parseTimeValue(ttlAsString, null, "ttl");
-        indexRequest.ttl(ttl.millis());
-        assertThat(indexRequest.ttl(), equalTo(ttl));
-    }
-
-    public void testValidateTTL() {
-        IndexRequest indexRequest = new IndexRequest("index", "type");
-        if (randomBoolean()) {
-            indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1));
-        } else {
-            if (randomBoolean()) {
-                indexRequest.ttl(new TimeValue(randomIntBetween(Integer.MIN_VALUE, -1)));
-            } else {
-                indexRequest.ttl(randomIntBetween(Integer.MIN_VALUE, -1) + "ms");
-            }
-        }
-        ActionRequestValidationException validate = indexRequest.validate();
-        assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(), containsString("ttl must not be negative"));
     }
 
     public void testWaitForActiveShards() {
@@ -140,5 +109,45 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(request.waitForActiveShards(), ActiveShardCount.from(count));
         // test negative shard count value not allowed
         expectThrows(IllegalArgumentException.class, () -> request.waitForActiveShards(ActiveShardCount.from(randomIntBetween(-10, -1))));
+    }
+
+    public void testAutoGenIdTimestampIsSet() {
+        IndexRequest request = new IndexRequest("index", "type");
+        request.process(null, true, "index");
+        assertTrue("expected > 0 but got: " + request.getAutoGeneratedTimestamp(), request.getAutoGeneratedTimestamp() > 0);
+        request = new IndexRequest("index", "type", "1");
+        request.process(null, true, "index");
+        assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, request.getAutoGeneratedTimestamp());
+    }
+
+    public void testIndexResponse() {
+        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomIntBetween(0, 1000));
+        String type = randomAsciiOfLengthBetween(3, 10);
+        String id = randomAsciiOfLengthBetween(3, 10);
+        long version = randomLong();
+        boolean created = randomBoolean();
+        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, created);
+        int total = randomIntBetween(1, 10);
+        int successful = randomIntBetween(1, 10);
+        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        indexResponse.setShardInfo(shardInfo);
+        boolean forcedRefresh = false;
+        if (randomBoolean()) {
+            forcedRefresh = randomBoolean();
+            indexResponse.setForcedRefresh(forcedRefresh);
+        }
+        assertEquals(type, indexResponse.getType());
+        assertEquals(id, indexResponse.getId());
+        assertEquals(version, indexResponse.getVersion());
+        assertEquals(shardId, indexResponse.getShardId());
+        assertEquals(created ? RestStatus.CREATED : RestStatus.OK, indexResponse.status());
+        assertEquals(total, indexResponse.getShardInfo().getTotal());
+        assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
+        assertEquals(forcedRefresh, indexResponse.forcedRefresh());
+        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
+                ",version=" + version + ",result=" + (created ? "created" : "updated") +
+                ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
+                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
+                indexResponse.toString());
     }
 }

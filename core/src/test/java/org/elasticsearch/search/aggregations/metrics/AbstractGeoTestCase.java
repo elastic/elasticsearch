@@ -46,9 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
@@ -74,7 +71,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point,geohash_prefix=true,geohash_precision=12",
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -185,9 +182,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                 .order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
         long totalHits = response.getHits().totalHits();
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);

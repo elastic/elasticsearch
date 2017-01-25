@@ -43,13 +43,13 @@ curl -XGET 'localhost:9200/_analyze' -d '
 curl -XGET 'localhost:9200/_analyze' -d '
 {
   "tokenizer" : "keyword",
-  "token_filter" : ["lowercase"],
+  "filter" : ["lowercase"],
   "char_filter" : ["html_strip"],
   "text" : "this is a <b>test</b>"
 }'
 --------------------------------------------------
 
-deprecated[5.0.0, Use `filter`/`token_filter`/`char_filter` instead of `filters`/`token_filters`/`char_filters`]
+deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
 
 Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
 
@@ -100,21 +100,6 @@ curl -XGET 'localhost:9200/test/_analyze' -d '
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-All parameters can also supplied as request parameters. For example:
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&text=this+is+a+test'
---------------------------------------------------
-
-For backwards compatibility, we also accept the text parameter as the body of the request,
-provided it doesn't start with `{` :
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
---------------------------------------------------
-
 === Explain Analyze
 
 If you want to get more advanced details, set `explain` to `true` (defaults to `false`). It will output all token attributes for each token.
@@ -135,8 +120,6 @@ GET _analyze
 --------------------------------------------------
 // CONSOLE
 <1> Set "keyword" to output "keyword" attribute only
-
-coming[2.0.0, body based parameters were added in 2.0.0]
 
 The request returns the following result:
 
@@ -183,4 +166,5 @@ The request returns the following result:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 <1> Output only "keyword" attribute, since specify "attributes" in the request.

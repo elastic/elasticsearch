@@ -8,12 +8,12 @@ the same pattern:
 -------------------------------------
   "script": {
     "lang":   "...",  <1>
-    "inline" | "id" | "file": "...", <2>
+    "inline" | "stored" | "file": "...", <2>
     "params": { ... } <3>
   }
 -------------------------------------
-<1> The language the script is written in, which defaults to `groovy`.
-<2> The script itself which may be specfied as `inline`, `id`, or `file`.
+<1> The language the script is written in, which defaults to `painless`.
+<2> The script itself which may be specified as `inline`, `stored`, or `file`.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
@@ -48,7 +48,7 @@ GET my_index/_search
 
 `lang`::
 
-    Specifies the language the script is written in.  Defaults to `groovy` but
+    Specifies the language the script is written in.  Defaults to `painless` but
     may be set to any of languages listed in <<modules-scripting>>. The
     default language may be changed in the `elasticsearch.yml` config file by
     setting `script.default_lang` to the appropriate language.
@@ -63,7 +63,7 @@ GET my_index/_search
     directory (see <<modules-scripting-file-scripts, File Scripts>>).
 +
 While languages like `expression` and `painless` can be used out of the box as
-inline or stored scripts, other languages like `groovy` can only be
+inline or stored scripts, other languages can only be
 specified as `file` unless you first adjust the default
 <<modules-scripting-security,scripting security settings>>.
 
@@ -134,7 +134,7 @@ the following example creates a Groovy script called `calculate-score`:
 
 [source,sh]
 --------------------------------------------------
-cat "log(_score * 2) + my_modifier" > config/scripts/calculate-score.groovy
+cat "Math.log(_score * 2) + my_modifier" > config/scripts/calculate-score.painless
 --------------------------------------------------
 
 This script can be used as follows:
@@ -146,7 +146,7 @@ GET my_index/_search
   "query": {
     "script": {
       "script": {
-        "lang":   "groovy", <1>
+        "lang":   "painless", <1>
         "file":   "calculate-score", <2>
         "params": {
           "my_modifier": 2
@@ -161,7 +161,7 @@ GET my_index/_search
 
 The `script` directory may contain sub-directories, in which case the
 hierarchy of directories is flattened and concatenated with underscores.  A
-script in `group1/group2/my_script.groovy` should use `group1_group2_myscript`
+script in `group1/group2/my_script.painless` should use `group1_group2_myscript`
 as the `file` name.
 
 
@@ -190,14 +190,14 @@ Scripts may be stored in and retrieved from the cluster state using the
 <1> The `lang` represents the script language.
 <2> The `id` is a unique identifier or script name.
 
-This example stores a Groovy script called `calculate-score` in the cluster
+This example stores a Painless script called `calculate-score` in the cluster
 state:
 
 [source,js]
 -----------------------------------
-POST _scripts/groovy/calculate-score
+POST _scripts/painless/calculate-score
 {
-  "script": "log(_score * 2) + my_modifier"
+  "script": "Math.log(_score * 2) + params.my_modifier"
 }
 -----------------------------------
 // CONSOLE
@@ -206,12 +206,12 @@ This same script can be retrieved with:
 
 [source,js]
 -----------------------------------
-GET _scripts/groovy/calculate-score
+GET _scripts/painless/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `lang` and `id` parameters as follows:
+Stored scripts can be used by specifying the `lang` and `stored` parameters as follows:
 
 [source,js]
 --------------------------------------------------
@@ -220,8 +220,8 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "lang": "groovy",
-        "id":   "calculate-score",
+        "lang": "painless",
+        "stored": "calculate-score",
         "params": {
           "my_modifier": 2
         }
@@ -237,7 +237,7 @@ And deleted with:
 
 [source,js]
 -----------------------------------
-DELETE _scripts/groovy/calculate-score
+DELETE _scripts/painless/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]

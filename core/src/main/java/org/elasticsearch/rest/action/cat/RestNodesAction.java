@@ -32,10 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -54,7 +52,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -69,8 +66,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-
-    @Inject
     public RestNodesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/nodes", this);
@@ -82,13 +77,13 @@ public class RestNodesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        final boolean fullId = request.paramAsBoolean("full_id", false);
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
@@ -101,7 +96,8 @@ public class RestNodesAction extends AbstractCatAction {
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
+                                return RestTable.buildResponse(buildTable(fullId, request, clusterStateResponse, nodesInfoResponse,
+                                    nodesStatsResponse), channel);
                             }
                         });
                     }
@@ -131,7 +127,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("ram.percent", "alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
         table.addCell("ram.max", "default:false;alias:rm,ramMax;text-align:right;desc:total machine memory");
         table.addCell("file_desc.current", "default:false;alias:fdc,fileDescriptorCurrent;text-align:right;desc:used file descriptors");
-        table.addCell("file_desc.percent", "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
+        table.addCell("file_desc.percent",
+            "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
         table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
         table.addCell("cpu", "alias:cpu;text-align:right;desc:recent cpu usage");
@@ -139,7 +136,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
-        table.addCell("node.role", "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only");
+        table.addCell("node.role",
+            "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only");
         table.addCell("master", "alias:m;desc:*:current master");
         table.addCell("name", "alias:n;desc:node name");
 
@@ -152,9 +150,12 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
 
         table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
-        table.addCell("request_cache.evictions", "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
-        table.addCell("request_cache.hit_count", "alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts");
-        table.addCell("request_cache.miss_count", "alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts");
+        table.addCell("request_cache.evictions",
+            "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.hit_count",
+            "alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts");
+        table.addCell("request_cache.miss_count",
+            "alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
@@ -167,16 +168,20 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("get.missing_time", "alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
         table.addCell("get.missing_total", "alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("indexing.delete_current", "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("indexing.delete_current",
+            "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("indexing.delete_time", "alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
         table.addCell("indexing.delete_total", "alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
-        table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("indexing.index_current",
+            "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
-        table.addCell("indexing.index_failed", "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell("indexing.index_failed",
+            "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
-        table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("merges.current_docs",
+            "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
         table.addCell("merges.current_size", "alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges");
         table.addCell("merges.total", "alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops");
         table.addCell("merges.total_docs", "alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged");
@@ -185,9 +190,12 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
+                + "desc:number of pending refresh listeners");
 
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
-        table.addCell("script.cache_evictions", "alias:scrce,scriptCacheEvictions;default:false;text-align:right;desc:script cache evictions");
+        table.addCell("script.cache_evictions",
+            "alias:scrce,scriptCacheEvictions;default:false;text-align:right;desc:script cache evictions");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -197,14 +205,19 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
-        table.addCell("search.scroll_time", "alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("search.scroll_time",
+            "alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
-        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
-        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
-        table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+        table.addCell("segments.index_writer_memory",
+            "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.version_map_memory",
+            "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.fixed_bitset_memory",
+            "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types" +
+                " and type filters for types referred in _parent fields");
 
         table.addCell("suggest.current", "alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
@@ -214,8 +227,8 @@ public class RestNodesAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
-        boolean fullId = req.paramAsBoolean("full_id", false);
+    private Table buildTable(boolean fullId, RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo,
+                             NodesStatsResponse nodesStats) {
 
         DiscoveryNodes nodes = state.getState().nodes();
         String masterId = nodes.getMasterNodeId();
@@ -237,19 +250,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
-            if (node.getAddress() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-            } else {
-                table.addCell("-");
-            }
+            table.addCell(node.getAddress().address().getPort());
             final HttpInfo httpInfo = info == null ? null : info.getHttp();
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
-                if (transportAddress instanceof InetSocketTransportAddress) {
-                    table.addCell(NetworkAddress.format(((InetSocketTransportAddress)transportAddress).address()));
-                } else {
-                    table.addCell(transportAddress.toString());
-                }
+                table.addCell(NetworkAddress.format(transportAddress.address()));
             } else {
                 table.addCell("-");
             }
@@ -265,14 +270,18 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().getUsedPercent());
             table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().getTotal());
             table.addCell(processStats == null ? null : processStats.getOpenFileDescriptors());
-            table.addCell(processStats == null ? null : calculatePercentage(processStats.getOpenFileDescriptors(), processStats.getMaxFileDescriptors()));
+            table.addCell(processStats == null ? null : calculatePercentage(processStats.getOpenFileDescriptors(),
+                processStats.getMaxFileDescriptors()));
             table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
             boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
+                String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
+                String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
+            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
+                String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
             final String roles;
@@ -336,6 +345,7 @@ public class RestNodesAction extends AbstractCatAction {
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
+            table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
             table.addCell(scriptStats == null ? null : scriptStats.getCompilations());

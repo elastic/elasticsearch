@@ -29,8 +29,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -140,7 +140,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
             FieldMapper mapper = parseContext.docMapper().mappers().getMapper(fieldName);
-            if (!(mapper instanceof GeoPointFieldMapper)) {
+            if (!(mapper instanceof BaseGeoPointFieldMapper)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
         }
@@ -207,7 +207,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                     } else {
-                        spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                        // todo return this to .stringValue() once LatLonPoint implements it
+                        spare.resetFromIndexableField(field);
                     }
                     geohashes.add(spare.geohash());
                 }

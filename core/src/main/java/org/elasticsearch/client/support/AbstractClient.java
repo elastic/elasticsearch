@@ -348,9 +348,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractClient extends AbstractComponent implements Client {
 
     private final ThreadPool threadPool;
@@ -380,13 +377,13 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public final <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
+    public final <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
             final Action<Request, Response, RequestBuilder> action) {
         return action.newRequestBuilder(this);
     }
 
     @Override
-    public final <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
+    public final <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
             Action<Request, Response, RequestBuilder> action, Request request) {
         PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
         execute(action, request, actionFuture);
@@ -397,13 +394,13 @@ public abstract class AbstractClient extends AbstractComponent implements Client
      * This is the single execution point of *all* clients.
      */
     @Override
-    public final <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
+    public final <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
             Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         listener = threadedWrapper.wrap(listener);
         doExecute(action, request, listener);
     }
 
-    protected abstract <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -699,19 +696,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
                 Action<Request, Response, RequestBuilder> action, Request request) {
             return client.execute(action, request);
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             client.execute(action, request, listener);
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
                 Action<Request, Response, RequestBuilder> action) {
             return client.prepareExecute(action);
         }
@@ -1100,6 +1097,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
+            return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE, id);
+        }
+
+        @Override
         public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
             execute(GetPipelineAction.INSTANCE, request, listener);
         }
@@ -1210,19 +1212,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(
                 Action<Request, Response, RequestBuilder> action, Request request) {
             return client.execute(action, request);
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(
                 Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
             client.execute(action, request, listener);
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(
                 Action<Request, Response, RequestBuilder> action) {
             return client.prepareExecute(action);
         }
@@ -1743,7 +1745,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     public Client filterWithHeader(Map<String, String> headers) {
         return new FilterClient(this) {
             @Override
-            protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
                 ThreadContext threadContext = threadPool().getThreadContext();
                 try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
                     super.doExecute(action, request, listener);

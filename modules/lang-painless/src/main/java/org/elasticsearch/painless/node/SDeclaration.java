@@ -101,4 +101,12 @@ public final class SDeclaration extends AStatement {
 
         writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
+
+    @Override
+    public String toString() {
+        if (expression == null) {
+            return singleLineToString(type, name);
+        }
+        return singleLineToString(type, name, expression);
+    }
 }

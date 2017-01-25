@@ -4,7 +4,9 @@ setup:
           index: test_1
           body:
               aliases:
-                alias_1: {}
+                alias_1: {
+                  "filter" : { "term" : { "foo" : "bar"} }
+                }
   - do:
       index:
           index:  test_1

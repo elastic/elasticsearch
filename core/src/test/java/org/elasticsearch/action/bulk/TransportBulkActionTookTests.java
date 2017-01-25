@@ -87,7 +87,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool);
+        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
@@ -115,11 +117,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     resolver,
                     null,
                     expected::get) {
-                @Override
-                public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-                    expected.set(1000000);
-                    super.executeBulk(bulkRequest, listener);
-                }
 
                 @Override
                 void executeBulk(
@@ -144,12 +141,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     resolver,
                     null,
                     System::nanoTime) {
-                @Override
-                public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-                    long elapsed = spinForAtLeastOneMillisecond();
-                    expected.set(elapsed);
-                    super.executeBulk(bulkRequest, listener);
-                }
 
                 @Override
                 void executeBulk(
@@ -236,6 +227,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     threadPool,
                     transportService,
                     clusterService,
+                    null,
                     shardBulkAction,
                     createIndexAction,
                     actionFilters,

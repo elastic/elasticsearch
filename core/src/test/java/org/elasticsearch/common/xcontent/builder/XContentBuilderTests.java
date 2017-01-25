@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -173,9 +174,9 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());
+        String expectedDate = XContentBuilder.DEFAULT_DATE_PRINTER.print(date.getTime());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentBuilder.defaultDatePrinter.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentBuilder.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("date", date).endObject();
         assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
@@ -213,7 +214,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         builder.field("fakefield", terms).endObject().endObject().endObject();
 
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
 
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
@@ -235,7 +236,7 @@ public class XContentBuilderTests extends ESTestCase {
         }
 
         assertNotNull(filterBuilder);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        parser = createParser(JsonXContent.jsonXContent, filterBuilder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("terms"));
@@ -339,17 +340,17 @@ public class XContentBuilderTests extends ESTestCase {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
 
     public void testWriteMapValueWithNullKeys() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         try {
-            builder.value(Collections.singletonMap(null, "test"));
+            builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
 
@@ -360,7 +361,7 @@ public class XContentBuilderTests extends ESTestCase {
             builder.field("map", Collections.singletonMap(null, "test"));
             fail("write map should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field name cannot be null"));
+            assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
 
@@ -371,8 +372,8 @@ public class XContentBuilderTests extends ESTestCase {
                 builder.field("foo", true);
             }
         });
-        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
-        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
     }
 
     public void testMissingEndArray() throws IOException {
@@ -384,7 +385,7 @@ public class XContentBuilderTests extends ESTestCase {
                 builder.value(1);
             }
         });
-        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
-        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
     }
 }

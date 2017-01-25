@@ -24,7 +24,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +35,8 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return ESClientYamlSuiteTestCase.createParameters(0, 1);
+    public static Iterable<Object[]> parameters() throws IOException {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 
     @Override

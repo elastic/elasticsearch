@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -107,12 +106,17 @@ public class TransportNodesActionTests extends ESTestCase {
     public void testNewResponse() {
         TestTransportNodesAction action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
-        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse.class, randomIntBetween(0, 2));
+        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));
         expectedNodeResponses.add(new TestNodeResponse());
         List<BaseNodeResponse> nodeResponses = new ArrayList<>(expectedNodeResponses);
         // This should be ignored:
         nodeResponses.add(new OtherNodeResponse());
-        List<FailedNodeException> failures = mockList(FailedNodeException.class, randomIntBetween(0, 2));
+        List<FailedNodeException> failures = mockList(
+            () -> new FailedNodeException(
+                randomAsciiOfLength(8),
+                randomAsciiOfLength(8),
+                new IllegalStateException(randomAsciiOfLength(8))),
+            randomIntBetween(0, 2));
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
         allResponses.addAll(failures);
@@ -142,10 +146,10 @@ public class TransportNodesActionTests extends ESTestCase {
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }
 
-    private <T> List<T> mockList(Class<T> clazz, int size) {
+    private <T> List<T> mockList(Supplier<T> supplier, int size) {
         List<T> failures = new ArrayList<>(size);
         for (int i = 0; i < size; ++i) {
-            failures.add(mock(clazz));
+            failures.add(supplier.get());
         }
         return failures;
     }
@@ -177,7 +181,8 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -236,7 +241,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
         String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, LocalTransportAddress.buildUnique(), attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
     private static class TestTransportNodesAction

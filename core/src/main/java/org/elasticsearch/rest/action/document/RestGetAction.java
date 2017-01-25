@@ -23,34 +23,30 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
-
-    @Inject
     public RestGetAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
@@ -58,13 +54,15 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
-        getRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
-
-        String sField = request.param("fields");
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +
+                "please use [stored_fields] to retrieve stored fields or [_source] to load the field from _source");
+        }
+        String sField = request.param("stored_fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                getRequest.fields(sFields);
+                getRequest.storedFields(sFields);
             }
         }
 
@@ -73,17 +71,10 @@ public class RestGetAction extends BaseRestHandler {
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        client.get(getRequest, new RestBuilderListener<GetResponse>(channel) {
+        return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    return new BytesRestResponse(OK, builder);
-                }
+            protected RestStatus getStatus(GetResponse response) {
+                return response.isExists() ? OK : NOT_FOUND;
             }
         });
     }

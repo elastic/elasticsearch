@@ -26,11 +26,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -47,15 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- *
- */
 public class RestValidateQueryAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestValidateQueryAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestValidateQueryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
@@ -63,62 +53,72 @@ public class RestValidateQueryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_validate/query", this);
         controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
         controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
-        if (RestActions.hasBodyContent(request)) {
-            try {
-                validateQueryRequest
-                        .query(RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
-            } catch(ParsingException e) {
-                channel.sendResponse(buildErrorResponse(channel.newBuilder(), e.getDetailedMessage(), validateQueryRequest.explain()));
-                return;
-            } catch(Exception e) {
-                channel.sendResponse(buildErrorResponse(channel.newBuilder(), e.getMessage(), validateQueryRequest.explain()));
-                return;
-            }
-        } else {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                validateQueryRequest.query(queryBuilder);
-            }
-        }
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
-        client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(VALID_FIELD, response.isValid());
-                buildBroadcastShardsHeader(builder, request, response);
-                if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
-                    builder.startArray(EXPLANATIONS_FIELD);
-                    for (QueryExplanation explanation : response.getQueryExplanation()) {
+        Exception bodyParsingException = null;
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser != null) {
+                    validateQueryRequest.query(RestActions.getQueryContent(parser));
+                } else if (request.hasParam("q")) {
+                    validateQueryRequest.query(RestActions.urlParamsToQueryBuilder(request));
+                }
+            });
+        } catch (Exception e) {
+            bodyParsingException = e;
+        }
+
+        final Exception finalBodyParsingException = bodyParsingException;
+        return channel -> {
+            if (finalBodyParsingException != null) {
+                if (finalBodyParsingException instanceof ParsingException) {
+                    handleException(validateQueryRequest, ((ParsingException) finalBodyParsingException).getDetailedMessage(), channel);
+                } else {
+                    handleException(validateQueryRequest, finalBodyParsingException.getMessage(), channel);
+                }
+            } else {
+                client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        if (explanation.getIndex() != null) {
-                            builder.field(INDEX_FIELD, explanation.getIndex());
-                        }
-                        builder.field(VALID_FIELD, explanation.isValid());
-                        if (explanation.getError() != null) {
-                            builder.field(ERROR_FIELD, explanation.getError());
-                        }
-                        if (explanation.getExplanation() != null) {
-                            builder.field(EXPLANATION_FIELD, explanation.getExplanation());
+                        builder.field(VALID_FIELD, response.isValid());
+                        buildBroadcastShardsHeader(builder, request, response);
+                        if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
+                            builder.startArray(EXPLANATIONS_FIELD);
+                            for (QueryExplanation explanation : response.getQueryExplanation()) {
+                                builder.startObject();
+                                if (explanation.getIndex() != null) {
+                                    builder.field(INDEX_FIELD, explanation.getIndex());
+                                }
+                                builder.field(VALID_FIELD, explanation.isValid());
+                                if (explanation.getError() != null) {
+                                    builder.field(ERROR_FIELD, explanation.getError());
+                                }
+                                if (explanation.getExplanation() != null) {
+                                    builder.field(EXPLANATION_FIELD, explanation.getExplanation());
+                                }
+                                builder.endObject();
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
+                        return new BytesRestResponse(OK, builder);
                     }
-                    builder.endArray();
-                }
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                });
             }
-        });
+        };
+    }
+
+    private void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel) throws IOException {
+        channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, request.explain()));
     }
 
     private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {

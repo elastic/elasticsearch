@@ -124,4 +124,9 @@ public final class EMapInit extends AExpression {
             writer.pop();
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(pairwiseToString(keys, values));
+    }
 }

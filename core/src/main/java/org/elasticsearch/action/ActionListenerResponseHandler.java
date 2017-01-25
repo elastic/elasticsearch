@@ -33,10 +33,10 @@ import java.util.function.Supplier;
  */
 public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
-    private final ActionListener<Response> listener;
+    private final ActionListener<? super Response> listener;
     private final Supplier<Response> responseSupplier;
 
-    public ActionListenerResponseHandler(ActionListener<Response> listener, Supplier<Response> responseSupplier) {
+    public ActionListenerResponseHandler(ActionListener<? super Response> listener, Supplier<Response> responseSupplier) {
         this.listener = Objects.requireNonNull(listener);
         this.responseSupplier = Objects.requireNonNull(responseSupplier);
     }

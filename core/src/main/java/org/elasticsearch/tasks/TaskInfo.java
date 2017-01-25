@@ -20,7 +20,6 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -164,12 +163,6 @@ public final class TaskInfo implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        return builder.endObject();
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node", taskId.getNodeId());
         builder.field("id", taskId.getId());
         builder.field("type", type);
@@ -180,7 +173,7 @@ public final class TaskInfo implements Writeable, ToXContent {
         if (description != null) {
             builder.field("description", description);
         }
-        builder.dateValueField("start_time_in_millis", "start_time", startTime);
+        builder.dateField("start_time_in_millis", "start_time", startTime);
         builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
         builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {
@@ -189,7 +182,7 @@ public final class TaskInfo implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
             "task_info", a -> {
                 int i = 0;
                 TaskId id = new TaskId((String) a[i++], (Long) a[i++]);

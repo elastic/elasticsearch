@@ -3,7 +3,7 @@
 
 experimental[]
 
-A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics 
+A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
 
 ==== Syntax
@@ -18,20 +18,20 @@ A `bucket_script` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        "script": "my_var1 / my_var2"
+        "script": "params.my_var1 / params.my_var2"
     }
 }
 --------------------------------------------------
-<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to 
+<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
 
 .`bucket_script` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 
+|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
 for more details) |Required |
-|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable 
+|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` |
@@ -42,7 +42,9 @@ The following snippet calculates the ratio percentage of t-shirt sales compared 
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -71,11 +73,11 @@ The following snippet calculates the ratio percentage of t-shirt sales compared 
                 },
                 "t-shirt-percentage": {
                     "bucket_script": {
-                        "buckets_path": { 
+                        "buckets_path": {
                           "tShirtSales": "t-shirts>sales",
                           "totalSales": "total_sales"
                         },
-                        "script": "tShirtSales / totalSales * 100"
+                        "script": "params.tShirtSales / params.totalSales * 100"
                     }
                 }
             }
@@ -83,12 +85,18 @@ The following snippet calculates the ratio percentage of t-shirt sales compared 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 And the following may be the response:
 
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -97,33 +105,33 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "total_sales": {
-                   "value": 50
+                   "value": 550.0
                },
                "t-shirts": {
-                   "doc_count": 2,
+                   "doc_count": 1,
                    "sales": {
-                       "value": 10
+                       "value": 200.0
                    }
                },
                "t-shirt-percentage": {
-                   "value": 20
+                   "value": 36.36363636363637
                }
             },
             {
                "key_as_string": "2015/02/01 00:00:00",
                "key": 1422748800000,
-               "doc_count": 2
+               "doc_count": 2,
                "total_sales": {
-                   "value": 60
+                   "value": 60.0
                },
                "t-shirts": {
                    "doc_count": 1,
                    "sales": {
-                       "value": 15
+                       "value": 10.0
                    }
                },
                "t-shirt-percentage": {
-                   "value": 25
+                   "value": 16.666666666666664
                }
             },
             {
@@ -131,16 +139,16 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "total_sales": {
-                   "value": 40
+                   "value": 375.0
                },
                "t-shirts": {
                    "doc_count": 1,
                    "sales": {
-                       "value": 20
+                       "value": 175.0
                    }
                },
                "t-shirt-percentage": {
-                   "value": 50
+                   "value": 46.666666666666664
                }
             }
          ]
@@ -148,4 +156,6 @@ And the following may be the response:
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

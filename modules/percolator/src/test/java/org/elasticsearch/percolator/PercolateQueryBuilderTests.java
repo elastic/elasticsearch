@@ -40,9 +40,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -142,7 +142,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, Matchers.instanceOf(PercolateQuery.class));
         PercolateQuery percolateQuery = (PercolateQuery) query;
         assertThat(percolateQuery.getDocumentType(), Matchers.equalTo(queryBuilder.getDocumentType()));
@@ -226,7 +226,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         }
 
         Analyzer analyzer = new WhitespaceAnalyzer();
-        ParsedDocument parsedDocument = new ParsedDocument(null, "_id", "_type", null, -1L, -1L, docs, null, null);
+        ParsedDocument parsedDocument = new ParsedDocument(null, null, "_id", "_type", null, docs, null, null);
         IndexSearcher indexSearcher = PercolateQueryBuilder.createMultiDocumentSearcher(analyzer, parsedDocument);
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(numDocs));
 
@@ -247,5 +247,10 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected boolean isCachable(PercolateQueryBuilder queryBuilder) {
+        return false;
     }
 }

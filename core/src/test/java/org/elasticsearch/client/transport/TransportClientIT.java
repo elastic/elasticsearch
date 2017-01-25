@@ -19,6 +19,9 @@
 
 package org.elasticsearch.client.transport;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,14 +29,16 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -51,17 +56,17 @@ public class TransportClientIT extends ESIntegTestCase {
 
     }
 
-    public void testNodeVersionIsUpdated() throws IOException {
+    public void testNodeVersionIsUpdated() throws IOException, NodeValidationException {
         TransportClient client = (TransportClient)  internalCluster().client();
-        try (Node node = new Node(Settings.builder()
+        try (Node node = new MockNode(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
-                .put("transport.type", "local")
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build()).start()) {
+                .build(), Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.

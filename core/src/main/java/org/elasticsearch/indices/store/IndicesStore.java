@@ -19,16 +19,20 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
@@ -60,13 +64,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- *
- */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
     // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service
@@ -80,6 +84,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     private final TransportService transportService;
     private final ThreadPool threadPool;
 
+    // Cache successful shard deletion checks to prevent unnecessary file system lookups
+    private final Set<ShardId> folderNotFoundCache = new HashSet<>();
+
     private TimeValue deleteShardTimeout;
 
     @Inject
@@ -92,12 +99,20 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.threadPool = threadPool;
         transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
-        clusterService.addLast(this);
+        // Doesn't make sense to delete shards on non-data nodes
+        if (DiscoveryNode.isDataNode(settings)) {
+            // we double check nothing has changed when responses come back from other nodes.
+            // it's easier to do that check when the current cluster state is visible.
+            // also it's good in general to let things settle down
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     public void close() {
-        clusterService.remove(this);
+        if (DiscoveryNode.isDataNode(settings)) {
+            clusterService.removeListener(this);
+        }
     }
 
     @Override
@@ -110,11 +125,31 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             return;
         }
 
-        for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
+        RoutingTable routingTable = event.state().routingTable();
+
+        // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
+        // - removing shard data of deleted indices is handled by IndicesClusterStateService
+        // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
+        for (Iterator<ShardId> it = folderNotFoundCache.iterator(); it.hasNext(); ) {
+            ShardId shardId = it.next();
+            if (routingTable.hasIndex(shardId.getIndex()) == false) {
+                it.remove();
+            }
+        }
+        // remove entries from cache which are allocated to this node
+        final String localNodeId = event.state().nodes().getLocalNodeId();
+        RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);
+        if (localRoutingNode != null) {
+            for (ShardRouting routing : localRoutingNode) {
+                folderNotFoundCache.remove(routing.shardId());
+            }
+        }
+
+        for (IndexRoutingTable indexRoutingTable : routingTable) {
             // Note, closed indices will not have any routing information, so won't be deleted
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
-                    ShardId shardId = indexShardRoutingTable.shardId();
+                ShardId shardId = indexShardRoutingTable.shardId();
+                if (folderNotFoundCache.contains(shardId) == false && shardCanBeDeleted(localNodeId, indexShardRoutingTable)) {
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                     final IndexSettings indexSettings;
                     if (indexService == null) {
@@ -123,15 +158,33 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     } else {
                         indexSettings = indexService.getIndexSettings();
                     }
-                    if (indicesService.canDeleteShardContent(shardId, indexSettings)) {
-                        deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                    IndicesService.ShardDeletionCheckResult shardDeletionCheckResult = indicesService.canDeleteShardContent(shardId, indexSettings);
+                    switch (shardDeletionCheckResult) {
+                        case FOLDER_FOUND_CAN_DELETE:
+                            deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                            break;
+                        case NO_FOLDER_FOUND:
+                            folderNotFoundCache.add(shardId);
+                            break;
+                        case NO_LOCAL_STORAGE:
+                            assert false : "shard deletion only runs on data nodes which always have local storage";
+                            // nothing to do
+                            break;
+                        case STILL_ALLOCATED:
+                            // nothing to do
+                            break;
+                        case SHARED_FILE_SYSTEM:
+                            // nothing to do
+                            break;
+                        default:
+                            assert false : "unknown shard deletion check result: " + shardDeletionCheckResult;
                     }
                 }
             }
         }
     }
 
-    boolean shardCanBeDeleted(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
+    static boolean shardCanBeDeleted(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
         // a shard can be deleted if all its copies are active, and its not allocated on this node
         if (indexShardRoutingTable.size() == 0) {
             // should not really happen, there should always be at least 1 (primary) shard in a
@@ -141,27 +194,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             // be conservative here, check on started, not even active
-            if (!shardRouting.started()) {
+            if (shardRouting.started() == false) {
                 return false;
             }
 
-            // if the allocated or relocation node id doesn't exists in the cluster state  it may be a stale node,
-            // make sure we don't do anything with this until the routing table has properly been rerouted to reflect
-            // the fact that the node does not exists
-            DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
-            if (node == null) {
-                return false;
-            }
-            if (shardRouting.relocatingNodeId() != null) {
-                node = state.nodes().get(shardRouting.relocatingNodeId());
-                if (node == null) {
-                    return false;
-                }
-            }
-
-            // check if shard is active on the current node or is getting relocated to the our node
-            String localNodeId = state.getNodes().getLocalNode().getId();
-            if (localNodeId.equals(shardRouting.currentNodeId()) || localNodeId.equals(shardRouting.relocatingNodeId())) {
+            // check if shard is active on the current node
+            if (localNodeId.equals(shardRouting.currentNodeId())) {
                 return false;
             }
         }
@@ -174,19 +212,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
-            // Node can't be null, because otherwise shardCanBeDeleted() would have returned false
+            assert shardRouting.started() : "expected started shard but was " + shardRouting;
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
-            assert currentNode != null;
-
             requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));
-            if (shardRouting.relocatingNodeId() != null) {
-                DiscoveryNode relocatingNode = state.nodes().get(shardRouting.relocatingNodeId());
-                assert relocatingNode != null;
-                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));
-            }
         }
 
-        ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state, requests.size());
+        ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state.getVersion(),
+            requests.size());
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
             logger.trace("{} sending shard active check to {}", request.v2().shardId, request.v1());
             transportService.sendRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
@@ -197,14 +229,14 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         private final ShardId shardId;
         private final int expectedActiveCopies;
-        private final ClusterState clusterState;
+        private final long clusterStateVersion;
         private final AtomicInteger awaitingResponses;
         private final AtomicInteger activeCopies;
 
-        public ShardActiveResponseHandler(ShardId shardId, ClusterState clusterState, int expectedActiveCopies) {
+        public ShardActiveResponseHandler(ShardId shardId, long clusterStateVersion, int expectedActiveCopies) {
             this.shardId = shardId;
             this.expectedActiveCopies = expectedActiveCopies;
-            this.clusterState = clusterState;
+            this.clusterStateVersion = clusterStateVersion;
             this.awaitingResponses = new AtomicInteger(expectedActiveCopies);
             this.activeCopies = new AtomicInteger();
         }
@@ -228,7 +260,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         @Override
         public void handleException(TransportException exp) {
-            logger.debug("shards active request failed for {}", exp, shardId);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("shards active request failed for {}", shardId), exp);
             if (awaitingResponses.decrementAndGet() == 0) {
                 allNodesResponded();
             }
@@ -246,34 +278,29 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
 
             ClusterState latestClusterState = clusterService.state();
-            if (clusterState.getVersion() != latestClusterState.getVersion()) {
-                logger.trace("not deleting shard {}, the latest cluster state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, latestClusterState.getVersion(), clusterState.getVersion());
+            if (clusterStateVersion != latestClusterState.getVersion()) {
+                logger.trace("not deleting shard {}, the latest cluster state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, latestClusterState.getVersion(), clusterStateVersion);
                 return;
             }
 
-            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new LocalClusterUpdateTask() {
                 @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    if (clusterState.getVersion() != currentState.getVersion()) {
-                        logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterState.getVersion());
-                        return currentState;
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                    if (clusterStateVersion != currentState.getVersion()) {
+                        logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterStateVersion);
+                        return unchanged();
                     }
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
                     } catch (Exception ex) {
-                        logger.debug("{} failed to delete unallocated shard, ignoring", ex, shardId);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
-                    return currentState;
+                    return unchanged();
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("{} unexpected error during deletion of unallocated shard", e, shardId);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e);
                 }
             });
         }
@@ -323,21 +350,18 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                             } catch (IOException e) {
-                                logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
+                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
                             } catch (EsRejectedExecutionException e) {
-                                logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
+                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
                             }
                         }
-                    }, new ClusterStateObserver.ValidationPredicate() {
-                        @Override
-                        protected boolean validate(ClusterState newState) {
-                            // the shard is not there in which case we want to send back a false (shard is not active), so the cluster state listener must be notified
-                            // or the shard is active in which case we want to send back that the shard is active
-                            // here we could also evaluate the cluster state and get the information from there. we
-                            // don't do it because we would have to write another method for this that would have the same effect
-                            IndexShard indexShard = getShard(request);
-                            return indexShard == null || shardActive(indexShard);
-                        }
+                    }, newState -> {
+                        // the shard is not there in which case we want to send back a false (shard is not active), so the cluster state listener must be notified
+                        // or the shard is active in which case we want to send back that the shard is active
+                        // here we could also evaluate the cluster state and get the information from there. we
+                        // don't do it because we would have to write another method for this that would have the same effect
+                        IndexShard currentShard = getShard(request);
+                        return currentShard == null || shardActive(currentShard);
                     });
                 }
             }

@@ -3,6 +3,8 @@
 
 The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
 
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
 [[discovery-ec2-install]]
 [float]
 ==== Installation
@@ -13,10 +15,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install discovery-ec2
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-ec2/discovery-ec2-{version}.zip.
 
 [[discovery-ec2-remove]]
 [float]
@@ -28,7 +32,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove discovery-ec2
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -108,17 +111,20 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[discovery-ec2-usage-signer]]
 ===== EC2 Signer API
@@ -126,6 +132,17 @@ The available values are:
 If you are using a compatible EC2 service, they might be using an older API to sign the requests.
 You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
 with the right signer to use.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[discovery-ec2-discovery]]
 ==== EC2 Discovery
@@ -136,7 +153,7 @@ environments). Here is a simple sample configuration:
 [source,yaml]
 ----
 discovery:
-    type: ec2
+    zen.hosts_provider: ec2
 ----
 
 You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
@@ -174,7 +191,6 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
-
 
 [IMPORTANT]
 .Binding the network host
@@ -229,6 +245,7 @@ Management Console. It should look similar to this.
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 [[discovery-ec2-filtering]]
 ===== Filtering by Tags
@@ -246,9 +263,20 @@ name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering b
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes
 
-Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the
-plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with
-the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
+Though not dependent on actually using `ec2` as discovery (but still requires the `discovery-ec2` plugin installed), the
+plugin can automatically add node attributes relating to ec2. In the future this may support other attributes, but this will
+currently only add an `aws_availability_zone` node attribute, which is the availability zone of the current node. Attributes
+can be used to isolate primary and replica shards across availability zones by using the
+{ref}/allocation-awareness.html[Allocation Awareness] feature.
+
+In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings. For example:
+
+[source,yaml]
+----
+cloud.node.auto_attributes: true
+
+cluster.routing.allocation.awareness.attributes: aws_availability_zone
+----
 
 [[discovery-ec2-endpoint]]
 ===== Using other EC2 endpoint

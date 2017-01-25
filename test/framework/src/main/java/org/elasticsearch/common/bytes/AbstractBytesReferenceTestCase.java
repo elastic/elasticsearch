@@ -74,9 +74,14 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int sliceLength = Math.max(0, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(sliceLength, slice.length());
+        for (int i = 0; i < sliceLength; i++) {
+            assertEquals(pbr.get(i+sliceOffset), slice.get(i));
+        }
         BytesRef singlePageOrNull = getSinglePageOrNull(slice);
         if (singlePageOrNull != null) {
-            assertEquals(sliceOffset, singlePageOrNull.offset);
+            // we can't assert the offset since if the length is smaller than the refercence
+            // the offset can be anywhere
+            assertEquals(sliceLength, singlePageOrNull.length);
         }
     }
 

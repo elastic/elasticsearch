@@ -19,25 +19,6 @@
 
 package org.elasticsearch.discovery.gce;
 
-import com.google.api.services.compute.model.AccessConfig;
-import com.google.api.services.compute.model.Instance;
-import com.google.api.services.compute.model.NetworkInterface;
-import org.elasticsearch.Version;
-import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.transport.TransportService;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -45,13 +26,30 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
+import com.google.api.services.compute.model.AccessConfig;
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.NetworkInterface;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Version;
+import org.elasticsearch.cloud.gce.GceInstancesService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.transport.TransportService;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     /**
@@ -76,7 +74,6 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     private long lastRefresh;
     private List<DiscoveryNode> cachedDiscoNodes;
 
-    @Inject
     public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
             NetworkService networkService) {
@@ -245,7 +242,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         }
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to add {}, address {}", e, name, ip_private);
+                    final String finalIpPrivate = ip_private;
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
                 }
 
             }

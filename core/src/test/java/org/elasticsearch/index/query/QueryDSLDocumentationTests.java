@@ -30,7 +30,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,14 +49,11 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoDistanceRangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoHashCellQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
@@ -153,16 +150,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .geoDistance(GeoDistance.ARC);
     }
 
-    public void testGeoDistanceRange() {
-        geoDistanceRangeQuery("pin.location", new GeoPoint(40, -70)) // TODO check why I need the point here but not above
-            .from("200km")
-            .to("400km")
-            .includeLower(true)
-            .includeUpper(false)
-            .optimizeBbox("memory")
-            .geoDistance(GeoDistance.ARC);
-    }
-
     public void testGeoPolygon() {
         List<GeoPoint> points = new ArrayList<GeoPoint>();
         points.add(new GeoPoint(40, -70));
@@ -193,13 +180,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             .indexedShapePath("location");
     }
 
-    public void testGeoHashCell() {
-        geoHashCellQuery("pin.location",
-                new GeoPoint(13.4080, 52.5186))
-            .neighbors(true)
-            .precision(3);
-    }
-
     public void testHasChild() {
         hasChildQuery(
                 "blog_tag",
@@ -219,18 +199,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 .addIds("1", "4", "100");
 
         idsQuery().addIds("1", "4", "100");
-    }
-
-    public void testIndices() {
-        indicesQuery(
-                termQuery("tag", "wow"),
-                "index1", "index2"
-            ).noMatchQuery(termQuery("tag", "kow"));
-
-        indicesQuery(
-                termQuery("tag", "wow"),
-                "index1", "index2"
-            ).noMatchQuery("all");
     }
 
     public void testMatchAll() {
@@ -293,13 +261,11 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 new Script("doc['num1'].value > 1")
             );
 
-        Map<String, Integer> parameters = new HashMap<>();
+        Map<String, Object> parameters = new HashMap<>();
         parameters.put("param1", 5);
         scriptQuery(
                 new Script(
-                    "mygroovyscript",
-                    ScriptType.FILE,
-                    "groovy",
+                    ScriptType.FILE, "coollang", "myscript",
                     parameters)
             );
 

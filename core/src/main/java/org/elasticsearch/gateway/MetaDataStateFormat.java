@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -30,9 +33,9 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -179,7 +182,7 @@ public abstract class MetaDataStateFormat<T> {
      * Reads the state from a given file and compares the expected version against the actual version of
      * the state.
      */
-    public final T read(Path file) throws IOException {
+    public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
             try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
@@ -194,8 +197,8 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(new InputStreamIndexInput(slice,
-                        contentSize))) {
+                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(namedXContentRegistry,
+                            new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -254,11 +257,11 @@ public abstract class MetaDataStateFormat<T> {
      * the states version from one or more data directories and if none of the latest states can be loaded an exception
      * is thrown to prevent accidentally loading a previous state and silently omitting the latest state.
      *
-     * @param logger an elasticsearch logger instance
+     * @param logger a logger instance
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public  T loadLatestState(ESLogger logger, Path... dataLocations) throws IOException {
+    public  T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         boolean maxStateIdIsLegacy = true;
@@ -309,20 +312,22 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (final XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                     }
                 } else {
-                    state = read(stateFile);
+                    state = read(namedXContentRegistry, stateFile);
                     logger.trace("state id [{}] read from [{}]", id, stateFile.getFileName());
                 }
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
-                logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "{}: failed to read [{}], ignoring...", pathAndStateId.file.toAbsolutePath(), prefix), e);
             }
         }
         // if we reach this something went wrong

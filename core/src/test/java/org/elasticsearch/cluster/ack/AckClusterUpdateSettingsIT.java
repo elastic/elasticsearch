@@ -69,7 +69,10 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
     private void removePublishTimeout() {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
+        ));
     }
 
     public void testClusterUpdateSettingsAcknowledgement() {

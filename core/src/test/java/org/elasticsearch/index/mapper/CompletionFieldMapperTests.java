@@ -35,13 +35,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -138,7 +133,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         completionFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).map();
+        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, builder.bytes()).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
@@ -283,7 +278,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .field("weight", 4)
                 .endObject()
                 .startObject()
-                .field("input", "suggestion4", "suggestion5", "suggestion6")
+                .array("input", "suggestion4", "suggestion5", "suggestion6")
                 .field("weight", 5)
                 .endObject()
                 .endArray()
@@ -426,5 +421,18 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             }
         }
         assertThat(actualFieldCount, equalTo(expected));
+    }
+
+    public void testEmptyName() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "completion").endObject().endObject()
+            .endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

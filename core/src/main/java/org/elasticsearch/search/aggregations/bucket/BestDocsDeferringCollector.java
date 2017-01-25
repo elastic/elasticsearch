@@ -48,7 +48,7 @@ import java.util.List;
  * {@link BestDocsDeferringCollector#createTopDocsCollector(int)} is designed to
  * be overridden and allows subclasses to choose a custom collector
  * implementation for determining the top N matches.
- * 
+ *
  */
 
 public class BestDocsDeferringCollector extends DeferringBucketCollector implements Releasable {
@@ -61,7 +61,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
     /**
      * Sole constructor.
-     * 
+     *
      * @param shardSize
      *            The number of top-scoring docs to collect for each bucket
      */
@@ -111,6 +111,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
     @Override
     public void preCollection() throws IOException {
+        deferred.preCollection();
     }
 
     @Override
@@ -125,7 +126,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     private void runDeferredAggs() throws IOException {
-        deferred.preCollection();
 
         List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
         for (int i = 0; i < perBucketSamples.size(); i++) {
@@ -135,14 +135,14 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
             perBucketSample.getMatches(allDocs);
         }
-        
+
         // Sort the top matches by docID for the benefit of deferred collector
         ScoreDoc[] docsArr = allDocs.toArray(new ScoreDoc[allDocs.size()]);
         Arrays.sort(docsArr, new Comparator<ScoreDoc>() {
              @Override
              public int compare(ScoreDoc o1, ScoreDoc o2) {
                  if(o1.doc == o2.doc){
-                     return o1.shardIndex - o2.shardIndex;                    
+                     return o1.shardIndex - o2.shardIndex;
                  }
                  return o1.doc - o2.doc;
              }
@@ -256,7 +256,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                     currentScore = scoreDoc.score;
                     currentDocId = rebased;
                     // We stored the bucket ID in Lucene's shardIndex property
-                    // for convenience. 
+                    // for convenience.
                     leafCollector.collect(rebased, scoreDoc.shardIndex);
                 }
             }

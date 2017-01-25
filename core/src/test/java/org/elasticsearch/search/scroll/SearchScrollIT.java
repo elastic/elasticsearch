@@ -19,27 +19,21 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestClearScrollAction;
-import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -60,13 +54,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for scrolling.
@@ -500,84 +491,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    public void testParseSearchScrollRequest() throws Exception {
-        BytesReference content = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("scroll_id", "SCROLL_ID")
-            .field("scroll", "1m")
-            .endObject().bytes();
-
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
-
-        assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
-        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null, "scroll")));
-    }
-
-    public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        try {
-            RestSearchScrollAction.buildFromContent(new BytesArray("{invalid_json}"), searchScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .field("scroll_id", "value_2")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-
-        try {
-            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
-    public void testParseClearScrollRequest() throws Exception {
-        BytesReference content = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
-        assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
-    }
-
-    public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(new BytesArray("{invalid_json}"), clearScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
     public void testCloseAndReopenOrDeleteWithActiveScroll() throws IOException {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
@@ -607,16 +520,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        BytesReference bytesReference = builder.bytes();
-        Map<String, Object> map;
-        try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
-            map = parser.map();
-        }
-
+        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false).v2();
         assertThat(map.get("succeeded"), is(succeed));
         assertThat(map.get("num_freed"), equalTo(numFreed));
     }

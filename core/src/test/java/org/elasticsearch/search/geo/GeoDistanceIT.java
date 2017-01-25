@@ -20,30 +20,41 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptService.ScriptType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
 
@@ -63,7 +74,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
@@ -83,26 +93,24 @@ public class GeoDistanceIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Double distanceScript(Map<String, Object> vars, Function<ScriptDocValues.GeoPoints, Double> distance) {
             Map<?, ?> doc = (Map) vars.get("doc");
             return distance.apply((ScriptDocValues.GeoPoints) doc.get("location"));
         }
     }
 
-    public void testDistanceScript() throws Exception {
-
+    @Before
+    public void setupTestIndex() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
+    }
 
+    public void testDistanceScript() throws Exception {
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
                         .field("name", "TestPosition")
@@ -117,7 +125,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Test doc['location'].arcDistance(lat, lon)
         SearchResponse searchResponse1 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", new Script("arcDistance", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance", Collections.emptyMap()))
                 .get();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1,
@@ -125,16 +133,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Test doc['location'].planeDistance(lat, lon)
         SearchResponse searchResponse2 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", new Script("planeDistance", ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, null)).get();
+                .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "planeDistance",
+                    Collections.emptyMap())).get();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2,
                 closeTo(GeoUtils.planeDistance(src_lat, src_lon, tgt_lat, tgt_lon), 0.01d));
 
         // Test doc['location'].geohashDistance(lat, lon)
         SearchResponse searchResponse4 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", new Script("geohashDistance", ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, null)).get();
+                .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "geohashDistance",
+                    Collections.emptyMap())).get();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, GeoHashUtils.decodeLatitude(tgt_geohash),
@@ -142,18 +150,55 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Test doc['location'].arcDistance(lat, lon + 360)/1000d
         SearchResponse searchResponse5 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", new Script("arcDistance(lat, lon + 360)/1000d", ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, null)).get();
+                .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat, lon + 360)/1000d",
+                    Collections.emptyMap())).get();
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon)/1000d, 0.01d));
 
         // Test doc['location'].arcDistance(lat + 360, lon)/1000d
         SearchResponse searchResponse6 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", new Script("arcDistance(lat + 360, lon)/1000d", ScriptType.INLINE,
-                    CustomScriptPlugin.NAME, null)).get();
+                .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat + 360, lon)/1000d",
+                    Collections.emptyMap())).get();
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon)/1000d, 0.01d));
+    }
+
+    public void testGeoDistanceAggregation() throws IOException {
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject()
+                .field("name", "TestPosition")
+                .startObject("location")
+                .field("lat", src_lat)
+                .field("lon", src_lon)
+                .endObject()
+                .endObject())
+            .get();
+
+        refresh();
+
+        SearchRequestBuilder search = client().prepareSearch("test");
+        String name = "TestPosition";
+
+        search.setQuery(QueryBuilders.matchAllQuery())
+            .setTypes("type1")
+            .addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
+            .field("location")
+            .unit(DistanceUnit.MILES)
+            .addRange(0, 25000));
+
+        search.setSize(0); // no hits please
+
+        SearchResponse response = search.get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalGeoDistance geoDistance = aggregations.get(name);
+        assertNotNull(geoDistance);
+
+        List<? extends Range.Bucket> buckets = ((Range) geoDistance).getBuckets();
+        assertNotNull("Buckets should not be null", buckets);
+        assertEquals("Unexpected number of buckets",  1, buckets.size());
+        assertEquals("Unexpected doc count for geo distance", 1, buckets.get(0).getDocCount());
     }
 }

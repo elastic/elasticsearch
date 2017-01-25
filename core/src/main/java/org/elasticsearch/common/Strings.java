@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -45,9 +46,6 @@ import java.util.TreeSet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-/**
- *
- */
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
@@ -277,26 +275,6 @@ public class Strings {
             }
         }
         return true;
-    }
-
-    /**
-     * Count the occurrences of the substring in string s.
-     *
-     * @param str string to search in. Return 0 if this is null.
-     * @param sub string to search for. Return 0 if this is null.
-     */
-    public static int countOccurrencesOf(String str, String sub) {
-        if (str == null || sub == null || str.length() == 0 || sub.length() == 0) {
-            return 0;
-        }
-        int count = 0;
-        int pos = 0;
-        int idx;
-        while ((idx = str.indexOf(sub, pos)) != -1) {
-            ++count;
-            pos = idx + sub.length();
-        }
-        return count;
     }
 
     /**
@@ -880,26 +858,17 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object.
      */
     public static String toString(ToXContent toXContent) {
-        return toString(toXContent, false);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
-     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
-     */
-    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.startObject();
             }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.endObject();
             }
             return builder.string();

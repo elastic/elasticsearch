@@ -23,8 +23,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 
-/**
- */
 public class JustUidFieldsVisitor extends FieldsVisitor {
 
     public JustUidFieldsVisitor() {

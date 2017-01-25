@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -38,8 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESAllocationTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -161,7 +161,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
     private static AllocationService newAllocationService(Settings settings, Set<AllocationDecider> deciders) {
         return new AllocationService(settings,
                                      new AllocationDeciders(settings, deciders),
-                                     NoopGatewayAllocator.INSTANCE,
+                                     new TestGatewayAllocator(),
                                      new BalancedShardsAllocator(settings),
                                      EmptyClusterInfoService.INSTANCE);
     }

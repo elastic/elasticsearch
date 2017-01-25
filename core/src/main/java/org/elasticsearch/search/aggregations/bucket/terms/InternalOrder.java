@@ -40,9 +40,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
 class InternalOrder extends Terms.Order {
 
     private static final byte COUNT_DESC_ID = 1;

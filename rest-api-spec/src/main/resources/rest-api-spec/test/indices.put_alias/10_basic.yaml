@@ -27,3 +27,35 @@
         name: test_alias
 
   - match: {test_index.aliases.test_alias: {}}
+
+---
+"Can't create alias with invalid characters":
+  - skip:
+      version: " - 5.0.99"
+      reason:  alias name validation was introduced in 5.1.0
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: request
+      indices.put_alias:
+        index: test_index
+        name: test_*
+
+---
+"Can't create alias with the same name as an index":
+
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.create:
+        index: foo
+
+  - do:
+      catch: request
+      indices.put_alias:
+        index: test_index
+        name: foo

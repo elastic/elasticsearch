@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-import org.apache.http.HttpHost;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,18 +36,15 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final ESLogger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
 
     private final Stash stash = new Stash();
-
-    private final ClientYamlSuiteRestSpec restSpec;
-
-    private ClientYamlTestClient restTestClient;
+    private final ClientYamlTestClient clientYamlTestClient;
 
     private ClientYamlTestResponse response;
 
-    public ClientYamlTestExecutionContext(ClientYamlSuiteRestSpec restSpec) {
-        this.restSpec = restSpec;
+    public ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient) {
+        this.clientYamlTestClient = clientYamlTestClient;
     }
 
     /**
@@ -61,6 +55,7 @@ public class ClientYamlTestExecutionContext {
                                     Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
+        requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
@@ -75,8 +70,10 @@ public class ClientYamlTestExecutionContext {
             response = e.getRestTestResponse();
             throw e;
         } finally {
+            // if we hit a bad exception the response is null
+            Object repsponseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
-            stash.stashValue("body", response.getBody());
+            stash.stashValue("body", repsponseBody);
         }
     }
 
@@ -102,7 +99,7 @@ public class ClientYamlTestExecutionContext {
 
     private ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers)
             throws IOException  {
-        return restTestClient.callApi(apiName, params, body, headers);
+        return clientYamlTestClient.callApi(apiName, params, body, headers);
     }
 
     /**
@@ -110,13 +107,6 @@ public class ClientYamlTestExecutionContext {
      */
     public Object response(String path) throws IOException {
         return response.evaluate(path, stash);
-    }
-
-    /**
-     * Creates the embedded REST client when needed. Needs to be called before each test.
-     */
-    public void initClient(RestClient client, List<HttpHost> hosts) throws IOException {
-        restTestClient = new ClientYamlTestClient(restSpec, client, hosts);
     }
 
     /**
@@ -136,7 +126,7 @@ public class ClientYamlTestExecutionContext {
      * Returns the current es version as a string
      */
     public Version esVersion() {
-        return restTestClient.getEsVersion();
+        return clientYamlTestClient.getEsVersion();
     }
 
 }

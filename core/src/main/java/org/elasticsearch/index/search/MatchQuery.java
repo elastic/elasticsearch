@@ -25,11 +25,14 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.List;
 
 public class MatchQuery {
 
@@ -110,13 +115,19 @@ public class MatchQuery {
         }
     }
 
-    /** the default phrase slop */
+    /**
+     * the default phrase slop
+     */
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
-    /** the default leniency setting */
+    /**
+     * the default leniency setting
+     */
     public static final boolean DEFAULT_LENIENCY = false;
 
-    /** the default zero terms query */
+    /**
+     * the default zero terms query
+     */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
@@ -204,7 +215,7 @@ public class MatchQuery {
             }
             return context.getMapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = context.getMapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
@@ -300,50 +311,106 @@ public class MatchQuery {
             return blendTermQuery(term, mapper);
         }
 
+        @Override
+        protected Query newSynonymQuery(Term[] terms) {
+            return blendTermsQuery(terms, mapper);
+        }
+
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            if (query instanceof GraphQuery) {
+                // we have a graph query, convert inner queries to multi phrase prefix queries
+                List<Query> oldQueries = ((GraphQuery) query).getQueries();
+                Query[] queries = new Query[oldQueries.size()];
+                for (int i = 0; i < queries.length; i++) {
+                    queries[i] = toMultiPhrasePrefix(oldQueries.get(i), phraseSlop, maxExpansions);
+                }
+
+                return new GraphQuery(queries);
+            }
+
+            return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
+        }
+
+        private Query toMultiPhrasePrefix(final Query query, int phraseSlop, int maxExpansions) {
+            float boost = 1;
+            Query innerQuery = query;
+            while (innerQuery instanceof BoostQuery) {
+                BoostQuery bq = (BoostQuery) innerQuery;
+                boost *= bq.getBoost();
+                innerQuery = bq.getQuery();
+            }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
             prefixQuery.setSlop(phraseSlop);
-            if (query instanceof PhraseQuery) {
-                PhraseQuery pq = (PhraseQuery)query;
+            if (innerQuery instanceof PhraseQuery) {
+                PhraseQuery pq = (PhraseQuery) innerQuery;
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
-                    prefixQuery.add(new Term[] {terms[i]}, positions[i]);
+                    prefixQuery.add(new Term[]{terms[i]}, positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof MultiPhraseQuery) {
-                MultiPhraseQuery pq = (MultiPhraseQuery)query;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof MultiPhraseQuery) {
+                MultiPhraseQuery pq = (MultiPhraseQuery) innerQuery;
                 Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(terms[i], positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof TermQuery) {
-                prefixQuery.add(((TermQuery) query).getTerm());
-                return prefixQuery;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof TermQuery) {
+                prefixQuery.add(((TermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof AllTermQuery) {
+                prefixQuery.add(((AllTermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             }
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), fieldType);
-                for (BooleanClause clause : bq.clauses()) {
-                    if (!(clause.getQuery() instanceof TermQuery)) {
-                        return booleanQuery;
+                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
+            } else if (booleanQuery != null && booleanQuery instanceof GraphQuery && ((GraphQuery) booleanQuery).hasBoolean()) {
+                // we have a graph query that has at least one boolean sub-query
+                // re-build and use extended common terms
+                List<Query> oldQueries = ((GraphQuery) booleanQuery).getQueries();
+                Query[] queries = new Query[oldQueries.size()];
+                for (int i = 0; i < queries.length; i++) {
+                    Query oldQuery = oldQueries.get(i);
+                    if (oldQuery instanceof BooleanQuery) {
+                        queries[i] = boolToExtendedCommonTermsQuery((BooleanQuery) oldQuery, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
+                    } else {
+                        queries[i] = oldQuery;
                     }
-                    query.add(((TermQuery) clause.getQuery()).getTerm());
                 }
-                return query;
-            }
-            return booleanQuery;
 
+                return new GraphQuery(queries);
+            }
+
+            return booleanQuery;
         }
+
+        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
+                bq.isCoordDisabled(), fieldType);
+            for (BooleanClause clause : bq.clauses()) {
+                if (!(clause.getQuery() instanceof TermQuery)) {
+                    return bq;
+                }
+                query.add(((TermQuery) clause.getQuery()).getTerm());
+            }
+            return query;
+        }
+    }
+
+    protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
+        return new SynonymQuery(terms);
     }
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {

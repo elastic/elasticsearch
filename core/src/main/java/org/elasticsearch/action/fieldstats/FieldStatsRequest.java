@@ -24,10 +24,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
@@ -35,8 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- */
 public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public static final String DEFAULT_LEVEL = "cluster";
@@ -76,41 +72,39 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
         this.indexConstraints = indexConstraints;
     }
 
-    public void source(BytesReference content) throws IOException {
+    public void source(XContentParser parser) throws IOException {
         List<IndexConstraint> indexConstraints = new ArrayList<>();
         List<String> fields = new ArrayList<>();
-        try (XContentParser parser = XContentHelper.createParser(content)) {
-            String fieldName = null;
-            Token token = parser.nextToken();
-            assert token == Token.START_OBJECT;
-            for (token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-                switch (token) {
-                    case FIELD_NAME:
-                        fieldName = parser.currentName();
-                        break;
-                    case START_OBJECT:
-                        if ("index_constraints".equals(fieldName)) {
-                            parseIndexConstraints(indexConstraints, parser);
-                        } else {
-                            throw new IllegalArgumentException("unknown field [" + fieldName + "]");
-                        }
-                        break;
-                    case START_ARRAY:
-                        if ("fields".equals(fieldName)) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token.isValue()) {
-                                    fields.add(parser.text());
-                                } else {
-                                    throw new IllegalArgumentException("unexpected token [" + token + "]");
-                                }
+        String fieldName = null;
+        Token token = parser.nextToken();
+        assert token == Token.START_OBJECT;
+        for (token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+            switch (token) {
+                case FIELD_NAME:
+                    fieldName = parser.currentName();
+                    break;
+                case START_OBJECT:
+                    if ("index_constraints".equals(fieldName)) {
+                        parseIndexConstraints(indexConstraints, parser);
+                    } else {
+                        throw new IllegalArgumentException("unknown field [" + fieldName + "]");
+                    }
+                    break;
+                case START_ARRAY:
+                    if ("fields".equals(fieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue()) {
+                                fields.add(parser.text());
+                            } else {
+                                throw new IllegalArgumentException("unexpected token [" + token + "]");
                             }
-                        } else {
-                            throw new IllegalArgumentException("unknown field [" + fieldName + "]");
                         }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unexpected token [" + token + "]");
-                }
+                    } else {
+                        throw new IllegalArgumentException("unknown field [" + fieldName + "]");
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException("unexpected token [" + token + "]");
             }
         }
         this.fields = fields.toArray(new String[fields.size()]);

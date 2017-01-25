@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
@@ -605,7 +604,7 @@ public class MovAvgUnitTests extends ESTestCase {
                 settings.put("alpha", v);
 
                 try {
-                    parser.parse(settings, "pipeline", 10, ParseFieldMatcher.STRICT);
+                    parser.parse(settings, "pipeline", 10);
                 } catch (ParseException e) {
                     fail(parser + " parser should not have thrown SearchParseException while parsing [" +
                             v.getClass().getSimpleName() +"]");
@@ -619,7 +618,7 @@ public class MovAvgUnitTests extends ESTestCase {
             settings.put("gamma", "abc");
 
             try {
-                parser.parse(settings, "pipeline", 10, ParseFieldMatcher.STRICT);
+                parser.parse(settings, "pipeline", 10);
             } catch (ParseException e) {
                 //all good
                 continue;

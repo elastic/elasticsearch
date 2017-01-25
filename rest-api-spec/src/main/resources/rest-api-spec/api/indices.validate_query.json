@@ -63,10 +63,6 @@
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
         },
-        "lowercase_expanded_terms": {
-          "type" : "boolean",
-          "description" : "Specify whether query terms should be lowercased"
-        },
         "rewrite": {
           "type": "boolean",
           "description": "Provide a more detailed explanation showing the actual Lucene query that will be executed."

@@ -7,6 +7,23 @@ libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
 transliteration.
 
+[IMPORTANT]
+.ICU analysis and backwards compatibility
+================================================
+
+From time to time, the ICU library receives updates such as adding new
+characters and emojis, and improving collation (sort) orders.  These changes
+may or may not affect search and sort orders, depending on which characters
+sets you are using.
+
+While we restrict ICU upgrades to major versions, you may find that an index
+created in the previous major version will need to be reindexed in order to
+return correct (and correctly ordered) results, and to take advantage of new
+characters.
+
+================================================
+
+
 [[analysis-icu-install]]
 [float]
 ==== Installation
@@ -17,10 +34,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install analysis-icu
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-icu/analysis-icu-{version}.zip.
 
 [[analysis-icu-remove]]
 [float]
@@ -32,7 +51,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove analysis-icu
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -163,7 +181,11 @@ PUT icu_sample
     }
 }
 
-POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
+GET icu_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Elasticsearch. Wow!"
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -479,18 +501,21 @@ PUT icu_sample
   }
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "你好" <2>
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "здравствуйте" <3>
 }
 
-GET icu_sample/_analyze?analyzer=latin
+GET icu_sample/_analyze
 {
+  "analyzer": "latin",
   "text": "こんにちは" <4>
 }
 

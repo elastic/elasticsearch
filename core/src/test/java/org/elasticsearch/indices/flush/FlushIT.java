@@ -62,7 +62,7 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute(new ActionListener<FlushResponse>() {
+                client().admin().indices().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
@@ -128,7 +128,7 @@ public class FlushIT extends ESIntegTestCase {
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {

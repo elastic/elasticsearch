@@ -21,38 +21,34 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterUpdateSettingsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
                 request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
         Map<String, Object> source;
-        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
+        try (XContentParser parser = request.contentParser()) {
             source = parser.map();
         }
         if (source.containsKey("transient")) {
@@ -62,7 +58,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
 
-        client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
+        return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
                 new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
                     @Override
                     protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
@@ -75,6 +71,11 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
                         builder.endObject();
                     }
                 });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     @Override

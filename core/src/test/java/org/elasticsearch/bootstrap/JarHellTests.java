@@ -111,18 +111,6 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testLog4jLeniency() throws Exception {
-        Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/apache/log4j/DuplicateClass.class"), makeJar(dir, "bar.jar", null, "org/apache/log4j/DuplicateClass.class")};
-        JarHell.checkJarHell(jars);
-    }
-
-    public void testBaseDateTimeLeniency() throws Exception {
-        Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/joda/time/base/BaseDateTime.class"), makeJar(dir, "bar.jar", null, "org/joda/time/base/BaseDateTime.class")};
-        JarHell.checkJarHell(jars);
-    }
-
     public void testWithinSingleJar() throws Exception {
         // the java api for zip file does not allow creating duplicate entries (good!) so
         // this bogus jar had to be constructed with ant

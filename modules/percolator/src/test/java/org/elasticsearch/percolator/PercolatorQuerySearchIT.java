@@ -19,8 +19,11 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,14 +34,24 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -50,15 +63,41 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.IsNull.notNullValue;
 
 public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("1==1", vars -> Boolean.TRUE);
+            return scripts;
+        }
+    }
+
+    public void testPercolateScriptQuery() throws IOException {
+        client().admin().indices().prepareCreate("index").addMapping("type", "query", "type=percolator").get();
+        client().prepareIndex("index", "type", "1")
+            .setSource(jsonBuilder().startObject().field("query", QueryBuilders.scriptQuery(
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1==1", Collections.emptyMap()))).endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute().actionGet();
+        SearchResponse response = client().prepareSearch("index")
+            .setQuery(new PercolateQueryBuilder("query", "type", jsonBuilder().startObject().field("field1", "b").endObject().bytes()))
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
     }
 
     public void testPercolatorQuery() throws Exception {
@@ -562,6 +601,84 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 0);
+    }
+
+    public void testPercolatorQueryViaMultiSearch() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+            .addMapping("type", "field1", "type=text")
+            .addMapping("queries", "query", "type=percolator")
+        );
+
+        client().prepareIndex("test", "queries", "1")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+            .execute().actionGet();
+        client().prepareIndex("test", "queries", "2")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+            .execute().actionGet();
+        client().prepareIndex("test", "queries", "3")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .must(matchQuery("field1", "b"))
+                .must(matchQuery("field1", "c"))
+            ).endObject())
+            .execute().actionGet();
+        client().prepareIndex("test", "queries", "4")
+            .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+            .execute().actionGet();
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("field1", "c").endObject())
+            .execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
+
+        MultiSearchResponse response = client().prepareMultiSearch()
+            .add(client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", "type",
+                    jsonBuilder().startObject().field("field1", "b").endObject().bytes())))
+            .add(client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", "type",
+                    yamlBuilder().startObject().field("field1", "c").endObject().bytes())))
+            .add(client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", "type",
+                    smileBuilder().startObject().field("field1", "b c").endObject().bytes())))
+            .add(client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", "type",
+                    jsonBuilder().startObject().field("field1", "d").endObject().bytes())))
+            .add(client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "1", null, null, null)))
+            .add(client().prepareSearch("test") // non existing doc, so error element
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "2", null, null, null)))
+            .get();
+
+        MultiSearchResponse.Item item = response.getResponses()[0];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "1", "4");
+        assertThat(item.getFailureMessage(), nullValue());
+
+        item = response.getResponses()[1];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "2", "4");
+        assertThat(item.getFailureMessage(), nullValue());
+
+        item = response.getResponses()[2];
+        assertHitCount(item.getResponse(), 4L);
+        assertSearchHits(item.getResponse(), "1", "2", "3", "4");
+        assertThat(item.getFailureMessage(), nullValue());
+
+        item = response.getResponses()[3];
+        assertHitCount(item.getResponse(), 1L);
+        assertSearchHits(item.getResponse(), "4");
+        assertThat(item.getFailureMessage(), nullValue());
+
+        item = response.getResponses()[4];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "2", "4");
+        assertThat(item.getFailureMessage(), nullValue());
+
+        item = response.getResponses()[5];
+        assertThat(item.getResponse(), nullValue());
+        assertThat(item.getFailureMessage(), notNullValue());
+        assertThat(item.getFailureMessage(), equalTo("all shards failed"));
+        assertThat(ExceptionsHelper.unwrapCause(item.getFailure().getCause()).getMessage(),
+            containsString("[test/type/2] couldn't be found"));
     }
 
 }

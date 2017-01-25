@@ -24,9 +24,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -38,24 +36,26 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about snapshot repositories
  */
 public class RestRepositoriesAction extends AbstractCatAction {
-    @Inject
     public RestRepositoriesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/repositories", this);
     }
 
     @Override
-    protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {
+    protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
 
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
-            }
-        });
+        return channel ->
+                client.admin()
+                        .cluster()
+                        .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
+                                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
+                            }
+                        });
     }
 
     @Override

@@ -19,50 +19,26 @@
 
 package org.elasticsearch.search.searchafter;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Collections;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class SearchAfterBuilderTests extends ESTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
 
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        indicesQueriesRegistry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
-    }
-
-    private SearchAfterBuilder randomSearchFromBuilder() throws IOException {
+    private static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
@@ -151,25 +127,20 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, jsonBuilder.bytes());
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        return SearchAfterBuilder.fromXContent(parser, null);
+        return SearchAfterBuilder.fromXContent(parser);
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                return new SearchAfterBuilder(in);
-            }
-        }
+        return copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), SearchAfterBuilder::new);
     }
 
     public void testSerialization() throws Exception {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SearchAfterBuilder original = randomSearchFromBuilder();
+            SearchAfterBuilder original = randomSearchAfterBuilder();
             SearchAfterBuilder deserialized = serializedCopy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
@@ -179,30 +150,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SearchAfterBuilder firstBuilder = randomSearchFromBuilder();
-            assertFalse("searchFrom is equal to null", firstBuilder.equals(null));
-            assertFalse("searchFrom is equal to incompatible type", firstBuilder.equals(""));
-            assertTrue("searchFrom is not equal to self", firstBuilder.equals(firstBuilder));
-            assertThat("same searchFrom's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            SearchAfterBuilder secondBuilder = serializedCopy(firstBuilder);
-            assertTrue("searchFrom is not equal to self", secondBuilder.equals(secondBuilder));
-            assertTrue("searchFrom is not equal to its copy", firstBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("searchFrom copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            SearchAfterBuilder thirdBuilder = serializedCopy(secondBuilder);
-            assertTrue("searchFrom is not equal to self", thirdBuilder.equals(thirdBuilder));
-            assertTrue("searchFrom is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("searchFrom copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("searchFrom copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("searchFrom is not symmetric", thirdBuilder.equals(secondBuilder));
-            assertTrue("searchFrom is not symmetric", thirdBuilder.equals(firstBuilder));
+            // TODO add equals tests with mutating the original object
+            checkEqualsAndHashCode(randomSearchAfterBuilder(), SearchAfterBuilderTests::serializedCopy);
         }
     }
 
@@ -216,12 +165,11 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
-            new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            XContentParser parser = createParser(shuffleXContent(builder));
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser, null);
+            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
             assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
@@ -249,18 +197,18 @@ public class SearchAfterBuilderTests extends ESTestCase {
     }
 
     /**
-     * Explicitly tests what you can't list as a sortValue. What you can list is tested by {@link #randomSearchFromBuilder()}.
+     * Explicitly tests what you can't list as a sortValue. What you can list is tested by {@link #randomSearchAfterBuilder()}.
      */
     public void testBadTypes() throws IOException {
         randomSearchFromBuilderWithSortValueThrows(new Object());
         randomSearchFromBuilderWithSortValueThrows(new GeoPoint(0, 0));
-        randomSearchFromBuilderWithSortValueThrows(randomSearchFromBuilder());
+        randomSearchFromBuilderWithSortValueThrows(randomSearchAfterBuilder());
         randomSearchFromBuilderWithSortValueThrows(this);
     }
 
-    private void randomSearchFromBuilderWithSortValueThrows(Object containing) throws IOException {
+    private static void randomSearchFromBuilderWithSortValueThrows(Object containing) throws IOException {
         // Get a valid one
-        SearchAfterBuilder builder = randomSearchFromBuilder();
+        SearchAfterBuilder builder = randomSearchAfterBuilder();
         // Now replace its values with one containing the passed in object
         Object[] values = builder.getSortValues();
         values[between(0, values.length - 1)] = containing;

@@ -66,7 +66,7 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
         try {
             transport.sendResponse(version, channel, response, requestId, action, options);
         } finally {
-            release();
+            release(false);
         }
     }
 
@@ -75,19 +75,20 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
         try {
             transport.sendErrorResponse(version, channel, exception, requestId, action);
         } finally {
-            release();
+            release(true);
         }
     }
     private Exception releaseBy;
 
-    private void release() {
-        // attempt to release once atomically
-        if (released.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("reserved bytes are already released", releaseBy);
-        } else {
+    private void release(boolean isExceptionResponse) {
+        if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
+            transport.getInFlightRequestBreaker().addWithoutBreaking(-reservedBytes);
+        } else if (isExceptionResponse == false) {
+            // only fail if we are not sending an error - we might send the error triggered by the previous
+            // sendResponse call
+            throw new IllegalStateException("reserved bytes are already released", releaseBy);
         }
-        transport.getInFlightRequestBreaker().addWithoutBreaking(-reservedBytes);
     }
 
     @Override

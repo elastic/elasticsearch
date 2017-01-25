@@ -22,11 +22,14 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,7 +46,6 @@ import java.util.Map;
 public final class ScriptMetaData implements MetaData.Custom {
 
     public static final String TYPE = "stored_scripts";
-    public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
 
     private final Map<String, ScriptAsBytes> scripts;
 
@@ -65,7 +67,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         if (scriptAsBytes == null) {
             return null;
         }
-        return parseStoredScript(scriptAsBytes);
+        return scriptAsBytes.utf8ToString();
     }
 
     public static String parseStoredScript(BytesReference scriptAsBytes) {
@@ -74,10 +76,14 @@ public final class ScriptMetaData implements MetaData.Custom {
         // 2) wrapped into a 'template' json object or field
         // 3) just as is
         // In order to fetch the actual script in consistent manner this parsing logic is needed:
-        try (XContentParser parser = XContentHelper.createParser(scriptAsBytes);
+        // EMPTY is ok here because we never call namedObject, we're just copying structure.
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
              XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             parser.nextToken();
             parser.nextToken();
+            if (parser.currentToken() == Token.END_OBJECT) {
+                throw new IllegalArgumentException("Empty script");
+            }
             switch (parser.currentName()) {
                 case "script":
                 case "template":
@@ -102,12 +108,11 @@ public final class ScriptMetaData implements MetaData.Custom {
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    @Override
-    public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
+    public static ScriptMetaData fromXContent(XContentParser parser) throws IOException {
         Map<String, ScriptAsBytes> scripts = new HashMap<>();
         String key = null;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
@@ -115,10 +120,8 @@ public final class ScriptMetaData implements MetaData.Custom {
                 case FIELD_NAME:
                     key = parser.currentName();
                     break;
-                case START_OBJECT:
-                    XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-                    contentBuilder.copyCurrentStructure(parser);
-                    scripts.put(key, new ScriptAsBytes(contentBuilder.bytes()));
+                case VALUE_STRING:
+                    scripts.put(key, new ScriptAsBytes(new BytesArray(parser.text())));
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "]");
@@ -129,25 +132,23 @@ public final class ScriptMetaData implements MetaData.Custom {
 
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_AND_GATEWAY;
+        return MetaData.ALL_CONTEXTS;
     }
 
-    @Override
-    public ScriptMetaData readFrom(StreamInput in) throws IOException {
+    public ScriptMetaData(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Map<String, ScriptAsBytes> scripts = new HashMap<>();
+        this.scripts = new HashMap<>();
         for (int i = 0; i < size; i++) {
             String languageAndId = in.readString();
             BytesReference script = in.readBytesReference();
             scripts.put(languageAndId, new ScriptAsBytes(script));
         }
-        return new ScriptMetaData(scripts);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, ScriptAsBytes> entry : scripts.entrySet()) {
-            builder.rawField(entry.getKey(), entry.getValue().script);
+            builder.field(entry.getKey(), entry.getValue().script.utf8ToString());
         }
         return builder;
     }
@@ -166,8 +167,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         return new ScriptMetadataDiff((ScriptMetaData) before, this);
     }
 
-    @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -188,8 +188,8 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public String toString() {
         return "ScriptMetaData{" +
-                "scripts=" + scripts +
-                '}';
+            "scripts=" + scripts +
+            '}';
     }
 
     static String toKey(String language, String id) {
@@ -216,7 +216,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         public Builder storeScript(String lang, String id, BytesReference script) {
-            scripts.put(toKey(lang, id), new ScriptAsBytes(script));
+            BytesReference scriptBytest = new BytesArray(parseStoredScript(script));
+            scripts.put(toKey(lang, id), new ScriptAsBytes(scriptBytest));
             return this;
         }
 
@@ -232,7 +233,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, ScriptAsBytes>> pipelines;
 
@@ -241,7 +242,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         public ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new ScriptAsBytes(null));
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ScriptAsBytes::new,
+                ScriptAsBytes::readDiffFrom);
         }
 
         @Override
@@ -252,6 +254,11 @@ public final class ScriptMetaData implements MetaData.Custom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             pipelines.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
         }
     }
 
@@ -268,9 +275,12 @@ public final class ScriptMetaData implements MetaData.Custom {
             out.writeBytesReference(script);
         }
 
-        @Override
-        public ScriptAsBytes readFrom(StreamInput in) throws IOException {
-            return new ScriptAsBytes(in.readBytesReference());
+        public ScriptAsBytes(StreamInput in) throws IOException {
+            this(in.readBytesReference());
+        }
+
+        public static Diff<ScriptAsBytes> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(ScriptAsBytes::new, in);
         }
 
         @Override

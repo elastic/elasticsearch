@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,24 +35,14 @@ import java.util.Map;
 import java.util.function.Function;
 
 public final class AzureStorageSettings {
-    private static final String TIMEOUT_SUFFIX = "timeout";
-    private static final String ACCOUNT_SUFFIX = "account";
-    private static final String KEY_SUFFIX = "key";
-    private static final String DEFAULT_SUFFIX = "default";
-
-    private static final Setting.AffixKey TIMEOUT_KEY = Setting.AffixKey.withAdfix(Storage.PREFIX, TIMEOUT_SUFFIX);
-
-    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
-        TIMEOUT_KEY,
-        (s) -> Storage.TIMEOUT_SETTING.get(s).toString(),
-        (s) -> Setting.parseTimeValue(s, TimeValue.timeValueSeconds(-1), TIMEOUT_KEY.toString()),
-        Setting.Property.NodeScope);
+    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
+        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
     private static final Setting<String> ACCOUNT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, ACCOUNT_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<String> KEY_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, KEY_SUFFIX, "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
-        Setting.adfixKeySetting(Storage.PREFIX, DEFAULT_SUFFIX, "false", Boolean::valueOf, Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
 
 
     private final String name;

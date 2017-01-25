@@ -25,8 +25,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
+
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
@@ -64,7 +66,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         request.headers(),
                         request.trailingHeaders());
 
-        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(copy, ctx.channel());
+        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
         serverTransport.dispatchRequest(
             httpRequest,
             new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext));
@@ -72,6 +74,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        Netty4Utils.maybeDie(cause);
         serverTransport.exceptionCaught(ctx, cause);
     }
 

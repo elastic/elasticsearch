@@ -35,11 +35,6 @@ There are several thread pools, but the important ones include:
     queue_size of `50`.  The maximum size for this pool
     is `1 + # of available processors`.
 
-`percolate`::
-    For percolate operations. Thread pool type is `fixed`
-    with a size of `# of available processors`,
-    queue_size of `1000`.
-
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.
@@ -118,14 +113,30 @@ thread_pool:
 [[processors]]
 === Processors setting
 The number of processors is automatically detected, and the thread pool
-settings are automatically set based on it. Sometimes, the number of processors
-are wrongly detected, in such cases, the number of processors can be
-explicitly set using the `processors` setting.
+settings are automatically set based on it. In some cases it can be
+useful to override the number of detected processors. This can be done
+by explicitly setting the `processors` setting.
 
 [source,yaml]
 --------------------------------------------------
 processors: 2
 --------------------------------------------------
+
+There are a few use-cases for explicitly overriding the `processors`
+setting:
+
+. If you are running multiple instances of Elasticsearch on the same
+host but want Elasticsearch to size its thread pools as if it only has a
+fraction of the CPU, you should override the `processors` setting to the
+desired fraction (e.g., if you're running two instances of Elasticsearch
+on a 16-core machine, set `processors` to 8). Note that this is an
+expert-level use-case and there's a lot more involved than just setting
+the `processors` setting as there are other considerations like changing
+the number of garbage collector threads, pinning processes to cores,
+etc.
+. Sometimes the number of processors is wrongly detected and in such
+cases explicitly setting the `processors` setting will workaround such
+issues.
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

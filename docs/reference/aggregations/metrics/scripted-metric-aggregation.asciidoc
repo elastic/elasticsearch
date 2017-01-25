@@ -9,6 +9,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST ledger/_search?size=0
 {
     "query" : {
         "match_all" : {}
@@ -16,15 +17,17 @@ Example:
     "aggs": {
         "profit": {
             "scripted_metric": {
-                "init_script" : "_agg['transactions'] = []",
-                "map_script" : "if (doc['type'].value == \"sale\") { _agg.transactions.add(doc['amount'].value) } else { _agg.transactions.add(-1 * doc['amount'].value) }", <1>
-                "combine_script" : "profit = 0; for (t in _agg.transactions) { profit += t }; return profit",
-                "reduce_script" : "profit = 0; for (a in _aggs) { profit += a }; return profit"
+                "init_script" : "params._agg.transactions = []",
+                "map_script" : "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
+                "combine_script" : "double profit = 0; for (t in params._agg.transactions) { profit += t } return profit",
+                "reduce_script" : "double profit = 0; for (a in params._aggs) { profit += a } return profit"
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:ledger]
 
 <1> `map_script` is the only required  parameter
 
@@ -35,24 +38,24 @@ The response for the above aggregation:
 [source,js]
 --------------------------------------------------
 {
+    "took": 218,
     ...
-
     "aggregations": {
         "profit": {
-            "value": 170
+            "value": 240.0
         }
    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 218/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
 
 The above example can also be specified using file scripts as follows:
 
 [source,js]
 --------------------------------------------------
+POST ledger/_search?size=0
 {
-    "query" : {
-        "match_all" : {}
-    },
     "aggs": {
         "profit": {
             "scripted_metric": {
@@ -66,29 +69,53 @@ The above example can also be specified using file scripts as follows:
                     "file": "my_combine_script"
                 },
                 "params": {
-                    "field": "amount" <1>
+                    "field": "amount", <1>
+                    "_agg": {}        <2>
                 },
                 "reduce_script" : {
                     "file": "my_reduce_script"
-                },
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:ledger]
 
-<1> script parameters for init, map and combine scripts must be specified in a global `params` object so that it can be share between the scripts
+<1> script parameters for `init`, `map` and `combine` scripts must be specified
+in a global `params` object so that it can be share between the scripts.
+<2> if you specify script parameters then you must specify `"_agg": {}`.
+
+////
+Verify this response as well but in a hidden block.
+
+[source,js]
+--------------------------------------------------
+{
+    "took": 218,
+    ...
+    "aggregations": {
+        "profit": {
+            "value": 240.0
+        }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 218/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
+////
 
 For more details on specifying scripts see <<modules-scripting, script documentation>>.
 
 ==== Allowed return types
 
-Whilst and valid script object can be used within a single script. the scripts must return or store in the `_agg` object only the following types:
+Whilst any valid script object can be used within a single script, the scripts must return or store in the `_agg` object only the following types:
 
 * primitive types
 * String
 * Map (containing only keys and values of the types listed here)
-* Array (containing elements of only the types listed here) 
+* Array (containing elements of only the types listed here)
 
 ==== Scope of scripts
 
@@ -98,24 +125,24 @@ init_script::       Executed prior to any collection of documents. Allows the ag
 +
 In the above example, the `init_script` creates an array `transactions` in the `_agg` object.
 
-map_script::        Executed once per document collected. This is the only required script. If no combine_script is specified, the resulting state 
+map_script::        Executed once per document collected. This is the only required script. If no combine_script is specified, the resulting state
                     needs to be stored in an object named `_agg`.
 +
-In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field 
-is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added 
+In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
+is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added
 to transactions.
 
-combine_script::    Executed once on each shard after document collection is complete. Allows the aggregation to consolidate the state returned from 
+combine_script::    Executed once on each shard after document collection is complete. Allows the aggregation to consolidate the state returned from
                     each shard. If a combine_script is not provided the combine phase will return the aggregation variable.
 +
-In the above example, the `combine_script` iterates through all the stored transactions, summing the values in the `profit` variable 
+In the above example, the `combine_script` iterates through all the stored transactions, summing the values in the `profit` variable
 and finally returns `profit`.
 
-reduce_script::     Executed once on the coordinating node after all shards have returned their results. The script is provided with access to a 
-                    variable `_aggs` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided 
+reduce_script::     Executed once on the coordinating node after all shards have returned their results. The script is provided with access to a
+                    variable `_aggs` which is an array of the result of the combine_script on each shard. If a reduce_script is not provided
                     the reduce phase will return the `_aggs` variable.
 +
-In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the 
+In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.
 
 ==== Worked Example
@@ -124,36 +151,19 @@ Imagine a situation where you index the following documents into and index with 
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/transactions/stock/1' -d '
-{
-    "type": "sale",
-    "amount": 80
-}
-'
-
-$ curl -XPUT 'http://localhost:9200/transactions/stock/2' -d '
-{
-    "type": "cost",
-    "amount": 10
-}
-'
-
-$ curl -XPUT 'http://localhost:9200/transactions/stock/3' -d '
-{
-    "type": "cost",
-    "amount": 30
-}
-'
-
-$ curl -XPUT 'http://localhost:9200/transactions/stock/4' -d '
-{
-    "type": "sale",
-    "amount": 130
-}
-'
+PUT /transactions/stock/_bulk?refresh
+{"index":{"_id":1}}
+{"type": "sale","amount": 80}
+{"index":{"_id":2}}
+{"type": "cost","amount": 10}
+{"index":{"_id":3}}
+{"type": "cost","amount": 30}
+{"index":{"_id":4}}
+{"type": "sale","amount": 130}
 --------------------------------------------------
+// CONSOLE
 
-Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up on shard B. The following is a breakdown of what the aggregation result is 
+Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up on shard B. The following is a breakdown of what the aggregation result is
 at each stage of the example above.
 
 ===== Before init_script
@@ -221,7 +231,7 @@ Shard B::
 
 ===== After combine_script
 
-The combine_script is executed on each shard after document collection is complete and reduces all the transactions down to a single profit figure for each 
+The combine_script is executed on each shard after document collection is complete and reduces all the transactions down to a single profit figure for each
 shard (by summing the values in the transactions array) which is passed back to the coordinating node:
 
 Shard A::        50
@@ -239,7 +249,7 @@ The reduce_script receives an `_aggs` array containing the result of the combine
 ]
 --------------------------------------------------
 
-It reduces the responses for the shards down to a final overall profit figure (by summing the values) and returns this as the result of the aggregation to 
+It reduces the responses for the shards down to a final overall profit figure (by summing the values) and returns this as the result of the aggregation to
 produce the response:
 
 [source,js]
@@ -258,8 +268,8 @@ produce the response:
 ==== Other Parameters
 
 [horizontal]
-params::           Optional. An object whose contents will be passed as variables to the  `init_script`, `map_script` and `combine_script`. This can be 
-                   useful to allow the user to control the behavior of the aggregation and for storing state between the scripts. If this is not specified, 
+params::           Optional. An object whose contents will be passed as variables to the  `init_script`, `map_script` and `combine_script`. This can be
+                   useful to allow the user to control the behavior of the aggregation and for storing state between the scripts. If this is not specified,
                    the default is the equivalent of providing:
 +
 [source,js]
@@ -268,6 +278,3 @@ params::           Optional. An object whose contents will be passed as variable
     "_agg" : {}
 }
 --------------------------------------------------
-reduce_params::    Optional. An object whose contents will be passed as variables to the `reduce_script`. This can be useful to allow the user to control 
-                   the behavior of the reduce phase. If this is not specified the variable will be undefined in the reduce_script execution.
-

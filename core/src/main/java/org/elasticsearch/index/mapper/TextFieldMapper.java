@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +39,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -120,10 +121,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            TextFieldMapper fieldMapper = new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap,
+            return new TextFieldMapper(
+                    name, fieldType, defaultFieldType, positionIncrementGap, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -131,9 +131,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(fieldName);
-            builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
-            builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
+            builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
+            builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
+            builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -144,10 +144,10 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     builder.positionIncrementGap(newPositionIncrementGap);
                     iterator.remove();
                 } else if (propName.equals("fielddata")) {
-                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode, "fielddata"));
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("fielddata_frequency_filter")) {
                     Map<?,?> frequencyFilter = (Map<?, ?>) propNode;
@@ -297,7 +297,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     private int positionIncrementGap;
 
     protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap,
+                                int positionIncrementGap, Boolean includeInAll,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -306,6 +306,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
         this.positionIncrementGap = positionIncrementGap;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -318,45 +319,12 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         return includeInAll;
     }
 
-    @Override
-    public TextFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public TextFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public TextFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
     public int getPositionIncrementGap() {
         return this.positionIncrementGap;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();

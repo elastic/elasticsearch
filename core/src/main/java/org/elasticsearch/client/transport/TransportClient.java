@@ -27,8 +27,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.transport.support.TransportProxyClient;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -40,11 +41,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -52,6 +56,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -61,7 +66,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -71,6 +81,15 @@ import java.util.stream.Collectors;
  * started in client mode (only connects, no bind).
  */
 public abstract class TransportClient extends AbstractClient {
+
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
+        Setting.boolSetting("client.transport.sniff", false, Setting.Property.NodeScope);
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
@@ -99,7 +118,7 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
-                                                Collection<Class<? extends Plugin>> plugins) {
+                                                Collection<Class<? extends Plugin>> plugins, HostFailureListener failureListner) {
         if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
@@ -119,46 +138,59 @@ public abstract class TransportClient extends AbstractClient {
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
-            NetworkModule networkModule = new NetworkModule(networkService, settings, true);
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(networkModule.getNamedWriteables());
+            entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
+            entries.addAll(ClusterModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
                                          .collect(Collectors.toList()));
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+                    searchModule.getNamedXContents().stream(),
+                    pluginsService.filterPlugins(Plugin.class).stream()
+                            .flatMap(p -> p.getNamedXContent().stream())
+                    ).flatMap(Function.identity()).collect(toList()));
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(networkModule);
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-            modules.add(searchModule);
-            ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+            ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getIndexScopedSettings(),
+                    settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
+                    pluginsService.filterPlugins(ActionPlugin.class), null, null);
             modules.add(actionModule);
 
-            pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
+            NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
+                bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
+            final Transport transport = networkModule.getTransportSupplier().get();
+            final TransportService transportService = new TransportService(settings, transport, threadPool,
+                networkModule.getTransportInterceptor(),
+                boundTransportAddress -> DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 0),
+                    UUIDs.randomBase64UUID()), null);
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                b.bind(Transport.class).toInstance(transport);
+                b.bind(TransportService.class).toInstance(transportService);
+                b.bind(NetworkService.class).toInstance(networkService);
             }));
 
             Injector injector = modules.createInjector();
-            final TransportService transportService = injector.getInstance(TransportService.class);
             final TransportClientNodesService nodesService =
-                new TransportClientNodesService(settings, transportService, threadPool);
+                new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
+                    ? (t, e) -> {} : failureListner);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                 actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
@@ -216,7 +248,7 @@ public abstract class TransportClient extends AbstractClient {
      * Creates a new TransportClient with the given settings and plugins
      */
     public TransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        this(buildTemplate(settings, Settings.EMPTY, plugins));
+        this(buildTemplate(settings, Settings.EMPTY, plugins, null));
     }
 
     /**
@@ -225,8 +257,9 @@ public abstract class TransportClient extends AbstractClient {
      * @param defaultSettings default settings that are merged after the plugins have added it's additional settings.
      * @param plugins the client plugins
      */
-    protected TransportClient(Settings settings, Settings defaultSettings, Collection<Class<? extends Plugin>> plugins) {
-        this(buildTemplate(settings, defaultSettings, plugins));
+    protected TransportClient(Settings settings, Settings defaultSettings, Collection<Class<? extends Plugin>> plugins,
+                              HostFailureListener hostFailureListener) {
+        this(buildTemplate(settings, defaultSettings, plugins, hostFailureListener));
     }
 
     private TransportClient(ClientTemplate template) {
@@ -323,7 +356,25 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
+    }
+
+    /**
+     * Listener that allows to be notified whenever a node failure / disconnect happens
+     */
+    @FunctionalInterface
+    public interface HostFailureListener {
+        /**
+         * Called once a node disconnect is detected.
+         * @param node the node that has been disconnected
+         * @param ex the exception causing the disconnection
+         */
+        void onNodeDisconnected(DiscoveryNode node, Exception ex);
+    }
+
+    // pkg private for testing
+    TransportClientNodesService getNodesService() {
+        return nodesService;
     }
 }

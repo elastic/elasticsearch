@@ -20,7 +20,7 @@
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertFalse;
  */
 public class NetworkDisruption implements ServiceDisruptionScheme {
 
-    private final ESLogger logger = Loggers.getLogger(NetworkDisruption.class);
+    private final Logger logger = Loggers.getLogger(NetworkDisruption.class);
 
     private final DisruptedLinks disruptedLinks;
     private final NetworkLinkDisruptionType networkLinkDisruptionType;
@@ -56,6 +56,14 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     public NetworkDisruption(DisruptedLinks disruptedLinks, NetworkLinkDisruptionType networkLinkDisruptionType) {
         this.disruptedLinks = disruptedLinks;
         this.networkLinkDisruptionType = networkLinkDisruptionType;
+    }
+
+    public DisruptedLinks getDisruptedLinks() {
+        return disruptedLinks;
+    }
+
+    public NetworkLinkDisruptionType getNetworkLinkDisruptionType() {
+        return networkLinkDisruptionType;
     }
 
     @Override
@@ -77,7 +85,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     protected void ensureNodeCount(InternalTestCluster cluster) {
         assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
             .setWaitForNodes("" + cluster.size())
-            .setWaitForRelocatingShards(0)
+            .setWaitForNoRelocatingShards(true)
             .get().isTimedOut());
     }
 
@@ -141,6 +149,11 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     private MockTransportService transport(String node) {
         return (MockTransportService) cluster.getInstance(TransportService.class, node);
+    }
+
+    @Override
+    public String toString() {
+        return "network disruption (disruption type: " + networkLinkDisruptionType + ", disrupted links: " + disruptedLinks + ")";
     }
 
     /**
@@ -325,6 +338,18 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "bridge partition (super connected node: [" + bridgeNode + "], partition 1: " + nodesSideOne +
                 " and partition 2: " + nodesSideTwo + ")";
+        }
+    }
+
+    public static class IsolateAllNodes extends DisruptedLinks {
+
+        public IsolateAllNodes(Set<String> nodes) {
+            super(nodes);
+        }
+
+        @Override
+        public boolean disrupt(String node1, String node2) {
+            return true;
         }
     }
 

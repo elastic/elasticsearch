@@ -23,9 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -36,8 +34,6 @@ import java.util.Locale;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
-
-    @Inject
     public RestHealthAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/health", this);
@@ -49,10 +45,10 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
 
-        client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
+        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
             @Override
             public RestResponse buildResponse(final ClusterHealthResponse health) throws Exception {
                 return RestTable.buildResponse(buildTable(health, request), channel);

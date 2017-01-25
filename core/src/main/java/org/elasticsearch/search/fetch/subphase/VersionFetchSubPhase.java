@@ -31,7 +31,8 @@ public final class VersionFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.version() == false) {
+        if (context.version() == false ||
+            (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
             return;
         }
         long version = Versions.NOT_FOUND;

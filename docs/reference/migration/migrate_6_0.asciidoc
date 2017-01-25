@@ -1,0 +1,65 @@
+[[breaking-changes-6.0]]
+== Breaking changes in 6.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.0.
+
+[float]
+=== Indices created before 6.0
+
+Elasticsearch 6.0 can read indices created in version 5.0 or above.  An
+Elasticsearch 6.0 node will not start in the presence of indices created in a
+version of Elasticsearch before 5.0.
+
+[IMPORTANT]
+.Reindex indices from Elasticseach 2.x or before
+=========================================
+
+Indices created in Elasticsearch 2.x or before will need to be reindexed with
+Elasticsearch 5.x in order to be readable by Elasticsearch 6.x. The easiest
+way to reindex old indices is to use the `reindex` API.
+
+=========================================
+
+[float]
+=== Also see:
+
+* <<breaking_60_cat_changes>>
+* <<breaking_60_stats_changes>>
+* <<breaking_60_rest_changes>>
+* <<breaking_60_search_changes>>
+* <<breaking_60_mappings_changes>>
+* <<breaking_60_docs_changes>>
+* <<breaking_60_cluster_changes>>
+* <<breaking_60_settings_changes>>
+* <<breaking_60_plugins_changes>>
+* <<breaking_60_indices_changes>>
+* <<breaking_60_scripting_changes>>
+* <<breaking_60_ingest_changes>>
+* <<breaking_60_percolator_changes>>
+
+include::migrate_6_0/cat.asciidoc[]
+
+include::migrate_6_0/stats.asciidoc[]
+
+include::migrate_6_0/rest.asciidoc[]
+
+include::migrate_6_0/search.asciidoc[]
+
+include::migrate_6_0/mappings.asciidoc[]
+
+include::migrate_6_0/docs.asciidoc[]
+
+include::migrate_6_0/cluster.asciidoc[]
+
+include::migrate_6_0/settings.asciidoc[]
+
+include::migrate_6_0/plugins.asciidoc[]
+
+include::migrate_6_0/indices.asciidoc[]
+
+include::migrate_6_0/scripting.asciidoc[]
+
+include::migrate_6_0/ingest.asciidoc[]
+
+include::migrate_6_0/percolator.asciidoc[]

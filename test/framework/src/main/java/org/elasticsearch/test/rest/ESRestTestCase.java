@@ -37,7 +37,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -53,107 +56,179 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.net.ssl.SSLContext;
-
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
  */
-public class ESRestTestCase extends ESTestCase {
+public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
-    public static Map<String, Object> entityAsMap(Response response) throws IOException {
+    public Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = xContentType.xContent().createParser(response.getEntity().getContent())) {
+        try (XContentParser parser = createParser(xContentType.xContent(), response.getEntity().getContent())) {
             return parser.map();
         }
     }
 
-    private final List<HttpHost> clusterHosts;
+    private static List<HttpHost> clusterHosts;
     /**
-     * A client for the running Elasticsearch cluster. Lazily initialized on first use.
+     * A client for the running Elasticsearch cluster
      */
-    private final RestClient client;
+    private static RestClient client;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
-     * completes. Lazily initialized on first use.
+     * completes
      */
-    private final RestClient adminClient;
+    private static RestClient adminClient;
 
-    public ESRestTestCase() {
-        String cluster = System.getProperty("tests.rest.cluster");
-        if (cluster == null) {
-            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                    + "to which to send REST requests");
-        }
-        String[] stringUrls = cluster.split(",");
-        List<HttpHost> clusterHosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+    @Before
+    public void initClient() throws IOException {
+        if (client == null) {
+            assert adminClient == null;
+            assert clusterHosts == null;
+            String cluster = System.getProperty("tests.rest.cluster");
+            if (cluster == null) {
+                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                        + "to which to send REST requests");
             }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            clusterHosts.add(new HttpHost(host, port, getProtocol()));
+            String[] stringUrls = cluster.split(",");
+            List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+            for (String stringUrl : stringUrls) {
+                int portSeparator = stringUrl.lastIndexOf(':');
+                if (portSeparator < 0) {
+                    throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+                }
+                String host = stringUrl.substring(0, portSeparator);
+                int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+                hosts.add(new HttpHost(host, port, getProtocol()));
+            }
+            clusterHosts = unmodifiableList(hosts);
+            logger.info("initializing REST clients against {}", clusterHosts);
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
         }
-        this.clusterHosts = unmodifiableList(clusterHosts);
-        try {
-            client = buildClient(restClientSettings());
-            adminClient = buildClient(restAdminSettings());
-        } catch (IOException e) {
-            // Wrap the IOException so children don't have to declare a constructor just to rethrow it.
-            throw new RuntimeException("Error building clients", e);
-        }
+        assert client != null;
+        assert adminClient != null;
+        assert clusterHosts != null;
     }
 
     /**
      * Clean up after the test case.
      */
     @After
-    public final void after() throws Exception {
+    public final void cleanUpCluster() throws Exception {
         wipeCluster();
         logIfThereAreRunningTasks();
-        closeClients();
+    }
+
+    @AfterClass
+    public static void closeClients() throws IOException {
+        try {
+            IOUtils.close(client, adminClient);
+        } finally {
+            clusterHosts = null;
+            client = null;
+            adminClient = null;
+        }
     }
 
     /**
-     * Get a client, building it if it hasn't been built for this test.
+     * Get the client used for ordinary api calls while writing a test
      */
-    protected final RestClient client() {
+    protected static RestClient client() {
         return client;
     }
 
     /**
      * Get the client used for test administrative actions. Do not use this while writing a test. Only use it for cleaning up after tests.
      */
-    protected final RestClient adminClient() {
+    protected static RestClient adminClient() {
         return adminClient;
     }
 
+    /**
+     * Returns whether to preserve the indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the data directory and indices need to be preserved between test runs
+     * (for example, when testing rolling upgrades).
+     */
+    protected boolean preserveIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
+     * templates.
+     *
+     * @return whether or not to preserve templates
+     */
+    protected boolean preserveTemplatesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to preserve the repositories on completion of this test.
+     */
+    protected boolean preserveReposUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
-        // wipe indices
-        try {
-            adminClient().performRequest("DELETE", "*");
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
+        if (preserveIndicesUponCompletion() == false) {
+            // wipe indices
+            try {
+                adminClient().performRequest("DELETE", "*");
+            } catch (ResponseException e) {
+                // 404 here just means we had no indexes
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
             }
         }
 
         // wipe index templates
-        adminClient().performRequest("DELETE", "_template/*");
+        if (preserveTemplatesUponCompletion() == false) {
+            adminClient().performRequest("DELETE", "_template/*");
+        }
 
-        // wipe snapshots
-        // Technically this deletes all repositories and leave the snapshots in the repository. OK.
-        adminClient().performRequest("DELETE", "_snapshot/*");
+        wipeSnapshots();
+    }
+
+    /**
+     * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
+     * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
+     * the snapshots intact in the repository.
+     */
+    private void wipeSnapshots() throws IOException {
+        for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest("GET", "_snapshot/_all")).entrySet()) {
+            String repoName = repo.getKey();
+            Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
+            String repoType = (String) repoSpec.get("type");
+            if (repoType.equals("fs")) {
+                // All other repo types we really don't have a chance of being able to iterate properly, sadly.
+                String url = "_snapshot/" + repoName + "/_all";
+                Map<String, String> params = singletonMap("ignore_unavailable", "true");
+                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest("GET", url, params)).get("snapshots");
+                for (Object snapshot : snapshots) {
+                    Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
+                    String name = (String) snapshotInfo.get("snapshot");
+                    logger.debug("wiping snapshot [{}/{}]", repoName, name);
+                    adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
+                }
+            }
+            if (preserveReposUponCompletion() == false) {
+                logger.debug("wiping snapshot repository [{}]", repoName);
+                adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            }
+        }
     }
 
     /**
@@ -176,10 +251,6 @@ public class ESRestTestCase extends ESTestCase {
          * could determine that some tasks are run by the user we'd fail the tests if those tasks were running and ignore any background
          * tasks.
          */
-    }
-
-    private void closeClients() throws IOException {
-        IOUtils.close(client, adminClient);
     }
 
     /**
@@ -210,9 +281,8 @@ public class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[0])).setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -262,5 +332,4 @@ public class ESRestTestCase extends ESTestCase {
         }
         return runningTasks;
     }
-
 }

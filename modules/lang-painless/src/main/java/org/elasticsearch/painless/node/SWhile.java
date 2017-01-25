@@ -134,4 +134,9 @@ public final class SWhile extends AStatement {
 
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, block);
+    }
 }

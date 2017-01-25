@@ -66,9 +66,9 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
  exponential back off). Reaching the maximum retries limit causes the `_delete_by_query`
  to abort and all failures are returned in the `failures` of the response.
  The deletions that have been performed still stick. In other words, the process
- is not rolled back, only aborted. While the first failure causes the abort all
+ is not rolled back, only aborted. While the first failure causes the abort, all
  failures that are returned by the failing bulk request are returned in the `failures`
- element so it's possible for there to be quite a few.
+ element; therefore it's possible for there to be quite a few failed entities.
 
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
@@ -160,7 +160,7 @@ to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
 `wait_for_active_shards` controls how many copies of a shard must be active
-before proceeding with the request. See <<index-wait-for-active-shards,here>> 
+before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
@@ -233,7 +233,7 @@ You can fetch the status of any running delete-by-query requests with the
 
 [source,js]
 --------------------------------------------------
-GET _tasks?detailed=true&action=*/delete/byquery
+GET _tasks?detailed=true&actions=*/delete/byquery
 --------------------------------------------------
 // CONSOLE
 
@@ -244,7 +244,7 @@ The responses looks like:
 {
   "nodes" : {
     "r1A2WoRbTwKZ516z6NEs5A" : {
-      "name" : "Tyrannus",
+      "name" : "r1A2WoR",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",
@@ -294,7 +294,7 @@ GET /_tasks/taskId:1
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
-and `wait_for_completion=false` was set on it them it'll come back with a
+and `wait_for_completion=false` was set on it then it'll come back with 
 `results` or an `error` field. The cost of this feature is the document that
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
@@ -308,13 +308,13 @@ Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskid:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
-Cancelation should happen quickly but might take a few seconds. The task status
+Cancellation should happen quickly but might take a few seconds. The task status
 API above will continue to list the task until it is wakes to cancel itself.
 
 
@@ -327,7 +327,7 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/taskid:1/_rethrottle?requests_per_second=-1
+POST _delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
@@ -339,3 +339,169 @@ like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
 query takes effect immediately but rethrotting that slows down the query will
 take effect on after completing the current batch. This prevents scroll
 timeouts.
+
+[float]
+[[docs-delete-by-query-manual-slice]]
+=== Manually slicing
+
+Delete-by-query supports <<sliced-scroll>> allowing you to manually parallelize
+the process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 0,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST twitter/_search?size=0&filter_path=hits.total
+{
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 0
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
+
+[float]
+[[docs-delete-by-query-automatic-slice]]
+=== Automatic slicing
+
+You can also let delete-by-query automatically parallelize using
+<<sliced-scroll>> to slice on `_uid`:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_delete_by_query?refresh&slices=5
+{
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you also can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_search?size=0&filter_path=hits.total
+{
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 0
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
+
+Adding `slices` to `_delete_by_query` just automates the manual process used in
+the section above, creating sub-requests which means it has some quirks:
+* You can see these requests in the
+<<docs-delete-by-query-task-api,Tasks APIs>>. These sub-requests are "child"
+tasks of the task for the request with `slices`.
+* Fetching the status of the task for the request with `slices` only contains
+the status of completed slices.
+* These sub-requests are individually addressable for things like cancellation
+and rethrottling.
+* Rethrottling the request with `slices` will rethrottle the unfinished
+sub-request proportionally.
+* Canceling the request with `slices` will cancel each sub-request.
+* Due to the nature of `slices` each sub-request won't get a perfectly even
+portion of the documents. All documents will be addressed, but some slices may
+be larger than others. Expect larger slices to have a more even distribution.
+* Parameters like `requests_per_second` and `size` on a request with `slices`
+are distributed proportionally to each sub-request. Combine that with the point
+above about distribution being uneven and you should conclude that the using
+`size` with `slices` might not result in exactly `size` documents being
+`_delete_by_query`ed.
+* Each sub-requests gets a slightly different snapshot of the source index
+though these are all taken at approximately the same time.
+
+[float]
+[[docs-delete-by-query-picking-slices]]
+=== Picking the number of slices
+
+At this point we have a few recommendations around the number of `slices` to
+use (the `max` parameter in the slice API if manually parallelizing):
+
+* Don't use large numbers. `500` creates fairly massive CPU thrash.
+* It is more efficient from a query performance standpoint to use some multiple
+of the number of shards in the source index.
+* Using exactly as many shards as are in the source index is the most efficient
+from a query performance standpoint.
+* Indexing performance should scale linearly across available resources with
+the number of `slices`.
+* Whether indexing or query performance dominates that process depends on lots
+of factors like the documents being reindexed and the cluster doing the
+reindexing.

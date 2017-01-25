@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,6 +49,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
@@ -59,7 +62,8 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new VersionFieldMapper(indexSettings);
         }
     }
@@ -99,7 +103,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         // see InternalEngine.updateVersion to see where the real version value is set
         final Field version = new NumericDocValuesField(NAME, -1L);
         context.version(version);

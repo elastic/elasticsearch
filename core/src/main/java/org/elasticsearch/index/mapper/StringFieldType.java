@@ -46,6 +46,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         super(ref);
     }
 
+    @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         failIfNotIndexed();
         BytesRef[] bytesRefs = new BytesRef[values.size()];
@@ -85,7 +86,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
         failIfNotIndexed();
         return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

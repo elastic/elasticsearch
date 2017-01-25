@@ -20,19 +20,25 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,8 +48,40 @@ import java.util.Objects;
  */
 public class HistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder> {
-    public static final String NAME = InternalHistogram.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final String NAME = "histogram";
+
+    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
+            Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
+            () -> new double[]{ Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY });
+    static {
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
+    }
+
+    private static final ObjectParser<HistogramAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+
+        PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
+
+        PARSER.declareDouble(HistogramAggregationBuilder::offset, Histogram.OFFSET_FIELD);
+
+        PARSER.declareBoolean(HistogramAggregationBuilder::keyed, Histogram.KEYED_FIELD);
+
+        PARSER.declareLong(HistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
+
+        PARSER.declareField((histogram, extendedBounds) -> {
+            histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
+        }, parser -> EXTENDED_BOUNDS_PARSER.apply(parser, null), ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField(HistogramAggregationBuilder::order, HistogramAggregationBuilder::parseOrder,
+                Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    public static HistogramAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new HistogramAggregationBuilder(aggregationName), context);
+    }
 
     private double interval;
     private double offset = 0;
@@ -55,12 +93,12 @@ public class HistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(name, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
     }
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
         if (in.readBoolean()) {
             order = InternalOrder.Streams.readOrder(in);
         }
@@ -221,14 +259,14 @@ public class HistogramAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
-        return InternalHistogram.TYPE.name();
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
                 context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -247,5 +285,35 @@ public class HistogramAggregationBuilder
                 && Objects.equals(offset, other.offset)
                 && Objects.equals(minBound, other.minBound)
                 && Objects.equals(maxBound, other.maxBound);
+    }
+
+    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
+        InternalOrder order = null;
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                boolean asc = "asc".equals(dir);
+                if (!asc && !"desc".equals(dir)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
+                            + "]. Should be either [asc] or [desc]");
+                }
+                order = resolveOrder(currentFieldName, asc);
+            }
+        }
+        return order;
+    }
+
+    static InternalOrder resolveOrder(String key, boolean asc) {
+        if ("_key".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.KEY_ASC : InternalOrder.KEY_DESC);
+        }
+        if ("_count".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
+        }
+        return new InternalOrder.Aggregation(key, asc);
     }
 }

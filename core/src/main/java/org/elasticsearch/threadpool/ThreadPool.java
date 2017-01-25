@@ -19,13 +19,15 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -142,7 +144,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    static final Executor DIRECT_EXECUTOR = command -> command.run();
+    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();
 
     private final ThreadContext threadContext;
 
@@ -161,13 +163,13 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        final int availableProcessors = EsExecutors.numberOfProcessors(settings);
         final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
         final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
         final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
         builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200));
-        builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 50));
+        builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 200)); // now that we reuse bulk for index/delete ops
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));
         builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
@@ -276,23 +278,26 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Get the generic executor. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
-     * the {@link ThreadContext} of the thread that queues it.
+     * Get the generic executor service. This executor service {@link Executor#execute(Runnable)} method will run the {@link Runnable} it
+     * is given in the {@link ThreadContext} of the thread that queues it.
      */
-    public Executor generic() {
+    public ExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the executor with the given name. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
-     * the {@link ThreadContext} of the thread that queues it.
+     * Get the executor service with the given name. This executor service's {@link Executor#execute(Runnable)} method will run the
+     * {@link Runnable} it is given in the {@link ThreadContext} of the thread that queues it.
+     *
+     * @param name the name of the executor service to obtain
+     * @throws IllegalArgumentException if no executor service with the specified name exists
      */
-    public Executor executor(String name) {
-        Executor executor = executors.get(name).executor();
-        if (executor == null) {
-            throw new IllegalArgumentException("No executor found for [" + name + "]");
+    public ExecutorService executor(String name) {
+        final ExecutorHolder holder = executors.get(name);
+        if (holder == null) {
+            throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
-        return executor;
+        return holder.executor();
     }
 
     public ScheduledExecutorService scheduler() {
@@ -413,7 +418,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }
@@ -513,32 +518,28 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     static class ExecutorHolder {
-        private final Executor executor;
+        private final ExecutorService executor;
         public final Info info;
 
-        ExecutorHolder(Executor executor, Info info) {
+        ExecutorHolder(ExecutorService executor, Info info) {
             assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }
 
-        Executor executor() {
+        ExecutorService executor() {
             return executor;
         }
     }
 
-    public static class Info implements Streamable, ToXContent {
+    public static class Info implements Writeable, ToXContent {
 
-        private String name;
-        private ThreadPoolType type;
-        private int min;
-        private int max;
-        private TimeValue keepAlive;
-        private SizeValue queueSize;
-
-        Info() {
-
-        }
+        private final String name;
+        private final ThreadPoolType type;
+        private final int min;
+        private final int max;
+        private final TimeValue keepAlive;
+        private final SizeValue queueSize;
 
         public Info(String name, ThreadPoolType type) {
             this(name, type, -1);
@@ -555,6 +556,25 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             this.max = max;
             this.keepAlive = keepAlive;
             this.queueSize = queueSize;
+        }
+
+        public Info(StreamInput in) throws IOException {
+            name = in.readString();
+            type = ThreadPoolType.fromType(in.readString());
+            min = in.readInt();
+            max = in.readInt();
+            keepAlive = in.readOptionalWriteable(TimeValue::new);
+            queueSize = in.readOptionalWriteable(SizeValue::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type.getType());
+            out.writeInt(min);
+            out.writeInt(max);
+            out.writeOptionalWriteable(keepAlive);
+            out.writeOptionalWriteable(queueSize);
         }
 
         public String getName() {
@@ -581,46 +601,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         @Nullable
         public SizeValue getQueueSize() {
             return this.queueSize;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
-            min = in.readInt();
-            max = in.readInt();
-            if (in.readBoolean()) {
-                keepAlive = new TimeValue(in);
-            }
-            if (in.readBoolean()) {
-                queueSize = SizeValue.readSizeValue(in);
-            }
-            in.readBoolean(); // here to conform with removed waitTime
-            in.readBoolean(); // here to conform with removed rejected setting
-            in.readBoolean(); // here to conform with queue type
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeString(type.getType());
-            out.writeInt(min);
-            out.writeInt(max);
-            if (keepAlive == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                keepAlive.writeTo(out);
-            }
-            if (queueSize == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                queueSize.writeTo(out);
-            }
-            out.writeBoolean(false); // here to conform with removed waitTime
-            out.writeBoolean(false); // here to conform with removed rejected setting
-            out.writeBoolean(false); // here to conform with queue type
         }
 
         @Override
@@ -652,7 +632,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             static final String KEEP_ALIVE = "keep_alive";
             static final String QUEUE_SIZE = "queue_size";
         }
-
     }
 
     /**
@@ -779,14 +758,14 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
         @Override
         public void onFailure(Exception e) {
-            threadPool.logger.warn("failed to run scheduled task [{}] on thread pool [{}]", e, runnable.toString(), executor);
+            threadPool.logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", runnable.toString(), executor), e);
         }
 
         @Override
         public void onRejection(Exception e) {
             run = false;
             if (threadPool.logger.isDebugEnabled()) {
-                threadPool.logger.debug("scheduled task [{}] was rejected on thread pool [{}]", e, runnable, executor);
+                threadPool.logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", runnable, executor), e);
             }
         }
 

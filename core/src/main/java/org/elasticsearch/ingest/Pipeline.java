@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,16 +34,21 @@ public final class Pipeline {
 
     static final String DESCRIPTION_KEY = "description";
     static final String PROCESSORS_KEY = "processors";
+    static final String VERSION_KEY = "version";
     static final String ON_FAILURE_KEY = "on_failure";
 
     private final String id;
+    @Nullable
     private final String description;
+    @Nullable
+    private final Integer version;
     private final CompoundProcessor compoundProcessor;
 
-    public Pipeline(String id, String description, CompoundProcessor compoundProcessor) {
+    public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
         this.id = id;
         this.description = description;
         this.compoundProcessor = compoundProcessor;
+        this.version = version;
     }
 
     /**
@@ -62,8 +68,19 @@ public final class Pipeline {
     /**
      * An optional description of what this pipeline is doing to the data gets processed by this pipeline.
      */
+    @Nullable
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * An optional version stored with the pipeline so that it can be used to determine if the pipeline should be updated / replaced.
+     *
+     * @return {@code null} if not supplied.
+     */
+    @Nullable
+    public Integer getVersion() {
+        return version;
     }
 
     /**
@@ -100,6 +117,7 @@ public final class Pipeline {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
+            Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
             List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
             List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
@@ -114,7 +132,7 @@ public final class Pipeline {
             }
             CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
                     Collections.unmodifiableList(onFailureProcessors));
-            return new Pipeline(id, description, compoundProcessor);
+            return new Pipeline(id, description, version, compoundProcessor);
         }
 
     }

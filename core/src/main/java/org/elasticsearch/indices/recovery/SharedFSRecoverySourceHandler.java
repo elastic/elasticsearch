@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -39,7 +39,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
                                          Supplier<Long> currentClusterStateVersionSupplier,
-                                         Function<String, Releasable> delayNewRecoveries, ESLogger logger) {
+                                         Function<String, Releasable> delayNewRecoveries, Logger logger) {
         super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
         this.shard = shard;
         this.request = request;
@@ -50,7 +50,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         boolean engineClosed = false;
         try {
             logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
-            if (isPrimaryRelocation()) {
+            long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
+            if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
                     // if we relocate we need to close the engine in order to open a new
@@ -62,7 +63,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(0);
+            prepareTargetForTranslog(0, maxUnsafeAutoIdTimestamp);
             finalizeRecovery();
             return response;
         } catch (Exception e) {

@@ -22,21 +22,30 @@ other nodes.
 [[unicast]]
 ===== Unicast
 
-The unicast discovery requires a list of hosts to use that will act
-as gossip routers. It provides the following settings with the
-`discovery.zen.ping.unicast` prefix:
+Unicast discovery requires a list of hosts to use that will act as gossip routers. These hosts can be specified as
+hostnames or IP addresses; hosts specified as hostnames are resolved to IP addresses during each round of pinging. Note
+that with the Java security manager in place, the JVM defaults to caching positive hostname resolutions indefinitely.
+This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`] to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java security policy]. Any hosts that
+fail to resolve will be logged. Note also that with the Java security manager in place, the JVM defaults to caching
+negative hostname resolutions for ten seconds. This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+to your http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java security policy].
+
+Unicast discovery provides the following settings with the `discovery.zen.ping.unicast` prefix:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
-`127.0.0.1, [::1]`
+          value should be in the form of `host:port` or `host` (where `port` defaults to the setting `transport.profiles.default.port`
+          falling back to `transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. Defaults to `127.0.0.1, [::1]`
+|`hosts.resolve_timeout` |The amount of time to wait for DNS lookups on each round of pinging. Specified as
+<<time-units, time units>>. Defaults to 5s.
 |=======================================================================
 
-The unicast discovery uses the
-<<modules-transport,transport>> module to
-perform the discovery.
+The unicast discovery uses the <<modules-transport,transport>> module to perform the discovery.
 
 [float]
 [[master-election]]
@@ -70,7 +79,7 @@ active master node will step down and a new master election will be begin.
 
 This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
 having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
-of either master node will result in an inoperable cluster.
+of either master eligible node will result in an inoperable cluster.
 
 [float]
 [[fault-detection]]

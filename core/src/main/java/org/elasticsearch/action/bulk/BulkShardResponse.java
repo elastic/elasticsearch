@@ -28,9 +28,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
     private ShardId shardId;

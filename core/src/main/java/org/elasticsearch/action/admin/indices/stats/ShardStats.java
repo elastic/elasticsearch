@@ -19,25 +19,28 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-/**
- */
-public class ShardStats implements Streamable, ToXContent {
+public class ShardStats implements Streamable, Writeable, ToXContent {
     private ShardRouting shardRouting;
     private CommonStats commonStats;
     @Nullable
     private CommitStats commitStats;
+    @Nullable
+    private SeqNoStats seqNoStats;
     private String dataPath;
     private String statePath;
     private boolean isCustomDataPath;
@@ -45,13 +48,14 @@ public class ShardStats implements Streamable, ToXContent {
     ShardStats() {
     }
 
-    public ShardStats(ShardRouting routing, ShardPath shardPath, CommonStats commonStats, CommitStats commitStats) {
+    public ShardStats(ShardRouting routing, ShardPath shardPath, CommonStats commonStats, CommitStats commitStats, SeqNoStats seqNoStats) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
         this.statePath = shardPath.getRootStatePath().toString();
         this.isCustomDataPath = shardPath.isCustomDataPath();
         this.commitStats = commitStats;
         this.commonStats = commonStats;
+        this.seqNoStats = seqNoStats;
     }
 
     /**
@@ -67,6 +71,11 @@ public class ShardStats implements Streamable, ToXContent {
 
     public CommitStats getCommitStats() {
         return this.commitStats;
+    }
+
+    @Nullable
+    public SeqNoStats getSeqNoStats() {
+        return this.seqNoStats;
     }
 
     public String getDataPath() {
@@ -90,11 +99,14 @@ public class ShardStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
-        commonStats = CommonStats.readCommonStats(in);
+        commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        }
     }
 
     @Override
@@ -105,6 +117,9 @@ public class ShardStats implements Streamable, ToXContent {
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeOptionalWriteable(seqNoStats);
+        }
     }
 
     @Override
@@ -119,6 +134,9 @@ public class ShardStats implements Streamable, ToXContent {
         commonStats.toXContent(builder, params);
         if (commitStats != null) {
             commitStats.toXContent(builder, params);
+        }
+        if (seqNoStats != null) {
+            seqNoStats.toXContent(builder, params);
         }
         builder.startObject(Fields.SHARD_PATH);
         builder.field(Fields.STATE_PATH, statePath);

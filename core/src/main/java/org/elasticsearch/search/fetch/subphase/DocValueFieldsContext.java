@@ -18,38 +18,23 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
-
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * All the required context to pull a field from the doc values.
  */
-public class DocValueFieldsContext extends FetchSubPhaseContext {
+public class DocValueFieldsContext {
 
-    public static class DocValueField {
-        private final String name;
+    private final List<String> fields;
 
-        public DocValueField(String name) {
-            this.name = name;
-        }
-
-        public String name() {
-            return name;
-        }
+    public DocValueFieldsContext(List<String> fields) {
+        this.fields = fields;
     }
 
-    private List<DocValueField> fields = new ArrayList<>();
-
-    public DocValueFieldsContext() {
-    }
-
-    public void add(DocValueField field) {
-        this.fields.add(field);
-    }
-
-    public List<DocValueField> fields() {
+    /**
+     * Returns the required docvalue fields
+     */
+    public List<String> fields() {
         return this.fields;
     }
 }

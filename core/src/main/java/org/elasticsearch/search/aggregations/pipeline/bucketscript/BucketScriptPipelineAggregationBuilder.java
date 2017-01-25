@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -48,7 +46,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final Script script;
     private final Map<String, String> bucketsPathsMap;
@@ -152,7 +149,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(BUCKETS_PATH.getPreferredName(), bucketsPathsMap);
-        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
         if (format != null) {
             builder.field(FORMAT.getPreferredName(), format);
         }
@@ -173,21 +170,21 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPathsMap = new HashMap<>();
                     bucketsPathsMap.put("_value", parser.text());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
+                } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (BUCKETS_PATH.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
@@ -202,9 +199,9 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (BUCKETS_PATH.match(currentFieldName)) {
                     Map<String, Object> map = parser.map();
                     bucketsPathsMap = new HashMap<>();
                     for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -225,7 +222,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         }
 
         if (script == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + ScriptField.SCRIPT.getPreferredName()
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + Script.SCRIPT_PARSE_FIELD.getPreferredName()
                     + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 

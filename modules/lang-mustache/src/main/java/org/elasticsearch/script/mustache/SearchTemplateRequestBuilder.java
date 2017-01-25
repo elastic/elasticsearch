@@ -22,7 +22,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.Map;
 
@@ -47,7 +47,23 @@ public class SearchTemplateRequestBuilder
         return this;
     }
 
-    public SearchTemplateRequestBuilder setScriptType(ScriptService.ScriptType scriptType) {
+    /**
+     * Enables explanation for each hit on how its score was computed. Disabled by default
+     */
+    public SearchTemplateRequestBuilder setExplain(boolean explain) {
+        request.setExplain(explain);
+        return this;
+    }
+
+    /**
+     * Enables profiling of the query. Disabled by default
+     */
+    public SearchTemplateRequestBuilder setProfile(boolean profile) {
+        request.setProfile(profile);
+        return this;
+    }
+
+    public SearchTemplateRequestBuilder setScriptType(ScriptType scriptType) {
         request.setScriptType(scriptType);
         return this;
     }

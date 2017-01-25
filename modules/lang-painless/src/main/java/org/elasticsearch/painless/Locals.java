@@ -36,7 +36,7 @@ import java.util.Set;
  * Tracks user defined methods and variables across compilation phases.
  */
 public final class Locals {
-    
+
     /** Reserved word: params map parameter */
     public static final String PARAMS = "params";
     /** Reserved word: Lucene scorer parameter */
@@ -53,25 +53,35 @@ public final class Locals {
     public static final String THIS   = "#this";
     /** Reserved word: unused */
     public static final String DOC    = "doc";
-    
-    /** Map of always reserved keywords */
-    public static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            THIS,PARAMS,SCORER,DOC,VALUE,SCORE,CTX,LOOP
+
+    /** Map of always reserved keywords for the main scope */
+    public static final Set<String> MAIN_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        THIS,PARAMS,SCORER,DOC,VALUE,SCORE,CTX,LOOP
     )));
-    
+
+    /** Map of always reserved keywords for a function scope */
+    public static final Set<String> FUNCTION_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        THIS,LOOP
+    )));
+
+    /** Map of always reserved keywords for a lambda scope */
+    public static final Set<String> LAMBDA_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        THIS,LOOP
+    )));
+
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
     public static Locals newLocalScope(Locals currentScope) {
         return new Locals(currentScope);
     }
-    
-    /** 
+
+    /**
      * Creates a new lambda scope inside the current scope
      * <p>
      * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
      */
-    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters, 
+    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType);
+        Locals locals = new Locals(programScope, returnType, LAMBDA_KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -87,10 +97,10 @@ public final class Locals {
         }
         return locals;
     }
-    
+
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType);
+        Locals locals = new Locals(programScope, returnType, FUNCTION_KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.type, parameter.name, false);
         }
@@ -100,10 +110,10 @@ public final class Locals {
         }
         return locals;
     }
-    
+
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(Locals programScope, boolean usesScore, boolean usesCtx, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE);
+        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE, MAIN_KEYWORDS);
         // This reference.  Internal use only.
         locals.defineVariable(null, Definition.getType("Object"), THIS, true);
 
@@ -137,16 +147,16 @@ public final class Locals {
         }
         return locals;
     }
-    
+
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
     public static Locals newProgramScope(Collection<Method> methods) {
-        Locals locals = new Locals(null, null);
+        Locals locals = new Locals(null, null, null);
         for (Method method : methods) {
             locals.addMethod(method);
         }
         return locals;
     }
-    
+
     /** Checks if a variable exists or not, in this scope or any parents. */
     public boolean hasVariable(String name) {
         Variable variable = lookupVariable(null, name);
@@ -158,7 +168,7 @@ public final class Locals {
         }
         return false;
     }
-    
+
     /** Accesses a variable. This will throw IAE if the variable does not exist */
     public Variable getVariable(Location location, String name) {
         Variable variable = lookupVariable(location, name);
@@ -170,7 +180,7 @@ public final class Locals {
         }
         throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
     }
-    
+
     /** Looks up a method. Returns null if the method does not exist. */
     public Method getMethod(MethodKey key) {
         Method method = lookupMethod(key);
@@ -182,23 +192,23 @@ public final class Locals {
         }
         return null;
     }
-    
+
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
     public Variable addVariable(Location location, Type type, String name, boolean readonly) {
         if (hasVariable(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
         }
-        if (KEYWORDS.contains(name)) {
+        if (keywords.contains(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is reserved."));
         }
         return defineVariable(location, type, name, readonly);
     }
-    
+
     /** Return type of this scope (e.g. int, if inside a function that returns int) */
     public Type getReturnType() {
         return returnType;
     }
-    
+
     /** Returns the top-level program scope. */
     public Locals getProgramScope() {
         Locals locals = this;
@@ -207,13 +217,15 @@ public final class Locals {
         }
         return locals;
     }
-    
+
     ///// private impl
 
     // parent scope
     private final Locals parent;
     // return type of this scope
     private final Type returnType;
+    // keywords for this scope
+    private final Set<String> keywords;
     // next slot number to assign
     private int nextSlotNumber;
     // variable name -> variable
@@ -225,15 +237,16 @@ public final class Locals {
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.getReturnType());
+        this(parent, parent.returnType, parent.keywords);
     }
-    
+
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Type returnType) {
+    private Locals(Locals parent, Type returnType, Set<String> keywords) {
         this.parent = parent;
         this.returnType = returnType;
+        this.keywords = keywords;
         if (parent == null) {
             this.nextSlotNumber = 0;
         } else {
@@ -262,7 +275,7 @@ public final class Locals {
         return methods.get(key);
     }
 
-    
+
     /** Defines a variable at this scope internally. */
     private Variable defineVariable(Location location, Type type, String name, boolean readonly) {
         if (variables == null) {
@@ -273,7 +286,7 @@ public final class Locals {
         nextSlotNumber += type.type.getSize();
         return variable;
     }
-    
+
     private void addMethod(Method method) {
         if (methods == null) {
             methods = new HashMap<>();
@@ -293,7 +306,7 @@ public final class Locals {
         public final Type type;
         public final boolean readonly;
         private final int slot;
-        
+
         public Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
@@ -301,12 +314,12 @@ public final class Locals {
             this.slot = slot;
             this.readonly = readonly;
         }
-        
+
         public int getSlot() {
             return slot;
         }
     }
-    
+
     public static final class Parameter {
         public final Location location;
         public final String name;

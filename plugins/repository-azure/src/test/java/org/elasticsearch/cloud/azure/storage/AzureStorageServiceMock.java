@@ -43,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class AzureStorageServiceMock extends AbstractComponent implements AzureStorageService {
 
-    protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
+    protected final Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
     public AzureStorageServiceMock() {
         super(Settings.EMPTY);
@@ -94,7 +94,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) {
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
-        for (String blobName : blobs.keySet()) {
+        blobs.forEach((String blobName, ByteArrayOutputStream bos) -> {
             final String checkBlob;
             if (keyPath != null && !keyPath.isEmpty()) {
                 // strip off key path from the beginning of the blob name
@@ -103,9 +103,9 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
                 checkBlob = blobName;
             }
             if (prefix == null || startsWithIgnoreCase(checkBlob, prefix)) {
-                blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, blobs.get(blobName).size()));
+                blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, bos.size()));
             }
-        }
+        });
         return blobsBuilder.immutableMap();
     }
 

@@ -20,12 +20,12 @@
 package org.elasticsearch.cloud.azure.blobstore;
 
 import com.microsoft.azure.storage.StorageException;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.repositories.RepositoryException;
 
@@ -38,12 +38,9 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
-/**
- *
- */
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    protected final ESLogger logger = Loggers.getLogger(AzureBlobContainer.class);
+    protected final Logger logger = Loggers.getLogger(AzureBlobContainer.class);
     protected final AzureBlobStore blobStore;
 
     protected final String keyPath;

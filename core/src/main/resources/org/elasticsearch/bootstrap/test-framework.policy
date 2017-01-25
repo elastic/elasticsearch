@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 //// additional test framework permissions.
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
@@ -33,14 +33,16 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-6.1.0.jar}" {
+grant codeBase "${codebase.lucene-test-framework-6.4.0.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
   permission java.nio.file.LinkPermission "hard";
+  // needed for RAMUsageTester
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.3.2.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.4.0.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads
@@ -59,4 +61,9 @@ grant codeBase "${codebase.junit4-ant-2.3.2.jar}" {
 grant codeBase "${codebase.junit-4.11.jar}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.mocksocket-1.1.jar}" {
+  // mocksocket accepts socket connections
+  permission java.net.SocketPermission "*", "accept";
 };

@@ -24,9 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 
-/**
- *
- */
 public class SearchLookup {
 
     final DocLookup docMap;

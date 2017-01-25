@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -35,7 +37,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -71,7 +72,7 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
     private final String indexName;
@@ -106,7 +107,7 @@ public class RecoverySourceHandler {
                                  final Supplier<Long> currentClusterStateVersionSupplier,
                                  Function<String, Releasable> delayNewRecoveries,
                                  final int fileChunkSizeInBytes,
-                                 final ESLogger logger) {
+                                 final Logger logger) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
@@ -147,6 +148,8 @@ public class RecoverySourceHandler {
 
             // engine was just started at the end of phase 1
             if (shard.state() == IndexShardState.RELOCATED) {
+                assert request.isPrimaryRelocation() == false :
+                    "recovery target should not retry primary relocation if previous attempt made it past finalization step";
                 /**
                  * The primary shard has been relocated while we copied files. This means that we can't guarantee any more that all
                  * operations that were replicated during the file copy (when the target engine was not yet opened) will be present in the
@@ -219,7 +222,7 @@ public class RecoverySourceHandler {
                 final long numDocsSource = recoverySourceMetadata.getNumDocs();
                 if (numDocsTarget != numDocsSource) {
                     throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
-                            "of docs differ: " + numDocsTarget + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsSource
+                            "of docs differ: " + numDocsSource + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsTarget
                             + "(" + request.targetNode().getName() + ")");
                 }
                 // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
@@ -313,8 +316,12 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn("{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                corruptIndexException, shard.shardId(), request.targetNode());
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
+                                shard.shardId(),
+                                request.targetNode()),
+                            corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -322,7 +329,7 @@ public class RecoverySourceHandler {
                 }
             }
 
-            prepareTargetForTranslog(translogView.totalOperations());
+            prepareTargetForTranslog(translogView.totalOperations(), shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp());
 
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();
@@ -334,14 +341,14 @@ public class RecoverySourceHandler {
     }
 
 
-    protected void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
+    protected void prepareTargetForTranslog(final int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive
         // operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -384,9 +391,12 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
-        cancellableThreads.execute(recoveryTarget::finalizeRecovery);
+        cancellableThreads.execute(() -> {
+            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
+            recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
+        });
 
-        if (isPrimaryRelocation()) {
+        if (request.isPrimaryRelocation()) {
             // in case of primary relocation we have to ensure that the cluster state on the primary relocation target has all
             // replica shards that have recovered or are still recovering from the current primary, otherwise replication actions
             // will not be send to these replicas. To accomplish this, first block new recoveries, then take version of latest cluster
@@ -408,10 +418,6 @@ public class RecoverySourceHandler {
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
                 indexName, shardId, request.targetNode(), stopWatch.totalTime());
-    }
-
-    protected boolean isPrimaryRelocation() {
-        return request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION;
     }
 
     /**
@@ -560,8 +566,13 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    corruptIndexException, shardId, request.targetNode(), md);
+                            logger.warn(
+                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                    "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                                    shardId,
+                                    request.targetNode(),
+                                    md),
+                                corruptIndexException);
                             throw exception;
                         }
                     } else {

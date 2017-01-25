@@ -30,8 +30,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
   end
-  config.vm.define "ubuntu-1504" do |config|
-    config.vm.box = "elastic/ubuntu-15.04-x86_64"
+  config.vm.define "ubuntu-1604" do |config|
+    config.vm.box = "elastic/ubuntu-16.04-x86_64"
     ubuntu_common config, extra: <<-SHELL
       # Install Jayatana so we can work around it being present.
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
@@ -77,9 +77,12 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
+  # Expose project directory
+  PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
+  config.vm.synced_folder PROJECT_DIR, "/project"
   config.vm.provider "virtualbox" do |v|
-    # Give the boxes 2GB so they can run our tests if they have to.
-    v.memory = 2048
+    # Give the boxes 3GB because Elasticsearch defaults to using 2GB
+    v.memory = 3072
   end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
@@ -149,6 +152,7 @@ def dnf_common(config)
     update_command: "dnf check-update",
     update_tracking_file: "/var/cache/dnf/last_update",
     install_command: "dnf install -y",
+    install_command_retries: 5,
     java_package: "java-1.8.0-openjdk-devel")
   if Vagrant.has_plugin?("vagrant-cachier")
     # Autodetect doesn't work....
@@ -198,6 +202,7 @@ def provision(config,
     update_command: 'required',
     update_tracking_file: 'required',
     install_command: 'required',
+    install_command_retries: 0,
     java_package: 'required',
     extra: '')
   # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
@@ -208,9 +213,27 @@ def provision(config,
   config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
+
+    # Retry install command up to $2 times, if failed
+    retry_installcommand() {
+      n=0
+      while true; do
+        #{install_command} $1 && break
+        let n=n+1
+        if [ $n -ge $2 ]; then
+          echo "==> Exhausted retries to install $1"
+          return 1
+        fi
+        echo "==> Retrying installing $1, attempt $((n+1))"
+        # Add a small delay to increase chance of metalink providing updated list of mirrors
+        sleep 5
+      done
+    }
+
     installed() {
       command -v $1 2>&1 >/dev/null
     }
+
     install() {
       # Only apt-get update if we haven't in the last day
       if [ ! -f #{update_tracking_file} ] || [ "x$(find #{update_tracking_file} -mtime +0)" == "x#{update_tracking_file}" ]; then
@@ -219,8 +242,14 @@ def provision(config,
         touch #{update_tracking_file}
       fi
       echo "==> Installing $1"
-      #{install_command} $1
+      if [ #{install_command_retries} -eq 0 ]
+      then
+            #{install_command} $1
+      else
+            retry_installcommand $1 #{install_command_retries}
+      fi
     }
+
     ensure() {
       installed $1 || install $1
     }
@@ -246,8 +275,21 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export TESTROOT=/elasticsearch/qa/vagrant/build/testroot
-export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
+export BATS=/project/build/bats
+export BATS_UTILS=/project/build/bats/utils
+export BATS_TESTS=/project/build/bats/tests
+export BATS_ARCHIVES=/project/build/bats/archives
 VARS
+    cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
+Defaults   env_keep += "ZIP"
+Defaults   env_keep += "TAR"
+Defaults   env_keep += "RPM"
+Defaults   env_keep += "DEB"
+Defaults   env_keep += "BATS"
+Defaults   env_keep += "BATS_UTILS"
+Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "BATS_ARCHIVES"
+SUDOERS_VARS
+    chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
 end

@@ -64,9 +64,6 @@ query.
 
 |`analyzer` |The analyzer name to be used when analyzing the query string.
 
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
 

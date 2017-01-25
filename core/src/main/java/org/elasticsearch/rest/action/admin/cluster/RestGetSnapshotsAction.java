@@ -20,16 +20,15 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,8 +37,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns information about snapshot
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
-
-    @Inject
     public RestGetSnapshotsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
@@ -47,7 +44,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 
@@ -55,6 +52,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<GetSnapshotsResponse>(channel));
+        return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

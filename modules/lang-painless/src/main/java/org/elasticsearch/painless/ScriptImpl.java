@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link LeafSearchScript}
  * to run a previously compiled Painless script.
@@ -120,18 +122,20 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         try {
             return executable.execute(variables, scorer, doc, aggregationValue);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (Debug.PainlessExplainError e) {
+            throw convertToScriptException(e, e.getMetadata());
         } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-            throw convertToScriptException(e);
+            throw convertToScriptException(e, emptyMap());
         }
     }
 
     /**
-     * Adds stack trace and other useful information to exceptiosn thrown
+     * Adds stack trace and other useful information to exceptions thrown
      * from a Painless script.
      * @param t The throwable to build an exception around.
      * @return The generated ScriptException.
      */
-    private ScriptException convertToScriptException(Throwable t) {
+    private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> metadata) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -174,7 +178,11 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         } else {
             name = executable.getName();
         }
-        throw new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
+        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
+        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
+            scriptException.addMetadata(entry.getKey(), entry.getValue());
+        }
+        return scriptException;
     }
 
     /** returns true for methods that are part of the runtime */

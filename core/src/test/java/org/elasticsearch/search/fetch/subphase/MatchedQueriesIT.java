@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -39,9 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 
-/**
- *
- */
 public class MatchedQueriesIT extends ESIntegTestCase {
     public void testSimpleMatchedQueryFromFilteredQuery() throws Exception {
         createIndex("test");
@@ -174,44 +170,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    public void testIndicesFilterSupportsName() {
-        createIndex("test1", "test2");
-        ensureGreen();
-
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
-        client().prepareIndex("test2", "type1", "2").setSource("title", "title2").get();
-        client().prepareIndex("test2", "type1", "3").setSource("title", "title3").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().must(matchAllQuery()).filter(
-                            boolQuery().should(
-                                indicesQuery(termQuery("title", "title1").queryName("title1"), "test1")
-                                        .noMatchQuery(termQuery("title", "title2").queryName("title2")).queryName("indices_filter")).should(
-                                termQuery("title", "title3").queryName("title3")).queryName("or"))).get();
-        assertHitCount(searchResponse, 3L);
-
-        for (SearchHit hit : searchResponse.getHits()) {
-            if (hit.id().equals("1")) {
-                assertThat(hit.matchedQueries().length, equalTo(3));
-                assertThat(hit.matchedQueries(), hasItemInArray("indices_filter"));
-                assertThat(hit.matchedQueries(), hasItemInArray("title1"));
-                assertThat(hit.matchedQueries(), hasItemInArray("or"));
-            } else if (hit.id().equals("2")) {
-                assertThat(hit.matchedQueries().length, equalTo(3));
-                assertThat(hit.matchedQueries(), hasItemInArray("indices_filter"));
-                assertThat(hit.matchedQueries(), hasItemInArray("title2"));
-                assertThat(hit.matchedQueries(), hasItemInArray("or"));
-            } else if (hit.id().equals("3")) {
-                assertThat(hit.matchedQueries().length, equalTo(2));
-                assertThat(hit.matchedQueries(), hasItemInArray("title3"));
-                assertThat(hit.matchedQueries(), hasItemInArray("or"));
-            } else {
-                fail("Unexpected document returned with id " + hit.id());
-            }
-        }
-    }
-
     public void testRegExpQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -334,7 +292,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(
                             boolQuery()
-                                    .minimumNumberShouldMatch(1)
+                                    .minimumShouldMatch(1)
                                     .should(queryStringQuery("dolor").queryName("dolor"))
                                     .should(queryStringQuery("elit").queryName("elit"))
                     )

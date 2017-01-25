@@ -19,9 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -30,10 +32,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -357,7 +362,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCanCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
-                        5, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        2, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .get());
         indexRandom(true, client().prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
                 client().prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
@@ -406,15 +411,88 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L));
 
-        // If size > 1 and cache flag is set on the request we should cache
-        final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
-                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+        // If the request has an aggregation containing now we should not cache
+        final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+                .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
         assertSearchResponse(r4);
         assertThat(r4.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(5L));
+                equalTo(0L));
+
+        // If the request has an aggregation containng now we should not cache
+        final SearchResponse r5 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+                .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();
+        assertSearchResponse(r5);
+        assertThat(r5.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If size > 1 and cache flag is set on the request we should cache
+        final SearchResponse r6 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+        assertSearchResponse(r6);
+        assertThat(r6.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(2L));
+    }
+
+    public void testCacheWithFilteredAlias() {
+        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "created_at", "type=date")
+            .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
+            .get());
+        DateTime now = new DateTime(DateTimeZone.UTC);
+        client().prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
+            DateTimeFormat.forPattern("YYYY-MM-dd").print(now)).get();
+        refresh();
+
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(0L));
+
+        SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(1L));
+
+        r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(1L));
+
+        r1 = client().prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(2L));
+
+        r1 = client().prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(2L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(2L));
     }
 
 }

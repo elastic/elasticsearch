@@ -5,8 +5,7 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
 * to find geo-points within a <<query-dsl-geo-bounding-box-query,bounding box>>,
   within a certain <<query-dsl-geo-distance-query,distance>> of a central point,
-  within a <<query-dsl-geo-polygon-query,polygon>>, or within a
-  <<query-dsl-geohash-cell-query,geohash>> cell.
+  or within a <<query-dsl-geo-polygon-query,polygon>>.
 * to aggregate documents by <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
   or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
@@ -101,30 +100,10 @@ The following parameters are accepted by `geo_point` fields:
 
 [horizontal]
 
-<<geohash,`geohash`>>::
-
-    Should the geo-point also be indexed as a geohash in the `.geohash`
-    sub-field? Defaults to `false`, unless `geohash_prefix` is `true`.
-
-<<geohash-precision,`geohash_precision`>>::
-
-    The maximum length of the geohash to use for the `geohash` and
-    `geohash_prefix` options.
-
-<<geohash-prefix,`geohash_prefix`>>::
-
-    Should the geo-point also be indexed as a geohash plus all its prefixes?
-    Defaults to `false`.
-
 <<ignore-malformed,`ignore_malformed`>>::
 
     If `true`, malformed geo-points are ignored. If `false` (default),
     malformed geo-points throw an exception and reject the whole document.
-
-<<lat-lon,`lat_lon`>>::
-
-    Should the geo-point also be indexed as `.lat` and `.lon` sub-fields?
-    Accepts `true` and `false` (default).
 
 ==== Using geo-points in scripts
 

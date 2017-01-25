@@ -21,9 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 
-/**
- *
- */
 public interface TokenFilterFactory {
 
     String name();

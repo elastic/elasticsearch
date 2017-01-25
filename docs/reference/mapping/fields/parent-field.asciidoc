@@ -28,7 +28,7 @@ PUT my_index/my_child/2?parent=1 <3>
   "text": "This is a child document"
 }
 
-PUT my_index/my_child/3?parent=1 <3>
+PUT my_index/my_child/3?parent=1&refresh=true <3>
 {
   "text": "This is another child document"
 }
@@ -59,16 +59,18 @@ See the <<query-dsl-has-child-query,`has_child`>> and
 the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation,
 and <<parent-child-inner-hits,inner hits>> for more information.
 
-The value of the `_parent` field is accessible in queries, aggregations,
-and scripts:
+The value of the `_parent` field is accessible in aggregations
+and scripts, and may be queried with the
+<<query-dsl-parent-id-query, `parent_id` query>>:
 
 [source,js]
 --------------------------
 GET my_index/_search
 {
   "query": {
-    "terms": {
-      "_parent": [ "1" ] <1>
+    "parent_id": { <1>
+      "type": "my_child",
+      "id": "1"
     }
   },
   "aggs": {
@@ -82,7 +84,6 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "lang": "painless",
          "inline": "doc['_parent']" <3>
       }
     }
@@ -92,7 +93,7 @@ GET my_index/_search
 // CONSOLE
 // TEST[continued]
 
-<1> Querying on the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
+<1> Querying the id of the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
 <2> Aggregating on the `_parent` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
 <3> Accessing the `_parent` field in scripts
 
@@ -103,7 +104,7 @@ GET my_index/_search
   cannot be established between documents of the same type.
 
 * The `_parent.type` setting can only point to a type that doesn't exist yet.
-  This means that a type cannot become a parent type after it is has been
+  This means that a type cannot become a parent type after it has been
   created.
 
 * Parent and child documents must be indexed on the same shard.  The `parent`

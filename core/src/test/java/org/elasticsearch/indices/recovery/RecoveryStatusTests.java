@@ -22,7 +22,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -42,8 +41,8 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("foo");
 
         IndexShard indexShard = service.getShardOrNull(0);
-        DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), emptyMap(), emptySet(), Version.CURRENT);
-        RecoveryTarget status = new RecoveryTarget(indexShard, node, new RecoveryTargetService.RecoveryListener() {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        RecoveryTarget status = new RecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }

@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,13 +38,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -77,19 +75,20 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.ESAllocationTestCase.createAllocationService;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.ESAllocationTestCase.createAllocationService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging("discovery.zen:TRACE")
+@TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class NodeJoinControllerTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -118,8 +117,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
             DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY), new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
+            new ElectMasterService(Settings.EMPTY), Settings.EMPTY);
     }
 
     @After
@@ -426,7 +424,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(),
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.add(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
@@ -556,7 +554,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         final DiscoveryNode other_node = new DiscoveryNode(
             randomBoolean() ? existing.getName() : "other_name",
             existing.getId(),
-            randomBoolean() ? existing.getAddress() : LocalTransportAddress.buildUnique(),
+            randomBoolean() ? existing.getAddress() : buildNewFakeTransportAddress(),
             randomBoolean() ? existing.getAttributes() : Collections.singletonMap("attr", "other"),
             randomBoolean() ? existing.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
             randomBoolean() ? existing.getVersion() : VersionUtils.randomVersion(random()));
@@ -584,7 +582,7 @@ public class NodeJoinControllerTests extends ESTestCase {
      */
     public void testElectionBasedOnConflictingNodes() throws InterruptedException, ExecutionException {
         final DiscoveryNode masterNode = clusterService.localNode();
-        final DiscoveryNode otherNode = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
             EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
         // simulate master going down with stale nodes in it's cluster state (for example when min master nodes is set to 2)
         // also add some shards to that node
@@ -597,7 +595,6 @@ public class NodeJoinControllerTests extends ESTestCase {
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
-            stateBuilder.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
             RoutingTable.Builder routing = new RoutingTable.Builder();
             routing.addAsNew(indexMetaData);
@@ -607,30 +604,36 @@ public class NodeJoinControllerTests extends ESTestCase {
             final DiscoveryNode primaryNode = randomBoolean() ? masterNode : otherNode;
             final DiscoveryNode replicaNode = primaryNode.equals(masterNode) ? otherNode : masterNode;
             final boolean primaryStarted = randomBoolean();
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, null, true,
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
                 primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                 primaryStarted ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
             if (primaryStarted) {
                 boolean replicaStared = randomBoolean();
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, false,
                     replicaStared ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                     replicaStared ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "getting there")));
             } else {
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, false,
                     ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "life sucks")));
             }
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
-            stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
+            IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
+            IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
+            stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
+                        .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
         }
 
         setState(clusterService, stateBuilder.build());
 
-        final DiscoveryNode restartedNode = new DiscoveryNode(otherNode.getId(),
-            randomBoolean() ? otherNode.getAddress() : LocalTransportAddress.buildUnique(), otherNode.getAttributes(),
-            otherNode.getRoles(), Version.CURRENT);
+        // conflict on node id or address
+        final DiscoveryNode conflictingNode = randomBoolean() ?
+            new DiscoveryNode(otherNode.getId(), randomBoolean() ? otherNode.getAddress() : buildNewFakeTransportAddress(),
+                otherNode.getAttributes(), otherNode.getRoles(), Version.CURRENT) :
+            new DiscoveryNode("conflicting_address_node", otherNode.getAddress(), otherNode.getAttributes(), otherNode.getRoles(),
+                Version.CURRENT);
 
         nodeJoinController.startElectionContext();
-        final SimpleFuture joinFuture = joinNodeAsync(restartedNode);
+        final SimpleFuture joinFuture = joinNodeAsync(conflictingNode);
         final CountDownLatch elected = new CountDownLatch(1);
         nodeJoinController.waitToBeElectedAsMaster(1, TimeValue.timeValueHours(5), new NodeJoinController.ElectionCallback() {
             @Override
@@ -654,9 +657,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertTrue(finalNodes.isLocalNodeElectedMaster());
         assertThat(finalNodes.getLocalNode(), equalTo(masterNode));
         assertThat(finalNodes.getSize(), equalTo(2));
-        assertThat(finalNodes.get(restartedNode.getId()), equalTo(restartedNode));
+        assertThat(finalNodes.get(conflictingNode.getId()), equalTo(conflictingNode));
         List<ShardRouting> activeShardsOnRestartedNode =
-            StreamSupport.stream(finalState.getRoutingNodes().node(restartedNode.getId()).spliterator(), false)
+            StreamSupport.stream(finalState.getRoutingNodes().node(conflictingNode.getId()).spliterator(), false)
                 .filter(ShardRouting::active).collect(Collectors.toList());
         assertThat(activeShardsOnRestartedNode, empty());
     }
@@ -666,7 +669,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
         for (int i = 0;i< count;i++) {
-            final DiscoveryNode node = new DiscoveryNode("node_" + state.nodes().getSize() + i, LocalTransportAddress.buildUnique(),
+            final DiscoveryNode node = new DiscoveryNode("node_" + state.nodes().getSize() + i, buildNewFakeTransportAddress(),
                 emptyMap(), new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), Version.CURRENT);
             nodesBuilder.add(node);
         }
@@ -675,10 +678,10 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     protected void assertNodesInCurrentState(List<DiscoveryNode> expectedNodes) {
         final ClusterState state = clusterService.state();
-        logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
+        logger.info("assert for [{}] in:\n{}", expectedNodes, state);
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes, discoveryNodes.get(node.getId()), equalTo(node));
         }
         assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }
@@ -720,7 +723,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("unexpected error for {}", e, future);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error for {}", future), e);
                 future.markAsFailed(e);
             }
         });
@@ -749,6 +752,6 @@ public class NodeJoinControllerTests extends ESTestCase {
             roles.add(DiscoveryNode.Role.MASTER);
         }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-/**
- *
- */
 class ParsedScrollId {
 
     public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";

@@ -28,15 +28,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.HashSet;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
@@ -55,65 +54,71 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testPrimaryNoRefreshCall() throws Exception {
-        noRefreshCall(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond);
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        result.respond(listener);
+        assertNotNull(listener.response);
+        assertNull(listener.failure);
+        verify(indexShard, never()).refresh(any());
+        verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testReplicaNoRefreshCall() throws Exception {
-        noRefreshCall(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond);
-    }
-
-    private <Result, Response> void noRefreshCall(ThrowingBiFunction<TestAction, TestRequest, Result> action,
-                                        BiConsumer<Result, CapturingActionListener<Response>> responder)
-            throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
-        Result result = action.apply(new TestAction(), request);
-        CapturingActionListener<Response> listener = new CapturingActionListener<>();
-        responder.accept(result, listener);
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WriteReplicaResult<TestRequest> result =
+                testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        result.respond(listener);
         assertNotNull(listener.response);
+        assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryImmediateRefresh() throws Exception {
-        immediateRefresh(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond, r -> assertTrue(r.forcedRefresh));
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        result.respond(listener);
+        assertNotNull(listener.response);
+        assertNull(listener.failure);
+        assertTrue(listener.response.forcedRefresh);
+        verify(indexShard).refresh("refresh_flag_index");
+        verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testReplicaImmediateRefresh() throws Exception {
-        immediateRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, r -> {});
-    }
-
-    private <Result, Response> void immediateRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
-                                                     BiConsumer<Result, CapturingActionListener<Response>> responder,
-                                                     Consumer<Response> responseChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        Result result = action.apply(new TestAction(), request);
-        CapturingActionListener<Response> listener = new CapturingActionListener<>();
-        responder.accept(result, listener);
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WriteReplicaResult<TestRequest> result =
+                testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        result.respond(listener);
         assertNotNull(listener.response);
-        responseChecker.accept(listener.response);
+        assertNull(listener.failure);
         verify(indexShard).refresh("refresh_flag_index");
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryWaitForRefresh() throws Exception {
-        waitForRefresh(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond,
-            (r, forcedRefresh) -> assertEquals(forcedRefresh, r.forcedRefresh));
-    }
-
-    public void testReplicaWaitForRefresh() throws Exception {
-        waitForRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, (r, forcedRefresh) -> {});
-    }
-
-    private <Result, Response> void waitForRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
-                                                   BiConsumer<Result, CapturingActionListener<Response>> responder,
-                                         BiConsumer<Response, Boolean> resultChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        Result result = action.apply(new TestAction(), request);
-        CapturingActionListener<Response> listener = new CapturingActionListener<>();
-        responder.accept(result, listener);
+
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        result.respond(listener);
         assertNull(listener.response); // Haven't reallresponded yet
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -125,39 +130,106 @@ public class TransportWriteActionTests extends ESTestCase {
         boolean forcedRefresh = randomBoolean();
         refreshListener.getValue().accept(forcedRefresh);
         assertNotNull(listener.response);
-        resultChecker.accept(listener.response, forcedRefresh);
+        assertNull(listener.failure);
+        assertEquals(forcedRefresh, listener.response.forcedRefresh);
     }
 
-    private class TestAction extends TransportWriteAction<TestRequest, TestResponse> {
+    public void testReplicaWaitForRefresh() throws Exception {
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        result.respond(listener);
+        assertNull(listener.response); // Haven't responded yet
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
+        verify(indexShard, never()).refresh(any());
+        verify(indexShard).addRefreshListener(any(), refreshListener.capture());
+
+        // Now we can fire the listener manually and we'll get a response
+        boolean forcedRefresh = randomBoolean();
+        refreshListener.getValue().accept(forcedRefresh);
+        assertNotNull(listener.response);
+        assertNull(listener.failure);
+    }
+
+    public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
+        TestRequest request = new TestRequest();
+        TestAction testAction = new TestAction(true, true);
+        TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> writePrimaryResult =
+                testAction.shardOperationOnPrimary(request, indexShard);
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        writePrimaryResult.respond(listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
+    }
+
+    public void testDocumentFailureInShardOperationOnReplica() throws Exception {
+        TestRequest request = new TestRequest();
+        TestAction testAction = new TestAction(randomBoolean(), true);
+        TransportWriteAction.WriteReplicaResult<TestRequest> writeReplicaResult =
+                testAction.shardOperationOnReplica(request, indexShard);
+        CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
+        writeReplicaResult.respond(listener);
+        assertNull(listener.response);
+        assertNotNull(listener.failure);
+    }
+
+    private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
+
+        private final boolean withDocumentFailureOnPrimary;
+        private final boolean withDocumentFailureOnReplica;
+
         protected TestAction() {
-            super(Settings.EMPTY, "test", mock(TransportService.class), null, null, null, null, new ActionFilters(new HashSet<>()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new, ThreadPool.Names.SAME);
+            this(false, false);
         }
-
-        @Override
-        protected IndexShard indexShard(TestRequest request) {
-            return indexShard;
-        }
-
-        @Override
-        protected WriteResult<TestResponse> onPrimaryShard(TestRequest request, IndexShard indexShard) throws Exception {
-            return new WriteResult<>(new TestResponse(), location);
-        }
-
-        @Override
-        protected Location onReplicaShard(TestRequest request, IndexShard indexShard) {
-            return location;
+        protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
+            super(Settings.EMPTY, "test",
+                    new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null), null,
+                    null, null, null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
+                    TestRequest::new, ThreadPool.Names.SAME);
+            this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
+            this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
 
         @Override
         protected TestResponse newResponseInstance() {
             return new TestResponse();
         }
+
+        @Override
+        protected WritePrimaryResult<TestRequest, TestResponse> shardOperationOnPrimary(
+                TestRequest request, IndexShard primary) throws Exception {
+            final WritePrimaryResult<TestRequest, TestResponse> primaryResult;
+            if (withDocumentFailureOnPrimary) {
+                primaryResult = new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger);
+            } else {
+                primaryResult = new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger);
+            }
+            return primaryResult;
+        }
+
+        @Override
+        protected WriteReplicaResult<TestRequest> shardOperationOnReplica(TestRequest request, IndexShard replica) throws Exception {
+            final WriteReplicaResult<TestRequest> replicaResult;
+            if (withDocumentFailureOnReplica) {
+                replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
+            } else {
+                replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
+            }
+            return replicaResult;
+        }
     }
 
     private static class TestRequest extends ReplicatedWriteRequest<TestRequest> {
         public TestRequest() {
             setShardId(new ShardId("test", "test", 1));
+        }
+
+        @Override
+        public String toString() {
+            return "TestRequest{}";
         }
     }
 
@@ -172,6 +244,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private static class CapturingActionListener<R> implements ActionListener<R> {
         private R response;
+        private Exception failure;
 
         @Override
         public void onResponse(R response) {
@@ -179,12 +252,8 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Exception e) {
-            throw new RuntimeException(e);
+        public void onFailure(Exception failure) {
+            this.failure = failure;
         }
-    }
-
-    private interface ThrowingBiFunction<A, B, R> {
-        R apply(A a, B b) throws Exception;
     }
 }

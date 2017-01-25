@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -50,7 +50,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
     private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
-    
+
     // unsupported ancient option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
@@ -68,7 +68,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         if (settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
-        this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
+        this.keepWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, KEEP_WORDS_KEY);
     }
 
     @Override

@@ -19,10 +19,18 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+
 /**
  * Settings to use when compiling a script.
  */
 public final class CompilerSettings {
+    /**
+     * Are regexes enabled? This is a node level setting because regexes break out of painless's lovely sandbox and can cause stack
+     * overflows and we can't analyze the regex to be sure it won't.
+     */
+    public static final Setting<Boolean> REGEX_ENABLED = Setting.boolSetting("script.painless.regex.enabled", false, Property.NodeScope);
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -33,7 +41,7 @@ public final class CompilerSettings {
      * Constant to be used for enabling additional internal compilation checks (slower).
      */
     public static final String PICKY = "picky";
-    
+
     /**
      * For testing: do not use.
      */
@@ -41,19 +49,27 @@ public final class CompilerSettings {
 
     /**
      * The maximum number of statements allowed to be run in a loop.
+     * For now the number is set fairly high to accommodate users
+     * doing large update queries.
      */
-    private int maxLoopCounter = 10000;
+    private int maxLoopCounter = 1000000;
 
     /**
      * Whether to throw exception on ambiguity or other internal parsing issues. This option
      * makes things slower too, it is only for debugging.
      */
     private boolean picky = false;
-    
+
     /**
      * For testing. Do not use.
      */
     private int initialCallSiteDepth = 0;
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    private boolean regexesEnabled = false;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -88,7 +104,7 @@ public final class CompilerSettings {
     public void setPicky(boolean picky) {
       this.picky = picky;
     }
-    
+
     /**
      * Returns initial call site depth. This means we pretend we've already seen N different types,
      * to better exercise fallback code in tests.
@@ -96,12 +112,28 @@ public final class CompilerSettings {
     public int getInitialCallSiteDepth() {
         return initialCallSiteDepth;
     }
-    
+
     /**
      * For testing megamorphic fallbacks. Do not use.
      * @see #getInitialCallSiteDepth()
      */
     public void setInitialCallSiteDepth(int depth) {
         this.initialCallSiteDepth = depth;
+    }
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    public boolean areRegexesEnabled() {
+        return regexesEnabled;
+    }
+
+    /**
+     * Are regexes enabled? They are currently disabled by default because they break out of the loop counter and even fairly simple
+     * <strong>looking</strong> regexes can cause stack overflows.
+     */
+    public void setRegexesEnabled(boolean regexesEnabled) {
+        this.regexesEnabled = regexesEnabled;
     }
 }

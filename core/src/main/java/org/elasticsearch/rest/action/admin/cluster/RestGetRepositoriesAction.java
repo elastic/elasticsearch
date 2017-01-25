@@ -25,17 +25,18 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+
+import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -48,7 +49,6 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetRepositoriesAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         controller.registerHandler(GET, "/_snapshot", this);
@@ -57,23 +57,30 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                    RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
-                }
-                builder.endObject();
+        return channel ->
+                client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        for (RepositoryMetaData repositoryMetaData : response.repositories()) {
+                            RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
+                        }
+                        builder.endObject();
 
-                return new BytesRestResponse(OK, builder);
-            }
+                        return new BytesRestResponse(OK, builder);
+                    }
         });
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

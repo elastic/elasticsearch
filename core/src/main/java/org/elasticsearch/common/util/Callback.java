@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-/**
- *
- */
 public interface Callback<T> {
 
     void handle(T t);

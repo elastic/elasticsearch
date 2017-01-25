@@ -24,14 +24,13 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -41,9 +40,14 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -246,46 +250,6 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fields.length);
     }
 
-    public void testIncludeInAll() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "scaled_float")
-                .field("scaling_factor", 10.0).endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", 123)
-                .endObject()
-                .bytes());
-
-        IndexableField[] fields = doc.rootDoc().getFields("_all");
-        assertEquals(1, fields.length);
-        assertEquals("123", fields[0].stringValue());
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                .field("type", "scaled_float").field("scaling_factor", 10.0)
-                .field("include_in_all", false).endObject().endObject()
-                .endObject().endObject().string();
-
-        mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", 123)
-                .endObject()
-                .bytes());
-
-        fields = doc.rootDoc().getFields("_all");
-        assertEquals(0, fields.length);
-    }
-
     public void testNullValue() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -335,5 +299,19 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
+    }
+
+    public void testEmptyName() throws IOException {
+        // after 5.x
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("")
+            .field("type", "scaled_float")
+            .field("scaling_factor", 10.0).endObject().endObject()
+            .endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

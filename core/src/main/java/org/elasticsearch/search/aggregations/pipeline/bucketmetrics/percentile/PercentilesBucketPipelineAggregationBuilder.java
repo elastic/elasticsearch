@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import com.carrotsearch.hppc.DoubleArrayList;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,6 @@ import java.util.Objects;
 public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
     public static final String NAME = "percentiles_bucket";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField PERCENTS_FIELD = new ParseField("percents");
 
@@ -113,7 +113,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (percents != null) {
-            builder.field(PERCENTS_FIELD.getPreferredName(), percents);
+            builder.array(PERCENTS_FIELD.getPreferredName(), percents);
         }
         return builder;
     }
@@ -138,7 +138,7 @@ public class PercentilesBucketPipelineAggregationBuilder
         @Override
         protected boolean token(XContentParser parser, QueryParseContext context, String field,
                                 XContentParser.Token token, Map<String, Object> params) throws IOException {
-            if (context.getParseFieldMatcher().match(field, PERCENTS_FIELD) && token == XContentParser.Token.START_ARRAY) {
+            if (PERCENTS_FIELD.match(field) && token == XContentParser.Token.START_ARRAY) {
                 DoubleArrayList percents = new DoubleArrayList(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());

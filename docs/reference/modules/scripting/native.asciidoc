@@ -1,7 +1,7 @@
 [[modules-scripting-native]]
 === Native (Java) Scripts
 
-Sometimes `groovy` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
+Sometimes `painless` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
 implement a native script.
 
 The best way to implement a native script is to write a plugin and install it.
@@ -13,24 +13,18 @@ to construct the script. The actual script will extend either
 `AbstractExecutableScript` or `AbstractSearchScript`. The second one is likely
 the most useful and has several helpful subclasses you can extend like
 `AbstractLongSearchScript` and `AbstractDoubleSearchScript`.
-Finally, your plugin should register the native
-script by declaring the `onModule(ScriptModule)` method.
+Finally, your plugin should register the native script by implementing the
+`ScriptPlugin` interface.
 
 If you squashed the whole thing into one class it'd look like:
 
 [source,java]
 --------------------------------------------------
-public class MyNativeScriptPlugin extends Plugin {
+public class MyNativeScriptPlugin extends Plugin implements ScriptPlugin {
+
     @Override
-    public String name() {
-        return "my-native-script";
-    }
-    @Override
-    public String description() {
-        return "my native script that does something great";
-    }
-    public void onModule(ScriptModule scriptModule) {
-        scriptModule.registerScript("my_script", MyNativeScriptFactory.class);
+    public List<NativeScriptFactory> getNativeScripts() {
+        return Collections.singletonList(new MyNativeScriptFactory());
     }
 
     public static class MyNativeScriptFactory implements NativeScriptFactory {
@@ -42,6 +36,10 @@ public class MyNativeScriptPlugin extends Plugin {
         public boolean needsScores() {
             return false;
         }
+        @Override
+        public String getName() {
+            return "my_script";
+        }        
     }
 
     public static class MyNativeScript extends AbstractDoubleSearchScript {
@@ -72,7 +70,7 @@ curl -XPOST localhost:9200/_search -d '{
         {
           "script_score": {
             "script": {
-                "id": "my_script",
+                "inline": "my_script",
                 "lang" : "native"
             }
           }

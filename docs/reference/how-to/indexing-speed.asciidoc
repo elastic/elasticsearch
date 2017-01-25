@@ -5,7 +5,7 @@
 === Use bulk requests
 
 Bulk requests will yield much better performance than single-document index
-requests. In order to know the optimal size of a bulk request, you shoud run
+requests. In order to know the optimal size of a bulk request, you should run
 a benchmark on a single node with a single shard. First try to index 100
 documents at once, then 200, then 400, etc. doubling the number of documents
 in a bulk request in every benchmark run. When the indexing speed starts to
@@ -17,29 +17,29 @@ it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
 [float]
-=== Use multiple workers/threads to send data to elasticsearch
+=== Use multiple workers/threads to send data to Elasticsearch
 
 A single thread sending bulk requests is unlikely to be able to max out the
-indexing capacity of an elasticsearch cluster. In order to use all resources
+indexing capacity of an Elasticsearch cluster. In order to use all resources
 of the cluster, you should send data from multiple threads or processes. In
 addition to making better use of the resources of the cluster, this should
 help reduce the cost of each fsync.
 
 Make sure to watch for `TOO_MANY_REQUESTS (429)` response codes
 (`EsRejectedExecutionException` with the Java client), which is the way that
-elasticsearch tells you that it cannot keep up with the current indexing rate.
+Elasticsearch tells you that it cannot keep up with the current indexing rate.
 When it happens, you should pause indexing a bit before trying again, ideally
 with randomized exponential backoff.
 
 Similarly to sizing bulk requests, only testing can tell what the optimal
-number of workers is. This can be tested by progressivily increasing the
+number of workers is. This can be tested by progressively increasing the
 number of workers until either I/O or CPU is saturated on the cluster.
 
 [float]
 === Increase the refresh interval
 
 The default <<dynamic-index-settings,`index.refresh_interval`>> is `1s`, which
-forces elasticsearch to create a new segment every second.
+forces Elasticsearch to create a new segment every second.
 Increasing this value (to say, `30s`) will allow larger segments to flush and
 decreases future merge pressure.
 
@@ -58,7 +58,7 @@ original values.
 === Disable swapping
 
 You should make sure that the operating system is not swapping out the java
-process by <<setup-configuration-memory,disabling swappping>>.
+process by <<setup-configuration-memory,disabling swapping>>.
 
 [float]
 === Give memory to the filesystem cache
@@ -66,6 +66,15 @@ process by <<setup-configuration-memory,disabling swappping>>.
 The filesystem cache will be used in order to buffer I/O operations. You should
 make sure to give at least half the memory of the machine running elasticsearch
 to the filesystem cache.
+
+[float]
+=== Use auto-generated ids
+
+When indexing a document that has an explicit id, elasticsearch needs to check
+whether a document with the same id already exists within the same shard, which
+is a costly operation and gets even more costly as the index grows. By using
+auto-generated ids, Elasticsearch can skip this check, which makes indexing
+faster.
 
 [float]
 === Use faster hardware

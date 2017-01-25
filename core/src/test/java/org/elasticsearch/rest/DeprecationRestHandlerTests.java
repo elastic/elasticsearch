@@ -78,8 +78,15 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         ASCIIHeaderGenerator generator = new ASCIIHeaderGenerator();
         String value = generator.ofCodeUnitsLength(random(), 1, 50);
 
-        assertTrue(DeprecationRestHandler.validHeaderValue(value));
-        assertSame(value, DeprecationRestHandler.requireValidHeader(value));
+        if (value.trim().length() == 0) {
+            // empty text, not a valid header
+            assertFalse(DeprecationRestHandler.validHeaderValue(value));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(value));
+            assertEquals("header value must contain only US ASCII text", e.getMessage());
+        } else {
+            assertTrue(DeprecationRestHandler.validHeaderValue(value));
+            assertSame(value, DeprecationRestHandler.requireValidHeader(value));
+        }
     }
 
     public void testInvalidHeaderValue() {

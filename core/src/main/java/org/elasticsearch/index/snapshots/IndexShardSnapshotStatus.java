@@ -27,7 +27,7 @@ public class IndexShardSnapshotStatus {
     /**
      * Snapshot stage
      */
-    public static enum Stage {
+    public enum Stage {
         /**
          * Snapshot hasn't started yet
          */
@@ -66,7 +66,7 @@ public class IndexShardSnapshotStatus {
 
     private long indexVersion;
 
-    private boolean aborted;
+    private volatile boolean aborted;
 
     private String failure;
 

@@ -21,16 +21,19 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -41,13 +44,13 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-/**
- *
- */
 public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_type";
@@ -73,12 +76,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new TypeFieldMapper(indexSettings, fieldType);
         }
     }
@@ -147,7 +151,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new AssertionError();
             }
-            return new TypeQuery(indexedValueForSearch(value));
+            return new TypesQuery(indexedValueForSearch(value));
         }
 
         @Override
@@ -164,26 +168,59 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeQuery extends Query {
+    /**
+     * Specialization for a disjunction over many _type
+     */
+    public static class TypesQuery extends Query {
+        // Same threshold as TermsQuery
+        private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
-        private final BytesRef type;
+        private final BytesRef[] types;
 
-        public TypeQuery(BytesRef type) {
-            this.type = Objects.requireNonNull(type);
+        public TypesQuery(BytesRef... types) {
+            if (types == null) {
+                throw new NullPointerException("types cannot be null.");
+            }
+            if (types.length == 0) {
+                throw new IllegalArgumentException("types must contains at least one value.");
+            }
+            this.types = types;
+        }
+
+        public BytesRef[] getTerms() {
+            return types;
         }
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            Term term = new Term(CONTENT_TYPE, type);
-            TermContext context = TermContext.build(reader.getContext(), term);
-            if (context.docFreq() == reader.maxDoc()) {
-                // All docs have the same type.
-                // Using a match_all query will help Lucene perform some optimizations
-                // For instance, match_all queries as filter clauses are automatically removed
-                return new MatchAllDocsQuery();
-            } else {
-                return new ConstantScoreQuery(new TermQuery(term, context));
+            final int threshold = Math.min(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD, BooleanQuery.getMaxClauseCount());
+            if (types.length <= threshold) {
+                Set<BytesRef> uniqueTypes = new HashSet<>();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                int totalDocFreq = 0;
+                for (BytesRef type : types) {
+                    if (uniqueTypes.add(type)) {
+                        Term term = new Term(CONTENT_TYPE, type);
+                        TermContext context = TermContext.build(reader.getContext(), term);
+                        if (context.docFreq() == 0) {
+                            // this _type is not present in the reader
+                            continue;
+                        }
+                        totalDocFreq += context.docFreq();
+                        // strict equality should be enough ?
+                        if (totalDocFreq >= reader.maxDoc()) {
+                            assert totalDocFreq == reader.maxDoc();
+                            // Matches all docs since _type is a single value field
+                            // Using a match_all query will help Lucene perform some optimizations
+                            // For instance, match_all queries as filter clauses are automatically removed
+                            return new MatchAllDocsQuery();
+                        }
+                        bq.add(new TermQuery(term, context), BooleanClause.Occur.SHOULD);
+                    }
+                }
+                return new ConstantScoreQuery(bq.build());
             }
+            return new TermsQuery(CONTENT_TYPE, types);
         }
 
         @Override
@@ -191,20 +228,26 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             if (sameClassAs(obj) == false) {
                 return false;
             }
-            TypeQuery that = (TypeQuery) obj;
-            return type.equals(that.type);
+            TypesQuery that = (TypesQuery) obj;
+            return Arrays.equals(types, that.types);
         }
 
         @Override
         public int hashCode() {
-            return 31 * classHash() + type.hashCode();
+            return 31 * classHash() + Arrays.hashCode(types);
         }
 
         @Override
         public String toString(String field) {
-            return "_type:" + type;
+            StringBuilder builder = new StringBuilder();
+            for (BytesRef type : types) {
+                if (builder.length() > 0) {
+                    builder.append(' ');
+                }
+                builder.append(new Term(CONTENT_TYPE, type).toString());
+            }
+            return builder.toString();
         }
-
     }
 
     private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
@@ -218,13 +261,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(Settings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.before(Version.V_2_1_0)) {
-            // enables fielddata loading, doc values was disabled on _type between 2.0 and 2.1.
-            ((TypeFieldType) defaultFieldType).setFielddata(true);
-        } else {
-            defaultFieldType.setHasDocValues(true);
-        }
+        defaultFieldType.setHasDocValues(true);
         return defaultFieldType;
     }
 
@@ -244,7 +281,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }

@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsQueryFilter;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet words;
@@ -40,8 +37,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.queryMode = settings.getAsBoolean("query_mode", false);
+        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        this.queryMode = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "query_mode", false, deprecationLogger);
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {

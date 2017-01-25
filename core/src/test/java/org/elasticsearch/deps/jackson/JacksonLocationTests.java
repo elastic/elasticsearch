@@ -30,9 +30,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class JacksonLocationTests extends ESTestCase {
     public void testLocationExtraction() throws IOException {
         // {

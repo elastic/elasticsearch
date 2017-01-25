@@ -52,6 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleSearchIT extends ESIntegTestCase {
+
     public void testSearchNullIndex() {
         expectThrows(NullPointerException.class,
                 () -> client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
@@ -417,7 +418,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+            assertThat(ex.getRootCause().getMessage(),
+                containsString("Can only use regexp queries on keyword and text fields"));
         }
     }
 

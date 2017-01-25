@@ -88,7 +88,8 @@ Contributing to the Elasticsearch codebase
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
 Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system.
+Elasticsearch uses it as its build system. Gradle must be version 2.13 _exactly_ in
+order to build successfully.
 
 Eclipse users can automatically configure their IDE: `gradle eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
@@ -120,7 +121,8 @@ Please follow these formatting guidelines:
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
- * Eclipse: Preferences->Java->Code Style->Organize Imports. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
+ * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
+ * IntelliJ: `Preferences->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
 
 To create a distribution from the source, simply run:

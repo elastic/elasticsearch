@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,9 +34,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- *
- */
 public class CommitPoints implements Iterable<CommitPoint> {
 
     private final List<CommitPoint> commitPoints;
@@ -121,7 +119,8 @@ public class CommitPoints implements Iterable<CommitPoint> {
     }
 
     public static CommitPoint fromXContent(byte[] data) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data)) {
+        // EMPTY is safe here because we never call namedObject
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, data)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             if (token == null) {

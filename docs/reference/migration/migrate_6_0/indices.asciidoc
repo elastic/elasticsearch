@@ -1,0 +1,34 @@
+[[breaking_60_indices_changes]]
+=== Templates changes
+
+==== `template` is now `index_patterns`
+
+Previously templates expressed the indices that they should match using a glob
+style pattern in the `template` field. They should now use the `index_patterns`
+field instead. As the name implies you can define multiple glob style patterns
+in an array but for convenience defining a single pattern as a bare string is
+also supported. So both of these examples are valid:
+
+[source,js]
+--------------------------------------------------
+PUT _template/template_1
+{
+  "index_patterns": ["te*", "bar*"],
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+PUT _template/template_2
+{
+  "index_patterns": "te*",
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+=== Shadow Replicas are deprecated
+
+<<indices-shadow-replicas,Shadow Replicas>> don't see much usage and we are planning to remove them.

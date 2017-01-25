@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.hu.HungarianAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<HungarianAnalyzer> {
 
     private final HungarianAnalyzer analyzer;
 
     public HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new HungarianAnalyzer(Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
-                                         Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new HungarianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, HungarianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

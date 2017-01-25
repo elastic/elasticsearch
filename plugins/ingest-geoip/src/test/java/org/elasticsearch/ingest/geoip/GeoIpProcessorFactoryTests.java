@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.maxmind.db.NoCache;
+import com.maxmind.db.NodeCache;
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
@@ -57,7 +59,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
                 geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
-        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+
+        NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomNonNegativeLong()));
+        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, cache);
     }
 
     @AfterClass
@@ -81,6 +85,24 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
+    }
+
+    public void testSetIgnoreMissing() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("ignore_missing", true);
+        String processorTag = randomAsciiOfLength(10);
+
+        GeoIpProcessor processor = factory.create(null, processorTag, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertTrue(processor.isIgnoreMissing());
     }
 
     public void testCountryBuildDefaults() throws Exception {
@@ -98,6 +120,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildTargetField() throws Exception {
@@ -108,6 +131,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildDbFile() throws Exception {
@@ -120,6 +144,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
         assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildWithCountryDbAndCityFields() throws Exception {
@@ -170,6 +195,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildIllegalFieldOption() throws Exception {

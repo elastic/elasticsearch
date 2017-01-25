@@ -104,10 +104,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
     }
 
     // static for unittesting this method
-    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ShrinkRequest shrinkReqeust, final ClusterState state
+    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ShrinkRequest shrinkRequest, final ClusterState state
         , final IntFunction<DocsStats> perShardDocStats, IndexNameExpressionResolver indexNameExpressionResolver) {
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(shrinkReqeust.getSourceIndex());
-        final CreateIndexRequest targetIndex = shrinkReqeust.getShrinkIndexRequest();
+        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(shrinkRequest.getSourceIndex());
+        final CreateIndexRequest targetIndex = shrinkRequest.getShrinkIndexRequest();
         final String targetIndexName = indexNameExpressionResolver.resolveDateMathExpression(targetIndex.index());
         final IndexMetaData metaData = state.metaData().index(sourceIndex);
         final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
@@ -131,13 +131,16 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             }
 
         }
+        if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide a routing partition size value when shrinking an index");
+        }
         targetIndex.cause("shrink_index");
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
-            "shrink_index", targetIndexName, true)
+            "shrink_index", targetIndex.index(), targetIndexName, true)
             // mappings are updated on the node when merging in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody fucks things up and switches the index read/write and adds docs we miss
             // the mappings for everything is corrupted and hard to debug

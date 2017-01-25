@@ -19,7 +19,7 @@ PUT /my-index
         "doctype": {
             "properties": {
                 "message": {
-                    "type": "keyword"
+                    "type": "text"
                 }
             }
         },
@@ -51,7 +51,7 @@ Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
+PUT /my-index/queries/1?refresh
 {
     "query" : {
         "match" : {
@@ -88,7 +88,7 @@ The above request will yield the following response:
 [source,js]
 --------------------------------------------------
 {
-  "took": 5,
+  "took": 13,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -116,6 +116,7 @@ The above request will yield the following response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
 
 <1> The query with id `1` matches our document.
 
@@ -129,7 +130,7 @@ The following parameters are required when percolating a document:
 `document_type`:: The type / mapping of the document being percolated. This is a required parameter.
 `document`:: The source of the document being percolated.
 
-Instead of specifying a the source of the document being percolated, the source can also be retrieved from an already
+Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
 
 In that case the `document` parameter can be substituted with the following parameters:
@@ -179,9 +180,12 @@ Index response:
     "successful": 1,
     "failed": 0
   },
-  "created": true
+  "created": true,
+  "result": "created",
+  "_seq_no" : 1
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Percolating an existing document, using the index response as basis to build to new search request:
 
@@ -226,7 +230,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
+PUT /my-index/queries/1?refresh
 {
     "query" : {
         "match" : {
@@ -242,7 +246,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/2
+PUT /my-index/queries/2?refresh
 {
     "query" : {
         "match" : {
@@ -284,7 +288,7 @@ This will yield the following response.
 [source,js]
 --------------------------------------------------
 {
-  "took": 83,
+  "took": 7,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -335,6 +339,9 @@ This will yield the following response.
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 7,/"took": "$body.took",/]
+
+<1> The terms from each query have been highlighted in the document.
 
 Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
 the document defined in the `percolate` query.

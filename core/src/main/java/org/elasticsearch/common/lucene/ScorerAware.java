@@ -20,9 +20,6 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.search.Scorer;
 
-/**
- *
- */
 public interface ScorerAware {
 
     void setScorer(Scorer scorer);

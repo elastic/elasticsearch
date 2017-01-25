@@ -19,15 +19,17 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
@@ -73,13 +75,15 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void createRestClient() throws IOException {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+               any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
             @Override
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                 HttpHost httpHost = requestProducer.getTarget();
-                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
+                assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                 //return the desired status code or exception depending on the path
                 if (request.getURI().getPath().equals("/soe")) {
                     futureCallback.failed(new SocketTimeoutException(httpHost.toString()));
@@ -95,17 +99,17 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 return null;
             }
         });
-        int numHosts = RandomInts.randomIntBetween(getRandom(), 2, 5);
+        int numHosts = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
         httpHosts = new HttpHost[numHosts];
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, failureListener);
+        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, null, failureListener);
     }
 
     public void testRoundRobinOkStatusCodes() throws IOException {
-        int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
+        int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
             Collections.addAll(hostsSet, httpHosts);
@@ -121,7 +125,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testRoundRobinNoRetryErrors() throws IOException {
-        int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
+        int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
             Collections.addAll(hostsSet, httpHosts);
@@ -198,7 +202,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         }
 
-        int numIters = RandomInts.randomIntBetween(getRandom(), 2, 5);
+        int numIters = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
         for (int i = 1; i <= numIters; i++) {
             //check that one different host is resurrected at each new attempt
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -228,7 +232,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             if (getRandom().nextBoolean()) {
                 //mark one host back alive through a successful request and check that all requests after that are sent to it
                 HttpHost selectedHost = null;
-                int iters = RandomInts.randomIntBetween(getRandom(), 2, 10);
+                int iters = RandomNumbers.randomIntBetween(getRandom(), 2, 10);
                 for (int y = 0; y < iters; y++) {
                     int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
@@ -269,7 +273,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     private static String randomErrorRetryEndpoint() {
-        switch(RandomInts.randomIntBetween(getRandom(), 0, 3)) {
+        switch(RandomNumbers.randomIntBetween(getRandom(), 0, 3)) {
             case 0:
                 return "/" + randomErrorRetryStatusCode(getRandom());
             case 1:

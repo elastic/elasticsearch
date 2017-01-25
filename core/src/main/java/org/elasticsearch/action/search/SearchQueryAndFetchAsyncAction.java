@@ -19,29 +19,37 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
-    SearchQueryAndFetchAsyncAction(ESLogger logger, SearchTransportService searchTransportService,
-                                           ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           SearchPhaseController searchPhaseController, ThreadPool threadPool,
-                                           SearchRequest request, ActionListener<SearchResponse> listener) {
-        super(logger, searchTransportService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool,
-                request, listener);
+    private final SearchPhaseController searchPhaseController;
+
+    SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
+                                   Function<String, Transport.Connection> nodeIdToConnection,
+                                   Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                   SearchPhaseController searchPhaseController, Executor executor,
+                                   SearchRequest request, ActionListener<SearchResponse> listener,
+                                   GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
+                                   SearchTask task) {
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
+                request, listener, shardsIts, startTime, clusterStateVersion, task);
+        this.searchPhaseController = searchPhaseController;
+
     }
 
     @Override
@@ -50,14 +58,14 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     }
 
     @Override
-    protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
+    protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
                                          ActionListener<QueryFetchSearchResult> listener) {
-        searchTransportService.sendExecuteFetch(node, request, listener);
+        searchTransportService.sendExecuteFetch(connection, request, task, listener);
     }
 
     @Override
     protected void moveToSecondPhase() throws Exception {
-        threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
+        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
                 final boolean isScrollRequest = request.scroll() != null;

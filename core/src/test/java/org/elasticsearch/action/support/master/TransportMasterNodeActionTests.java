@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -87,12 +86,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode("local_node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+        localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
-        remoteNode = new DiscoveryNode("remote_node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+        remoteNode = new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
         allNodes = new DiscoveryNode[]{localNode, remoteNode};
     }

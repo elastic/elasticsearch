@@ -72,10 +72,10 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     @Override
     public SearchScript search(CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         final NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript.compiled();
+        final AbstractSearchScript script = (AbstractSearchScript) scriptFactory.newScript(vars);
         return new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-                AbstractSearchScript script = (AbstractSearchScript) scriptFactory.newScript(vars);
                 script.setLookup(lookup.getLeafSearchLookup(context));
                 return script;
             }

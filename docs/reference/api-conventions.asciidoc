@@ -11,6 +11,7 @@ API, unless otherwise specified.
 * <<multi-index>>
 * <<date-math-index-names>>
 * <<common-options>>
+* <<url-access-control>>
 
 --
 
@@ -19,7 +20,7 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*`, and the ability to "add" (`+`)
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
 and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the following url query string parameters:
@@ -84,29 +85,52 @@ Where:
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
 
-You must enclose date math index name expressions within angle brackets. For example:
+You must enclose date math index name expressions within angle brackets, and
+all special characters should be URI encoded. For example:
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now%2Fd-2d}>/_search' {
+# GET /<logstash-{now/d}>/_search
+GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
+{
   "query" : {
-    ...
+    "match": {
+      "test": "data"
+    }
   }
 }
 ----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logstash-2016.09.20\n/]
+// TEST[s/now/2016.09.20||/]
 
-NOTE: The `/` used for date rounding must be url encoded as `%2F` in any url.
+[NOTE]
+.Percent encoding of date math characters
+======================================================
+The special characters used for date rounding must be URI encoded as follows:
+
+[horizontal]
+`<`:: `%3C`
+`>`:: `%3E`
+`/`:: `%2F`
+`{`:: `%7B`
+`}`:: `%7D`
+`|`:: `%7C`
+`+`:: `%2B`
+`:`:: `%3A`
+`,`:: `%2C`
+======================================================
 
 The following example shows different forms of date math index names and the final index names
 they resolve to given the current time is 22rd March 2024 noon utc.
 
 [options="header"]
 |======
-| Expression                		      |Resolves to
-| `<logstash-{now/d}>`      		      | `logstash-2024.03.22`
-| `<logstash-{now/M}>`      		      | `logstash-2024.03.01`
-| `<logstash-{now/M{YYYY.MM}}>`           | `logstash-2024.03`
-| `<logstash-{now/M-1M{YYYY.MM}}>`        | `logstash-2024.02`
+| Expression                                |Resolves to
+| `<logstash-{now/d}>`                      | `logstash-2024.03.22`
+| `<logstash-{now/M}>`                      | `logstash-2024.03.01`
+| `<logstash-{now/M{YYYY.MM}}>`             | `logstash-2024.03`
+| `<logstash-{now/M-1M{YYYY.MM}}>`          | `logstash-2024.02`
 | `<logstash-{now/d{YYYY.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
@@ -121,12 +145,19 @@ three days, assuming the indices use the default Logstash index name format,
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now%2Fd-2d}>,<logstash-{now%2Fd-1d}>,<logstash-{now%2Fd}>/_search' {
+# GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search
+GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search
+{
   "query" : {
-    ...
+    "match": {
+      "test": "data"
+    }
   }
 }
 ----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
+// TEST[s/now/2016.09.20||/]
 
 [[common-options]]
 == Common options
@@ -193,88 +224,141 @@ Some examples are:
 `2015-01-01||+1M/d`::   `2015-01-01` plus one month, rounded down to the nearest day.
 
 [float]
+[[common-options-response-filtering]]
 === Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce
 the response returned by elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_search?pretty&filter_path=took,hits.hits._id,hits.hits._score'
+GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
 {
   "took" : 3,
   "hits" : {
     "hits" : [
       {
-        "_id" : "3640",
-        "_score" : 1.0
-      },
-      {
-        "_id" : "3642",
-        "_score" : 1.0
+        "_id" : "0",
+        "_score" : 1.6375021
       }
     ]
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+// TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
 
 It also supports the `*` wildcard character to match any field or part
 of a field's name:
 
 [source,sh]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_nodes/stats?filter_path=nodes.*.ho*'
+GET /_cluster/state?filter_path=metadata.indices.*.stat*
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
+
+Responds:
+
+[source,sh]
+--------------------------------------------------
 {
-  "nodes" : {
-    "lvJHed8uQQu4brS-SXKsNA" : {
-      "host" : "portable"
+  "metadata" : {
+    "indices" : {
+      "twitter": {"state": "open"}
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 And the `**` wildcard can be used to include fields without knowing the
 exact path of the field. For example, we can return the Lucene version
 of every segment with this request:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
+GET /_cluster/state?filter_path=routing_table.indices.**.state
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
 {
-  "indices" : {
-    "movies" : {
-      "shards" : {
-        "0" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ],
-        "2" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ]
-      }
-    },
-    "books" : {
-      "shards" : {
-        "0" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ]
+  "routing_table": {
+    "indices": {
+      "twitter": {
+        "shards": {
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+        }
       }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
+
+It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
+
+[source,js]
+--------------------------------------------------
+GET /_count?filter_path=-_shards
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
+{
+  "count" : 5
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+And for more control, both inclusive and exclusive filters can be combined in the same expression. In
+this case, the exclusive filters will be applied first and the result will be filtered again using the
+inclusive filters:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
+{
+  "metadata" : {
+    "indices" : {
+      "index-1" : {"state" : "open"},
+      "index-2" : {"state" : "open"},
+      "index-3" : {"state" : "open"}
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 Note that elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
@@ -282,21 +366,33 @@ consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
 parameter like this:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_search?pretty&filter_path=hits.hits._source&_source=title'
+POST /library/book?refresh
+{"title": "Book #1", "rating": 200.1}
+POST /library/book?refresh
+{"title": "Book #2", "rating": 1.7}
+POST /library/book?refresh
+{"title": "Book #3", "rating": 0.1}
+GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
 {
   "hits" : {
     "hits" : [ {
-      "_source":{"title":"Book #2"}
-    }, {
       "_source":{"title":"Book #1"}
+    }, {
+      "_source":{"title":"Book #2"}
     }, {
       "_source":{"title":"Book #3"}
     } ]
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 
 [float]
@@ -307,30 +403,66 @@ The `flat_settings` flag affects rendering of the lists of settings. When
 
 [source,js]
 --------------------------------------------------
+GET twitter/_settings?flat_settings=true
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Returns:
+
+[source,js]
+--------------------------------------------------
 {
-  "persistent" : { },
-  "transient" : {
-    "discovery.zen.minimum_master_nodes" : "1"
+  "twitter" : {
+    "settings": {
+      "index.number_of_replicas": "1",
+      "index.number_of_shards": "1",
+      "index.creation_date": "1474389951325",
+      "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
+      "index.version.created": ...,
+      "index.provided_name" : "twitter"
+    }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false` settings are returned in a more
 human readable structured format:
 
 [source,js]
 --------------------------------------------------
+GET twitter/_settings?flat_settings=false
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Returns:
+
+[source,js]
+--------------------------------------------------
 {
-  "persistent" : { },
-  "transient" : {
-    "discovery" : {
-      "zen" : {
-        "minimum_master_nodes" : "1"
+  "twitter" : {
+    "settings" : {
+      "index" : {
+        "number_of_replicas": "1",
+        "number_of_shards": "1",
+        "creation_date": "1474389951325",
+        "uuid": "n6gzFZTgS664GUfx0Xrpjw",
+        "version": {
+          "created": ...
+        },
+        "provided_name" : "twitter"
       }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
 
 By default the `flat_settings` is set to `false`.
 
@@ -344,9 +476,8 @@ convention of using underscore casing.
 === Boolean Values
 
 All REST APIs parameters (both request parameters and JSON body) support
-providing boolean "false" as the values: `false`, `0`, `no` and `off`.
-All other values are considered "true". Note, this is not related to
-fields within a document indexed treated as boolean fields.
+providing boolean "false" as the value `false` and boolean "true" as the
+value `true`. All other values will raise an error.
 
 [float]
 === Number Values
@@ -425,10 +556,6 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
-The `precision` parameter in the <<query-dsl-geohash-cell-query>> accepts
-distances with the above units, but if no unit is specified, then the
-precision is interpreted as the length of the geohash.
-
 [[fuzziness]]
 [float]
 === Fuzziness
@@ -460,12 +587,83 @@ generates an edit distance based on the length of the term. For lengths:
 --
 
 [float]
-=== Result Casing
+[[common-options-error-options]]
+=== Enabling stack traces
 
-All REST APIs accept the `case` parameter. When set to `camelCase`, all
-field names in the result will be returned in camel casing, otherwise,
-underscore casing will be used. Note, this does not apply to the source
-document indexed.
+By default when a request returns an error Elasticsearch doesn't include the
+stack trace of the error. You can enable that behavior by setting the
+`error_trace` url parameter to `true`. For example, by default when you send an
+invalid `size` parameter to the `_search` API:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:request]
+// Since the test system sends error_trace=true by default we have to override
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "illegal_argument_exception",
+        "reason" : "Failed to parse int parameter [size] with value [surprise_me]"
+      }
+    ],
+    "type" : "illegal_argument_exception",
+    "reason" : "Failed to parse int parameter [size] with value [surprise_me]",
+    "caused_by" : {
+      "type" : "number_format_exception",
+      "reason" : "For input string: \"surprise_me\""
+    }
+  },
+  "status" : 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE
+
+But if you set `error_trace=true`:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me&error_trace=true
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[catch:request]
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+        "stack_trace": "Failed to parse int parameter [size] with value [surprise_me]]; nested: IllegalArgumentException..."
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.elasticsearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
+    "caused_by": {
+      "type": "number_format_exception",
+      "reason": "For input string: \"surprise_me\"",
+      "stack_trace": "java.lang.NumberFormatException: For input string: \"surprise_me\"\n    at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)..."
+    }
+  },
+  "status": 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
 [float]
 === Request body in query string

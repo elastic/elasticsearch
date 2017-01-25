@@ -39,31 +39,32 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 
 [source,java]
 --------------------------------------------------
-GeoShapeQueryBuilder qb = geoShapeQuery(
-        "pin.location",                 <1>
-        ShapeBuilder.newMultiPoint()    <2>
-             .point(0, 0)
-             .point(0, 10)
-             .point(10, 10)
-             .point(10, 0)
-             .point(0, 0));
-qb.relation(ShapeRelation.WITHIN);      <3>
+List<Coordinate> points = new ArrayList<>();
+points.add(new Coordinate(0, 0));
+points.add(new Coordinate(0, 10));
+points.add(new Coordinate(10, 10));
+points.add(new Coordinate(10, 0));
+points.add(new Coordinate(0, 0));
 
+QueryBuilder qb = geoShapeQuery(
+        "pin.location",                         <1>
+        ShapeBuilders.newMultiPoint(points)     <2>
+        .relation(ShapeRelation.WITHIN);        <3>
 --------------------------------------------------
 <1> field
 <2> shape
-<3> relation can be `ShapeRelation.WITHIN`, `ShapeRelation.INTERSECTS` or `ShapeRelation.DISJOINT`
+<3> relation can be `ShapeRelation.CONTAINS`, `ShapeRelation.WITHIN`, `ShapeRelation.INTERSECTS` or `ShapeRelation.DISJOINT`
 
 [source,java]
 --------------------------------------------------
 // Using pre-indexed shapes
-GeoShapeQueryBuilder qb = geoShapeQuery(
-        "pin.location",             <1>
-        "DEU",                      <2>
-        "countries");               <3>
-qb.relation(ShapeRelation.WITHIN))  <4>
-    .indexedShapeIndex("shapes")    <5>
-    .indexedShapePath("location");  <6>
+QueryBuilder qb = geoShapeQuery(
+        "pin.location",                  <1>
+        "DEU",                           <2>
+        "countries")                     <3>
+        .relation(ShapeRelation.WITHIN)) <4>
+        .indexedShapeIndex("shapes")     <5>
+        .indexedShapePath("location");   <6>
 --------------------------------------------------
 <1> field
 <2> The ID of the document that containing the pre-indexed shape.

@@ -24,9 +24,6 @@ import org.elasticsearch.Version;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class PreBuiltCacheFactory {
 
     /**

@@ -22,20 +22,34 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
 @SuppressWarnings({"unchecked","varargs"})
 public class MockTransportClient extends TransportClient {
-    private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default", "local").build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default",
+        MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
 
 
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
-        super(settings, DEFAULT_SETTINGS, Arrays.asList(plugins));
+        this(settings, Arrays.asList(plugins));
     }
 
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, DEFAULT_SETTINGS, plugins);
+        this(settings, addMockTransportIfMissing(plugins), null);
     }
 
+    public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins, HostFailureListener listener) {
+        super(settings, DEFAULT_SETTINGS, addMockTransportIfMissing(plugins), listener);
+    }
+
+    private static Collection<Class<? extends Plugin>> addMockTransportIfMissing(Collection<Class<? extends Plugin>> plugins) {
+        if (plugins.contains(MockTcpTransportPlugin.class)) {
+            return plugins;
+        }
+        plugins = new ArrayList<>(plugins);
+        plugins.add(MockTcpTransportPlugin.class);
+        return plugins;
+    }
 }

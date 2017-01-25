@@ -137,12 +137,14 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool(TransportInstanceSingleOperationActionTests.class.getSimpleName());
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
@@ -155,6 +157,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         );
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

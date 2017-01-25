@@ -52,9 +52,6 @@ query.
 |`lenient` |If set to true will cause format based failures (like
 providing text to a numeric field) to be ignored. Defaults to false.
 
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
 |=======================================================================
@@ -90,7 +87,15 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo
+GET twitter/tweet/_validate/query
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -105,12 +110,21 @@ about why a query failed:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo&explain=true
+GET twitter/tweet/_validate/query?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 
 responds with:
 
+[source,js]
 --------------------------------------------------
 {
   "valid" : false,

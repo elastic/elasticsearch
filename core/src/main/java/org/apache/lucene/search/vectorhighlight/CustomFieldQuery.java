@@ -28,6 +28,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -38,9 +39,6 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import java.io.IOException;
 import java.util.Collection;
 
-/**
- *
- */
 // LUCENE MONITOR
 // TODO: remove me!
 public class CustomFieldQuery extends FieldQuery {
@@ -88,6 +86,13 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(boostingQuery.getMatch(), reader, flatQueries, boost);
             //flatten negative query with negative boost
             flatten(boostingQuery.getContext(), reader, flatQueries, boostingQuery.getBoost());
+        } else if (sourceQuery instanceof SynonymQuery) {
+            // SynonymQuery should be handled by the parent class directly.
+            // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
+            SynonymQuery synQuery = (SynonymQuery) sourceQuery;
+            for (Term term : synQuery.getTerms()) {
+                flatten(new TermQuery(term), reader, flatQueries, boost);
+            }
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);
         }

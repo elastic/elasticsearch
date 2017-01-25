@@ -47,8 +47,11 @@
 
 ## basic
 
-# force the server VM
+# force the server VM (remove on 32-bit client JVMs)
 -server
+
+# explicitly set the stack size (reduce to 320k on 32-bit client JVMs)
+-Xss1m
 
 # set to headless, just in case
 -Djava.awt.headless=true
@@ -59,8 +62,18 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
-# flag to explicitly tell Netty to not use unsafe
+# use old-style file permissions on JDK9
+-Djdk.io.permissionsUseCanonicalPath=true
+
+# flags to configure Netty
 -Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+-Dio.netty.recycler.maxCapacityPerThread=0
+
+# log4j 2
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Dlog4j.skipJansi=true
 
 ## heap dumps
 
@@ -85,10 +98,9 @@
 # ensure the directory exists
 #-Xloggc:${loggc}
 
-# Elasticsearch 5.0.0 will throw an exception on unquoted field names in JSON.
-# If documents were already indexed with unquoted fields in a previous version
-# of Elasticsearch, some operations may throw errors.
-#
-# WARNING: This option will be removed in Elasticsearch 6.0.0 and is provided
-# only for migration purposes.
-#-Delasticsearch.json.allow_unquoted_field_names=true
+# By default, the GC log file will not rotate.
+# By uncommenting the lines below, the GC log file
+# will be rotated every 128MB at most 32 times.
+#-XX:+UseGCLogFileRotation
+#-XX:NumberOfGCLogFiles=32
+#-XX:GCLogFileSize=128M

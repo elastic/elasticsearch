@@ -1,0 +1,52 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              post:
+                properties:
+                  title:
+                    type: text
+
+  - do:
+        index:
+          index: test
+          type: test
+          id: 1
+          body: { "title" : "foo bar baz" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 2
+        body: { "title" : "foo foo foo" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 3
+        body: { "title" : "bar baz bax" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Filters aggs with wrapper query":
+  - skip:
+      version: " - 5.1.1"
+      reason:  Using filters aggs that needs rewriting, this was fixed in 5.1.2
+
+  - do:
+      search:
+        body: {"size": 0, "aggs": {"titles": {"filters": {"filters" : {"titleterms" : {"wrapper" : {"query": "eyJ0ZXJtcyIgOiB7ICJ0aXRsZSI6IFsiZm9vIl0gfX0="}}}}}}}
+
+  # validate result
+  - match: { hits.total: 3 }
+  - length: { aggregations.titles.buckets: 1 }
+  - match: { aggregations.titles.buckets.titleterms.doc_count: 2 }

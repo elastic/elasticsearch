@@ -131,6 +131,10 @@ public interface XContentParser extends Releasable {
 
     Map<String, Object> mapOrdered() throws IOException;
 
+    Map<String, String> mapStrings() throws IOException;
+
+    Map<String, String> mapStringsOrdered() throws IOException;
+
     List<Object> list() throws IOException;
 
     List<Object> listOrderedMap() throws IOException;
@@ -198,15 +202,31 @@ public interface XContentParser extends Releasable {
     double doubleValue() throws IOException;
 
     /**
+     * @return true iff the current value is either boolean (<code>true</code> or <code>false</code>) or one of "false", "true".
+     */
+    boolean isBooleanValue() throws IOException;
+
+    boolean booleanValue() throws IOException;
+
+    // TODO #22298: Remove this method and replace all call sites with #isBooleanValue()
+    /**
      * returns true if the current value is boolean in nature.
      * values that are considered booleans:
      * - boolean value (true/false)
      * - numeric integers (=0 is considered as false, !=0 is true)
      * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     *
+     * @deprecated Just present for providing backwards compatibility. Use {@link #isBooleanValue()} instead.
      */
-    boolean isBooleanValue() throws IOException;
+    @Deprecated
+    boolean isBooleanValueLenient() throws IOException;
 
-    boolean booleanValue() throws IOException;
+    // TODO #22298: Remove this method and replace all call sites with #booleanValue()
+    /**
+     * @deprecated Just present for providing backwards compatibility. Use {@link #booleanValue()} instead.
+     */
+    @Deprecated
+    boolean booleanValueLenient() throws IOException;
 
     /**
      * Reads a plain binary value that was written via one of the following methods:
@@ -244,6 +264,17 @@ public interface XContentParser extends Releasable {
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
+
+    // TODO remove context entirely when it isn't needed
+    /**
+     * Parse an object by name.
+     */
+    <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException;
+
+    /**
+     * The registry used to resolve {@link #namedObject(Class, String, Object)}. Use this when building a sub-parser from this parser.
+     */
+    NamedXContentRegistry getXContentRegistry();
 
     boolean isClosed();
 }

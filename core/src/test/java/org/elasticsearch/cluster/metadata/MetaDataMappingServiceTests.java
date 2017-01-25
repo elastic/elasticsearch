@@ -18,10 +18,17 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -63,4 +70,43 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(documentMapper.parentFieldMapper().active(), is(true));
     }
 
+    public void testParentIsAString() throws Exception {
+        // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
+        Exception e = expectThrows(MapperParsingException.class, () -> client().admin().indices().prepareCreate("test")
+                .addMapping("parent", "{\"properties\":{}}")
+                .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}")
+                .get());
+        assertEquals("Failed to parse mapping [child]: [_parent] must be an object containing [type]", e.getMessage());
+    }
+
+    public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final CompressedXContent currentMapping = indexService.mapperService().documentMapper("type").mappingSource();
+
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        // TODO - it will be nice to get a random mapping generator
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
+    }
+
+    public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        ClusterState result = mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request))
+            .resultingState;
+
+        assertFalse(result != clusterService.state());
+
+        ClusterState result2 = mappingService.putMappingExecutor.execute(result, Collections.singletonList(request))
+            .resultingState;
+
+        assertSame(result, result2);
+    }
 }

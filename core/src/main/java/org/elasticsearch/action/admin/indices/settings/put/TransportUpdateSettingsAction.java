@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -36,9 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
 public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, UpdateSettingsResponse> {
 
     private final MetaDataUpdateSettingsService updateSettingsService;
@@ -92,7 +91,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug("failed to update settings on indices [{}]", t, (Object)concreteIndices);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }
         });

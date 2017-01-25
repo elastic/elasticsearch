@@ -24,26 +24,23 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-class RemovePluginCommand extends SettingCommand {
+class RemovePluginCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> arguments;
 
@@ -53,25 +50,25 @@ class RemovePluginCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String arg = arguments.value(options);
-        execute(terminal, arg, settings);
+        execute(terminal, arg, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginName, Map<String, String> settings) throws Exception {
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
-
+    void execute(Terminal terminal, String pluginName, Environment env) throws Exception {
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 
-        Path pluginDir = env.pluginsFile().resolve(pluginName);
+        final Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserException(ExitCodes.USAGE, "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
+            throw new UserException(
+                    ExitCodes.CONFIG,
+                    "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
         }
 
-        List<Path> pluginPaths = new ArrayList<>();
+        final List<Path> pluginPaths = new ArrayList<>();
 
-        Path pluginBinDir = env.binFile().resolve(pluginName);
+        final Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
                 throw new UserException(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
@@ -81,10 +78,19 @@ class RemovePluginCommand extends SettingCommand {
         }
 
         terminal.println(VERBOSE, "Removing: " + pluginDir);
-        Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
+        final Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
         Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+
+        // we preserve the config files in case the user is upgrading the plugin, but we print
+        // a message so the user knows in case they want to remove manually
+        final Path pluginConfigDir = env.configFile().resolve(pluginName);
+        if (Files.exists(pluginConfigDir)) {
+            terminal.println(
+                    "-> Preserving plugin config files [" + pluginConfigDir + "] in case of upgrade, delete manually if not needed");
+        }
     }
+
 }

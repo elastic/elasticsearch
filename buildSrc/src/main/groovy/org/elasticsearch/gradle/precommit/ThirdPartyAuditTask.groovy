@@ -143,6 +143,10 @@ public class ThirdPartyAuditTask extends AntTask {
                     if (m.matches()) {
                         missingClasses.add(m.group(1).replace('.', '/') + ".class");
                     }
+
+                    // Reset the priority of the event to DEBUG, so it doesn't
+                    // pollute the build output
+                    event.setMessage(event.getMessage(), Project.MSG_DEBUG);
                 } else if (event.getPriority() == Project.MSG_ERR) {
                     Matcher m = VIOLATION_PATTERN.matcher(event.getMessage());
                     if (m.matches()) {

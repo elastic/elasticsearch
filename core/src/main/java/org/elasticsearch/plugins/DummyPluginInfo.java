@@ -24,5 +24,6 @@ public class DummyPluginInfo extends PluginInfo {
         super(name, description, version, classname);
     }
 
-    public static final DummyPluginInfo INSTANCE = new DummyPluginInfo("dummy_plugin_name", "dummy plugin description", "dummy_plugin_version", "DummyPluginName");
+    public static final DummyPluginInfo INSTANCE = new DummyPluginInfo(
+            "dummy_plugin_name", "dummy plugin description", "dummy_plugin_version", "DummyPluginName");
 }

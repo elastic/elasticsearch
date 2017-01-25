@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -26,12 +27,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,14 +42,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -107,9 +112,6 @@ public class Setting<T> extends ToXContentToBytes {
         IndexScope
     }
 
-    private static final ESLogger logger = Loggers.getLogger(Setting.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
     private final Key key;
     protected final Function<Settings, String> defaultValue;
     @Nullable
@@ -121,7 +123,8 @@ public class Setting<T> extends ToXContentToBytes {
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
             Property... properties) {
-        assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
+        assert this instanceof SecureSetting || parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting()
+               : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;
@@ -276,7 +279,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the default value string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public final String getDefaultRaw(Settings settings) {
+    public String getDefaultRaw(Settings settings) {
         return defaultValue.apply(settings);
     }
 
@@ -284,7 +287,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the default value for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public final T getDefault(Settings settings) {
+    public T getDefault(Settings settings) {
         return parser.apply(getDefaultRaw(settings));
     }
 
@@ -292,7 +295,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.get(getKey()) != null;
+        return settings.getAsMap().containsKey(getKey());
     }
 
     /**
@@ -315,17 +318,36 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Add this setting to the builder if it doesn't exists in the source settings.
+     * The value added to the builder is taken from the given default settings object.
+     * @param builder the settings builder to fill the diff into
+     * @param source the source settings object to diff
+     * @param defaultSettings the default settings object to diff against
+     */
+    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+        if (exists(source) == false) {
+            builder.put(getKey(), getRaw(defaultSettings));
+        }
+    }
+
+    /**
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
     public String getRaw(Settings settings) {
+        checkDeprecation(settings);
+        return settings.get(getKey(), defaultValue.apply(settings));
+    }
+
+    /** Logs a deprecation warning if the setting is deprecated and used. */
+    protected void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
+            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
             deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
-                    "See the breaking changes lists in the documentation for details", getKey());
+                "See the breaking changes lists in the documentation for details", getKey());
         }
-        return settings.get(getKey(), defaultValue.apply(settings));
     }
 
     /**
@@ -376,7 +398,7 @@ public class Setting<T> extends ToXContentToBytes {
     /**
      * Build a new updater with a noop validator.
      */
-    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger) {
+    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
@@ -384,7 +406,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
         if (isDynamic()) {
             return new Updater(consumer, logger, validator);
         } else {
@@ -393,11 +415,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Updates settings that depend on eachother. See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)}
-     * and its usage for details.
+     * Updates settings that depend on each other.
+     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
-            final Setting<A> aSetting, final Setting<B> bSetting, ESLogger logger) {
+            final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
@@ -413,6 +435,12 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public void apply(Tuple<A, B> value, Settings current, Settings previous) {
+                if (aSettingUpdater.hasChanged(current, previous)) {
+                    logger.info("updating [{}] from [{}] to [{}]", aSetting.key, aSetting.getRaw(previous), aSetting.getRaw(current));
+                }
+                if (bSettingUpdater.hasChanged(current, previous)) {
+                    logger.info("updating [{}] from [{}] to [{}]", bSetting.key, bSetting.getRaw(previous), bSetting.getRaw(current));
+                }
                 consumer.accept(value.v1(), value.v2());
             }
 
@@ -423,13 +451,111 @@ public class Setting<T> extends ToXContentToBytes {
         };
     }
 
+    public static class AffixSetting<T> extends Setting<T> {
+        private final AffixKey key;
+        private final Function<String, Setting<T>> delegateFactory;
+
+        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory) {
+            super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
+            this.key = key;
+            this.delegateFactory = delegateFactory;
+        }
+
+        boolean isGroupSetting() {
+            return true;
+        }
+
+        private Stream<String> matchStream(Settings settings) {
+            return settings.getAsMap().keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+        }
+
+        AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
+            BiConsumer<String, T> consumer, Logger logger, BiConsumer<String, T> validator) {
+            return new AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>>() {
+
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                }
+
+                @Override
+                public Map<AbstractScopedSettings.SettingUpdater<T>, T> getValue(Settings current, Settings previous) {
+                    // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
+                    final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
+                    Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
+                        String namespace = key.getNamespace(aKey);
+                        AbstractScopedSettings.SettingUpdater<T> updater =
+                            getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
+                                (v) -> validator.accept(namespace, v));
+                        if (updater.hasChanged(current, previous)) {
+                            // only the ones that have changed otherwise we might get too many updates
+                            // the hasChanged above checks only if there are any changes
+                            T value = updater.getValue(current, previous);
+                            result.put(updater, value);
+                        }
+                    });
+                    return result;
+                }
+
+                @Override
+                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current, Settings previous) {
+                    for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
+                        entry.getKey().apply(entry.getValue(), current, previous);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public T get(Settings settings) {
+            throw new UnsupportedOperationException("affix settings can't return values" +
+                " use #getConcreteSetting to obtain a concrete setting");
+        }
+
+        @Override
+        public String getRaw(Settings settings) {
+            throw new UnsupportedOperationException("affix settings can't return values" +
+                " use #getConcreteSetting to obtain a concrete setting");
+        }
+
+        @Override
+        public Setting<T> getConcreteSetting(String key) {
+            if (match(key)) {
+                return delegateFactory.apply(key);
+            } else {
+                throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
+            }
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            matchStream(defaultSettings).forEach((key) -> getConcreteSetting(key).diff(builder, source, defaultSettings));
+        }
+
+        /**
+         * Returns the namespace for a concrete settting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
+         * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
+         */
+        public String getNamespace(Setting<T> concreteSetting) {
+            return key.getNamespace(concreteSetting.getKey());
+        }
+
+        /**
+         * Returns a stream of all concrete setting instances for the given settings. AffixSetting is only a specification, concrete
+         * settings depend on an actual set of setting keys.
+         */
+        public Stream<Setting<T>> getAllConcreteSettings(Settings settings) {
+            return matchStream(settings).distinct().map(this::getConcreteSetting);
+        }
+    }
+
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
-        private final ESLogger logger;
+        private final Logger logger;
         private final Consumer<T> accept;
 
-        public Updater(Consumer<T> consumer, ESLogger logger, Consumer<T> accept) {
+        public Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             this.accept = accept;
@@ -542,19 +668,15 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), Booleans::parseBoolean, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
+        return new Setting<>(key, fallbackSetting, Booleans::parseBoolean, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
-    }
-
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {
-        return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, defaultValueFn, Booleans::parseBoolean, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
@@ -584,17 +706,56 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
-        if (value.bytes() < minValue.bytes()) {
+        if (value.getBytes() < minValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
-        if (value.bytes() > maxValue.bytes()) {
+        if (value.getBytes() > maxValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     *
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
+        return memorySizeSetting(key, (s) -> defaultValue.toString(), properties);
+    }
+
+
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     *
+     * @param key the key for the setting
+     * @param defaultValue a function that supplies the default value for this setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     *
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of the heap memory
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
+        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
@@ -610,6 +771,9 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
                                                    Function<String, T> singleValueParser, Property... properties) {
+        if (defaultStringValue.apply(Settings.EMPTY) == null) {
+            throw new IllegalArgumentException("default value function must not return null");
+        }
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
@@ -631,11 +795,24 @@ public class Setting<T> extends ToXContentToBytes {
                 boolean exists = super.exists(settings);
                 return exists || settings.get(getKey() + ".0") != null;
             }
+
+            @Override
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                if (exists(source) == false) {
+                    String[] asArray = defaultSettings.getAsArray(getKey(), null);
+                    if (asArray == null) {
+                        builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                    } else {
+                        builder.putArray(getKey(), asArray);
+                    }
+                }
+            }
         };
     }
 
     private static List<String> parseableStringToList(String parsableString) {
-        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(parsableString)) {
+        // EMPTY is safe here because we never call namedObject
+        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, parsableString)) {
             XContentParser.Token token = xContentParser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException("expected START_ARRAY but got " + token);
@@ -653,7 +830,6 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-
     private static String arrayToParsableString(String[] array) {
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -667,9 +843,11 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
+
     public static Setting<Settings> groupSetting(String key, Property... properties) {
         return groupSetting(key, (s) -> {}, properties);
     }
+
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
         return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, properties) {
             @Override
@@ -709,7 +887,18 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger,
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                Map<String, String> leftGroup = get(source).getAsMap();
+                Settings defaultGroup = get(defaultSettings);
+                for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
+                    if (leftGroup.containsKey(entry.getKey()) == false) {
+                        builder.put(getKey() + entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            @Override
+            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
                     Consumer<Settings> validator) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
@@ -739,7 +928,9 @@ public class Setting<T> extends ToXContentToBytes {
 
                     @Override
                     public void apply(Settings value, Settings current, Settings previous) {
-                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+                        if (logger.isInfoEnabled()) { // getRaw can create quite some objects
+                            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+                        }
                         consumer.accept(value);
                     }
 
@@ -752,9 +943,9 @@ public class Setting<T> extends ToXContentToBytes {
         };
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue,
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> {
+        return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
             if (timeValue.millis() < minValue.millis()) {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
@@ -764,15 +955,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
-        return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, properties);
+        return timeSetting(key, (s) -> defaultValue, minValue, properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
+        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {
@@ -803,50 +998,24 @@ public class Setting<T> extends ToXContentToBytes {
      * can easily be added with this setting. Yet, prefix key settings don't support updaters out of the box unless
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser,
-                                                  Property... properties) {
-        return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, properties);
+    public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
+        return affixKeySetting(new AffixKey(prefix), delegateFactory);
     }
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
-     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
+     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
-                                                 Function<String, T> parser, Property... properties) {
-        return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, properties);
+    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
+        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory);
     }
 
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
-                                                 Property... properties) {
-        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
-    }
+    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
+        Setting<T> delegate = delegateFactory.apply("_na_");
+        return new AffixSetting<>(key, delegate, delegateFactory);
+    };
 
-    public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,
-                                                 Property... properties) {
-        return new Setting<T>(key, defaultValue, parser, properties) {
-
-            @Override
-            boolean isGroupSetting() {
-                return true;
-            }
-
-            @Override
-            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
-                throw new UnsupportedOperationException("Affix settings can't be updated. Use #getConcreteSetting for updating.");
-            }
-
-            @Override
-            public Setting<T> getConcreteSetting(String key) {
-                if (match(key)) {
-                    return new Setting<>(key, defaultValue, parser, properties);
-                } else {
-                    throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
-                }
-            }
-        };
-    }
 
 
     public interface Key {
@@ -912,34 +1081,60 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * A key that allows for static pre and suffix. This is used for settings
+     * that have dynamic namespaces like for different accounts etc.
+     */
     public static final class AffixKey implements Key {
-        public static AffixKey withPrefix(String prefix) {
-            return new AffixKey(prefix, null);
-        }
-
-        public static AffixKey withAdfix(String prefix, String suffix) {
-            return new AffixKey(prefix, suffix);
-        }
-
+        private final Pattern pattern;
         private final String prefix;
         private final String suffix;
 
-        public AffixKey(String prefix, String suffix) {
+        AffixKey(String prefix) {
+            this(prefix, null);
+        }
+
+        AffixKey(String prefix, String suffix) {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
+
             this.prefix = prefix;
+            if (prefix.endsWith(".") == false) {
+                throw new IllegalArgumentException("prefix must end with a '.'");
+            }
             this.suffix = suffix;
+            if (suffix == null) {
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+            } else {
+                // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
+            }
         }
 
         @Override
         public boolean match(String key) {
-            boolean match = true;
-            if (prefix != null) {
-                match = key.startsWith(prefix);
+            return pattern.matcher(key).matches();
+        }
+
+        /**
+         * Returns a string representation of the concrete setting key
+         */
+        String getConcreteString(String key) {
+            Matcher matcher = pattern.matcher(key);
+            if (matcher.matches() == false) {
+                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            if (suffix != null) {
-                match = match && key.endsWith(suffix);
+            return matcher.group(1);
+        }
+
+        /**
+         * Returns a string representation of the concrete setting key
+         */
+        String getNamespace(String key) {
+            Matcher matcher = pattern.matcher(key);
+            if (matcher.matches() == false) {
+                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            return match;
+            return matcher.group(2);
         }
 
         public SimpleKey toConcreteKey(String missingPart) {
@@ -962,9 +1157,9 @@ public class Setting<T> extends ToXContentToBytes {
                 sb.append(prefix);
             }
             if (suffix != null) {
-                sb.append("*");
+                sb.append('*');
+                sb.append('.');
                 sb.append(suffix);
-                sb.append(".");
             }
             return sb.toString();
         }

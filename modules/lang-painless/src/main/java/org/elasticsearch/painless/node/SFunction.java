@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
@@ -53,9 +54,6 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
-        public static final String THIS = "#this";
-        public static final String LOOP = "#loop";
-
         private int maxLoopCounter = 0;
 
         public void markReserved(String name) {
@@ -63,7 +61,7 @@ public final class SFunction extends AStatement {
         }
 
         public boolean isReserved(String name) {
-            return name.equals(THIS) || name.equals(LOOP);
+            return Locals.FUNCTION_KEYWORDS.contains(name);
         }
 
         @Override
@@ -173,7 +171,7 @@ public final class SFunction extends AStatement {
         }
 
         if (reserved.getMaxLoopCounter() > 0) {
-            loop = locals.getVariable(null, FunctionReserved.LOOP);
+            loop = locals.getVariable(null, Locals.LOOP);
         }
     }
 
@@ -222,5 +220,16 @@ public final class SFunction extends AStatement {
                 method.method.getDescriptor(),
                 false);
         writer.push(handle);
+    }
+
+    @Override
+    public String toString() {
+        List<Object> description = new ArrayList<>();
+        description.add(rtnTypeStr);
+        description.add(name);
+        if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
+            description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
+        }
+        return multilineToString(description, statements);
     }
 }

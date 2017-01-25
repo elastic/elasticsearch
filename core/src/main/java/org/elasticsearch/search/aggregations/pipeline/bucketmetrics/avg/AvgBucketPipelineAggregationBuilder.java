@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,6 @@ import java.util.Map;
 
 public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<AvgBucketPipelineAggregationBuilder> {
     public static final String NAME = "avg_bucket";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public AvgBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });

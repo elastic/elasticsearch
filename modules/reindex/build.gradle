@@ -17,6 +17,8 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.test-with-dependencies'
+
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
@@ -26,19 +28,18 @@ esplugin {
 integTest {
   cluster {
     // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', 'myself'
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
   }
 }
 
 run {
   // Whitelist reindexing from the local node so we can test it.
-  setting 'reindex.remote.whitelist', 'myself'
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
   // for http - testing reindex from remote
-  testCompile project(path: ':modules:transport-netty3', configuration: 'runtime')
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
 }
 

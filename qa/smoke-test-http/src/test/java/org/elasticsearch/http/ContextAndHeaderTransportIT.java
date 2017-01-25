@@ -22,7 +22,6 @@ package org.elasticsearch.http;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -86,11 +85,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -322,13 +316,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+        protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             requests.add(new RequestAndHeaders(threadPool.getThreadContext().getHeaders(), request));
-            return true;
-        }
-
-        @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
             return true;
         }
     }

@@ -19,22 +19,20 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnalyzer> {
 
     private final StopAnalyzer stopAnalyzer;
 
     public StopAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        CharArraySet stopWords = Analysis.parseStopWords(
+            env, indexSettings.getIndexVersionCreated(), settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         this.stopAnalyzer = new StopAnalyzer(stopWords);
         this.stopAnalyzer.setVersion(version);
     }

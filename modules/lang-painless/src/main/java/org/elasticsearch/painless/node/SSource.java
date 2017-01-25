@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
@@ -89,7 +90,7 @@ public final class SSource extends AStatement {
 
         @Override
         public boolean isReserved(String name) {
-            return Locals.KEYWORDS.contains(name);
+            return Locals.MAIN_KEYWORDS.contains(name);
         }
 
         public boolean usesScore() {
@@ -331,5 +332,13 @@ public final class SSource extends AStatement {
 
     public byte[] getBytes() {
         return bytes;
+    }
+
+    @Override
+    public String toString() {
+        List<Object> subs = new ArrayList<>(functions.size() + statements.size());
+        subs.addAll(functions);
+        subs.addAll(statements);
+        return multilineToString(emptyList(), subs);
     }
 }

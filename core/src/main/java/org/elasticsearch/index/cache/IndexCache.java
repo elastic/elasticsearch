@@ -28,9 +28,6 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import java.io.Closeable;
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;

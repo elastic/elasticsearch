@@ -1,0 +1,72 @@
+---
+"Index data and search on the mixed cluster":
+ - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 5 } # no new indexed data, so expect the original 5 documents from the old cluster
+
+ - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v1_mixed", "f2": 5}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v2_mixed", "f2": 6}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v3_mixed", "f2": 7}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v4_mixed", "f2": 8}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v5_mixed", "f2": 9}'
+
+ - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d10
+       body: {"f1": "v6_mixed", "f2": 10}
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 11 } # 5 docs from old cluster, 6 docs from mixed cluster
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d10
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 10 }
+
+---
+"Verify custom cluster metadata still exists during upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }

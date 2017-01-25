@@ -18,30 +18,20 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -53,8 +43,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ParentFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -111,10 +99,11 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     public void testNoParentNullFieldCreatedIfNoParentSpecified() throws Exception {
         Index index = new Index("_index", "testUUID");
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
-        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
+        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
             Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService,
+        MapperService mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry(), similarityService,
             new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
             .startObject("properties")
@@ -136,41 +125,4 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         return numFieldWithParentPrefix;
     }
 
-    public void testPost2Dot0LazyLoading() {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
-        builder.type("parent");
-        builder.eagerGlobalOrdinals(false);
-
-        ParentFieldMapper parentFieldMapper = builder.build(new Mapper.BuilderContext(post2Dot0IndexSettings(), new ContentPath(0)));
-
-        assertThat(parentFieldMapper.getParentJoinFieldType().name(), equalTo("_parent#child"));
-        assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
-
-        assertThat(parentFieldMapper.fieldType().name(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.fieldType().eagerGlobalOrdinals(), equalTo(false));
-        assertThat(parentFieldMapper.fieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
-    }
-
-    public void testPost2Dot0EagerLoading() {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
-        builder.type("parent");
-        builder.eagerGlobalOrdinals(true);
-
-        ParentFieldMapper parentFieldMapper = builder.build(new Mapper.BuilderContext(post2Dot0IndexSettings(), new ContentPath(0)));
-
-        assertThat(parentFieldMapper.getParentJoinFieldType().name(), equalTo("_parent#child"));
-        assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
-
-        assertThat(parentFieldMapper.fieldType().name(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.fieldType().eagerGlobalOrdinals(), equalTo(true));
-        assertThat(parentFieldMapper.fieldType().hasDocValues(), is(true));
-        assertThat(parentFieldMapper.fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
-    }
-
-    private static Settings post2Dot0IndexSettings() {
-        return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
-    }
 }

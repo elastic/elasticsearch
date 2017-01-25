@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.alias.exists;
 import org.elasticsearch.action.admin.indices.alias.get.BaseAliasesRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class AliasesExistRequestBuilder extends BaseAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public AliasesExistRequestBuilder(ElasticsearchClient client, AliasesExistAction action, String... aliases) {

@@ -40,13 +40,15 @@ import java.util.Set;
  */
 public final class PField extends AStoreable {
 
+    private final boolean nullSafe;
     private final String value;
 
     private AStoreable sub = null;
 
-    public PField(Location location, AExpression prefix, String value) {
+    public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
 
+        this.nullSafe = nullSafe;
         this.value = Objects.requireNonNull(value);
     }
 
@@ -64,7 +66,7 @@ public final class PField extends AStoreable {
         Sort sort = prefix.actual.sort;
 
         if (sort == Sort.ARRAY) {
-            sub = new PSubArrayLength(location,prefix.actual.name, value);
+            sub = new PSubArrayLength(location, prefix.actual.name, value);
         } else if (sort == Sort.DEF) {
             sub = new PSubDefField(location, value);
         } else {
@@ -104,6 +106,10 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + prefix.actual.name + "]."));
+        }
+
+        if (nullSafe) {
+            sub = new PSubNullSafeField(location, sub);
         }
 
         sub.write = write;
@@ -150,5 +156,13 @@ public final class PField extends AStoreable {
     @Override
     void store(MethodWriter writer, Globals globals) {
         sub.store(writer, globals);
+    }
+
+    @Override
+    public String toString() {
+        if (nullSafe) {
+            return singleLineToString("nullSafe", prefix, value);
+        }
+        return singleLineToString(prefix, value);
     }
 }

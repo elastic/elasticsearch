@@ -16,7 +16,7 @@ PUT my_index/type_1/1
   "text": "Document with type 1"
 }
 
-PUT my_index/type_2/2
+PUT my_index/type_2/2?refresh=true
 {
   "text": "Document with type 2"
 }

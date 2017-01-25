@@ -36,18 +36,21 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -68,8 +71,8 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -91,7 +94,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -108,14 +110,9 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testSelfReferentialIsForbidden() {
-        try {
-            prepareCreate("test").addMapping("type", "_parent", "type=type").get();
-            fail("self referential should be forbidden");
-        } catch (Exception e) {
-            Throwable cause = e.getCause();
-            assertThat(cause, instanceOf(IllegalArgumentException.class));
-            assertThat(cause.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            prepareCreate("test").addMapping("type", "_parent", "type=type").get());
+        assertThat(e.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
     }
 
     public void testMultiLevelChild() throws Exception {
@@ -811,6 +808,31 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
     }
 
+    public void testHasChildInnerHitsHighlighting() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
+        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", "foo bar").get();
+        client().admin().indices().prepareFlush("test").get();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+                hasChildQuery("child", matchQuery("c_field", "foo"), ScoreMode.None)
+                    .innerHit(new InnerHitBuilder().setHighlightBuilder(
+                        new HighlightBuilder().field(new Field("c_field")
+                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))), false))
+                .get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        SearchHit[] searchHits = searchResponse.getHits().hits()[0].getInnerHits().get("child").hits();
+        assertThat(searchHits.length, equalTo(1));
+        assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments().length, equalTo(1));
+        assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments()[0].string(), equalTo("foo <em>bar</em>"));
+    }
+
     public void testHasChildAndHasParentWrappedInAQueryFilter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
@@ -1121,7 +1143,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                         hasChildQuery(
                                                 "child_type_one",
                                                 boolQuery().must(
-                                                        queryStringQuery("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*")
                                                 ),
                                                 ScoreMode.None)
                                 ),
@@ -1138,7 +1160,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                         hasChildQuery(
                                                 "child_type_two",
                                                 boolQuery().must(
-                                                        queryStringQuery("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*")
                                                 ),
                                                 ScoreMode.None)
                                 ),

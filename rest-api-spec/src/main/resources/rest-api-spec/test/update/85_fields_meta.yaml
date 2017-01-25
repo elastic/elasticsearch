@@ -33,6 +33,6 @@
           type:   test
           id:     1
           parent: 5
-          fields: [ _parent, _routing ]
+          stored_fields: [ _parent, _routing ]
 
 

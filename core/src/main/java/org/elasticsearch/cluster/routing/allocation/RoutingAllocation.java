@@ -21,14 +21,17 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,75 +48,6 @@ import static java.util.Collections.unmodifiableSet;
  */
 public class RoutingAllocation {
 
-    /**
-     * this class is used to describe results of a {@link RoutingAllocation}
-     */
-    public static class Result {
-
-        private final boolean changed;
-
-        private final RoutingTable routingTable;
-
-        private final MetaData metaData;
-
-        private final RoutingExplanations explanations;
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this(changed, routingTable, metaData, new RoutingExplanations());
-        }
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         * @param explanations Explanation for the reroute actions
-         */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
-            this.explanations = explanations;
-        }
-
-        /** determine whether the actual {@link RoutingTable} has been changed
-         * @return <code>true</code> if the {@link RoutingTable} has been changed by allocation. Otherwise <code>false</code>
-         */
-        public boolean changed() {
-            return this.changed;
-        }
-
-        /**
-         * Get the {@link MetaData} referenced by this result
-         * @return referenced {@link MetaData}
-         */
-        public MetaData metaData() {
-            return metaData;
-        }
-
-        /**
-         * Get the {@link RoutingTable} referenced by this result
-         * @return referenced {@link RoutingTable}
-         */
-        public RoutingTable routingTable() {
-            return routingTable;
-        }
-
-        /**
-         * Get the explanation of this result
-         * @return explanation
-         */
-        public RoutingExplanations explanations() {
-            return explanations;
-        }
-    }
-
     private final AllocationDeciders deciders;
 
     private final RoutingNodes routingNodes;
@@ -126,8 +60,6 @@ public class RoutingAllocation {
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
-    private final AllocationExplanation explanation = new AllocationExplanation();
-
     private final ClusterInfo clusterInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
@@ -136,11 +68,18 @@ public class RoutingAllocation {
 
     private final boolean retryFailed;
 
-    private boolean debugDecision = false;
+    private DebugMode debugDecision = DebugMode.OFF;
 
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+
+    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
+    private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
+    private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
+    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
+    );
 
 
     /**
@@ -216,12 +155,8 @@ public class RoutingAllocation {
         return (T)customs.get(key);
     }
 
-    /**
-     * Get explanations of current routing
-     * @return explanation of routing
-     */
-    public AllocationExplanation explanation() {
-        return explanation;
+    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
+        return customs;
     }
 
     public void ignoreDisable(boolean ignoreDisable) {
@@ -232,11 +167,19 @@ public class RoutingAllocation {
         return this.ignoreDisable;
     }
 
-    public void debugDecision(boolean debug) {
+    public void setDebugMode(DebugMode debug) {
         this.debugDecision = debug;
     }
 
+    public void debugDecision(boolean debug) {
+        this.debugDecision = debug ? DebugMode.ON : DebugMode.OFF;
+    }
+
     public boolean debugDecision() {
+        return this.debugDecision != DebugMode.OFF;
+    }
+
+    public DebugMode getDebugMode() {
         return this.debugDecision;
     }
 
@@ -252,6 +195,17 @@ public class RoutingAllocation {
         nodes.add(nodeId);
     }
 
+    /**
+     * Returns whether the given node id should be ignored from consideration when {@link AllocationDeciders}
+     * is deciding whether to allocate the specified shard id to that node.  The node will be ignored if
+     * the specified shard failed on that node, triggering the current round of allocation.  Since the shard
+     * just failed on that node, we don't want to try to reassign it there, if the node is still a part
+     * of the cluster.
+     *
+     * @param shardId the shard id to be allocated
+     * @param nodeId the node id to check against
+     * @return true if the node id should be ignored in allocation decisions, false otherwise
+     */
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
             return false;
@@ -269,6 +223,34 @@ public class RoutingAllocation {
             return emptySet();
         }
         return unmodifiableSet(new HashSet<>(ignore));
+    }
+
+    /**
+     * Returns observer to use for changes made to the routing nodes
+     */
+    public RoutingChangesObserver changes() {
+        return routingChangesObserver;
+    }
+
+    /**
+     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+     */
+    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
+        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    }
+
+    /**
+     * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
+     */
+    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
+        return restoreInProgressUpdater.applyChanges(restoreInProgress);
+    }
+
+    /**
+     * Returns true iff changes were made to the routing nodes
+     */
+    public boolean routingNodesChanged() {
+        return nodesChangedObserver.isChanged();
     }
 
     /**
@@ -305,5 +287,21 @@ public class RoutingAllocation {
 
     public boolean isRetryFailed() {
         return retryFailed;
+    }
+
+    public enum DebugMode {
+        /**
+         * debug mode is off
+         */
+        OFF,
+        /**
+         * debug mode is on
+         */
+        ON,
+        /**
+         * debug mode is on, but YES decisions from a {@link org.elasticsearch.cluster.routing.allocation.decider.Decision.Multi}
+         * are not included.
+         */
+        EXCLUDE_YES_DECISIONS
     }
 }

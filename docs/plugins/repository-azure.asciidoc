@@ -14,10 +14,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install repository-azure
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-azure/repository-azure-{version}.zip.
 
 [[repository-azure-remove]]
 [float]
@@ -29,7 +31,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove repository-azure
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -120,14 +121,14 @@ The Azure repository supports following settings:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `false`.
 
-`read_only`::
+`readonly`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 `location_mode`::
 
     `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
-    to `secondary_only`, it will force `read_only` to true.
+    to `secondary_only`, it will force `readonly` to true.
 
 Some examples, using scripts:
 

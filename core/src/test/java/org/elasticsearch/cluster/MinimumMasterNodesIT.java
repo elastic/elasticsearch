@@ -24,19 +24,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDelay;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -63,9 +62,8 @@ import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
-@TestLogging("_root:DEBUG,cluster.service:TRACE,discovery.zen:TRACE")
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
+@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -75,10 +73,15 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         return classes;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    }
+
     public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -130,7 +133,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-        assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
+        // verify that both nodes are still in the cluster state but there is no master
+        assertThat(state.nodes().getSize(), equalTo(2));
+        assertThat(state.nodes().getMasterNode(), equalTo(null));
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(settings);
@@ -190,29 +195,25 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testMultipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
         logger.info("--> start first 2 nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        internalCluster().startNodes(2, settings);
 
         ClusterState state;
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (Client client : clients()) {
-                    ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                    assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-                }
+        assertBusy(() -> {
+            for (Client client : clients()) {
+                ClusterState state1 = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                assertThat(state1.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
             }
         });
 
         logger.info("--> start two more nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        internalCluster().startNodes(2, settings);
 
         ensureGreen();
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
@@ -247,7 +248,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> start back the 2 nodes ");
-        String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
+        String[] newNodes = internalCluster().startNodes(2, settings).stream().toArray(String[]::new);
 
         ensureGreen();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
@@ -266,17 +267,18 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
-                .put("discovery.initial_state_timeout", "500ms")
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "1")
                 .build();
 
-        logger.info("--> start 2 nodes");
-        internalCluster().startNodesAsync(2, settings).get();
+        logger.info("--> start first node and wait for it to be a master");
+        internalCluster().startNode(settings);
+        ensureClusterSizeConsistency();
 
         // wait until second node join the cluster
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        logger.info("--> start second node and wait for it to join");
+        internalCluster().startNode(settings);
+        ensureClusterSizeConsistency();
 
         logger.info("--> setting minimum master node to 2");
         setMinimumMasterNodes(2);
@@ -294,8 +296,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> bringing another node up");
         internalCluster().startNode(Settings.builder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build());
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureClusterSizeConsistency();
     }
 
     private void assertNoMasterBlockOnAllNodes() throws InterruptedException {
@@ -324,7 +325,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms");
 
@@ -334,7 +334,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
 
         logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
-        internalCluster().startNodesAsync(nodeCount, settings.build()).get();
+        internalCluster().startNodes(nodeCount, settings.build());
 
         logger.info("--> waiting for nodes to join");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
@@ -363,13 +363,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     public void testCanNotPublishWithoutMinMastNodes() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
-                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1h") // disable it
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();
-        internalCluster().startNodesAsync(3, settings).get();
+        internalCluster().startNodes(3, settings);
         ensureGreen(); // ensure cluster state is recovered before we disrupt things
 
         final String master = internalCluster().getMasterName();
@@ -377,9 +375,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         otherNodes.remove(master);
         NetworkDisruption partition = new NetworkDisruption(
             new TwoPartitions(Collections.singleton(master), otherNodes),
-            new NetworkDelay(TimeValue.timeValueMinutes(1)));
+            new NetworkDisruption.NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
-        partition.startDisrupting();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -393,6 +390,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                logger.debug("--> starting the disruption, preventing cluster state publishing");
+                partition.startDisrupting();
                 MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
                         Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
                 );

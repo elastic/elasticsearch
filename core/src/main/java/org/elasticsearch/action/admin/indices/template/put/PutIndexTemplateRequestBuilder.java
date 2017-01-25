@@ -25,12 +25,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder
+    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
@@ -41,10 +41,20 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
-     * Sets the template match expression that will be used to match on indices created.
+     * Sets the match expression that will be used to match on indices created.
+     *
+     * @deprecated Replaced by {@link #setPatterns(List)}
      */
-    public PutIndexTemplateRequestBuilder setTemplate(String template) {
-        request.template(template);
+    @Deprecated
+    public PutIndexTemplateRequestBuilder setTemplate(String indexPattern) {
+        return setPatterns(Collections.singletonList(indexPattern));
+    }
+
+    /**
+     * Sets the match expression that will be used to match on indices created.
+     */
+    public PutIndexTemplateRequestBuilder setPatterns(List<String> indexPatterns) {
+        request.patterns(indexPatterns);
         return this;
     }
 
@@ -57,8 +67,16 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
+     * Sets the optional version of this template.
+     */
+    public PutIndexTemplateRequestBuilder setVersion(Integer version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
-     * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
+     * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequestBuilder setCreate(boolean create) {
         request.create(create);

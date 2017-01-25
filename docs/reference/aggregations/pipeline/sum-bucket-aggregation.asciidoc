@@ -3,7 +3,7 @@
 
 experimental[]
 
-A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation. 
+A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
 
 ==== Syntax
@@ -33,7 +33,9 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -56,7 +58,10 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
     }
 }
 --------------------------------------------------
-<1> `buckets_path` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the 
+// CONSOLE
+// TEST[setup:sales]
+
+<1> `buckets_path` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
 And the following may be the response:
@@ -64,6 +69,10 @@ And the following may be the response:
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -72,7 +81,7 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "sales": {
-                  "value": 550
+                  "value": 550.0
                }
             },
             {
@@ -80,7 +89,7 @@ And the following may be the response:
                "key": 1422748800000,
                "doc_count": 2,
                "sales": {
-                  "value": 60
+                  "value": 60.0
                }
             },
             {
@@ -88,15 +97,17 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "sales": {
-                  "value": 375
+                  "value": 375.0
                }
             }
          ]
       },
       "sum_monthly_sales": {
-          "value": 985
+          "value": 985.0
       }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

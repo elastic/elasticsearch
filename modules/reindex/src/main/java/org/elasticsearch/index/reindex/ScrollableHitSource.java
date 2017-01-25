@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,13 +50,13 @@ import static java.util.Objects.requireNonNull;
 public abstract class ScrollableHitSource implements Closeable {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
     protected final Runnable countSearchRetry;
     protected final Consumer<Exception> fail;
 
-    public ScrollableHitSource(ESLogger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
+    public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
             Consumer<Exception> fail) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
@@ -83,13 +83,24 @@ public abstract class ScrollableHitSource implements Closeable {
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
     
     @Override
-    public void close() {
+    public final void close() {
         String scrollId = this.scrollId.get();
         if (Strings.hasLength(scrollId)) {
-            clearScroll(scrollId);
+            clearScroll(scrollId, this::cleanup);
+        } else {
+            cleanup();
         }
     }
-    protected abstract void clearScroll(String scrollId);
+    /**
+     * Called to clear a scroll id.
+     * @param scrollId the id to clear
+     * @param onCompletion implementers must call this after completing the clear whether they are successful or not
+     */
+    protected abstract void clearScroll(String scrollId, Runnable onCompletion);
+    /**
+     * Called after the process has been totally finished to clean up any resources the process needed like remote connections.
+     */
+    protected abstract void cleanup();
 
     /**
      * Set the id of the last scroll. Used for debugging.
@@ -187,14 +198,6 @@ public abstract class ScrollableHitSource implements Closeable {
          * The routing on the hit if there is any or null if there isn't.
          */
         @Nullable String getRouting();
-        /**
-         * The {@code _timestamp} on the hit if one was stored with the hit or null if one wasn't.
-         */
-        @Nullable Long getTimestamp();
-        /**
-         * The {@code _ttl} on the hit if one was set on it or null one wasn't.
-         */
-        @Nullable Long getTTL();
     }
 
     /**
@@ -210,8 +213,6 @@ public abstract class ScrollableHitSource implements Closeable {
         private BytesReference source;
         private String parent;
         private String routing;
-        private Long timestamp;
-        private Long ttl;
 
         public BasicHit(String index, String type, String id, long version) {
             this.index = index;
@@ -267,26 +268,6 @@ public abstract class ScrollableHitSource implements Closeable {
 
         public BasicHit setRouting(String routing) {
             this.routing = routing;
-            return this;
-        }
-
-        @Override
-        public Long getTimestamp() {
-            return timestamp;
-        }
-
-        public BasicHit setTimestamp(Long timestamp) {
-            this.timestamp = timestamp;
-            return this;
-        }
-
-        @Override
-        public Long getTTL() {
-            return ttl;
-        }
-
-        public BasicHit setTTL(Long ttl) {
-            this.ttl = ttl;
             return this;
         }
     }
@@ -367,7 +348,7 @@ public abstract class ScrollableHitSource implements Closeable {
             builder.field("reason");
             {
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, reason);
+                ElasticsearchException.generateThrowableXContent(builder, params, reason);
                 builder.endObject();
             }
             builder.endObject();

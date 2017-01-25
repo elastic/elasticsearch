@@ -23,9 +23,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
-/**
- *
- */
 public class HighlighterContext {
 
     public final String fieldName;

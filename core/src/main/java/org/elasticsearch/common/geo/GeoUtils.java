@@ -26,12 +26,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
 
-/**
- */
 public class GeoUtils {
 
     /** Maximum valid latitude in degrees. */
@@ -43,9 +40,9 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
-    public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
-    public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
+    public static final String LATITUDE = "lat";
+    public static final String LONGITUDE = "lon";
+    public static final String GEOHASH = "geohash";
 
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)

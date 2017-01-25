@@ -19,23 +19,20 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final CharArraySet articles;
 
     public ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.articles = Analysis.parseArticles(env, settings);
+        this.articles = Analysis.parseArticles(env, indexSettings.getIndexVersionCreated(), settings);
     }
 
     @Override

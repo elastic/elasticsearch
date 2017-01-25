@@ -38,16 +38,18 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+POST /twitter/tweet/_search?scroll=1m
 {
+    "size": 100,
     "query": {
         "match" : {
             "title" : "elasticsearch"
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
@@ -55,13 +57,14 @@ results.
 
 [source,js]
 --------------------------------------------------
-curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
+POST <1> /_search/scroll <2>
 {
     "scroll" : "1m", <3>
-    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <4>
+    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <4>
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
 <1> `GET` or `POST` can be used.
 <2> The URL should not include the `index` or `type` name -- these
@@ -70,16 +73,10 @@ curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
     for another `1m`.
 <4> The `scroll_id` parameter
 
-Each call to the `scroll` API returns the next batch of results until there
-are no more results left to return, ie the `hits` array is empty.
-
-For backwards compatibility, `scroll_id` and `scroll` can be passed in the query string.
-And the `scroll_id` can be passed in the request body
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_search/scroll?scroll=1m' -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1'
---------------------------------------------------
+The `size` parameter allows you to configure the maximum number of hits to be 
+returned with each batch of results.  Each call to the `scroll` API returns the 
+next batch of results until there are no more results left to return, ie the 
+`hits` array is empty.
 
 IMPORTANT: The initial search request and each subsequent scroll request
 returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
@@ -94,14 +91,15 @@ order, this is the most efficient option:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_search?scroll=1m' -d '
+GET /_search?scroll=1m
 {
   "sort": [
     "_doc"
   ]
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [[scroll-search-context]]
 ==== Keeping the search context alive
@@ -130,8 +128,9 @@ You can check how many search contexts are open with the
 
 [source,js]
 ---------------------------------------
-curl -XGET localhost:9200/_nodes/stats/indices/search?pretty
+GET /_nodes/stats/indices/search
 ---------------------------------------
+// CONSOLE
 
 ==== Clear scroll API
 
@@ -143,39 +142,48 @@ cleared as soon as the scroll is not being used anymore using the
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll -d '
+DELETE /_search/scroll
 {
-    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1"]
-}'
+    "scroll_id" : ["DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="]
+}
 ---------------------------------------
+// CONSOLE
+// TEST[catch:missing]
 
 Multiple scroll IDs can be passed as array:
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll -d '
+DELETE /_search/scroll
 {
-    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
-}'
+    "scroll_id" : [
+      "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==",
+      "DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB"
+    ]
+}
 ---------------------------------------
+// CONSOLE
+// TEST[catch:missing]
 
 All search contexts can be cleared with the `_all` parameter:
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll/_all
+DELETE /_search/scroll/_all
 ---------------------------------------
+// CONSOLE
 
 The `scroll_id` can also be passed as a query string parameter or in the request body.
 Multiple scroll IDs can be passed as comma separated values:
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll \
-     -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ'
+DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
 ---------------------------------------
+// CONSOLE
+// TEST[catch:missing]
 
-
+[[sliced-scroll]]
 ==== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
@@ -183,7 +191,7 @@ can be consumed independently:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
         "id": 0, <1>
@@ -195,9 +203,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
-
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
         "id": 1,
@@ -209,8 +215,9 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
 
 <1> The id of the slice
 <2> The maximum number of slices
@@ -247,10 +254,10 @@ slice gets deterministic results.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
-        "field": "my_random_integer_field",
+        "field": "date",
         "id": 0,
         "max": 10
     },
@@ -260,8 +267,9 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
 
 For append only time-based indices, the `timestamp` field can be used safely.
 

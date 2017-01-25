@@ -88,7 +88,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
             }
         } else {
             for (int i = 0; i < percents.length; i++) {
-                int index = (int)((percents[i] / 100.0) * data.size());
+                int index = (int) Math.round((percents[i] / 100.0) * (data.size() - 1));
                 percentiles[i] = data.get(index);
             }
         }

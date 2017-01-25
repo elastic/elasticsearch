@@ -16,41 +16,49 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
-/**
- *
- */
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
-    @Inject
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestPutIndexTemplateAction.class));
+
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        putRequest.template(request.param("template", putRequest.template()));
+        if (request.hasParam("template")) {
+            DEPRECATION_LOGGER.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
+            putRequest.patterns(Collections.singletonList(request.param("template")));
+        } else {
+            putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
+        }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
         putRequest.source(request.content());
-        client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<PutIndexTemplateResponse>(channel));
+        return channel -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
     }
+
 }

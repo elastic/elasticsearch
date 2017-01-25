@@ -33,6 +33,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -94,13 +95,13 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
     }
 
     @After
-    public void stopGceComputeService() {
+    public void stopGceComputeService() throws IOException {
         if (mock != null) {
-            mock.stop();
+            mock.close();
         }
     }
 

@@ -20,16 +20,15 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.snapshotsStatusRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,8 +37,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns status of currently running snapshot
  */
 public class RestSnapshotsStatusAction extends BaseRestHandler {
-
-    @Inject
     public RestSnapshotsStatusAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}/_status", this);
@@ -48,15 +45,16 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository", "_all");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
             snapshots = Strings.EMPTY_ARRAY;
         }
-        SnapshotsStatusRequest snapshotsStatusResponse = snapshotsStatusRequest(repository).snapshots(snapshots);
+        SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
+        snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
-        snapshotsStatusResponse.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusResponse.masterNodeTimeout()));
-        client.admin().cluster().snapshotsStatus(snapshotsStatusResponse, new RestToXContentListener<SnapshotsStatusResponse>(channel));
+        snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
+        return channel -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }

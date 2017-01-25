@@ -476,7 +476,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 builder.field(FRAGMENT_OFFSET_FIELD.getPreferredName(), fragmentOffset);
             }
             if (matchedFields != null) {
-                builder.field(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
+                builder.array(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
             }
             builder.endObject();
         }

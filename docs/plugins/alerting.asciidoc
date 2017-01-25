@@ -8,11 +8,10 @@ Alerting plugins allow Elasticsearch to monitor indices and to trigger alerts wh
 
 The core alerting plugins are:
 
-link:/products/watcher[Watcher]::
+link:/products/x-pack/alerting[X-Pack]::
 
-Watcher is the alerting and notification product for Elasticsearch that lets
-you take action based on changes in your data. It is designed around the
+X-Pack contains the alerting and notification product for Elasticsearch that
+lets you take action based on changes in your data. It is designed around the
 principle that if you can query something in Elasticsearch, you can alert on
 it. Simply define a query, condition, schedule, and the actions to take, and
-Watcher will do the rest.
-
+X-Pack will do the rest.

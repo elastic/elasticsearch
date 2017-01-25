@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -236,7 +237,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    private final Version indexCreatedVersion;
+    protected final Version indexCreatedVersion;
     protected MappedFieldType fieldType;
     protected final MappedFieldType defaultFieldType;
     protected MultiFields multiFields;
@@ -246,6 +247,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_beta1)) {
+            if (simpleName.isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+        }
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();
@@ -276,15 +282,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * mappings were not modified.
      */
     public Mapper parse(ParseContext context) throws IOException {
-        final List<Field> fields = new ArrayList<>(2);
+        final List<IndexableField> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
-            for (Field field : fields) {
+            for (IndexableField field : fields) {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
                         && field.fieldType().indexOptions() != IndexOptions.NONE
                         && indexCreatedVersion.before(Version.V_5_0_0_alpha1)) {
-                    field.setBoost(fieldType().boost());
+                    ((Field)(field)).setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
             }
@@ -298,7 +304,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Parse the field value and populate <code>fields</code>.
      */
-    protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
+    protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.
@@ -537,11 +543,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
             for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
-                FieldMapper mapper = cursor.value;
-                if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                    mapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
-                }
-                builder.put(cursor.key, mapper);
+                builder.put(cursor.key, cursor.value);
             }
             this.mappers = builder.build();
         }
@@ -568,10 +570,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 FieldMapper mergeWithMapper = cursor.value;
                 FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
-                    // we disable the all in multi-field mappers
-                    if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
-                        mergeWithMapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
-                    }
                     newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
@@ -666,16 +664,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public List<String> copyToFields() {
             return copyToFields;
         }
-    }
-
-    /**
-     * Fields might not be available before indexing, for example _all, token_count,...
-     * When get is called and these fields are requested, this case needs special treatment.
-     *
-     * @return If the field is available before indexing or not.
-     */
-    public boolean isGenerated() {
-        return false;
     }
 
 }

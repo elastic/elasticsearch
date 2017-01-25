@@ -24,15 +24,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -40,20 +36,15 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
-/**
- *
- */
 public class RestCountAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestCountAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
@@ -61,24 +52,24 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_count", this);
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
-        if (RestActions.hasBodyContent(request)) {
-            BytesReference restContent = RestActions.getRestContent(request);
-            searchSourceBuilder.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
-        } else {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                searchSourceBuilder.query(queryBuilder);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser == null) {
+                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                if (queryBuilder != null) {
+                    searchSourceBuilder.query(queryBuilder);
+                }
+            } else {
+                searchSourceBuilder.query(RestActions.getQueryContent(parser));
             }
-        }
+        });
         countRequest.routing(request.param("routing"));
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
@@ -93,7 +84,7 @@ public class RestCountAction extends BaseRestHandler {
         } else if (terminateAfter > 0) {
             searchSourceBuilder.terminateAfter(terminateAfter);
         }
-        client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -109,4 +100,5 @@ public class RestCountAction extends BaseRestHandler {
             }
         });
     }
+
 }

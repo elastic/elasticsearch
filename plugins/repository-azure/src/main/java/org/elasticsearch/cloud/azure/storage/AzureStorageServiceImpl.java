@@ -27,6 +27,9 @@ import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cloud.azure.blobstore.util.SocketAccess;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -40,6 +43,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -77,12 +83,12 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     void createClient(AzureStorageSettings azureStorageSettings) {
         try {
             logger.trace("creating new Azure storage client using account [{}], key [{}]",
-                    azureStorageSettings.getAccount(), azureStorageSettings.getKey());
+                azureStorageSettings.getAccount(), azureStorageSettings.getKey());
 
             String storageConnectionString =
-                    "DefaultEndpointsProtocol=https;"
-                            + "AccountName="+ azureStorageSettings.getAccount() +";"
-                            + "AccountKey=" + azureStorageSettings.getKey();
+                "DefaultEndpointsProtocol=https;"
+                    + "AccountName=" + azureStorageSettings.getAccount() + ";"
+                    + "AccountKey=" + azureStorageSettings.getKey();
 
             // Retrieve storage account from connection-string.
             CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
@@ -149,7 +155,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         try {
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
-            return blobContainer.exists();
+            return SocketAccess.doPrivilegedException(blobContainer::exists);
         } catch (Exception e) {
             logger.error("can not access container [{}]", container);
         }
@@ -161,7 +167,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         logger.trace("removing container [{}]", container);
-        blobContainer.deleteIfExists();
+        SocketAccess.doPrivilegedException(blobContainer::deleteIfExists);
     }
 
     @Override
@@ -170,10 +176,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
             logger.trace("creating container [{}]", container);
-            blobContainer.createIfNotExists();
+            SocketAccess.doPrivilegedException(blobContainer::createIfNotExists);
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", e, container);
-            throw new RepositoryException(container, e.getMessage());
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
+            throw new RepositoryException(container, e.getMessage(), e);
         }
     }
 
@@ -184,14 +190,16 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
-            // We list the blobs using a flat blob listing mode
-            for (ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
-                String blobName = blobNameFromUri(blobItem.getUri());
-                logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
-                deleteBlob(account, mode, container, blobName);
+        SocketAccess.doPrivilegedVoidException(() -> {
+            if (blobContainer.exists()) {
+                // We list the blobs using a flat blob listing mode
+                for (ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+                    String blobName = blobNameFromUri(blobItem.getUri());
+                    logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
+                    deleteBlob(account, mode, container, blobName);
+                }
             }
-        }
+        });
     }
 
     /**
@@ -221,7 +229,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         if (blobContainer.exists()) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            return azureBlob.exists();
+            return SocketAccess.doPrivilegedException(azureBlob::exists);
         }
 
         return false;
@@ -237,7 +245,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         if (blobContainer.exists()) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            azureBlob.delete();
+            SocketAccess.doPrivilegedVoidException(azureBlob::delete);
         }
     }
 
@@ -245,14 +253,16 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
         logger.trace("reading container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        return client.getContainerReference(container).getBlockBlobReference(blob).openInputStream();
+        CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
+        return SocketAccess.doPrivilegedException(blockBlobReference::openInputStream);
     }
 
     @Override
     public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
         logger.trace("writing container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        return client.getContainerReference(container).getBlockBlobReference(blob).openOutputStream();
+        CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
+        return SocketAccess.doPrivilegedException(blockBlobReference::openOutputStream);
     }
 
     @Override
@@ -263,30 +273,32 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
-
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
-            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix))) {
-                URI uri = blobItem.getUri();
-                logger.trace("blob url [{}]", uri);
 
-                // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
-                // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
-                String blobPath = uri.getPath().substring(1 + container.length() + 1);
+        SocketAccess.doPrivilegedVoidException(() -> {
+            if (blobContainer.exists()) {
+                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix))) {
+                    URI uri = blobItem.getUri();
+                    logger.trace("blob url [{}]", uri);
 
-                CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobPath);
+                    // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                    String blobPath = uri.getPath().substring(1 + container.length() + 1);
 
-                // fetch the blob attributes from Azure (getBlockBlobReference does not do this)
-                // this is needed to retrieve the blob length (among other metadata) from Azure Storage
-                blob.downloadAttributes();
+                    CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobPath);
 
-                BlobProperties properties = blob.getProperties();
-                String name = blobPath.substring(keyPath.length());
-                logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                    // fetch the blob attributes from Azure (getBlockBlobReference does not do this)
+                    // this is needed to retrieve the blob length (among other metadata) from Azure Storage
+                    blob.downloadAttributes();
+
+                    BlobProperties properties = blob.getProperties();
+                    String name = blobPath.substring(keyPath.length());
+                    logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
+                    blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                }
             }
-        }
+        });
 
         return blobsBuilder.immutableMap();
     }
@@ -300,8 +312,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
         if (blobSource.exists()) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
-            blobTarget.startCopy(blobSource);
-            blobSource.delete();
+            SocketAccess.doPrivilegedVoidException(() -> {
+                blobTarget.startCopy(blobSource);
+                blobSource.delete();
+            });
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }
     }

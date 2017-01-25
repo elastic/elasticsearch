@@ -40,8 +40,8 @@ public final class BenchmarkRunner {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    public void run() throws Exception {
-        SampleRecorder recorder = new SampleRecorder(warmupIterations, iterations);
+    public void run() {
+        SampleRecorder recorder = new SampleRecorder(iterations);
         System.out.printf("Running %s with %d warmup iterations and %d iterations.%n",
             task.getClass().getSimpleName(), warmupIterations, iterations);
 
@@ -52,6 +52,8 @@ public final class BenchmarkRunner {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             return;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
         }
 
         List<Sample> samples = recorder.getSamples();
@@ -62,17 +64,24 @@ public final class BenchmarkRunner {
         }
 
         for (Metrics metrics : summaryMetrics) {
-            System.out.printf(Locale.ROOT, "Operation: %s%n", metrics.operation);
-            String stats = String.format(Locale.ROOT,
-                "Throughput = %f ops/s, p90 = %f ms, p95 = %f ms, p99 = %f ms, p99.9 = %f ms, p99.99 = %f ms",
-                metrics.throughput,
-                metrics.serviceTimeP90, metrics.serviceTimeP95,
-                metrics.serviceTimeP99, metrics.serviceTimeP999,
-                metrics.serviceTimeP9999);
-            System.out.println(repeat(stats.length(), '-'));
-            System.out.println(stats);
+            String throughput = String.format(Locale.ROOT, "Throughput [ops/s]: %f", metrics.throughput);
+            String serviceTimes = String.format(Locale.ROOT,
+                "Service time [ms]: p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
+                metrics.serviceTimeP50, metrics.serviceTimeP90, metrics.serviceTimeP95,
+                metrics.serviceTimeP99, metrics.serviceTimeP999, metrics.serviceTimeP9999);
+            String latencies = String.format(Locale.ROOT,
+                "Latency [ms]:      p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
+                metrics.latencyP50, metrics.latencyP90, metrics.latencyP95,
+                metrics.latencyP99, metrics.latencyP999, metrics.latencyP9999);
+
+            int lineLength = Math.max(serviceTimes.length(), latencies.length());
+
+            System.out.println(repeat(lineLength, '-'));
+            System.out.println(throughput);
+            System.out.println(serviceTimes);
+            System.out.println(latencies);
             System.out.printf("success count = %d, error count = %d%n", metrics.successCount, metrics.errorCount);
-            System.out.println(repeat(stats.length(), '-'));
+            System.out.println(repeat(lineLength, '-'));
         }
     }
 

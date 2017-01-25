@@ -121,8 +121,24 @@ public final class ActiveShardCount implements Writeable {
     }
 
     /**
+     * Returns true iff the given number of active shards is enough to meet
+     * the required shard count represented by this instance.  This method
+     * should only be invoked with {@link ActiveShardCount} objects created
+     * from {@link #from(int)}, or {@link #NONE} or {@link #ONE}.
+     */
+    public boolean enoughShardsActive(final int activeShardCount) {
+        if (this.value < 0) {
+            throw new IllegalStateException("not enough information to resolve to shard count");
+        }
+        if (activeShardCount < 0) {
+            throw new IllegalArgumentException("activeShardCount cannot be negative");
+        }
+        return this.value <= activeShardCount;
+    }
+
+    /**
      * Returns true iff the given cluster state's routing table contains enough active
-     * shards to meet the required shard count represented by this instance.
+     * shards for the given index to meet the required shard count represented by this instance.
      */
     public boolean enoughShardsActive(final ClusterState clusterState, final String indexName) {
         if (this == ActiveShardCount.NONE) {

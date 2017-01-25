@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -33,12 +34,11 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -56,16 +56,16 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
 
-    private final ESLogger logger = Loggers.getLogger(GatewayIndexStateIT.class);
+    private final Logger logger = Loggers.getLogger(GatewayIndexStateIT.class);
 
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");
@@ -95,7 +95,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
     public void testSimpleOpenClose() throws Exception {
         logger.info("--> starting 2 nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
 
         logger.info("--> creating test index");
         createIndex("test");
@@ -238,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 2 nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -278,7 +278,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 
-        final String node_1 = internalCluster().startNodesAsync(2).get().get(0);
+        final String node_1 = internalCluster().startNodes(2).get(0);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -332,7 +332,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         if (randomBoolean()) {
             // test with a regular index
             logger.info("--> starting a cluster with " + numNodes + " nodes");
-            nodes = internalCluster().startNodesAsync(numNodes).get();
+            nodes = internalCluster().startNodes(numNodes);
             logger.info("--> create an index");
             createIndex(indexName);
         } else {
@@ -345,7 +345,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                                                   .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
                                                   .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                                                   .build();
-            nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+            nodes = internalCluster().startNodes(numNodes, nodeSettings);
             logger.info("--> create a shadow replica index");
             createShadowReplicaIndex(indexName, dataPath, numNodes - 1);
         }
@@ -409,13 +409,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                  // this is invalid but should be archived
                 .put("index.similarity.BM25.type", "classic")
                  // this one is not validated ahead of time and breaks allocation
@@ -435,7 +435,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
+        assertEquals(ex.getCause().getMessage(), "Unknown filter type [icu_collation] for [myCollator]");
     }
 
     /**
@@ -471,7 +471,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
@@ -492,7 +492,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
+        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {
@@ -508,7 +508,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         MetaData metaData = state.getMetaData();

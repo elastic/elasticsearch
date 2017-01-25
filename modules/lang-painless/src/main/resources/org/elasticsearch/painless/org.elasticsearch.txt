@@ -57,6 +57,13 @@ class def -> java.lang.Object {
   String toString()
 }
 
+
+#### Painless debugging API
+
+class Debug -> org.elasticsearch.painless.Debug extends Object {
+  void explain(Object)
+}
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {
@@ -99,6 +106,32 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elastic
   double planeDistanceWithDefault(double,double,double)
   double geohashDistance(String)
   double geohashDistanceWithDefault(String,double)
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elasticsearch.index.fielddata.ScriptDocValues$Booleans extends List,Collection,Iterable,Object {
+  Boolean get(int)
+  boolean getValue()
+  List getValues()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs -> org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs extends List,Collection,Iterable,Object {
+  BytesRef get(int)
+  BytesRef getValue()
+  List getValues()
+}
+
+class BytesRef -> org.apache.lucene.util.BytesRef extends Object {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues -> org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues extends List,Collection,Iterable,Object {
+  String get(int)
+  String getValue()
+  List getValues()
 }
 
 # for testing.

@@ -28,7 +28,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -44,10 +43,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.translog.TruncateTranslogCommand;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -85,7 +84,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
-        internalCluster().startNodesAsync(1, Settings.EMPTY).get();
+        internalCluster().startNodes(1, Settings.EMPTY);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
@@ -114,7 +113,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             // Try running it before the shard is closed, it should flip out because it can't acquire the lock
             try {
                 logger.info("--> running truncate while index is open on [{}]", translogDir.toAbsolutePath());
-                ttc.execute(t, options, new HashMap<String, String>());
+                ttc.execute(t, options, null /* TODO: env should be real here, and ttc should actually use it... */);
                 fail("expected the truncate command to fail not being able to acquire the lock");
             } catch (Exception e) {
                 assertThat(e.getMessage(), containsString("Failed to lock shard's directory"));
@@ -162,7 +161,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
             OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString(), "-b");
             logger.info("--> running truncate translog command for [{}]", translogDir.toAbsolutePath());
-            ttc.execute(t, options, new HashMap<String, String>());
+            ttc.execute(t, options, null /* TODO: env should be real here, and ttc should actually use it... */);
             logger.info("--> output:\n{}", t.getOutput());
         }
 

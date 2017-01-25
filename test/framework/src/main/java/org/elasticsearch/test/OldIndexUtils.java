@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
@@ -29,12 +30,13 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.upgrade.get.IndexUpgradeStatus;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Segment;
@@ -56,12 +58,15 @@ import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 
 public class OldIndexUtils {
 
-    public static List<String> loadIndexesList(String prefix, Path bwcIndicesPath) throws IOException {
+    public static List<String> loadDataFilesList(String prefix, Path bwcIndicesPath) throws IOException {
         List<String> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(bwcIndicesPath, prefix + "-*.zip")) {
             for (Path path : stream) {
@@ -86,7 +91,7 @@ public class OldIndexUtils {
         IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
     }
 
-    public static void loadIndex(String indexName, String indexFile, Path unzipDir, Path bwcPath, ESLogger logger, Path... paths) throws
+    public static void loadIndex(String indexName, String indexFile, Path unzipDir, Path bwcPath, Logger logger, Path... paths) throws
         Exception {
         Path unzipDataDir = unzipDir.resolve("data");
 
@@ -103,10 +108,37 @@ public class OldIndexUtils {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
 
-        // the bwc scripts packs the indices under this path
-        Path src = list[0].resolve("nodes/0/indices/" + indexName);
-        assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
-        copyIndex(logger, src, indexName, paths);
+        final Path src = getIndexDir(logger, indexName, indexFile, list[0]);
+        copyIndex(logger, src, src.getFileName().toString(), paths);
+    }
+
+    public static Path getIndexDir(
+        final Logger logger,
+        final String indexName,
+        final String indexFile,
+        final Path dataDir) throws IOException {
+        final Version version = Version.fromString(indexName.substring("index-".length()));
+        if (version.before(Version.V_5_0_0_alpha1)) {
+            // the bwc scripts packs the indices under this path
+            Path src = dataDir.resolve("nodes/0/indices/" + indexName);
+            assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
+            return src;
+        } else {
+            final List<Path> indexFolders = new ArrayList<>();
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"),
+                (p) -> p.getFileName().toString().startsWith("extra") == false)) { // extra FS can break this...
+                for (final Path path : stream) {
+                    indexFolders.add(path);
+                }
+            }
+            assertThat(indexFolders.toString(), indexFolders.size(), equalTo(1));
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                indexFolders.get(0));
+            assertNotNull(indexMetaData);
+            assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));
+            assertThat(indexMetaData.getCreationVersion(), equalTo(version));
+            return indexFolders.get(0);
+        }
     }
 
     public static void assertNotUpgraded(Client client, String... index) throws Exception {
@@ -128,10 +160,10 @@ public class OldIndexUtils {
     }
 
     // randomly distribute the files from src over dests paths
-    public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final Logger logger, final Path src, final String folderName, final Path... dests) throws IOException {
         Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
-            Path indexDir = dest.resolve(indexName);
+            Path indexDir = dest.resolve(folderName);
             assertFalse(Files.exists(indexDir));
             Files.createDirectories(indexDir);
         }
@@ -140,7 +172,7 @@ public class OldIndexUtils {
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Path relativeDir = src.relativize(dir);
                 for (Path dest : dests) {
-                    Path destDir = dest.resolve(indexName).resolve(relativeDir);
+                    Path destDir = dest.resolve(folderName).resolve(relativeDir);
                     Files.createDirectories(destDir);
                 }
                 return FileVisitResult.CONTINUE;
@@ -155,7 +187,7 @@ public class OldIndexUtils {
                 }
 
                 Path relativeFile = src.relativize(file);
-                Path destFile = destinationDataPath.resolve(indexName).resolve(relativeFile);
+                Path destFile = destinationDataPath.resolve(folderName).resolve(relativeFile);
                 logger.trace("--> Moving {} to {}", relativeFile, destFile);
                 Files.move(file, destFile);
                 assertFalse(Files.exists(file));
@@ -194,7 +226,7 @@ public class OldIndexUtils {
     }
 
     public static boolean isUpgraded(Client client, String index) throws Exception {
-        ESLogger logger = Loggers.getLogger(OldIndexUtils.class);
+        Logger logger = Loggers.getLogger(OldIndexUtils.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
             logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());

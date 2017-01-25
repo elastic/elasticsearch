@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +54,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     }
 
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(3).get();
+        List<String> nodes = internalCluster().startNodes(3);
 
         // Wait for all 3 nodes to be up
         assertBusy(new Runnable() {
@@ -74,9 +75,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "/dev/null", 100, 50));
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), randomFrom("20b", "80%"))
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), randomFrom("10b", "90%"))
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")).get();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), randomFrom("20b", "80%"))
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), randomFrom("10b", "90%"))
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")).get();
         // Create an index with 10 shards so we can check allocation for it
         prepareCreate("test").setSettings(Settings.builder()
                 .put("number_of_shards", 10)

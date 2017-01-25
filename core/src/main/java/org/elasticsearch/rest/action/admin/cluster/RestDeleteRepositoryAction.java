@@ -20,15 +20,14 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.deleteRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -37,19 +36,17 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Unregisters a repository
  */
 public class RestDeleteRepositoryAction extends BaseRestHandler {
-
-    @Inject
     public RestDeleteRepositoryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(DELETE, "/_snapshot/{repository}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
         deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
-        client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestListener<DeleteRepositoryResponse>(channel));
+        return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestListener<>(channel));
     }
 }

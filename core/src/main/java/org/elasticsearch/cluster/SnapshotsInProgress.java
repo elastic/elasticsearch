@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,10 +44,14 @@ import java.util.Map;
 /**
  * Meta data about snapshots that are currently executing
  */
-public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Custom {
+public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
 
-    public static final SnapshotsInProgress PROTO = new SnapshotsInProgress();
+    // denotes an undefined repository state id, which will happen when receiving a cluster state with
+    // a snapshot in progress from a pre 5.2.x node
+    public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
+    // the version where repository state ids were introduced
+    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0_UNRELEASED;
 
     @Override
     public boolean equals(Object o) {
@@ -74,9 +79,10 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         private final List<IndexId> indices;
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
+        private final long repositoryStateId;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     long startTime, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -90,10 +96,12 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 this.shards = shards;
                 this.waitingIndices = findWaitingIndices(shards);
             }
+            this.repositoryStateId = repositoryStateId;
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime, shards);
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
+                 entry.repositoryStateId, shards);
         }
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
@@ -132,6 +140,10 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return startTime;
         }
 
+        public long getRepositoryStateId() {
+            return repositoryStateId;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -147,6 +159,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             if (!snapshot.equals(entry.snapshot)) return false;
             if (state != entry.state) return false;
             if (!waitingIndices.equals(entry.waitingIndices)) return false;
+            if (repositoryStateId != entry.repositoryStateId) return false;
 
             return true;
         }
@@ -161,6 +174,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             result = 31 * result + indices.hashCode();
             result = 31 * result + waitingIndices.hashCode();
             result = 31 * result + Long.hashCode(startTime);
+            result = 31 * result + Long.hashCode(repositoryStateId);
             return result;
         }
 
@@ -210,12 +224,9 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
 
     public static class ShardSnapshotStatus {
-        private State state;
-        private String nodeId;
-        private String reason;
-
-        private ShardSnapshotStatus() {
-        }
+        private final State state;
+        private final String nodeId;
+        private final String reason;
 
         public ShardSnapshotStatus(String nodeId) {
             this(nodeId, State.INIT);
@@ -231,6 +242,12 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             this.reason = reason;
         }
 
+        public ShardSnapshotStatus(StreamInput in) throws IOException {
+            nodeId = in.readOptionalString();
+            state = State.fromValue(in.readByte());
+            reason = in.readOptionalString();
+        }
+
         public State state() {
             return state;
         }
@@ -241,18 +258,6 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
         public String reason() {
             return reason;
-        }
-
-        public static ShardSnapshotStatus readShardSnapshotStatus(StreamInput in) throws IOException {
-            ShardSnapshotStatus shardSnapshotStatus = new ShardSnapshotStatus();
-            shardSnapshotStatus.readFrom(in);
-            return shardSnapshotStatus;
-        }
-
-        public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readOptionalString();
-            state = State.fromValue(in.readByte());
-            reason = in.readOptionalString();
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -281,6 +286,11 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
             result = 31 * result + (reason != null ? reason.hashCode() : 0);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + "]";
         }
     }
 
@@ -365,12 +375,15 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    @Override
-    public SnapshotsInProgress readFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Custom.class, TYPE, in);
+    }
+
+    public SnapshotsInProgress(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Snapshot snapshot = new Snapshot(in);
@@ -391,15 +404,20 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 State shardState = State.fromValue(in.readByte());
                 builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
             }
+            long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
+            if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
+                repositoryStateId = in.readLong();
+            }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
                                    state,
                                    Collections.unmodifiableList(indexBuilder),
                                    startTime,
+                                   repositoryStateId,
                                    builder.build());
         }
-        return new SnapshotsInProgress(entries);
+        this.entries = Arrays.asList(entries);
     }
 
     @Override
@@ -421,6 +439,9 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 out.writeOptionalString(shardEntry.value.nodeId());
                 out.writeByte(shardEntry.value.state().value());
             }
+            if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
+                out.writeLong(entry.repositoryStateId);
+            }
         }
     }
 
@@ -434,6 +455,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     private static final String INDICES = "indices";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String START_TIME = "start_time";
+    private static final String REPOSITORY_STATE_ID = "repository_state_id";
     private static final String SHARDS = "shards";
     private static final String INDEX = "index";
     private static final String SHARD = "shard";
@@ -465,6 +487,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         }
         builder.endArray();
         builder.timeValueField(START_TIME_MILLIS, START_TIME, entry.startTime());
+        builder.field(REPOSITORY_STATE_ID, entry.getRepositoryStateId());
         builder.startArray(SHARDS);
         {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards) {

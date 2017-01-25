@@ -56,9 +56,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -68,6 +70,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -81,20 +84,15 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         // clear all caches, we could be very close (or even above) the limit and then we will not be able to reset the breaker settings
         client().admin().indices().prepareClearCache().setFieldDataCache(true).setQueryCache(true).setRequestCache(true).get();
 
-        Settings resetSettings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                        HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(),
-                        HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getDefaultRaw(null))
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                        HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
-                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                        HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
-                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
-                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
-                    HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
-                .build();
+        Settings.Builder resetSettings = Settings.builder();
+        Stream.of(
+            HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING).forEach(s -> resetSettings.putNull(s.getKey()));
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
     }
 
@@ -220,6 +218,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the fielddata breaker borrows space from the request breaker
      */
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.search:TRACE")
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -410,6 +409,26 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertThat(breaks, greaterThanOrEqualTo(1));
     }
 
+    public void testCanResetUnreasonableSettings() {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
+        Settings insane = Settings.builder()
+            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(insane).get();
+
+        // calls updates settings to reset everything to default, checking that the request
+        // is not blocked by the above inflight circuit breaker
+        reset();
+
+        assertThat(client().admin().cluster().prepareState().get()
+            .getState().metaData().transientSettings().get(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()),
+            nullValue());
+
+    }
+
     public void testLimitsRequestSize() throws Exception {
         ByteSizeValue inFlightRequestsLimit = new ByteSizeValue(8, ByteSizeUnit.KB);
         if (noopBreakerUsed()) {
@@ -453,7 +472,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
 
         Settings limitSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
+            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
             .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(limitSettings));
@@ -468,11 +487,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 for (BulkItemResponse bulkItemResponse : response) {
                     Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
                     assertThat(cause, instanceOf(CircuitBreakingException.class));
-                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.bytes());
+                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
                 }
             }
         } catch (CircuitBreakingException ex) {
-            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.bytes());
+            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
         }
     }
 }

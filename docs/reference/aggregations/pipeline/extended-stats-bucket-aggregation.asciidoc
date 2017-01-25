@@ -36,7 +36,9 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -53,12 +55,15 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
         },
         "stats_monthly_sales": {
             "extended_stats_bucket": {
-                "buckets_paths": "sales_per_month>sales" <1>
+                "buckets_path": "sales_per_month>sales" <1>
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
 <1> `bucket_paths` instructs this `extended_stats_bucket` aggregation that we want the calculate stats for the `sales` aggregation in the
 `sales_per_month` date histogram.
 
@@ -67,6 +72,10 @@ And the following may be the response:
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -75,7 +84,7 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "sales": {
-                  "value": 550
+                  "value": 550.0
                }
             },
             {
@@ -83,7 +92,7 @@ And the following may be the response:
                "key": 1422748800000,
                "doc_count": 2,
                "sales": {
-                  "value": 60
+                  "value": 60.0
                }
             },
             {
@@ -91,26 +100,28 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "sales": {
-                  "value": 375
+                  "value": 375.0
                }
             }
          ]
       },
       "stats_monthly_sales": {
          "count": 3,
-         "min": 60,
-         "max": 550,
-         "avg": 328.333333333,
-         "sum": 985,
-         "sum_of_squares": 446725,
-         "variance": 41105.5555556,
-         "std_deviation": 117.054909559,
+         "min": 60.0,
+         "max": 550.0,
+         "avg": 328.3333333333333,
+         "sum": 985.0,
+         "sum_of_squares": 446725.0,
+         "variance": 41105.55555555556,
+         "std_deviation": 202.74505063146563,
          "std_deviation_bounds": {
-           "upper": 562.443152451,
-           "lower": 94.2235142151
+           "upper": 733.8234345962646,
+           "lower": -77.15676792959795
          }
       }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

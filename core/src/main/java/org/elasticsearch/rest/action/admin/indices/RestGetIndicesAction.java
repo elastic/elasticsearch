@@ -19,6 +19,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -44,6 +43,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -53,7 +53,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetIndicesAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter) {
         super(settings);
@@ -64,7 +63,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features
@@ -81,7 +80,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
-        client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
+        final boolean defaults = request.paramAsBoolean("include_defaults", false);
+        return channel -> client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(GetIndexResponse response, XContentBuilder builder) throws Exception {
@@ -100,7 +100,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                             writeMappings(response.mappings().get(index), builder, request);
                             break;
                         case SETTINGS:
-                            writeSettings(response.settings().get(index), builder, request);
+                            writeSettings(response.settings().get(index), builder, request, defaults);
                             break;
                         default:
                             throw new IllegalStateException("feature [" + feature + "] is not valid");
@@ -136,20 +136,25 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
             }
 
-            private void writeSettings(Settings settings, XContentBuilder builder, Params params) throws IOException {
-                final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
+            private void writeSettings(Settings settings, XContentBuilder builder, Params params, boolean defaults) throws IOException {
                 builder.startObject(Fields.SETTINGS);
                 settings.toXContent(builder, params);
                 builder.endObject();
-                if (renderDefaults) {
+                if (defaults) {
                     builder.startObject("defaults");
-                    settingsFilter.filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings)).toXContent(builder,
-                            request);
+                    settingsFilter
+                        .filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings))
+                        .toXContent(builder, request);
                     builder.endObject();
                 }
             }
 
         });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     static class Fields {

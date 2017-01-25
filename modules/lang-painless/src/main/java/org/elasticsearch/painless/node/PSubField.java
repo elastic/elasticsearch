@@ -110,4 +110,9 @@ final class PSubField extends AStoreable {
             writer.putField(field.owner.type, field.javaName, field.type.type);
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, field.name);
+    }
 }

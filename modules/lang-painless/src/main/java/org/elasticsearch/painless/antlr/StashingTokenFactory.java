@@ -27,7 +27,7 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.misc.Pair;
 
 /**
- * Token factory that preseres that last non-whitespace token so you can do token level lookbehind in the lexer.
+ * Token factory that preserves that last non-whitespace token so you can do token level lookbehind in the lexer.
  */
 public class StashingTokenFactory<T extends Token> implements TokenFactory<T> {
     private final TokenFactory<T> delegate;

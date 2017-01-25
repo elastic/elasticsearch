@@ -9,6 +9,10 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
+NOTE: Elasticsearch requires Java 8 or later. Use the
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
+or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+
 [[deb-key]]
 ==== Import the Elasticsearch PGP Key
 
@@ -16,11 +20,19 @@ include::key.asciidoc[]
 
 [source,sh]
 -------------------------
-wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 -------------------------
 
 [[deb-repo]]
 ==== Installing from the APT repository
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 You may need to install the `apt-transport-https` package on Debian before proceeding:
 
@@ -29,25 +41,44 @@ You may need to install the `apt-transport-https` package on Debian before proce
 sudo apt-get install apt-transport-https
 --------------------------------------------------
 
-Save the repository definition to  +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+:
+Save the repository definition to  +/etc/apt/sources.list.d/elastic-{major-version}.list+:
+
+ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
-[WARNING]
+endif::[]
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+--------------------------------------------------
+
+endif::[]
+
+
+[NOTE]
 ==================================================
 
-Do not use `add-apt-repository` as it will add a `deb-src` entry as well, but
-we do not provide a source package. If you have added the `deb-src` entry, you
-will see an error like the following:
+These instructions do not use `add-apt-repository` for several reasons:
+
+. `add-apt-repository` adds entries to the system `/etc/apt/sources.list` file
+  rather than a clean per-repository file in `/etc/apt/sources.list.d`
+. `add-apt-repository` is not part of the default install on many distributions
+  and requires a number of non-default dependencies.
+. Older versions of `add-apt-repository` always add a `deb-src` entry which
+  will cause errors because we do not provide a source package. If you have added
+  the `deb-src` entry, you will see an error like the following until you delete
+  the `deb-src` line:
 
     Unable to find expected entry 'main/source/Sources' in Release file
     (Wrong sources.list entry or malformed file)
 
-Delete the `deb-src` entry from the `/etc/apt/sources.list` file and the
-installation should work as expected.
 ==================================================
 
 You can install the Elasticsearch Debian package with:
@@ -63,25 +94,38 @@ If two entries exist for the same Elasticsearch repository, you will see an erro
 
 ["literal",subs="attributes,callouts"]
 
-Duplicate sources.list entry https://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
+Duplicate sources.list entry https://artifacts.elastic.co/packages/{major-version}/apt/ ...`
 
 Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
 
+endif::[]
+
+include::skip-set-kernel-parameters.asciidoc[]
 
 [[install-deb]]
 ==== Download and install the Debian package manually
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
 sha1sum elasticsearch-{version}.deb <1>
 sudo dpkg -i elasticsearch-{version}.deb
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha1[published SHA].
+
+endif::[]
 
 include::init-systemd.asciidoc[]
 
@@ -174,6 +218,7 @@ locations for a Debian-based system:
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | /usr/share/elasticsearch/plugins
+  |
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

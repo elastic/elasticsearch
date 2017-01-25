@@ -40,7 +40,8 @@ Note that it is valid and perfectly fine to have a cluster with only a single no
 [float]
 === Node
 
-A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search capabilities. Just like a cluster, a node is identified by a name which by default is a random Marvel character name that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
+A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search
+capabilities. Just like a cluster, a node is identified by a name which by default is a random Universally Unique IDentifier (UUID) that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
 
 A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named `elasticsearch` which means that if you start up a number of nodes on your network and--assuming they can discover each other--they will all automatically form and join a single cluster named `elasticsearch`.
 
@@ -66,6 +67,7 @@ A document is a basic unit of information that can be indexed. For example, you 
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 
+[[getting-started-shards-and-replicas]]
 [float]
 === Shards & Replicas
 
@@ -90,7 +92,7 @@ Replication is important for two primary reasons:
 
 
 To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
-The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number shards after-the-fact.
+The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number of shards after-the-fact.
 
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
@@ -115,8 +117,9 @@ Let's download the Elasticsearch {version} tar as follows (Windows users should 
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
+// NOTCONSOLE
 
 Then extract it as follows (Windows users should unzip the zip package):
 
@@ -143,21 +146,32 @@ If everything goes well, you should see a bunch of messages that look like below
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-./elasticsearch
-[2014-03-13 13:42:17,218][INFO ][node           ] [New Goblin] version[{version}], pid[2085], build[5c03844/2014-02-25T15:52:53Z]
-[2014-03-13 13:42:17,219][INFO ][node           ] [New Goblin] initializing ...
-[2014-03-13 13:42:17,223][INFO ][plugins        ] [New Goblin] loaded [], sites []
-[2014-03-13 13:42:19,831][INFO ][node           ] [New Goblin] initialized
-[2014-03-13 13:42:19,832][INFO ][node           ] [New Goblin] starting ...
-[2014-03-13 13:42:19,958][INFO ][transport      ] [New Goblin] bound_address {inet[/0:0:0:0:0:0:0:0:9300]}, publish_address {inet[/192.168.8.112:9300]}
-[2014-03-13 13:42:23,030][INFO ][cluster.service] [New Goblin] new_master [New Goblin][rWMtGj3dQouz2r6ZFL9v4g][mwubuntu1][inet[/192.168.8.112:9300]], reason: zen-disco-join (elected_as_master)
-[2014-03-13 13:42:23,100][INFO ][discovery      ] [New Goblin] elasticsearch/rWMtGj3dQouz2r6ZFL9v4g
-[2014-03-13 13:42:23,125][INFO ][http           ] [New Goblin] bound_address {inet[/0:0:0:0:0:0:0:0:9200]}, publish_address {inet[/192.168.8.112:9200]}
-[2014-03-13 13:42:23,629][INFO ][gateway        ] [New Goblin] recovered [1] indices into cluster_state
-[2014-03-13 13:42:23,630][INFO ][node           ] [New Goblin] started
+[2016-09-16T14:17:51,251][INFO ][o.e.n.Node               ] [] initializing ...
+[2016-09-16T14:17:51,329][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] using [1] data paths, mounts [[/ (/dev/sda1)]], net usable_space [317.7gb], net total_space [453.6gb], spins? [no], types [ext4]
+[2016-09-16T14:17:51,330][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] heap size [1.9gb], compressed ordinary object pointers [true]
+[2016-09-16T14:17:51,333][INFO ][o.e.n.Node               ] [6-bjhwl] node name [6-bjhwl] derived from node ID; set [node.name] to override
+[2016-09-16T14:17:51,334][INFO ][o.e.n.Node               ] [6-bjhwl] version[{version}], pid[21261], build[f5daa16/2016-09-16T09:12:24.346Z], OS[Linux/4.4.0-36-generic/amd64], JVM[Oracle Corporation/Java HotSpot(TM) 64-Bit Server VM/1.8.0_60/25.60-b23]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [aggs-matrix-stats]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [ingest-common]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-expression]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-mustache]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-painless]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [percolator]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [reindex]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [transport-netty3]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [transport-netty4]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded plugin [mapper-murmur3]
+[2016-09-16T14:17:53,521][INFO ][o.e.n.Node               ] [6-bjhwl] initialized
+[2016-09-16T14:17:53,521][INFO ][o.e.n.Node               ] [6-bjhwl] starting ...
+[2016-09-16T14:17:53,671][INFO ][o.e.t.TransportService   ] [6-bjhwl] publish_address {192.168.8.112:9300}, bound_addresses {{192.168.8.112:9300}
+[2016-09-16T14:17:53,676][WARN ][o.e.b.BootstrapCheck     ] [6-bjhwl] max virtual memory areas vm.max_map_count [65530] likely too low, increase to at least [262144]
+[2016-09-16T14:17:56,718][INFO ][o.e.c.s.ClusterService   ] [6-bjhwl] new_master {6-bjhwl}{6-bjhwl4TkajjoD2oEipnQ}{8m3SNKoFR6yQl1I0JUfPig}{192.168.8.112}{192.168.8.112:9300}, reason: zen-disco-elected-as-master ([0] nodes joined)
+[2016-09-16T14:17:56,731][INFO ][o.e.h.HttpServer         ] [6-bjhwl] publish_address {192.168.8.112:9200}, bound_addresses {[::1]:9200}, {192.168.8.112:9200}
+[2016-09-16T14:17:56,732][INFO ][o.e.g.GatewayService     ] [6-bjhwl] recovered [0] indices into cluster_state
+[2016-09-16T14:17:56,748][INFO ][o.e.n.Node               ] [6-bjhwl] started
 --------------------------------------------------
 
-Without going too much into detail, we can see that our node named "New Goblin" (which will be a different Marvel character in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+Without going too much into detail, we can see that our node named "6-bjhwl" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
 
 As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
 
@@ -184,61 +198,70 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
-To check the cluster health, we will be using the <<cat,`_cat` API>>. Remember previously that our node HTTP endpoint is available at port `9200`:
+To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
+run the command below in https://www.elastic.co/guide/en/kibana/{branch}/console-kibana.html[Kibana's Console]
+by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
+link below and pasting it into a terminal.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/health?v'
+GET /_cat/health?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-epoch      timestamp cluster       status node.total node.data shards pri relo init unassign
-1394735289 14:28:09  elasticsearch green           1         1      0   0    0    0        0
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
+// TESTRESPONSE[s/0             0/0             [01]/]
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
 Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
 
-Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
+Also from the above response, we can see a total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 
 We can also get a list of nodes in our cluster as follows:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/nodes?v'
+GET /_cat/nodes?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl 'localhost:9200/_cat/nodes?v'
-host         ip        heap.percent ram.percent load node.role master name
-mwubuntu1    127.0.1.1            8           4 0.00 d         *      New Goblin
+ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+127.0.0.1           10           5   5    4.46                        mdi      *      PB2SGZY
 --------------------------------------------------
+// TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
+// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
 
-Here, we can see our one node named "New Goblin", which is the single node that is currently in our cluster.
+Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
 === List All Indices
 
 Now let's take a peek at our indices:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/indices?v'
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl 'localhost:9200/_cat/indices?v'
-health index pri rep docs.count docs.deleted store.size pri.store.size
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
+// TESTRESPONSE[_cat]
 
 Which simply means we have no indices yet in the cluster.
 
@@ -246,28 +269,23 @@ Which simply means we have no indices yet in the cluster.
 
 Now let's create an index named "customer" and then list all the indexes again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer?pretty'
-curl 'localhost:9200/_cat/indices?v'
+PUT /customer?pretty
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
 
 The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer?pretty'
-{
-  "acknowledged" : true,
-  "shards_acknowledged": true
-}
-
-curl 'localhost:9200/_cat/indices?v'
-health index    pri rep docs.count docs.deleted store.size pri.store.size
-yellow customer   5   1          0            0       495b           495b
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
 --------------------------------------------------
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+b/ _cat]
 
 The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
 
@@ -279,32 +297,35 @@ Let's now put something into our customer index. Remember previously that in ord
 
 Let's index a simple customer document into the customer index, "external" type, with an ID of 1 as follows:
 
-Our JSON document: { "name": "John Doe" }
-
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "John Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
 [source,sh]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{
-  "name": "John Doe"
-}'
 {
   "_index" : "customer",
   "_type" : "external",
   "_id" : "1",
   "_version" : 1,
-  "created" : true
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true,
+  "_seq_no" : 0
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/]
 
 From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
 
@@ -312,16 +333,17 @@ It is important to note that Elasticsearch does not require you to explicitly cr
 
 Let's now retrieve that document that we just indexed:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/customer/external/1?pretty'
+GET /customer/external/1?pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And the response:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/customer/external/1?pretty'
 {
   "_index" : "customer",
   "_type" : "external",
@@ -331,6 +353,7 @@ curl -XGET 'localhost:9200/customer/external/1?pretty'
   "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
 
@@ -338,45 +361,45 @@ Nothing out of the ordinary here other than a field, `found`, stating that we fo
 
 Now let's delete the index that we just created and then list all the indexes again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer?pretty'
-curl 'localhost:9200/_cat/indices?v'
+DELETE /customer?pretty
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer?pretty'
-{
-  "acknowledged" : true
-}
-curl 'localhost:9200/_cat/indices?v'
-health index pri rep docs.count docs.deleted store.size pri.store.size
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
+// TESTRESPONSE[_cat]
 
 Which means that the index was deleted successfully and we are now back to where we started with nothing in our cluster.
 
 Before we move on, let's take a closer look again at some of the API commands that we have learned so far:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer'
-curl -XPUT 'localhost:9200/customer/external/1' -d '
+PUT /customer
+PUT /customer/external/1
 {
   "name": "John Doe"
-}'
-curl 'localhost:9200/customer/external/1'
-curl -XDELETE 'localhost:9200/customer'
+}
+GET /customer/external/1
+DELETE /customer
 --------------------------------------------------
+// CONSOLE
 
 If we study the above commands carefully, we can actually see a pattern of how we access data in Elasticsearch. That pattern can be summarized as follows:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -X<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
+<REST Verb> /<Index>/<Type>/<ID>
 --------------------------------------------------
+// NOTCONSOLE
 
 This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
@@ -389,33 +412,38 @@ Elasticsearch provides data manipulation and search capabilities in near real ti
 
 We've previously seen how we can index a single document. Let's recall that command again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "John Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Again, the above will index the specified document into the customer index, external type, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above changes the name of the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/2?pretty' -d '
+PUT /customer/external/2?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above indexes a new document with an ID of 2.
 
@@ -423,15 +451,17 @@ When indexing, the ID part is optional. If not specified, Elasticsearch will gen
 
 This example shows how to index a document without an explicit ID:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external?pretty' -d '
+POST /customer/external?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Note that in the above case, we are using the POST verb instead of PUT since we didn't specify an ID.
+Note that in the above case, we are using the `POST` verb instead of PUT since we didn't specify an ID.
 
 === Updating Documents
 
@@ -439,33 +469,39 @@ In addition to being able to index and replace documents, we can also update doc
 
 This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe":
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe" and at the same time add an age field to it:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Updates can also be performed by using simple scripts. Note that dynamic scripts like the following are disabled by default as of `1.4.3`, have a look at the <<modules-scripting,scripting docs>> for more details. This example uses a script to increment the age by 5:
+Updates can also be performed by using simple scripts. This example uses a script to increment the age by 5:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
@@ -475,43 +511,48 @@ Note that as of this writing, updates can only be performed on a single document
 
 Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer/external/2?pretty'
+DELETE /customer/external/2?pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The `delete-by-query` plugin can delete all documents matching a specific query.
+See the <<docs-delete-by-query>> to delete all documents matching a specific query.
+It is worth noting that it is much more efficient to delete a whole index
+instead of deleting all documents with the Delete By Query API.
 
 === Batch Processing
 
-In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
+In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
 As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+POST /customer/external/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
 {"name": "Jane Doe" }
-'
 --------------------------------------------------
+// CONSOLE
 
 This example updates the first document (ID of 1) and then deletes the second document (ID of 2) in one bulk operation:
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+POST /customer/external/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
 
-The bulk API executes all the actions sequentially and in order. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
+The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
 == Exploring Your Data
 
@@ -520,7 +561,7 @@ The bulk API executes all the actions sequentially and in order. If a single act
 
 Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
 {
     "account_number": 0,
@@ -536,28 +577,43 @@ Now that we've gotten a glimpse of the basics, let's try to work on a more reali
     "state": "CO"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 For the curious, I generated this data from http://www.json-generator.com/[`www.json-generator.com/`] so please ignore the actual values and semantics of the data as these are all randomly generated.
 
 [float]
 === Loading the Sample Dataset
 
-You can download the sample dataset (accounts.json) from https://github.com/bly2k/files/blob/master/accounts.zip?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
+You can download the sample dataset (accounts.json) from https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary "@accounts.json"
+curl -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
+// NOTCONSOLE
+
+////
+This replicates the above in a document-testing friendly way but isn't visible
+in the docs:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:bank]
+////
 
 And the response:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/indices?v'
-health index pri rep docs.count docs.deleted store.size pri.store.size
-yellow bank    5   1       1000            0    424.4kb        424.4kb
+health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
 --------------------------------------------------
+// TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
+// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index (under the account type).
 
@@ -567,18 +623,19 @@ Now let's start with some simple searches. There are two basic ways to run searc
 
 The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/bank/_search?q=*&pretty'
+GET /bank/_search?q=*&sort=account_number:asc&pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
+Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `sort=account_number:asc` parameter indicates to sort the results using the `account_number` field of each document in an ascending order. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
 
 And the response (partially shown):
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/bank/_search?q=*&pretty'
 {
   "took" : 63,
   "timed_out" : false,
@@ -589,21 +646,28 @@ curl 'localhost:9200/bank/_search?q=*&pretty'
   },
   "hits" : {
     "total" : 1000,
-    "max_score" : 1.0,
+    "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
       "_type" : "account",
+      "_id" : "0",
+      "sort": [0],
+      "_score" : null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
       "_id" : "1",
-      "_score" : 1.0, "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
-    }, {
-      "_index" : "bank",
-      "_type" : "account",
-      "_id" : "6",
-      "_score" : 1.0, "_source" : {"account_number":6,"balance":5686,"firstname":"Hattie","lastname":"Bond","age":36,"gender":"M","address":"671 Bristol Street","employer":"Netagy","email":"hattiebond@netagy.com","city":"Dante","state":"TN"}
-    }, {
-      "_index" : "bank",
-      "_type" : "account",
+      "sort": [1],
+      "_score" : null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
+    ]
+  }
+}
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
 
 As for the response, we see the following parts:
 
@@ -613,30 +677,34 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
+* `sort` - sort key for results (missing if sorting by score)
 * `_score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
-  "query": { "match_all": {} }
-}'
+  "query": { "match_all": {} },
+  "sort": [
+    { "account_number": "asc" }
+  ]
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The difference here is that instead of passing `q=*` in the URI, we POST a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
 
-And the response (partially shown):
+////
+Hidden response just so we can assert that it is indeed the same but don't have
+to clutter the docs with it:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 {
-  "query": { "match_all": {} }
-}'
-{
-  "took" : 26,
+  "took" : 63,
   "timed_out" : false,
   "_shards" : {
     "total" : 5,
@@ -645,22 +713,30 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   },
   "hits" : {
     "total" : 1000,
-    "max_score" : 1.0,
+    "max_score": null,
     "hits" : [ {
       "_index" : "bank",
       "_type" : "account",
+      "_id" : "0",
+      "sort": [0],
+      "_score": null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
       "_id" : "1",
-      "_score" : 1.0, "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
-    }, {
-      "_index" : "bank",
-      "_type" : "account",
-      "_id" : "6",
-      "_score" : 1.0, "_source" : {"account_number":6,"balance":5686,"firstname":"Hattie","lastname":"Bond","age":36,"gender":"M","address":"671 Bristol Street","employer":"Netagy","email":"hattiebond@netagy.com","city":"Dante","state":"TN"}
-    }, {
-      "_index" : "bank",
-      "_type" : "account",
-      "_id" : "13",
+      "sort": [1],
+      "_score": null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
+    ]
+  }
+}
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
+
+////
 
 It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
 
@@ -670,52 +746,63 @@ Elasticsearch provides a JSON-style domain-specific language that you can use to
 
 Going back to our last example, we executed this query:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
+GET /bank/_search
 {
   "query": { "match_all": {} }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Dissecting the above, the `query` part tells us what our query definition is and the `match_all` part is simply the type of query that we want to run. The `match_all` query is simply a search for all documents in the specified index.
 
-In addition to the `query` parameter, we also can pass other parameters to influence the search results. For example, the following does a `match_all` and returns only the first document:
+In addition to the `query` parameter, we also can pass other parameters to
+influence the search results. In the example in the section above we passed in
+`sort`, here we pass in `size`:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match_all": {} },
   "size": 1
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note that if `size` is not specified, it defaults to 10.
 
 This example does a `match_all` and returns documents 11 through 20:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match_all": {} },
   "from": 10,
   "size": 10
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The `from` parameter (0-based) specifies which document index to start from and the `size` parameter specifies how many documents to return starting at the from parameter. This feature is useful when implementing paging of search results. Note that if `from` is not specified, it defaults to 0.
 
 This example does a `match_all` and sorts the results by account balance in descending order and returns the top 10 (default size) documents.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match_all": {} },
   "sort": { "balance": { "order": "desc" } }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 === Executing Searches
 
@@ -723,14 +810,16 @@ Now that we have seen a few of the basic search parameters, let's dig in some mo
 
 This example shows how to return two fields, `account_number` and `balance` (inside of `_source`), from the search:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match_all": {} },
   "_source": ["account_number", "balance"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note that the above example simply reduces the `_source` field. It will still only return one field named `_source` but within it, only the fields `account_number` and `balance` are included.
 
@@ -740,51 +829,59 @@ Now let's move on to the query part. Previously, we've seen how the `match_all` 
 
 This example returns the account numbered 20:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match": { "account_number": 20 } }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example returns all accounts containing the term "mill" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match": { "address": "mill" } }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example returns all accounts containing the term "mill" or "lane" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match": { "address": "mill lane" } }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example is a variant of `match` (`match_phrase`) that returns all accounts containing the phrase "mill lane" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": { "match_phrase": { "address": "mill lane" } }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Let's now introduce the <<query-dsl-bool-query,`bool`(ean) query>>. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
 
 This example composes two `match` queries and returns all accounts containing "mill" and "lane" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": {
     "bool": {
@@ -794,16 +891,18 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       ]
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In the above example, the `bool must` clause specifies all the queries that must be true for a document to be considered a match.
 
 In contrast, this example composes two `match` queries and returns all accounts containing "mill" or "lane" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": {
     "bool": {
@@ -813,16 +912,18 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       ]
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In the above example, the `bool should` clause specifies a list of queries either of which must be true for a document to be considered a match.
 
 This example composes two `match` queries and returns all accounts that contain neither "mill" nor "lane" in the address:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": {
     "bool": {
@@ -832,18 +933,20 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       ]
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In the above example, the `bool must_not` clause specifies a list of queries none of which must be true for a document to be considered a match.
 
 We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
 
-This example returns all accounts of anybody who is 40 years old but don't live in ID(aho):
+This example returns all accounts of anybody who is 40 years old but doesn't live in ID(aho):
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": {
     "bool": {
@@ -855,8 +958,10 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       ]
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 === Executing Filters
 
@@ -868,9 +973,9 @@ The <<query-dsl-bool-query,`bool` query>> that we introduced in the previous sec
 
 This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "query": {
     "bool": {
@@ -885,8 +990,10 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Dissecting the above, the bool query contains a `match_all` query (the query part) and a `range` query (the filter part). We can substitute any other queries into the query and the filter parts. In the above case, the range query makes perfect sense since documents falling into the range all match "equally", i.e., no document is more relevant than another.
 
@@ -898,9 +1005,9 @@ Aggregations provide the ability to group and extract statistics from your data.
 
 To start with, this example groups all the accounts by state, and then returns the top 10 (default) states sorted by count descending (also default):
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -910,8 +1017,10 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In SQL, the above aggregation is similar in concept to:
 
@@ -922,8 +1031,16 @@ SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
 
 And the response (partially shown):
 
-[source,sh]
+[source,js]
 --------------------------------------------------
+{
+  "took": 29,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
   "hits" : {
     "total" : 1000,
     "max_score" : 0.0,
@@ -931,51 +1048,55 @@ And the response (partially shown):
   },
   "aggregations" : {
     "group_by_state" : {
+      "doc_count_error_upper_bound": 20,
+      "sum_other_doc_count": 770,
       "buckets" : [ {
-        "key" : "al",
+        "key" : "ID",
+        "doc_count" : 27
+      }, {
+        "key" : "TX",
+        "doc_count" : 27
+      }, {
+        "key" : "AL",
+        "doc_count" : 25
+      }, {
+        "key" : "MD",
+        "doc_count" : 25
+      }, {
+        "key" : "TN",
+        "doc_count" : 23
+      }, {
+        "key" : "MA",
         "doc_count" : 21
       }, {
-        "key" : "tx",
-        "doc_count" : 17
+        "key" : "NC",
+        "doc_count" : 21
       }, {
-        "key" : "id",
-        "doc_count" : 15
+        "key" : "ND",
+        "doc_count" : 21
       }, {
-        "key" : "ma",
-        "doc_count" : 15
+        "key" : "ME",
+        "doc_count" : 20
       }, {
-        "key" : "md",
-        "doc_count" : 15
-      }, {
-        "key" : "pa",
-        "doc_count" : 15
-      }, {
-        "key" : "dc",
-        "doc_count" : 14
-      }, {
-        "key" : "me",
-        "doc_count" : 14
-      }, {
-        "key" : "mo",
-        "doc_count" : 14
-      }, {
-        "key" : "nd",
-        "doc_count" : 14
+        "key" : "MO",
+        "doc_count" : 20
       } ]
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 29/"took": $body.took/]
 
-We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(aho), and so forth.
+We can see that there are 27 accounts in `ID` (Idaho), followed by 27 accounts
+in `TX` (Texas), followed by 25 accounts in `AL` (Alabama), and so forth.
 
 Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
 
 Building on the previous aggregation, this example calculates the average account balance by state (again only for the top 10 states sorted by count in descending order):
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -992,16 +1113,18 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Notice how we nested the `average_balance` aggregation inside the `group_by_state` aggregation. This is a common pattern for all the aggregations. You can nest aggregations inside aggregations arbitrarily to extract pivoted summarizations that you require from your data.
 
 Building on the previous aggregation, let's now sort on the average balance in descending order:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -1021,14 +1144,16 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example demonstrates how we can group by age brackets (ages 20-29, 30-39, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+GET /bank/_search
 {
   "size": 0,
   "aggs": {
@@ -1053,7 +1178,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       "aggs": {
         "group_by_gender": {
           "terms": {
-            "field": "gender"
+            "field": "gender.keyword"
           },
           "aggs": {
             "average_balance": {
@@ -1066,8 +1191,10 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 There are a many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 

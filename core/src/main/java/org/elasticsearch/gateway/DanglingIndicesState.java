@@ -20,9 +20,12 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +51,7 @@ import static java.util.Collections.unmodifiableMap;
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
  */
-public class DanglingIndicesState extends AbstractComponent {
+public class DanglingIndicesState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
@@ -58,11 +61,12 @@ public class DanglingIndicesState extends AbstractComponent {
 
     @Inject
     public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                                LocalAllocateDangledIndices allocateDangledIndices) {
+                                LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
+        clusterService.addListener(this);
     }
 
     /**
@@ -153,7 +157,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * for allocation.
      */
     private void allocateDanglingIndices() {
-        if (danglingIndices.isEmpty() == true) {
+        if (danglingIndices.isEmpty()) {
             return;
         }
         try {
@@ -172,6 +176,13 @@ public class DanglingIndicesState extends AbstractComponent {
             );
         } catch (Exception e) {
             logger.warn("failed to send allocate dangled", e);
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().blocks().disableStatePersistence() == false) {
+            processDanglingIndices(event.state().metaData());
         }
     }
 }

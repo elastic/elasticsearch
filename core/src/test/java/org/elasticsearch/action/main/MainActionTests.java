@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -42,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -56,11 +54,12 @@ public class MainActionTests extends ESTestCase {
     public void testMainResponseSerialization() throws IOException {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
+        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         mainResponse.writeTo(streamOutput);
         final MainResponse serialized = new MainResponse();
@@ -74,11 +73,21 @@ public class MainActionTests extends ESTestCase {
     }
 
     public void testMainResponseXContent() throws IOException {
-        final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), Build.CURRENT, false);
-        final String expected = "{\"name\":\"node1\",\"cluster_name\":\"cluster1\",\"version\":{\"number\":\"" + Version.CURRENT.toString()
-            + "\",\"build_hash\":\"" + Build.CURRENT.shortHash() + "\",\"build_date\":\"" + Build.CURRENT.date() + "\"," +
-            "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() +
-            "\"},\"tagline\":\"You Know, for Search\"}";
+        String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), clusterUUID,
+                Build.CURRENT, false);
+        final String expected = "{" +
+                "\"name\":\"node1\"," +
+                "\"cluster_name\":\"cluster1\"," +
+                "\"cluster_uuid\":\"" + clusterUUID + "\"," +
+                "\"version\":{" +
+                "\"number\":\"" + Version.CURRENT.toString() + "\"," +
+                "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\"," +
+                "\"build_date\":\"" + Build.CURRENT.date() + "\"," +
+                "\"build_snapshot\":" + Build.CURRENT.isSnapshot() +
+                ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() +
+                "\"}," +
+                "\"tagline\":\"You Know, for Search\"}";
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         mainResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -111,8 +120,10 @@ public class MainActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
-        TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), mock(TransportService.class),
-            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), clusterService);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null, null);
+        TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), transportService, mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(new MainRequest(), new ActionListener<MainResponse>() {
             @Override

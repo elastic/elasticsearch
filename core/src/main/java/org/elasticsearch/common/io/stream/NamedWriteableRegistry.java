@@ -25,10 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import org.elasticsearch.plugins.Plugin;
 
 /**
  * A registry for {@link org.elasticsearch.common.io.stream.Writeable.Reader} readers of {@link NamedWriteable}.
@@ -47,7 +43,7 @@ public class NamedWriteableRegistry {
         /** A name for the writeable which is unique to the {@link #categoryClass}. */
         public final String name;
 
-        /** A reader captability of reading*/
+        /** A reader capability of reading*/
         public final Writeable.Reader<?> reader;
 
         /** Creates a new entry which can be stored by the registry. */

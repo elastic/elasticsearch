@@ -54,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -88,9 +89,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
+            super.waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }
@@ -106,7 +107,8 @@ public class ShardStateActionTests extends ESTestCase {
         super.setUp();
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
@@ -339,7 +341,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
-        shardStateAction.remoteShardFailed(failedShard, primaryTerm + 1, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, "test",
+            getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 failure.set(null);

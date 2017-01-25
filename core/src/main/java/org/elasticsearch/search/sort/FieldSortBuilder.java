@@ -21,11 +21,11 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -39,17 +39,13 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static final String NAME = "field_sort";
-    public static final ParseField NESTED_PATH = new ParseField("nested_path");
-    public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
     public static final ParseField MISSING = new ParseField("missing");
-    public static final ParseField ORDER = new ParseField("order");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
@@ -239,10 +235,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             builder.field(SORT_MODE.getPreferredName(), sortMode);
         }
         if (nestedFilter != null) {
-            builder.field(NESTED_FILTER.getPreferredName(), nestedFilter, params);
+            builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, params);
         }
         if (nestedPath != null) {
-            builder.field(NESTED_PATH.getPreferredName(), nestedPath);
+            builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
         }
         builder.endObject();
         builder.endObject();
@@ -327,67 +323,17 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        XContentParser parser = context.parser();
+        return PARSER.parse(context.parser(), new FieldSortBuilder(fieldName), context);
+    }
 
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
-        String nestedPath = null;
-        Object missing = null;
-        SortOrder order = null;
-        SortMode sortMode = null;
-        String unmappedType = null;
+    private static ObjectParser<FieldSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME);
 
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
-                    nestedFilter = context.parseInnerQueryBuilder();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.");
-                }
-            } else if (token.isValue()) {
-                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
-                    nestedPath = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MISSING)) {
-                    missing = parser.objectText();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, ORDER)) {
-                    String sortOrder = parser.text();
-                    if ("asc".equals(sortOrder)) {
-                        order = SortOrder.ASC;
-                    } else if ("desc".equals(sortOrder)) {
-                        order = SortOrder.DESC;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
-                    }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_MODE)) {
-                    sortMode = SortMode.fromString(parser.text());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
-                    unmappedType = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);
-                }
-            }
-        }
-
-        FieldSortBuilder builder = new FieldSortBuilder(fieldName);
-        nestedFilter.ifPresent(builder::setNestedFilter);
-        if (nestedPath != null) {
-            builder.setNestedPath(nestedPath);
-        }
-        if (missing != null) {
-            builder.missing(missing);
-        }
-        if (order != null) {
-            builder.order(order);
-        }
-        if (sortMode != null) {
-            builder.sortMode(sortMode);
-        }
-        if (unmappedType != null) {
-            builder.unmappedType(unmappedType);
-        }
-        return builder;
+    static {
+        PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
+        PARSER.declareString(FieldSortBuilder::setNestedPath , NESTED_PATH_FIELD);
+        PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
+        PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
+        PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
+        PARSER.declareObject(FieldSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
     }
 }

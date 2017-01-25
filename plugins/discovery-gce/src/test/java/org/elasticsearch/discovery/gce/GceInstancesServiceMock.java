@@ -26,9 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 
-/**
- *
- */
 public class GceInstancesServiceMock extends GceInstancesServiceImpl {
 
     protected HttpTransport mockHttpTransport;

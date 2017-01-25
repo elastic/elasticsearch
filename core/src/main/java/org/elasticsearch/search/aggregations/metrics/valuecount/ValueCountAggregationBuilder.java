@@ -19,36 +19,46 @@
 
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> {
     public static final String NAME = "value_count";
-    public static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+
+    private static final ObjectParser<ValueCountAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(ValueCountAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new ValueCountAggregationBuilder(aggregationName, null), context);
+    }
 
     public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, TYPE, ValuesSourceType.ANY, targetValueType);
+        super(name, ValuesSourceType.ANY, targetValueType);
     }
 
     /**
      * Read from a stream.
      */
     public ValueCountAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.ANY);
+        super(in, ValuesSourceType.ANY);
     }
 
     @Override
@@ -62,9 +72,9 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    protected ValueCountAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
+    protected ValueCountAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new ValueCountAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -83,7 +93,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

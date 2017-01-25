@@ -34,20 +34,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,9 +58,14 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -200,7 +203,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("field", new String[] {"a", "b"})
+                .array("field", new String[] {"a", "b"})
                 .endObject()
                 .bytes());
 
@@ -211,7 +214,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("b", fields[1].stringValue());
 
         IndexShard shard = indexService.getShard(0);
-        shard.index(new Engine.Index(new Term("_uid", "1"), doc));
+        shard.index(new Engine.Index(new Term("_uid", doc.uid() ), doc));
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -239,7 +242,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("field", new String[] {"a", "b"})
+                .array("field", new String[] {"a", "b"})
                 .endObject()
                 .bytes());
 
@@ -250,7 +253,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("b", fields[1].stringValue());
 
         IndexShard shard = indexService.getShard(0);
-        shard.index(new Engine.Index(new Term("_uid", "1"), doc));
+        shard.index(new Engine.Index(new Term("_uid", doc.uid()), doc));
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -548,5 +551,22 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 () -> parser.parse("type", new CompressedXContent(mapping)));
             assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
         }
+    }
+
+    public void testEmptyName() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        // Empty name not allowed in index created after 5.0
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

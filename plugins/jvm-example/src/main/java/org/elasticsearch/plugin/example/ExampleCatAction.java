@@ -20,10 +20,8 @@ package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -37,7 +35,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class ExampleCatAction extends AbstractCatAction {
     private final ExamplePluginConfiguration config;
 
-    @Inject
     public ExampleCatAction(Settings settings, RestController controller, ExamplePluginConfiguration config) {
         super(settings);
         this.config = config;
@@ -45,21 +42,18 @@ public class ExampleCatAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(config.getTestConfig());
         table.endRow();
-        try {
-            channel.sendResponse(RestTable.buildResponse(table, channel));
-        } catch (Exception e) {
+        return channel -> {
             try {
+                channel.sendResponse(RestTable.buildResponse(table, channel));
+            } catch (final Exception e) {
                 channel.sendResponse(new BytesRestResponse(channel, e));
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error("failed to send failure response", inner);
             }
-        }
+        };
     }
 
     @Override

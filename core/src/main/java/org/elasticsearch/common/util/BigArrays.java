@@ -397,7 +397,7 @@ public class BigArrays implements Releasable {
     void adjustBreaker(long delta) {
         if (this.breakerService != null) {
             CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.REQUEST);
-            if (this.checkBreaker == true) {
+            if (this.checkBreaker) {
                 // checking breaker means potentially tripping, but it doesn't
                 // have to if the delta is negative
                 if (delta > 0) {

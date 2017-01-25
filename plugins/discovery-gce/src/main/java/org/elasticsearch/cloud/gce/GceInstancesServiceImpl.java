@@ -19,6 +19,15 @@
 
 package org.elasticsearch.cloud.gce;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
+
 import com.google.api.client.googleapis.compute.ComputeCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
@@ -28,28 +37,18 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.GeneralSecurityException;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Function;
-
-public class GceInstancesServiceImpl extends AbstractLifecycleComponent implements GceInstancesService {
+public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService, Closeable {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
@@ -67,22 +66,15 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                SecurityManager sm = System.getSecurityManager();
-                if (sm != null) {
-                    sm.checkPermission(new SpecialPermission());
-                }
-                InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
-                    @Override
-                    public InstanceList run() throws Exception {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        return list.execute();
-                    }
+                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
+                    Compute.Instances.List list = client().instances().list(project, zoneId);
+                    return list.execute();
                 });
                 // assist type inference
-                return instanceList.isEmpty()  || instanceList.getItems() == null ?
+                return instanceList.isEmpty() || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
-            } catch (PrivilegedActionException e) {
-                logger.warn("Problem fetching instance list for zone {}", e, zoneId);
+            } catch (IOException e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();
@@ -111,7 +103,6 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
 
     private final boolean validateCerts;
 
-    @Inject
     public GceInstancesServiceImpl(Settings settings) {
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
@@ -134,7 +125,7 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
             if (client != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
                 return client;
             }
@@ -151,22 +142,12 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
             String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
                 "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                    .setTokenServerEncodedUrl(tokenServerEncodedUrl)
-                    .build();
+                .setTokenServerEncodedUrl(tokenServerEncodedUrl)
+                .build();
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
-                @Override
-                public Void run() throws IOException {
-                    credential.refreshToken();
-                    return null;
-                }
-            });
+            Access.doPrivilegedIOException(credential::refreshToken);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {
@@ -202,22 +183,9 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
+    public void close() throws IOException {
         if (gceHttpTransport != null) {
-            try {
-                gceHttpTransport.shutdown();
-            } catch (IOException e) {
-                logger.warn("unable to shutdown GCE Http Transport", e);
-            }
-            gceHttpTransport = null;
+            gceHttpTransport.shutdown();
         }
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

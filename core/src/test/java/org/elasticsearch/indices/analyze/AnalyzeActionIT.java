@@ -32,15 +32,11 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 
-/**
- *
- */
 public class AnalyzeActionIT extends ESIntegTestCase {
     public void testSimpleAnalyzerTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
@@ -54,21 +50,25 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             assertThat(token.getStartOffset(), equalTo(0));
             assertThat(token.getEndOffset(), equalTo(4));
             assertThat(token.getPosition(), equalTo(0));
+            assertThat(token.getPositionLength(), equalTo(1));
             token = analyzeResponse.getTokens().get(1);
             assertThat(token.getTerm(), equalTo("is"));
             assertThat(token.getStartOffset(), equalTo(5));
             assertThat(token.getEndOffset(), equalTo(7));
             assertThat(token.getPosition(), equalTo(1));
+            assertThat(token.getPositionLength(), equalTo(1));
             token = analyzeResponse.getTokens().get(2);
             assertThat(token.getTerm(), equalTo("a"));
             assertThat(token.getStartOffset(), equalTo(8));
             assertThat(token.getEndOffset(), equalTo(9));
             assertThat(token.getPosition(), equalTo(2));
+            assertThat(token.getPositionLength(), equalTo(1));
             token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
             assertThat(token.getPosition(), equalTo(3));
+            assertThat(token.getPositionLength(), equalTo(1));
         }
     }
 
@@ -76,18 +76,11 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        try {
-            client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get();
-            fail("shouldn't get here");
-        } catch (IllegalArgumentException ex) {
-            //all good
-        }
-        try {
-            client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get();
-            fail("shouldn't get here");
-        } catch (IllegalArgumentException ex) {
-            //all good
-        }
+        expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
+
+        expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
@@ -115,7 +108,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.getTokens().get(0).getPosition(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getStartOffset(), equalTo(3));
         assertThat(analyzeResponse.getTokens().get(0).getEndOffset(), equalTo(9));
-
+        assertThat(analyzeResponse.getTokens().get(0).getPositionLength(), equalTo(1));
     }
 
     public void testAnalyzeWithCharFilters() throws Exception {
@@ -148,6 +141,54 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getTerm(), equalTo("fish"));
     }
 
+    public void testAnalyzeWithNonDefaultPostionLength() throws Exception {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+            .setSettings(Settings.builder().put(indexSettings())
+                .put("index.analysis.filter.syns.type", "synonym")
+                .putArray("index.analysis.filter.syns.synonyms", "wtf, what the fudge")
+                .put("index.analysis.analyzer.custom_syns.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.custom_syns.filter", "lowercase", "syns")));
+        ensureGreen();
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("say what the fudge").setIndex("test").setAnalyzer("custom_syns").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(5));
+
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        assertThat(token.getTerm(), equalTo("say"));
+        assertThat(token.getPosition(), equalTo(0));
+        assertThat(token.getStartOffset(), equalTo(0));
+        assertThat(token.getEndOffset(), equalTo(3));
+        assertThat(token.getPositionLength(), equalTo(1));
+
+        token = analyzeResponse.getTokens().get(1);
+        assertThat(token.getTerm(), equalTo("what"));
+        assertThat(token.getPosition(), equalTo(1));
+        assertThat(token.getStartOffset(), equalTo(4));
+        assertThat(token.getEndOffset(), equalTo(8));
+        assertThat(token.getPositionLength(), equalTo(1));
+
+        token = analyzeResponse.getTokens().get(2);
+        assertThat(token.getTerm(), equalTo("wtf"));
+        assertThat(token.getPosition(), equalTo(1));
+        assertThat(token.getStartOffset(), equalTo(4));
+        assertThat(token.getEndOffset(), equalTo(18));
+        assertThat(token.getPositionLength(), equalTo(3));
+
+        token = analyzeResponse.getTokens().get(3);
+        assertThat(token.getTerm(), equalTo("the"));
+        assertThat(token.getPosition(), equalTo(2));
+        assertThat(token.getStartOffset(), equalTo(9));
+        assertThat(token.getEndOffset(), equalTo(12));
+        assertThat(token.getPositionLength(), equalTo(1));
+
+        token = analyzeResponse.getTokens().get(4);
+        assertThat(token.getTerm(), equalTo("fudge"));
+        assertThat(token.getPosition(), equalTo(3));
+        assertThat(token.getStartOffset(), equalTo(13));
+        assertThat(token.getEndOffset(), equalTo(18));
+        assertThat(token.getPositionLength(), equalTo(1));
+    }
+
     public void testAnalyzerWithFieldOrTypeTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
@@ -165,6 +206,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
+            assertThat(token.getPositionLength(), equalTo(1));
         }
     }
 
@@ -211,13 +253,14 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
         assertThat(token.getEndOffset(), equalTo(14));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         token = analyzeResponse.getTokens().get(5);
         assertThat(token.getTerm(), equalTo("second"));
         assertThat(token.getPosition(), equalTo(105));
         assertThat(token.getStartOffset(), equalTo(19));
         assertThat(token.getEndOffset(), equalTo(25));
-
+        assertThat(token.getPositionLength(), equalTo(1));
     }
 
     public void testDetailAnalyze() throws Exception {
@@ -361,12 +404,14 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
         assertThat(token.getEndOffset(), equalTo(14));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         token = analyzeResponse.detail().analyzer().getTokens()[5];
         assertThat(token.getTerm(), equalTo("second"));
         assertThat(token.getPosition(), equalTo(105));
         assertThat(token.getStartOffset(), equalTo(19));
         assertThat(token.getEndOffset(), equalTo(25));
+        assertThat(token.getPositionLength(), equalTo(1));
     }
 
     public void testDetailAnalyzeWithMultiValuesWithCustomAnalyzer() throws Exception {
@@ -406,12 +451,14 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
         assertThat(token.getEndOffset(), equalTo(15));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         token = analyzeResponse.detail().tokenizer().getTokens()[5];
         assertThat(token.getTerm(), equalTo("troubled"));
         assertThat(token.getPosition(), equalTo(105));
         assertThat(token.getStartOffset(), equalTo(20));
         assertThat(token.getEndOffset(), equalTo(28));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         // tokenfilter(snowball)
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(2));
@@ -423,12 +470,14 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
         assertThat(token.getEndOffset(), equalTo(15));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         token = analyzeResponse.detail().tokenfilters()[0].getTokens()[5];
         assertThat(token.getTerm(), equalTo("troubl"));
         assertThat(token.getPosition(), equalTo(105));
         assertThat(token.getStartOffset(), equalTo(20));
         assertThat(token.getEndOffset(), equalTo(28));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         // tokenfilter(lowercase)
         assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("lowercase"));
@@ -439,29 +488,24 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
         assertThat(token.getEndOffset(), equalTo(15));
+        assertThat(token.getPositionLength(), equalTo(1));
 
         token = analyzeResponse.detail().tokenfilters()[0].getTokens()[5];
         assertThat(token.getTerm(), equalTo("troubl"));
         assertThat(token.getPosition(), equalTo(105));
         assertThat(token.getStartOffset(), equalTo(20));
         assertThat(token.getEndOffset(), equalTo(28));
-
-
+        assertThat(token.getPositionLength(), equalTo(1));
     }
 
     public void testNonExistTokenizer() {
-        try {
-            AnalyzeResponse analyzeResponse = client().admin().indices()
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices()
                 .prepareAnalyze("this is a test")
                 .setAnalyzer("not_exist_analyzer")
-                .get();
-            fail("shouldn't get here");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
-
-        }
-
+                .get()
+        );
+        assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }
 
     public void testCustomTokenFilterInRequest() throws Exception {
@@ -484,16 +528,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getStartOffset(), equalTo(0));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getEndOffset(), equalTo(3));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPosition(), equalTo(0));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getTerm(), equalTo("buzz"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getStartOffset(), equalTo(4));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getEndOffset(), equalTo(8));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPosition(), equalTo(1));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getTerm(), equalTo("test"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getStartOffset(), equalTo(9));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getEndOffset(), equalTo(13));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPosition(), equalTo(2));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter(lowercase)
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(2));
@@ -503,16 +550,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getStartOffset(), equalTo(0));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getEndOffset(), equalTo(3));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getPosition(), equalTo(0));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[1].getTerm(), equalTo("buzz"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[1].getStartOffset(), equalTo(4));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[1].getEndOffset(), equalTo(8));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[1].getPosition(), equalTo(1));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[1].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("test"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getStartOffset(), equalTo(9));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getEndOffset(), equalTo(13));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPosition(), equalTo(2));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter({"type": "stop", "stopwords": ["foo", "buzz"]})
         assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter_[1]"));
@@ -522,6 +572,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getStartOffset(), equalTo(9));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getEndOffset(), equalTo(13));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getPosition(), equalTo(2));
+        assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getPositionLength(), equalTo(1));
     }
 
 
@@ -549,6 +600,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("jeff qit fish"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getStartOffset(), equalTo(0));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getEndOffset(), equalTo(15));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPositionLength(), equalTo(1));
     }
 
 
@@ -572,16 +624,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getStartOffset(), equalTo(0));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getEndOffset(), equalTo(2));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPosition(), equalTo(0));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getTerm(), equalTo("oo"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getStartOffset(), equalTo(1));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getEndOffset(), equalTo(3));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPosition(), equalTo(1));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPositionLength(), equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getTerm(), equalTo("od"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getStartOffset(), equalTo(2));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getEndOffset(), equalTo(4));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPosition(), equalTo(2));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPositionLength(), equalTo(1));
     }
 
 }

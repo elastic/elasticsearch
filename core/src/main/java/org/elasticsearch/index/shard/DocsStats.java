@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class DocsStats implements Streamable, ToXContent {
 
     long count = 0;
@@ -57,12 +55,6 @@ public class DocsStats implements Streamable, ToXContent {
 
     public long getDeleted() {
         return this.deleted;
-    }
-
-    public static DocsStats readDocStats(StreamInput in) throws IOException {
-        DocsStats docsStats = new DocsStats();
-        docsStats.readFrom(in);
-        return docsStats;
     }
 
     @Override

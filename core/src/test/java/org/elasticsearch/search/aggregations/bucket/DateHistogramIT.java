@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -50,7 +50,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -69,9 +68,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateHistogramIT extends ESIntegTestCase {
 
@@ -500,7 +496,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -636,7 +632,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, ScriptType.INLINE, "native", params))
+                        .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -688,8 +684,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -726,8 +722,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script(DateScriptMocks.ExtractFieldScript.NAME,
-                        ScriptType.INLINE, "native", params)).dateHistogramInterval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script(ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME,
+                    params)).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -1009,20 +1005,13 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         DateMathParser parser = new DateMathParser(Joda.getStrictStandardDateFormatter());
 
-        final Callable<Long> callable = new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return System.currentTimeMillis();
-            }
-        };
-
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int timeZoneHourOffset = randomIntBetween(-12, 12);
         DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
-        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
-        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
         builders.add(indexDoc(index, timeZoneStartToday, 1));
         builders.add(indexDoc(index, timeZoneNoonToday, 2));
         indexRandom(true, builders);
@@ -1202,5 +1191,47 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(((DateTime) buckets.get(1).getKey()).getMillis() - ((DateTime) buckets.get(0).getKey()).getMillis(), equalTo(3600000L));
         assertThat(((DateTime) buckets.get(2).getKey()).getMillis() - ((DateTime) buckets.get(1).getKey()).getMillis(), equalTo(3600000L));
         assertThat(((DateTime) buckets.get(3).getKey()).getMillis() - ((DateTime) buckets.get(2).getKey()).getMillis(), equalTo(3600000L));
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=date")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", date(1, 1)),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", date(2, 1)));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "d");
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateHistogram("histo").field("d")
+                .script(new Script(ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, params))
+                .dateHistogramInterval(DateHistogramInterval.MONTH)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(dateHistogram("histo").field("d").dateHistogramInterval(DateHistogramInterval.MONTH)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

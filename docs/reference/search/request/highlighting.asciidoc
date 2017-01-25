@@ -11,18 +11,18 @@ The following is an example of the search request body:
 GET /_search
 {
     "query" : {
-        "match": { "user": "kimchy" }
+        "match": { "content": "kimchy" }
     },
     "highlight" : {
         "fields" : {
-            "content" : {}
+            "comment" : {}
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-In the above case, the `content` field will be highlighted for each
+In the above case, the `comment` field will be highlighted for each
 search hit (there will be another element in each search hit, called
 `highlight`, which includes the highlighted fields and the highlighted
 fragments).
@@ -71,14 +71,14 @@ natural languages, not as well with fields containing for instance html markup
 * Treats the document as the whole corpus, and scores individual sentences as
 if they were documents in this corpus, using the  BM25 algorithm
 
-Here is an example of setting the `content` field in the index mapping to allow for
+Here is an example of setting the `comment` field in the index mapping to allow for
 highlighting using the postings highlighter on it:
 
 [source,js]
 --------------------------------------------------
 {
     "type_name" : {
-        "content" : {"index_options" : "offsets"}
+        "comment" : {"index_options" : "offsets"}
     }
 }
 --------------------------------------------------
@@ -113,7 +113,7 @@ will be used instead of the plain highlighter.  The fast vector highlighter:
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
-Here is an example of setting the `content` field to allow for
+Here is an example of setting the `comment` field to allow for
 highlighting using the fast vector highlighter on it (this will cause
 the index to be bigger):
 
@@ -121,7 +121,7 @@ the index to be bigger):
 --------------------------------------------------
 {
     "type_name" : {
-        "content" : {"term_vector" : "with_positions_offsets"}
+        "comment" : {"term_vector" : "with_positions_offsets"}
     }
 }
 --------------------------------------------------
@@ -142,7 +142,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "content" : {"type" : "plain"}
+            "comment" : {"type" : "plain"}
         }
     }
 }
@@ -163,7 +163,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "content" : {"force_source" : true}
+            "comment" : {"force_source" : true}
         }
     }
 }
@@ -241,7 +241,7 @@ GET /_search
     "highlight" : {
         "tags_schema" : "styled",
         "fields" : {
-            "content" : {}
+            "comment" : {}
         }
     }
 }
@@ -271,7 +271,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "content" : {"fragment_size" : 150, "number_of_fragments" : 3}
+            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
         }
     }
 }
@@ -294,7 +294,7 @@ GET /_search
     "highlight" : {
         "order" : "score",
         "fields" : {
-            "content" : {"fragment_size" : 150, "number_of_fragments" : 3}
+            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
         }
     }
 }
@@ -317,7 +317,7 @@ GET /_search
     "highlight" : {
         "fields" : {
             "_all" : {},
-            "bio.title" : {"number_of_fragments" : 0}
+            "blog.title" : {"number_of_fragments" : 0}
         }
     }
 }
@@ -345,7 +345,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "content" : {
+            "comment" : {
                 "fragment_size" : 150,
                 "number_of_fragments" : 3,
                 "no_match_size": 150
@@ -375,7 +375,7 @@ GET /_search
     "stored_fields": [ "_id" ],
     "query" : {
         "match": {
-            "content": {
+            "comment": {
                 "query": "foo bar"
             }
         }
@@ -385,7 +385,7 @@ GET /_search
         "query": {
             "rescore_query" : {
                 "match_phrase": {
-                    "content": {
+                    "comment": {
                         "query": "foo bar",
                         "slop": 1
                     }
@@ -397,21 +397,21 @@ GET /_search
     "highlight" : {
         "order" : "score",
         "fields" : {
-            "content" : {
+            "comment" : {
                 "fragment_size" : 150,
                 "number_of_fragments" : 3,
                 "highlight_query": {
                     "bool": {
                         "must": {
                             "match": {
-                                "content": {
+                                "comment": {
                                     "query": "foo bar"
                                 }
                             }
                         },
                         "should": {
                             "match_phrase": {
-                                "content": {
+                                "comment": {
                                     "query": "foo bar",
                                     "slop": 1,
                                     "boost": 10.0
@@ -452,9 +452,9 @@ GET /_search
         "fragment_size" : 150,
         "fields" : {
             "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
-            "bio.title" : { "number_of_fragments" : 0 },
-            "bio.author" : { "number_of_fragments" : 0 },
-            "bio.content" : { "number_of_fragments" : 5, "order" : "score" }
+            "blog.title" : { "number_of_fragments" : 0 },
+            "blog.author" : { "number_of_fragments" : 0 },
+            "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
         }
     }
 }
@@ -508,8 +508,8 @@ ways.  All `matched_fields` must have `term_vector` set to
 combined is loaded so only that field would benefit from having
 `store` set to `yes`.
 
-In the following examples `content` is analyzed by the `english`
-analyzer and `content.plain` is analyzed by the `standard` analyzer.
+In the following examples `comment` is analyzed by the `english`
+analyzer and `comment.plain` is analyzed by the `standard` analyzer.
 
 [source,js]
 --------------------------------------------------
@@ -517,15 +517,15 @@ GET /_search
 {
     "query": {
         "query_string": {
-            "query": "content.plain:running scissors",
-            "fields": ["content"]
+            "query": "comment.plain:running scissors",
+            "fields": ["comment"]
         }
     },
     "highlight": {
         "order": "score",
         "fields": {
-            "content": {
-                "matched_fields": ["content", "content.plain"],
+            "comment": {
+                "matched_fields": ["comment", "comment.plain"],
                 "type" : "fvh"
             }
         }
@@ -546,14 +546,14 @@ GET /_search
     "query": {
         "query_string": {
             "query": "running scissors",
-            "fields": ["content", "content.plain^10"]
+            "fields": ["comment", "comment.plain^10"]
         }
     },
     "highlight": {
         "order": "score",
         "fields": {
-            "content": {
-                "matched_fields": ["content", "content.plain"],
+            "comment": {
+                "matched_fields": ["comment", "comment.plain"],
                 "type" : "fvh"
             }
         }
@@ -572,14 +572,14 @@ GET /_search
     "query": {
         "query_string": {
             "query": "running scissors",
-            "fields": ["content", "content.plain^10"]
+            "fields": ["comment", "comment.plain^10"]
         }
     },
     "highlight": {
         "order": "score",
         "fields": {
-            "content": {
-                "matched_fields": ["content.plain"],
+            "comment": {
+                "matched_fields": ["comment.plain"],
                 "type" : "fvh"
             }
         }
@@ -590,7 +590,7 @@ GET /_search
 
 The above query wouldn't highlight "run" or "scissor" but shows that
 it is just fine not to list the field to which the matches are combined
-(`content`) in the matched fields.
+(`comment`) in the matched fields.
 
 [NOTE]
 Technically it is also fine to add fields to `matched_fields` that
@@ -606,7 +606,7 @@ There is a small amount of overhead involved with setting
 --------------------------------------------------
     "highlight": {
         "fields": {
-            "content": {}
+            "comment": {}
         }
     }
 --------------------------------------------------
@@ -615,8 +615,8 @@ to
 --------------------------------------------------
     "highlight": {
         "fields": {
-            "content": {
-                "matched_fields": ["content"],
+            "comment": {
+                "matched_fields": ["comment"],
                 "type" : "fvh"
             }
         }

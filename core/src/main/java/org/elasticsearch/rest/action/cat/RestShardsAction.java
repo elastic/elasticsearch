@@ -31,23 +31,21 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.Locale;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-
-    @Inject
     public RestShardsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/shards", this);
@@ -61,13 +59,13 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
@@ -103,6 +101,8 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
         table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
         table.addCell("unassigned.details", "alias:ud;default:false;desc:additional details as to why the shard became unassigned");
+
+        table.addCell("recoverysource.type", "alias:rs;default:false;desc:recovery source type");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 
@@ -141,6 +141,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -158,6 +159,10 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+
+        table.addCell("seq_no.max", "alias:sqm,maxSeqNo;default:false;text-align:right;desc:max sequence number");
+        table.addCell("seq_no.local_checkpoint", "alias:sql,localCheckpoint;default:false;text-align:right;desc:local checkpoint");
+        table.addCell("seq_no.global_checkpoint", "alias:sqg,globalCheckpoint;default:false;text-align:right;desc:global checkpoint");
 
         table.addCell("warmer.current", "alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
@@ -187,7 +192,7 @@ public class RestShardsAction extends AbstractCatAction {
             IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
             boolean usesShadowReplicas = false;
             if (indexMeta != null) {
-                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings());
+                usesShadowReplicas = indexMeta.isIndexUsingShadowReplicas();
             }
             if (shard.primary()) {
                 table.addCell("p");
@@ -240,6 +245,12 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
+            if (shard.recoverySource() != null) {
+                table.addCell(shard.recoverySource().getType().toString().toLowerCase(Locale.ROOT));
+            } else {
+                table.addCell(null);
+            }
+
             table.addCell(commonStats == null ? null : commonStats.getCompletion().getSize());
 
             table.addCell(commonStats == null ? null : commonStats.getFieldData().getMemorySize());
@@ -277,6 +288,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getRefresh().getListeners());
 
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCurrent());
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchTime());
@@ -294,6 +306,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commonStats == null ? null : commonStats.getSegments().getIndexWriterMemory());
             table.addCell(commonStats == null ? null : commonStats.getSegments().getVersionMapMemory());
             table.addCell(commonStats == null ? null : commonStats.getSegments().getBitsetMemory());
+
+            table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getMaxSeqNo());
+            table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getLocalCheckpoint());
+            table.addCell(commitStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getGlobalCheckpoint());
 
             table.addCell(commonStats == null ? null : commonStats.getWarmer().current());
             table.addCell(commonStats == null ? null : commonStats.getWarmer().total());

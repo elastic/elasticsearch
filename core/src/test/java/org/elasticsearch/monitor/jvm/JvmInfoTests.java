@@ -57,5 +57,4 @@ public class JvmInfoTests extends ESTestCase {
         final int index = argline.lastIndexOf(flag);
         return argline.charAt(index - 1) == '+';
     }
-
 }

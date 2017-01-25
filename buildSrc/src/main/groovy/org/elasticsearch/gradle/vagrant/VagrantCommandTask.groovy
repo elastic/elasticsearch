@@ -19,26 +19,31 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.apache.commons.io.output.TeeOutputStream
+import org.elasticsearch.gradle.ProgressLoggerFactoryInjection
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
-import org.gradle.logging.ProgressLoggerFactory
-
-import javax.inject.Inject
 
 /**
  * Runs a vagrant command. Pretty much like Exec task but with a nicer output
  * formatter and defaults to `vagrant` as first part of commandLine.
  */
-public class VagrantCommandTask extends LoggedExec {
+public class VagrantCommandTask extends LoggedExec implements ProgressLoggerFactoryInjection {
 
     @Input
     String boxName
 
+    @Input
+    Map<String, String> environmentVars
+
     public VagrantCommandTask() {
         executable = 'vagrant'
+
         project.afterEvaluate {
             // It'd be nice if --machine-readable were, well, nice
             standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
+            if (environmentVars != null) {
+                environment environmentVars
+            }
         }
     }
 
@@ -49,10 +54,5 @@ public class VagrantCommandTask extends LoggedExec {
             /* Vagrant tends to output a lot of stuff, but most of the important
               stuff starts with ==> $box */
             squashedPrefix: "==> $boxName: ")
-    }
-
-    @Inject
-    ProgressLoggerFactory getProgressLoggerFactory() {
-        throw new UnsupportedOperationException();
     }
 }

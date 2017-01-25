@@ -19,17 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -37,22 +38,29 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.AbstractList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class IpFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class IpFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
+
+    public static class Defaults {
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder, IpFieldMapper> {
 
@@ -81,9 +89,8 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         @Override
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (IpFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -94,9 +101,6 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                return new LegacyIpFieldMapper.TypeParser().parse(name, node, parserContext);
-            }
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -110,7 +114,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
                     builder.nullValue(InetAddresses.forString(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -179,7 +183,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
@@ -213,26 +217,70 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         @Override
         public FieldStats.Ip stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = XPointValues.size(reader, field);
-            if (size == 0) {
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
                 return null;
             }
-            int docCount = XPointValues.getDocCount(reader, field);
-            byte[] min = XPointValues.getMinPackedValue(reader, field);
-            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            long size = PointValues.size(reader, field);
+            if (size == 0) {
+                return new FieldStats.Ip(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
+            }
+            int docCount = PointValues.getDocCount(reader, field);
+            byte[] min = PointValues.getMinPackedValue(reader, field);
+            byte[] max = PointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
                 isSearchable(), isAggregatable(),
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
-        @Override
-        public IndexFieldData.Builder fielddataBuilder() {
-            failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+        public static final class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
+
+            private final RandomAccessOrds values;
+
+            IpScriptDocValues(RandomAccessOrds values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setNextDocId(int docId) {
+                values.setDocument(docId);
+            }
+
+            public String getValue() {
+                if (isEmpty()) {
+                    return null;
+                } else {
+                    return get(0);
+                }
+            }
+
+            @Override
+            public List<String> getValues() {
+                return Collections.unmodifiableList(this);
+            }
+
+            @Override
+            public String get(int index) {
+                BytesRef encoded = values.lookupOrd(values.ordAt(0));
+                InetAddress address = InetAddressPoint.decode(
+                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+                return InetAddresses.toAddrString(address);
+            }
+
+            @Override
+            public int size() {
+                return values.cardinality();
+            }
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().scriptFunction(IpScriptDocValues::new);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -261,11 +309,13 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -284,40 +334,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     }
 
     @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();

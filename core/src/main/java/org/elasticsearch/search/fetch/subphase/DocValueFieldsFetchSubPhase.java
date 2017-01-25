@@ -27,6 +27,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 
 /**
@@ -36,35 +37,30 @@ import java.util.HashMap;
  */
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
-    public static final String NAME = "docvalue_fields";
-    public static final ContextFactory<DocValueFieldsContext> CONTEXT_FACTORY = new ContextFactory<DocValueFieldsContext>() {
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-
-        @Override
-        public DocValueFieldsContext newContextInstance() {
-            return new DocValueFieldsContext();
-        }
-    };
-
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
+        if (context.collapse() != null) {
+            // retrieve the `doc_value` associated with the collapse field
+            String name = context.collapse().getFieldType().name();
+            if (context.docValueFieldsContext() == null) {
+                context.docValueFieldsContext(new DocValueFieldsContext(Collections.singletonList(name)));
+            } else if (context.docValueFieldsContext().fields().contains(name) == false) {
+                context.docValueFieldsContext().fields().add(name);
+            }
+        }
+        if (context.docValueFieldsContext() == null) {
             return;
         }
-        for (DocValueFieldsContext.DocValueField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
+        for (String field : context.docValueFieldsContext().fields()) {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }
-            SearchHitField hitField = hitContext.hit().fields().get(field.name());
+            SearchHitField hitField = hitContext.hit().fields().get(field);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
-                hitContext.hit().fields().put(field.name(), hitField);
+                hitField = new InternalSearchHitField(field, new ArrayList<>(2));
+                hitContext.hit().fields().put(field, hitField);
             }
-            MappedFieldType fieldType = context.mapperService().fullName(field.name());
+            MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();

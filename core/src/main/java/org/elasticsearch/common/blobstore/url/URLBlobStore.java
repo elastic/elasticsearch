@@ -55,7 +55,7 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
     public URLBlobStore(Settings settings, URL path) {
         super(settings);
         this.path = path;
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
     }
 
     /**

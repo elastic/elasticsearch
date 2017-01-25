@@ -63,3 +63,34 @@ and will not match any documents for this query. This can be useful when
 querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the `type`
 is not mapped.
+
+[float]
+==== Sorting
+
+Child documents can't be sorted by fields in matching parent documents via the
+regular sort options. If you need to sort child documents by field in the parent
+documents then you can should use the `function_score` query and then just sort
+by `_score`.
+
+Sorting tags by parent document' `view_count` field:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "has_parent" : {
+            "parent_type" : "blog",
+            "score" : true,
+            "query" : {
+                "function_score" : {
+                    "script_score": {
+                        "script": "_score * doc['view_count'].value"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

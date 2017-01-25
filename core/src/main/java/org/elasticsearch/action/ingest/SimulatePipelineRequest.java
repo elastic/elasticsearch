@@ -37,7 +37,7 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
-public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
+public class SimulatePipelineRequest extends ActionRequest {
 
     private String id;
     private boolean verbose;
@@ -156,8 +156,6 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
                     ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.ID.getFieldName(), "_id"),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.ROUTING.getFieldName()),
                     ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.PARENT.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TIMESTAMP.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.TTL.getFieldName()),
                     document);
             ingestDocumentList.add(ingestDocument);
         }

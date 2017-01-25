@@ -20,23 +20,24 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -46,7 +47,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetSettingsAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
             final SettingsFilter settingsFilter) {
         super(settings);
@@ -58,7 +58,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
@@ -68,7 +68,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
-        client.admin().indices().getSettings(getSettingsRequest, new RestBuilderListener<GetSettingsResponse>(channel) {
+        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestBuilderListener<GetSettingsResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(GetSettingsResponse getSettingsResponse, XContentBuilder builder) throws Exception {
@@ -94,4 +94,5 @@ public class RestGetSettingsAction extends BaseRestHandler {
             }
         });
     }
+
 }

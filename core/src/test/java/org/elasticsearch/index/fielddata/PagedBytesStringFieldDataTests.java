@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-/**
- */
 public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTestCase {
 
     @Override

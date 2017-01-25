@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<RussianAnalyzer> {
 
     private final RussianAnalyzer analyzer;
 
     public RussianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new RussianAnalyzer(Analysis.parseStopWords(env, settings, RussianAnalyzer.getDefaultStopSet()),
-                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new RussianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, RussianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

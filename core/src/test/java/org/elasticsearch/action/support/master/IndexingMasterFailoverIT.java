@@ -23,10 +23,11 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -42,8 +43,7 @@ import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
     @Override
@@ -51,6 +51,12 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
         classes.add(MockTransportService.TestPlugin.class);
         return classes;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
     /**
@@ -69,7 +75,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .build();
 
-        internalCluster().startMasterOnlyNodesAsync(3, sharedSettings).get();
+        internalCluster().startMasterOnlyNodes(3, sharedSettings);
 
         String dataNode = internalCluster().startDataOnlyNode(sharedSettings);
 

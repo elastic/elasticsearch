@@ -39,9 +39,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @ClusterScope(randomDynamicTemplates = false)
 public class SimpleGetMappingsIT extends ESIntegTestCase {
     public void testGetMappingsWhereThereAreNone() {

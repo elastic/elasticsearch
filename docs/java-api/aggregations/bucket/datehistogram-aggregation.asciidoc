@@ -16,7 +16,7 @@ AggregationBuilder aggregation =
         AggregationBuilders
                 .dateHistogram("agg")
                 .field("dateOfBirth")
-                .interval(DateHistogramInterval.YEAR);
+                .dateHistogramInterval(DateHistogramInterval.YEAR);
 --------------------------------------------------
 
 Or if you want to set an interval of 10 days:
@@ -27,7 +27,7 @@ AggregationBuilder aggregation =
         AggregationBuilders
                 .dateHistogram("agg")
                 .field("dateOfBirth")
-                .interval(DateHistogramInterval.days(10));
+                .dateHistogramInterval(DateHistogramInterval.days(10));
 --------------------------------------------------
 
 

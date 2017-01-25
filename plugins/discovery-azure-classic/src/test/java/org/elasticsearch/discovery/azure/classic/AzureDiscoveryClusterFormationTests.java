@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -64,9 +65,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-
-@ESIntegTestCase.SuppressLocalMode
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
@@ -134,7 +132,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
         SSLContext sslContext = getSSLContext();
-        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpsServer.createContext("/subscription/services/hostedservices/myservice", (s) -> {
             Headers headers = s.getResponseHeaders();
@@ -270,7 +268,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         // only wait for the cluster to form
         ensureClusterSizeConsistency();
         // add one more node and wait for it to join
-        internalCluster().startDataOnlyNodeAsync().get();
+        internalCluster().startDataOnlyNode();
         ensureClusterSizeConsistency();
     }
 }

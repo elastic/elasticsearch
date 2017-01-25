@@ -151,10 +151,6 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }
 
-    public Checkpoint getInfo() {
-        return new Checkpoint(length, totalOperations, getGeneration());
-    }
-
     @Override
     public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {

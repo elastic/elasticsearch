@@ -19,17 +19,128 @@
 
 package org.elasticsearch.common;
 
-/**
- *
- */
-public class Booleans {
+public final class Booleans {
+    private Booleans() {
+        throw new AssertionError("No instances intended");
+    }
+
+    /**
+     * Parses a char[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false" or the
+     * provided default value iff either text is <code>null</code> or length == 0.
+     * @throws IllegalArgumentException if the string cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
+        if (text == null || length == 0) {
+            return defaultValue;
+        } else {
+            return parseBoolean(new String(text, offset, length));
+        }
+    }
+
+    /**
+     * returns true iff the sequence of chars is one of "true","false".
+     *
+     * @param text   sequence to check
+     * @param offset offset to start
+     * @param length length to check
+     */
+    public static boolean isBoolean(char[] text, int offset, int length) {
+        if (text == null || length == 0) {
+            return false;
+        }
+        return isBoolean(new String(text, offset, length));
+    }
+
+    public static boolean isBoolean(String value) {
+        return isFalse(value) || isTrue(value);
+    }
+
+    /**
+     * Parses a string representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the provided value is "true". <code>false</code> iff the provided value is "false".
+     * @throws IllegalArgumentException if the string cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(String value) {
+        if (isFalse(value)) {
+            return false;
+        }
+        if (isTrue(value)) {
+            return true;
+        }
+        throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
+    }
+
+    /**
+     *
+     * @param value text to parse.
+     * @param defaultValue The default value to return if the provided value is <code>null</code>.
+     * @return see {@link #parseBoolean(String)}
+     */
+    public static boolean parseBoolean(String value, boolean defaultValue) {
+        if (Strings.hasText(value)) {
+            return parseBoolean(value);
+        }
+        return defaultValue;
+    }
+
+    public static Boolean parseBoolean(String value, Boolean defaultValue) {
+        if (Strings.hasText(value)) {
+            return parseBoolean(value);
+        }
+        return defaultValue;
+    }
 
     /**
      * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
+     *
+     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, Boolean)} instead.
      */
-    public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
-        // TODO: the leniency here is very dangerous: a simple typo will be misinterpreted and the user won't know.
-        // We should remove it and cutover to https://github.com/rmuir/booleanparser
+    @Deprecated
+    public static Boolean parseBooleanLenient(String value, Boolean defaultValue) {
+        if (value == null) { // only for the null case we do that here!
+            return defaultValue;
+        }
+        return parseBooleanLenient(value, false);
+    }
+    /**
+     * Returns <code>true</code> iff the value is neither of the following:
+     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
+     *   otherwise <code>false</code>
+     *
+     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, boolean)} instead.
+     */
+    @Deprecated
+    public static boolean parseBooleanLenient(String value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+    }
+
+    /**
+     * @return <code>true</code> iff the value is <tt>false</tt>, otherwise <code>false</code>.
+     */
+    public static boolean isFalse(String value) {
+        return "false".equals(value);
+    }
+
+    /**
+     * @return <code>true</code> iff the value is <tt>true</tt>, otherwise <code>false</code>
+     */
+    public static boolean isTrue(String value) {
+        return "true".equals(value);
+    }
+
+    /**
+     * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
+     *
+     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(char[], int, int, boolean)} instead
+     */
+    @Deprecated
+    public static boolean parseBooleanLenient(char[] text, int offset, int length, boolean defaultValue) {
         if (text == null || length == 0) {
             return defaultValue;
         }
@@ -43,7 +154,8 @@ public class Booleans {
             return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
         }
         if (length == 5) {
-            return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
+            return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
+                text[offset + 4] == 'e');
         }
         return true;
     }
@@ -54,8 +166,11 @@ public class Booleans {
      * @param text   sequence to check
      * @param offset offset to start
      * @param length length to check
+     *
+     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #isBoolean(char[], int, int)} instead.
      */
-    public static boolean isBoolean(char[] text, int offset, int length) {
+    @Deprecated
+    public static boolean isBooleanLenient(char[] text, int offset, int length) {
         if (text == null || length == 0) {
             return false;
         }
@@ -67,69 +182,16 @@ public class Booleans {
         }
         if (length == 3) {
             return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') ||
-                    (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
+                (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
         }
         if (length == 4) {
             return (text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e');
         }
         if (length == 5) {
-            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
+            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
+                text[offset + 4] == 'e');
         }
         return false;
-    }
-
-    /***
-     *
-     * @return true/false
-     * throws exception if string cannot be parsed to boolean
-     */
-    public static Boolean parseBooleanExact(String value) {
-        boolean isFalse = isExplicitFalse(value);
-        if (isFalse) {
-            return false;
-        }
-        boolean isTrue = isExplicitTrue(value);
-        if (isTrue) {
-            return true;
-        }
-
-        throw new IllegalArgumentException("Failed to parse value [" + value + "] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]");
-    }
-
-    public static Boolean parseBoolean(String value, Boolean defaultValue) {
-        if (value == null) { // only for the null case we do that here!
-            return defaultValue;
-        }
-        return parseBoolean(value, false);
-    }
-    /**
-     * Returns <code>true</code> iff the value is neither of the following:
-     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
-     *   otherwise <code>false</code>
-     */
-    public static boolean parseBoolean(String value, boolean defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
-    }
-
-    /**
-     * Returns <code>true</code> iff the value is either of the following:
-     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
-     *   otherwise <code>false</code>
-     */
-    public static boolean isExplicitFalse(String value) {
-        return value != null && (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
-    }
-
-    /**
-     * Returns <code>true</code> iff the value is either of the following:
-     *   <tt>true</tt>, <tt>1</tt>, <tt>on</tt>, <tt>yes</tt>
-     *   otherwise <code>false</code>
-     */
-    public static boolean isExplicitTrue(String value) {
-        return value != null && (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
     }
 
 }

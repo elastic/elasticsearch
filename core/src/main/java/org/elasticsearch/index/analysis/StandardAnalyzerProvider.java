@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer standardAnalyzer;
@@ -37,7 +34,7 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, defaultStopwords);
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(stopWords);
         standardAnalyzer.setVersion(version);

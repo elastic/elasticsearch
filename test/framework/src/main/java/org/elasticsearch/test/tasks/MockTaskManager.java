@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.tasks;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +53,11 @@ public class MockTaskManager extends TaskManager {
                 try {
                     listener.onTaskRegistered(task);
                 } catch (Exception e) {
-                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", e, task.getId());
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to notify task manager listener about unregistering the task with id {}",
+                            task.getId()),
+                        e);
                 }
             }
         }
@@ -66,7 +72,9 @@ public class MockTaskManager extends TaskManager {
                 try {
                     listener.onTaskUnregistered(task);
                 } catch (Exception e) {
-                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", e, task.getId());
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to notify task manager listener about unregistering the task with id {}", task.getId()), e);
                 }
             }
         } else {
@@ -81,7 +89,11 @@ public class MockTaskManager extends TaskManager {
             try {
                 listener.waitForTaskCompletion(task);
             } catch (Exception e) {
-                logger.warn("failed to notify task manager listener about waitForTaskCompletion the task with id {}", e, task.getId());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
+                        task.getId()),
+                    e);
             }
         }
         super.waitForTaskCompletion(task, untilInNanos);

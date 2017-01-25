@@ -539,7 +539,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }, OPTIONS_FIELD);
         parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
             try {
-                return c.parseInnerQueryBuilder().orElse(null);
+                return c.parseInnerQueryBuilder();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }

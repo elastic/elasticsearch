@@ -32,6 +32,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -47,7 +48,6 @@ import java.util.Objects;
 
 public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<DerivativePipelineAggregationBuilder> {
     public static final String NAME = "derivative";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField GAP_POLICY_FIELD = new ParseField("gap_policy");
@@ -142,7 +142,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
         }
         Long xAxisUnits = null;
         if (units != null) {
-            DateTimeUnit dateTimeUnit = DateHistogramAggregatorFactory.DATE_FIELD_UNITS.get(units);
+            DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(units);
             if (dateTimeUnit != null) {
                 xAxisUnits = dateTimeUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
             } else {
@@ -207,20 +207,20 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
+                if (FORMAT_FIELD.match(currentFieldName)) {
                     format = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                } else if (BUCKETS_PATH_FIELD.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY_FIELD)) {
+                } else if (GAP_POLICY_FIELD.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
+                } else if (UNIT_FIELD.match(currentFieldName)) {
                     units = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                if (BUCKETS_PATH_FIELD.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

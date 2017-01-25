@@ -23,9 +23,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuild
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
-/**
- *
- */
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {

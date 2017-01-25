@@ -23,11 +23,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -38,6 +44,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,15 +61,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             result.analyzeWildcard(randomBoolean());
         }
         if (randomBoolean()) {
-            result.lenient(randomBoolean());
-        }
-        if (randomBoolean()) {
-            result.lowercaseExpandedTerms(randomBoolean());
-        }
-        if (randomBoolean()) {
-            result.locale(randomLocale(random()));
-        }
-        if (randomBoolean()) {
             result.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
@@ -69,6 +68,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         if (randomBoolean()) {
             result.defaultOperator(randomFrom(Operator.values()));
+        }
+        if (randomBoolean()) {
+            result.quoteFieldSuffix(TestUtil.randomSimpleString(random()));
         }
         if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
@@ -108,28 +110,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("Wrong default default operator.", Operator.OR, qb.defaultOperator());
         assertEquals("Wrong default default operator field.", Operator.OR, SimpleQueryStringBuilder.DEFAULT_OPERATOR);
 
-        assertEquals("Wrong default default locale.", Locale.ROOT, qb.locale());
-        assertEquals("Wrong default default locale field.", Locale.ROOT, SimpleQueryStringBuilder.DEFAULT_LOCALE);
-
         assertEquals("Wrong default default analyze_wildcard.", false, qb.analyzeWildcard());
         assertEquals("Wrong default default analyze_wildcard field.", false, SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD);
 
-        assertEquals("Wrong default default lowercase_expanded_terms.", true, qb.lowercaseExpandedTerms());
-        assertEquals("Wrong default default lowercase_expanded_terms field.", true,
-                SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS);
-
         assertEquals("Wrong default default lenient.", false, qb.lenient());
         assertEquals("Wrong default default lenient field.", false, SimpleQueryStringBuilder.DEFAULT_LENIENT);
-
-        assertEquals("Wrong default default locale.", Locale.ROOT, qb.locale());
-        assertEquals("Wrong default default locale field.", Locale.ROOT, SimpleQueryStringBuilder.DEFAULT_LOCALE);
-    }
-
-    public void testDefaultNullLocale() {
-        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        qb.locale(null);
-        assertEquals("Setting locale to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_LOCALE,
-                qb.locale());
     }
 
     public void testDefaultNullComplainFlags() {
@@ -227,9 +212,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // the remaining tests requires either a mapping that we register with types in base test setup
         if (getCurrentTypes().length > 0) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, instanceOf(TermQuery.class));
-            TermQuery termQuery = (TermQuery) luceneQuery;
-            assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
+            assertThat(luceneQuery, instanceOf(BooleanQuery.class));
         }
     }
 
@@ -241,7 +224,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if ("".equals(queryBuilder.value())) {
@@ -249,12 +232,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         } else if (queryBuilder.fields().size() > 1) {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
-            if (queryBuilder.lowercaseExpandedTerms()) {
-                for (BooleanClause clause : boolQuery.clauses()) {
-                    if (clause.getQuery() instanceof TermQuery) {
-                        TermQuery inner = (TermQuery) clause.getQuery();
-                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
-                    }
+            for (BooleanClause clause : boolQuery.clauses()) {
+                if (clause.getQuery() instanceof TermQuery) {
+                    TermQuery inner = (TermQuery) clause.getQuery();
+                    assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
                 }
             }
             assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
@@ -270,7 +251,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
             assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
         } else if (queryBuilder.fields().size() == 0) {
-            assertTermQuery(query, MetaData.ALL, queryBuilder.value());
+            MapperService ms = context.mapperService();
+            if (ms.allEnabled()) {
+                assertTermQuery(query, MetaData.ALL, queryBuilder.value());
+            } else {
+                assertThat(query.getClass(), anyOf(equalTo(BooleanQuery.class), equalTo(MatchNoDocsQuery.class)));
+            }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "
                     + SimpleQueryStringBuilderTests.class.getSimpleName());
@@ -329,10 +315,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"analyzer\" : \"snowball\",\n" +
                 "    \"flags\" : -1,\n" +
                 "    \"default_operator\" : \"and\",\n" +
-                "    \"lowercase_expanded_terms\" : true,\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
-                "    \"locale\" : \"und\",\n" +
+                "    \"quote_field_suffix\" : \".quote\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -343,6 +328,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
         assertEquals(json, 2, parsed.fields().size());
         assertEquals(json, "snowball", parsed.analyzer());
+        assertEquals(json, ".quote", parsed.quoteFieldSuffix());
     }
 
     public void testMinimumShouldMatch() throws IOException {
@@ -387,5 +373,48 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (getCurrentTypes().length > 0) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         }
+    }
+
+    public void testExpandedTerms() throws Exception {
+        // Prefix
+        Query query = new SimpleQueryStringBuilder("aBc*")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        assertEquals(new PrefixQuery(new Term(STRING_FIELD_NAME, "aBc")), query);
+        query = new SimpleQueryStringBuilder("aBc*")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        assertEquals(new PrefixQuery(new Term(STRING_FIELD_NAME, "abc")), query);
+
+        // Fuzzy
+        query = new SimpleQueryStringBuilder("aBc~1")
+                .field(STRING_FIELD_NAME)
+                .analyzer("whitespace")
+                .toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "aBc"), 1);
+        assertEquals(expected, query);
+        query = new SimpleQueryStringBuilder("aBc~1")
+                .field(STRING_FIELD_NAME)
+                .analyzer("standard")
+                .toQuery(createShardContext());
+        expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "abc"), 1);
+        assertEquals(expected, query);
+    }
+
+    public void testAllFieldsWithFields() throws IOException {
+        String json =
+                "{\n" +
+                "  \"simple_query_string\" : {\n" +
+                "    \"query\" : \"this that thus\",\n" +
+                "    \"fields\" : [\"foo\"],\n" +
+                "    \"all_fields\" : true\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(),
+                containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
     }
 }

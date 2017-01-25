@@ -15,6 +15,7 @@
 # language governing permissions and limitations under the License.
 
 import argparse
+import base64
 import glob
 import logging
 import os
@@ -47,6 +48,28 @@ def rarely():
 def frequently():
   return not rarely()
 
+def capabilities_of(version):
+  current_version = parse_version(version)
+
+  return {
+    'warmers': current_version < parse_version('2.0.0-alpha1'),
+    'dots_in_field_names': current_version >= parse_version('2.4.0'),
+    'lenient_booleans': current_version < parse_version('6.0.0-alpha1')
+  }
+
+
+def falsy(lenient):
+  return random.choice(['off', 'no', '0', 0, 'false', False]) if lenient else False
+
+
+def truthy(lenient):
+  return random.choice(['on', 'yes', '1', 1, 'true', True]) if lenient else True
+
+
+def random_bool(lenient):
+  return random.choice([falsy, truthy])(lenient)
+
+
 # asserts the correctness of the given hits given they are sorted asc
 def assert_sort(hits):
   values = [hit['sort'] for hit in hits['hits']['hits']]
@@ -58,19 +81,42 @@ def assert_sort(hits):
 
 # Indexes the given number of document into the given index
 # and randomly runs refresh, optimize and flush commands
-def index_documents(es, index_name, type, num_docs):
+def index_documents(es, index_name, type, num_docs, capabilities):
   logging.info('Indexing %s docs' % num_docs)
-  for id in range(0, num_docs):
-    es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
-                                                           'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100)),
-                                                           'bool' : random.choice([True, False])})
-    if rarely():
-      es.indices.refresh(index=index_name)
-    if rarely():
-      es.indices.flush(index=index_name, force=frequently())
+  index(es, index_name, type, num_docs, capabilities, flush=True)
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
+
+def index(es, index_name, type, num_docs, capabilities, flush=False):
+  for id in range(0, num_docs):
+    lenient_bool = capabilities['lenient_booleans']
+    body = {
+          'string': str(random.randint(0, 100)),
+          'long_sort': random.randint(0, 100),
+          'double_sort': float(random.randint(0, 100)),
+          # be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
+          'bool': random_bool(lenient_bool) if id > 0 else random.choice([True, False])
+        }
+    if capabilities['dots_in_field_names']:
+      body['field.with.dots'] = str(random.randint(0, 100))
+
+    body['binary'] = base64.b64encode(bytearray(random.getrandbits(8) for _ in range(16))).decode('ascii')
+
+    es.index(index=index_name, doc_type=type, id=id, body=body)
+
+    if rarely():
+      es.indices.refresh(index=index_name)
+    if rarely() and flush:
+      es.indices.flush(index=index_name, force=frequently())
+
+def reindex_docs(es, index_name, type, num_docs, capabilities):
+  logging.info('Re-indexing %s docs' % num_docs)
+  # TODO: Translog recovery fails on mixed representation of booleans as strings / booleans (e.g. "true", true)
+  # (see gradle :core:test -Dtests.seed=AF7BB7B3FA387AAE -Dtests.class=org.elasticsearch.index.engine.InternalEngineTests
+  #      -Dtests.method="testUpgradeOldIndex")
+  capabilities['lenient_booleans'] = False
+  # reindex some docs after the flush such that we have something in the translog
+  index(es, index_name, type, num_docs, capabilities)
 
 def delete_by_query(es, version, index_name, doc_type):
 
@@ -90,7 +136,7 @@ def delete_by_query(es, version, index_name, doc_type):
     return
 
   deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
-    
+
   result = es.delete_by_query(index=index_name,
                               doc_type=doc_type,
                               body=query)
@@ -100,9 +146,13 @@ def delete_by_query(es, version, index_name, doc_type):
 
   logging.info('Deleted %d docs' % deleted_count)
 
-def run_basic_asserts(es, index_name, type, num_docs):
+def run_basic_asserts(es, version, index_name, type, num_docs):
   count = es.count(index=index_name)['count']
   assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
+  if parse_version(version) < parse_version('5.1.0'):
+    # This alias isn't allowed to be created after 5.1 so we can verify that we can still use it
+    count = es.count(index='#' + index_name)['count']
+    assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
   for _ in range(0, num_docs):
     random_doc_id = random.randint(0, num_docs-1)
     doc = es.get(index=index_name, doc_type=type, id=random_doc_id)
@@ -149,7 +199,8 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
-  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          env=dict(os.environ, ES_JAVA_OPTS='-Dmapper.allow_dots_in_name=true'))
 
 def install_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'install', [plugin_name])
@@ -179,9 +230,12 @@ def generate_index(client, version, index_name):
   client.indices.delete(index=index_name, ignore=404)
   logging.info('Create single shard test index')
 
+  capabilities = capabilities_of(version)
+  lenient_booleans = capabilities['lenient_booleans']
+
   mappings = {}
   warmers = {}
-  if parse_version(version) < parse_version('2.0.0-alpha1'):
+  if capabilities['warmers']:
     warmers['warmer1'] = {
       'source': {
         'query': {
@@ -228,7 +282,7 @@ def generate_index(client, version, index_name):
     }
     mappings['meta_fields'] = {
       '_routing': {
-        'required': 'false'
+        'required': falsy(lenient_booleans)
       },
     }
     mappings['custom_formats'] = {
@@ -245,9 +299,26 @@ def generate_index(client, version, index_name):
     }
     mappings['auto_boost'] = {
       '_all': {
-        'auto_boost': True
+        'auto_boost': truthy(lenient_booleans)
       }
     }
+  mappings['doc'] = {'properties' : {}}
+
+  if capabilities['dots_in_field_names']:
+    if parse_version(version) < parse_version("5.0.0-alpha1"):
+      mappings["doc"]['properties'].update({
+        'field.with.dots': {
+          'type': 'string',
+          'boost': 4
+        }
+      })
+    else:
+      mappings["doc"]['properties'].update({
+        'field.with.dots': {
+          'type': 'text'
+        }
+      })
+
   if parse_version(version) < parse_version("5.0.0-alpha1"):
     mappings['norms'] = {
       'properties': {
@@ -281,7 +352,7 @@ def generate_index(client, version, index_name):
       'properties': {
         'string_with_norms_disabled': {
           'type': 'text',
-          'norms' : False
+          'norms': False
         },
         'string_with_norms_enabled': {
           'type': 'keyword',
@@ -291,13 +362,17 @@ def generate_index(client, version, index_name):
         }
       }
     }
-    mappings['doc'] = {
-      'properties': {
+    mappings['doc']['properties'].update({
         'string': {
           'type': 'text',
           'boost': 4
         }
-      }
+    })
+
+  # test back-compat of stored binary fields
+  mappings['doc']['properties']['binary'] = {
+    'type': 'binary',
+    'store': truthy(lenient_booleans),
     }
 
   settings = {
@@ -317,7 +392,10 @@ def generate_index(client, version, index_name):
   if warmers:
     body['warmers'] = warmers
   client.indices.create(index=index_name, body=body)
-  health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+  else:
+    health = client.cluster.health(wait_for_status='green', wait_for_no_relocating_shards=True)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)
@@ -326,9 +404,13 @@ def generate_index(client, version, index_name):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
-  index_documents(client, index_name, 'doc', num_docs)
+  index_documents(client, index_name, 'doc', num_docs, capabilities)
+  if parse_version(version) < parse_version('5.1.0'):
+    logging.info("Adding a alias that can't be created in 5.1+ so we can assert that we can still use it")
+    client.indices.put_alias(index=index_name, name='#' + index_name)
   logging.info('Running basic asserts on the data added')
-  run_basic_asserts(client, index_name, 'doc', num_docs)
+  run_basic_asserts(client, version, index_name, 'doc', num_docs)
+  return num_docs, capabilities
 
 def snapshot_index(client, version, repo_dir):
   persistent = {
@@ -350,7 +432,9 @@ def snapshot_index(client, version, repo_dir):
     },
     "mappings": {
       "type1": {
-        "_source": { "enabled" : False }
+        "_source": {
+          "enabled": falsy(capabilities_of(version)['lenient_booleans'])
+        }
       }
     },
     "aliases": {
@@ -438,7 +522,7 @@ def create_bwc_index(cfg, version):
     node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
-    generate_index(client, version, index_name)
+    num_docs, capabilities = generate_index(client, version, index_name)
     if snapshot_supported:
       snapshot_index(client, version, repo_dir)
 
@@ -447,6 +531,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     if version.startswith('0.') or version.startswith('1.'):
       delete_by_query(client, version, index_name, 'doc')
+    reindex_docs(client, index_name, 'doc', min(100, num_docs), capabilities)
 
     shutdown_node(node)
     node = None
@@ -459,12 +544,12 @@ def create_bwc_index(cfg, version):
     if node is not None:
       # This only happens if we've hit an exception:
       shutdown_node(node)
-      
+
     shutil.rmtree(tmp_dir)
 
 def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
-  node.terminate()
+  node.kill() # don't use terminate otherwise we flush the translog
   node.wait()
 
 def parse_version(version):
@@ -498,4 +583,3 @@ if __name__ == '__main__':
     main()
   except KeyboardInterrupt:
     print('Caught keyboard interrupt, exiting...')
-

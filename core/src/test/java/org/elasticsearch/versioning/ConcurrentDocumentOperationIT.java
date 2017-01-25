@@ -32,9 +32,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");

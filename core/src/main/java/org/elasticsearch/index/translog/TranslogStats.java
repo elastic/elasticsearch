@@ -26,9 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class TranslogStats extends ToXContentToBytes implements Streamable {
 
     private long translogSizeInBytes;

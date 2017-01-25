@@ -26,8 +26,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.Store;
 
@@ -36,8 +35,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- */
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
@@ -85,7 +82,7 @@ final class LocalShardSnapshot implements Closeable {
             }
 
             @Override
-            public void renameFile(String source, String dest) throws IOException {
+            public void rename(String source, String dest) throws IOException {
                 throw new UnsupportedOperationException("this directory is read-only");
             }
 
@@ -125,8 +122,8 @@ final class LocalShardSnapshot implements Closeable {
         }
     }
 
-    ImmutableOpenMap<String, MappingMetaData> getMappings() {
-        return shard.indexSettings.getIndexMetaData().getMappings();
+    IndexMetaData getIndexMetaData() {
+        return shard.indexSettings.getIndexMetaData();
     }
 
     @Override

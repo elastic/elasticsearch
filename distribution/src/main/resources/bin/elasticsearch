@@ -47,41 +47,12 @@
 
 if echo '${project.name}' | grep project.name > /dev/null ; then
     cat >&2 << EOF
-Error: You must build the project with Maven or download a pre-built package
+Error: You must build the project with Gradle or download a pre-built package
 before you can run Elasticsearch. See 'Building from Source' in README.textile
 or visit https://www.elastic.co/download to get a pre-built package.
 EOF
     exit 1
 fi
-
-# TODO: remove for Elasticsearch 6.x
-unsupported_environment_variable() {
-    if test -n "$1"; then
-        echo "$2=$1: $3"
-    fi
-}
-
-if test -n "$ES_MIN_MEM" ||
-   test -n "$ES_MAX_MEM" ||
-   test -n "$ES_HEAP_SIZE" ||
-   test -n "$ES_HEAP_NEWSIZE" ||
-   test -n "$ES_DIRECT_SIZE" ||
-   test -n "$ES_USE_IPV4" ||
-   test -n "$ES_GC_OPTS" ||
-   test -n "$ES_GC_LOG_FILE"; then
-    echo "Error: encountered environment variables that are no longer supported"
-    echo "Use jvm.options or ES_JAVA_OPTS to configure the JVM"
-    unsupported_environment_variable "$ES_MIN_MEM" ES_MIN_MEM "set -Xms$ES_MIN_MEM in jvm.options or add \"-Xms$ES_MIN_MEM\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_MAX_MEM" ES_MAX_MEM "set -Xmx$ES_MAX_MEM in jvm.options or add \"-Xmx$ES_MAX_MEM\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_HEAP_SIZE" ES_HEAP_SIZE "set -Xms$ES_HEAP_SIZE and -Xmx$ES_HEAP_SIZE in jvm.options or add \"-Xms$ES_HEAP_SIZE -Xmx$ES_HEAP_SIZE\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_HEAP_NEWSIZE" ES_HEAP_NEWSIZE "set -Xmn$ES_HEAP_NEWSIZE in jvm.options or add \"-Xmn$ES_HEAP_SIZE\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_DIRECT_SIZE" ES_DIRECT_SIZE "set -XX:MaxDirectMemorySize=$ES_DIRECT_SIZE in jvm.options or add \"-XX:MaxDirectMemorySize=$ES_DIRECT_SIZE\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_USE_IPV4" ES_USE_IPV4 "set -Djava.net.preferIPv4Stack=true in jvm.options or add \"-Djava.net.preferIPv4Stack=true\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_GC_OPTS" ES_GC_OPTS "set ${ES_GC_OPTS// / and } in jvm.options or add \"$ES_GC_OPTS\" to ES_JAVA_OPTS"
-    unsupported_environment_variable "$ES_GC_LOG_FILE" ES_GC_LOG_FILE "set -Xloggc:$ES_GC_LOG_FILE in jvm.options or add \"-Xloggc:$ES_GC_LOG_FILE\" to ES_JAVA_OPTS"
-    exit 1
-fi
-# end TODO: remove for Elasticsearch 6.x
 
 parse_jvm_options() {
   if [ -f "$1" ]; then

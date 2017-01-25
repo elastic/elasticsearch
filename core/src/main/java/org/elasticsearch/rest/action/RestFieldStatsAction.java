@@ -25,28 +25,24 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- */
 public class RestFieldStatsAction extends BaseRestHandler {
-
-    @Inject
     public RestFieldStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_field_stats", this);
@@ -56,9 +52,9 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request,
-                              final RestChannel channel, final NodeClient client) throws Exception {
-        if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
+    public RestChannelConsumer prepareRequest(final RestRequest request,
+                                              final NodeClient client) throws IOException {
+        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
             throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, " +
                 "either specify a request body or the [fields] request parameter");
         }
@@ -67,13 +63,15 @@ public class RestFieldStatsAction extends BaseRestHandler {
         fieldStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         fieldStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldStatsRequest.indicesOptions()));
         fieldStatsRequest.level(request.param("level", FieldStatsRequest.DEFAULT_LEVEL));
-        if (RestActions.hasBodyContent(request)) {
-            fieldStatsRequest.source(RestActions.getRestContent(request));
+        if (request.hasContentOrSourceParam()) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                fieldStatsRequest.source(parser);
+            }
         } else {
             fieldStatsRequest.setFields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
 
-        client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
+        return channel -> client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(FieldStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -81,7 +79,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
 
                 builder.startObject("indices");
                 for (Map.Entry<String, Map<String, FieldStats>> entry1 :
-                    response.getIndicesMergedFieldStats().entrySet()) {
+                        response.getIndicesMergedFieldStats().entrySet()) {
                     builder.startObject(entry1.getKey());
                     builder.startObject("fields");
                     for (Map.Entry<String, FieldStats> entry2 : entry1.getValue().entrySet()) {

@@ -165,7 +165,10 @@ scripts and sorting by geo distance.
 The `missing` parameter specifies how docs which are missing
 the field should be treated: The `missing` value can be
 set to `_last`, `_first`, or a custom value (that
-will be used for missing docs as the sort value). For example:
+will be used for missing docs as the sort value).
+The default is `_last`.
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -213,7 +216,7 @@ then Elasticsearch will handle it as if there was a mapping of type
 [[geo-sorting]]
 ==== Geo Distance Sorting
 
-Allow to sort by `_geo_distance`. Here is an example:
+Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is a field of type `geo_point`:
 
 [source,js]
 --------------------------------------------------
@@ -243,8 +246,20 @@ GET /_search
 
     How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
-Note: the geo distance sorting supports `sort_mode` options: `min`,
-`max` and `avg`.
+`mode`::
+
+    What to do in case a field has several geo points. By default, the shortest
+    distance is taken into account when sorting in ascending order and the
+    longest distance when sorting in descending order. Supported values are
+    `min`, `max`, `median` and `avg`.
+
+`unit`::
+
+    The unit to use when computing sort values. The default is `m` (meters).
+
+NOTE: geo distance sorting does not support configurable missing values: the
+distance will always be considered equal to +Infinity+ when a document does not
+have values for the field that is used for distance computation.
 
 The following formats are supported in providing the coordinates:
 
@@ -351,9 +366,23 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 
 [source,js]
 --------------------------------------------------
-"pin.location" : [[-70, 40], [-71, 42]]
-"pin.location" : [{"lat": 40, "lon": -70}, {"lat": 42, "lon": -71}]
+GET /_search
+{
+    "sort" : [
+        {
+            "_geo_distance" : {
+                "pin.location" : [[-70, 40], [-71, 42]],
+                "order" : "asc",
+                "unit" : "km"
+            }
+        }
+    ],
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
 --------------------------------------------------
+// CONSOLE
 
 and so forth.
 

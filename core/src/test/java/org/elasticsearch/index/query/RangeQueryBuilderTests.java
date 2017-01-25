@@ -19,18 +19,21 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -42,11 +45,8 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
@@ -58,13 +58,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         switch (randomIntBetween(0, 2)) {
             case 0:
                 // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(INT_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? INT_FIELD_NAME : INT_RANGE_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
                 break;
             case 1:
                 // use mapped date field, using date string representation
-                query = new RangeQueryBuilder(DATE_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? DATE_FIELD_NAME : DATE_RANGE_FIELD_NAME);
                 query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
@@ -76,6 +76,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     if (randomBoolean()) {
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
                     }
+                }
+                if (query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
+                    query.relation(RandomPicks.randomFrom(random(), ShapeRelation.values()).getRelationName());
                 }
                 break;
             case 2:
@@ -116,8 +119,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        if (getCurrentTypes().length == 0 ||
+            (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
@@ -126,42 +133,72 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
             assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            //we can't properly test unmapped dates because LateParsingQuery is package private
-        } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
-            if (query instanceof LegacyNumericRangeQuery) {
-                LegacyNumericRangeQuery numericRangeQuery = (LegacyNumericRangeQuery) query;
-                assertThat(numericRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
-                assertThat(numericRangeQuery.getMin(), equalTo(queryBuilder.from()));
-                assertThat(numericRangeQuery.getMax(), equalTo(queryBuilder.to()));
-                assertThat(numericRangeQuery.includesMin(), equalTo(queryBuilder.includeLower()));
-                assertThat(numericRangeQuery.includesMax(), equalTo(queryBuilder.includeUpper()));
+            assertThat(query, instanceOf(PointRangeQuery.class));
+            MapperService mapperService = context.getQueryShardContext().getMapperService();
+            MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
+            final Long fromInMillis;
+            final Long toInMillis;
+            // we have to normalize the incoming value into milliseconds since it could be literally anything
+            if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                fromInMillis = queryBuilder.from() == null ? null :
+                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.from(),
+                        queryBuilder.includeLower(),
+                        queryBuilder.getDateTimeZone(),
+                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                toInMillis = queryBuilder.to() == null ? null :
+                    ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.to(),
+                        queryBuilder.includeUpper(),
+                        queryBuilder.getDateTimeZone(),
+                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
             } else {
-                Integer min = (Integer) queryBuilder.from();
-                Integer max = (Integer) queryBuilder.to();
-                int minInt, maxInt;
-                if (min == null) {
-                    minInt = Integer.MIN_VALUE;
-                } else {
-                    minInt = min.intValue();
-                    if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
-                        minInt++;
-                    }
-                }
-                if (max == null) {
-                    maxInt = Integer.MAX_VALUE;
-                } else {
-                    maxInt = max.intValue();
-                    if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
-                        maxInt--;
-                    }
-                }
-                try {
-                assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, minInt, maxInt), query);
-                }catch(AssertionError e) {
-                    throw e;
+                fromInMillis = toInMillis = null;
+                fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());
+            }
+
+            Long min = fromInMillis;
+            Long max = toInMillis;
+            long minLong, maxLong;
+            if (min == null) {
+                minLong = Long.MIN_VALUE;
+            } else {
+                minLong = min.longValue();
+                if (queryBuilder.includeLower() == false && minLong != Long.MAX_VALUE) {
+                    minLong++;
                 }
             }
+            if (max == null) {
+                maxLong = Long.MAX_VALUE;
+            } else {
+                maxLong = max.longValue();
+                if (queryBuilder.includeUpper() == false && maxLong != Long.MIN_VALUE) {
+                    maxLong--;
+                }
+            }
+            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
+        } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
+            assertThat(query, instanceOf(PointRangeQuery.class));
+            Integer min = (Integer) queryBuilder.from();
+            Integer max = (Integer) queryBuilder.to();
+            int minInt, maxInt;
+            if (min == null) {
+                minInt = Integer.MIN_VALUE;
+            } else {
+                minInt = min.intValue();
+                if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
+                    minInt++;
+                }
+            }
+            if (max == null) {
+                maxInt = Integer.MAX_VALUE;
+            } else {
+                maxInt = max.intValue();
+                if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
+                    maxInt--;
+                }
+            }
+        } else if (queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME)
+            || queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME)) {
+            // todo can't check RangeFieldQuery because its currently package private (this will change)
         } else {
             throw new UnsupportedOperationException();
         }
@@ -202,17 +239,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        if (parsedQuery instanceof LegacyNumericRangeQuery) {
-            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-            assertThat(rangeQuery.getField(), equalTo(INT_FIELD_NAME));
-            assertThat(rangeQuery.getMin().intValue(), equalTo(23));
-            assertThat(rangeQuery.getMax().intValue(), equalTo(54));
-            assertThat(rangeQuery.includesMin(), equalTo(true));
-            assertThat(rangeQuery.includesMax(), equalTo(false));
-        } else {
-            assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, 23, 53), parsedQuery);
-        }
+        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, 23, 53), parsedQuery);
     }
 
     public void testDateRangeQueryFormat() throws IOException {
@@ -227,23 +255,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
 
-        if (parsedQuery instanceof LegacyNumericRangeQuery) {
-            // Min value was 01/01/2012 (dd/MM/yyyy)
-            DateTime min = DateTime.parse("2012-01-01T00:00:00.000+00");
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
-
-            // Max value was 2030 (yyyy)
-            DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
-        } else {
-            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                    DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
-                    DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1),
-                    parsedQuery);
-        }
+        assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
+                DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1),
+                parsedQuery);
 
         // Test Invalid format
         final String invalidQuery = "{\n" +
@@ -255,8 +273,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query rewrittenQuery = parseQuery(invalidQuery).toQuery(createShardContext());
-        expectThrows(ElasticsearchParseException.class, () -> rewrittenQuery.rewrite(null));
+        expectThrows(ElasticsearchParseException.class, () -> parseQuery(invalidQuery).toQuery(createShardContext()));
     }
 
     public void testDateRangeBoundaries() throws IOException {
@@ -269,24 +286,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        if (parsedQuery instanceof LegacyNumericRangeQuery) {
-            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-
-            DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
-            assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
-            assertTrue(rangeQuery.includesMin());
-
-            DateTime max = DateTime.parse("2014-12-08T23:59:59.999+00");
-            assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
-            assertTrue(rangeQuery.includesMax());
-        } else {
-            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                    DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
-                    DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()),
-                    parsedQuery);
-        }
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
+                DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()),
+                parsedQuery);
 
         query = "{\n" +
                 "    \"range\" : {\n" +
@@ -296,29 +301,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        if (parsedQuery instanceof LegacyNumericRangeQuery) {
-            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-
-            DateTime min = DateTime.parse("2014-11-30T23:59:59.999+00");
-            assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
-            assertFalse(rangeQuery.includesMin());
-
-            DateTime max = DateTime.parse("2014-12-08T00:00:00.000+00");
-            assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
-            assertFalse(rangeQuery.includesMax());
-        } else {
-            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                    DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
-                    DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1),
-                    parsedQuery);
-        }
+        parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
+                DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1),
+                parsedQuery);
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        long startDate = System.currentTimeMillis();
         String query = "{\n" +
                 "    \"range\" : {\n" +
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
@@ -328,22 +320,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        if (parsedQuery instanceof PointRangeQuery) {
-            // TODO what can we assert
-        } else {
-            assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-
-            // Min value was 2012-01-01 (UTC) so we need to remove one hour
-            DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
-            // Max value is when we started the test. So it should be some ms from now
-            DateTime max = new DateTime(startDate, DateTimeZone.UTC);
-
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
-
-            // We should not have a big difference here (should be some ms)
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
-        }
+        QueryShardContext context = createShardContext();
+        Query parsedQuery = parseQuery(query).toQuery(context);
+        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        // TODO what else can we assert
 
         query = "{\n" +
                 "    \"range\" : {\n" +
@@ -406,14 +386,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "  }\n" +
                 "}";
 
-        // non strict parsing should accept "_name" on top level
-        assertNotNull(parseQuery(json, ParseFieldMatcher.EMPTY));
-
-        // with strict parsing, ParseField will throw exception
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parseQuery(deprecatedJson, ParseFieldMatcher.STRICT));
-        assertEquals("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]",
-                e.getMessage());
+        assertNotNull(parseQuery(deprecatedJson));
+        assertWarnings("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]");
     }
 
     public void testRewriteDateToMatchAll() throws IOException {
@@ -500,5 +474,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "  }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
+    }
+
+    public void testParseFailsWithMultipleFieldsWhenOneIsDate() throws IOException {
+        String json =
+                "{\n" +
+                "    \"range\": {\n" +
+                "      \"age\": {\n" +
+                "        \"gte\": 30,\n" +
+                "        \"lte\": 40\n" +
+                "      },\n" +
+                "      \"" + DATE_FIELD_NAME + "\": {\n" +
+                "        \"gte\": \"2016-09-13 05:01:14\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[range] query doesn't support multiple fields, found [age] and [" + DATE_FIELD_NAME + "]", e.getMessage());
     }
 }

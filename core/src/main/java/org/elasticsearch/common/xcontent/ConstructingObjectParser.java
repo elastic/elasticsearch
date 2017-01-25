@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -74,7 +73,7 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
@@ -103,7 +102,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     /**
      * Build the parser.
-     * 
+     *
      * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
      *        ObjectParser.
      * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
@@ -113,7 +112,24 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
      *        allocations.
      */
     public ConstructingObjectParser(String name, Function<Object[], Value> builder) {
-        objectParser = new ObjectParser<>(name);
+        this(name, false, builder);
+    }
+
+    /**
+     * Build the parser.
+     *
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+     *        from external systems, never when parsing requests from users.
+     * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
+     *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
+     *        that you declared the {{@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
+     *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
+     *        allocations.
+     */
+    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function<Object[], Value> builder) {
+        objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
     }
 
@@ -123,10 +139,15 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
     @Override
     public Value apply(XContentParser parser, Context context) {
         try {
-            return objectParser.parse(parser, new Target(parser), context).finish();
+            return parse(parser, context);
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
+    }
+
+    @Override
+    public Value parse(XContentParser parser, Context context) throws IOException {
+        return objectParser.parse(parser, new Target(parser), context).finish();
     }
 
     /**
@@ -153,6 +174,19 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     @Override
     public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField, ValueType type) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (parser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] is required");
+        }
+
         if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
             /*
              * Constructor arguments are detected by this "marker" consumer. It keeps the API looking clean even if it is a bit sleezy. We
@@ -201,7 +235,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     /**
      * The target of the {@linkplain ConstructingObjectParser}. One of these is built every time you call
-     * {@linkplain ConstructingObjectParser#apply(XContentParser, ParseFieldMatcherSupplier)} Note that it is not static so it inherits
+     * {@linkplain ConstructingObjectParser#apply(XContentParser, Object)} Note that it is not static so it inherits
      * {@linkplain ConstructingObjectParser}'s type parameters.
      */
     private class Target {
@@ -267,7 +301,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         }
 
         /**
-         * Finish parsing the object. 
+         * Finish parsing the object.
          */
         private Value finish() {
             if (targetObject != null) {

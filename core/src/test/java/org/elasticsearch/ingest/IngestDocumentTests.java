@@ -22,20 +22,17 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -47,13 +44,14 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
+    private static final Date BOGUS_TIMESTAMP = new Date(0L);
     private IngestDocument ingestDocument;
 
     @Before
     public void setIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
-        ingestMap.put("timestamp", "bogus_timestamp");
+        ingestMap.put("timestamp", BOGUS_TIMESTAMP);
         document.put("_ingest", ingestMap);
         document.put("foo", "bar");
         document.put("int", 123);
@@ -74,7 +72,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -85,9 +83,9 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", String.class),
-                both(notNullValue()).and(not(equalTo("bogus_timestamp"))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", String.class), equalTo("bogus_timestamp"));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
+                both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -237,6 +235,15 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListHasFieldIndexOutOfBounds() {
         assertFalse(ingestDocument.hasField("list.10"));
+    }
+
+    public void testListHasFieldIndexOutOfBounds_fail() {
+        assertTrue(ingestDocument.hasField("list.0", true));
+        assertTrue(ingestDocument.hasField("list.1", true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.2", true));
+        assertThat(e.getMessage(), equalTo("[2] is out of bounds for array with length [2] as part of path [list.2]"));
+        e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.10", true));
+        assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
     }
 
     public void testListHasFieldIndexNotNumeric() {
@@ -962,11 +969,8 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        String timestampString = (String) ingestDocument.getIngestMetadata().get("timestamp");
-        assertThat(timestampString, notNullValue());
-        assertThat(timestampString, endsWith("+0000"));
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
-        Date timestamp = df.parse(timestampString);
+        Date timestamp = (Date) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        assertThat(timestamp, notNullValue());
         assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
         assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
     }
@@ -995,34 +999,4 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public static void assertIngestDocument(Object a, Object b) {
-        if (a instanceof Map) {
-            Map<?, ?> mapA = (Map<?, ?>) a;
-            Map<?, ?> mapB = (Map<?, ?>) b;
-            for (Map.Entry<?, ?> entry : mapA.entrySet()) {
-                if (entry.getValue() instanceof List || entry.getValue() instanceof Map) {
-                    assertIngestDocument(entry.getValue(), mapB.get(entry.getKey()));
-                }
-            }
-        } else if (a instanceof List) {
-            List<?> listA = (List<?>) a;
-            List<?> listB = (List<?>) b;
-            for (int i = 0; i < listA.size(); i++) {
-                Object value = listA.get(i);
-                if (value instanceof List || value instanceof Map) {
-                    assertIngestDocument(value, listB.get(i));
-                }
-            }
-        } else if (a instanceof byte[]) {
-            assertArrayEquals((byte[]) a, (byte[])b);
-        } else if (a instanceof IngestDocument) {
-            IngestDocument docA = (IngestDocument) a;
-            IngestDocument docB = (IngestDocument) b;
-            assertIngestDocument(docA.getSourceAndMetadata(), docB.getSourceAndMetadata());
-            assertIngestDocument(docA.getIngestMetadata(), docB.getIngestMetadata());
-        } else {
-            String msg = String.format(Locale.ROOT, "Expected %s class to be equal to %s", a.getClass().getName(), b.getClass().getName());
-            assertThat(msg, a, equalTo(b));
-        }
-    }
 }

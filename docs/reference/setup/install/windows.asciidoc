@@ -2,7 +2,7 @@
 === Install Elasticsearch on Windows
 
 Elasticsearch can be installed on Windows using the `.zip` package.  This
-comes with a `service.bat` command which will setup Elasticsearch to run as a
+comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
 The latest stable version of Elasticsearch can be found on the
@@ -10,19 +10,33 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
+NOTE: Elasticsearch requires Java 8 or later. Use the
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
+or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+
 [[install-windows]]
 ==== Download and install the `.zip` package
 
-Download the `.zip` archive for Elastisearch v{version} from: https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
-window, `CD` to the `%ES_HOME%` directory, for instance:
+window, `cd` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
-CD c:\elasticsearch-{version}
+cd c:\elasticsearch-{version}
 ----------------------------
+
+endif::[]
 
 [[windows-running]]
 ==== Running Elasticsearch from the command line
@@ -65,15 +79,15 @@ include::check-running.asciidoc[]
 
 Elasticsearch can be installed as a service to run in the background or start
 automatically at boot time without any user interaction. This can be achieved
-through the `service.bat` script in the `bin\` folder which allows one to
+through the `elasticsearch-service.bat` script in the `bin\` folder which allows one to
 install, remove, manage or configure the service and potentially start and
 stop the service, all from the command-line.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>service
+c:\elasticsearch-{version}{backslash}bin>elasticsearch-service
 
-Usage: service.bat install|remove|start|stop|manager [SERVICE_ID]
+Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------
 
 The script requires one parameter (the command to execute) followed by an
@@ -99,16 +113,11 @@ information is made available during install:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>service install
+c:\elasticsearch-{version}{backslash}bin>elasticsearch-service install
 Installing service      :  "elasticsearch-service-x64"
 Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
-
-NOTE: The service installer requires that the thread stack size setting
-be configured in jvm.options *before* you install the service. On
-32-bit Windows, you should add `-Xss320k` to the jvm.options file, and
-on 64-bit Windows you should add `-Xss1m` to the jvm.options file.
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
@@ -156,7 +165,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 `CONF_DIR`::
 
     Configuration file directory (which needs to include `elasticsearch.yml`
-    and `logging.yml` files), defaults to `%ES_HOME%\conf`.
+    and `log4j2.properties` files), defaults to `%ES_HOME%\conf`.
 
 `ES_JAVA_OPTS`::
 
@@ -170,18 +179,18 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
 
-NOTE: At its core, `service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
+NOTE: At its core, `elasticsearch-service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
 NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
 any other Elasticsearch installation when running Elasticsearch from the
 command line, or when installing Elasticsearch as a service for the
 first time. To adjust the heap size for an already installed service,
-use the service manager: `bin\service.bat manager`.
+use the service manager: `bin\elasticsearch-service.bat manager`.
 
 Using the Manager GUI::
 
-It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `service.bat manager` from the command-line will open up the manager window:
+It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
 
 image::images/service-manager-win.png["Windows Service Manager GUI",align="center"]
 
@@ -234,6 +243,7 @@ directory so that you do not delete important data later on.
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | %ES_HOME%\plugins
+  |
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

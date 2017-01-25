@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -35,8 +38,24 @@ import static org.junit.Assert.assertThat;
  * - length:   { hits.hits: 1  }
  */
 public class LengthAssertion extends Assertion {
+    public static LengthAssertion parse(XContentParser parser) throws IOException {
+        XContentLocation location = parser.getTokenLocation();
+        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        assert stringObjectTuple.v2() != null;
+        int value;
+        if (stringObjectTuple.v2() instanceof Number) {
+            value = ((Number) stringObjectTuple.v2()).intValue();
+        } else {
+            try {
+                value = Integer.valueOf(stringObjectTuple.v2().toString());
+            } catch(NumberFormatException e) {
+                throw new IllegalArgumentException("length is not a valid number", e);
+            }
+        }
+        return new LengthAssertion(location, stringObjectTuple.v1(), value);
+    }
 
-    private static final ESLogger logger = Loggers.getLogger(LengthAssertion.class);
+    private static final Logger logger = Loggers.getLogger(LengthAssertion.class);
 
     public LengthAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

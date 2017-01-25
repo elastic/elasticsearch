@@ -20,32 +20,26 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
-    static final PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
-
-    public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -55,8 +49,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static BiFunction<XContentParser, ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
-        return (p, c) -> PARSER.apply(p ,c).build();
+    public static ContextParser<Void, PipelineConfiguration> getParser() {
+        return (parser, context) -> PARSER.apply(parser, null).build();
     }
     private static class Builder {
 
@@ -104,9 +98,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return builder;
     }
 
-    @Override
-    public PipelineConfiguration readFrom(StreamInput in) throws IOException {
+    public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
         return new PipelineConfiguration(in.readString(), in.readBytesReference());
+    }
+
+    public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(PipelineConfiguration::readFrom, in);
     }
 
     @Override

@@ -20,26 +20,24 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
-public class RestDeleteIndexTemplateAction extends BaseRestHandler {
+import java.io.IOException;
 
-    @Inject
+public class RestDeleteIndexTemplateAction extends BaseRestHandler {
     public RestDeleteIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
         deleteIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexTemplateRequest.masterNodeTimeout()));
-        client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<>(channel));
     }
 }

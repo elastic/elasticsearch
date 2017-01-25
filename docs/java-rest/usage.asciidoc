@@ -6,6 +6,14 @@ The low-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
 Central]. The minimum Java version required is `1.7`.
 
+The low-level REST client is subject to the same release cycle as
+elasticsearch. Replace the version with the desired client version, first
+released with `5.0.0-alpha4`. There  is no relation between the client version
+and the elasticsearch version that the client can communicate with. The
+low-level REST client is compatible with all elasticsearch versions.
+
+==== Maven configuration
+
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
 
@@ -18,11 +26,17 @@ Add the following to your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
-The low-level REST client is subject to the same release cycle as
-elasticsearch. Replace `${es.version}` with the desired client version, first
-released with `5.0.0-alpha4`. There  is no relation between the client version
-and the elasticsearch version that the client can communicate with. The
-low-level REST client is compatible with all elasticsearch versions.
+==== Gradle configuration
+
+Here is how you can configure the dependency using gradle as a dependency manager.
+Add the following to your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+dependencies {
+    compile 'org.elasticsearch.client:rest:{version}'
+}
+--------------------------------------------------
 
 === Dependencies
 
@@ -51,8 +65,8 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
 [source,java]
 --------------------------------------------------
 RestClient restClient = RestClient.builder(
-        new HttpHost("http", "localhost", 9200),
-        new HttpHost("http", "localhost", 9201)).build();
+        new HttpHost("localhost", 9200, "http"),
+        new HttpHost("localhost", 9201, "http")).build();
 --------------------------------------------------
 
 The `RestClient` class is thread-safe and ideally has the same lifecycle as
@@ -90,33 +104,85 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/
 === Performing requests
 
 Once the `RestClient` has been created, requests can be sent by calling one of
-the available `performRequest` method variants. The ones that return the
-`Response` are executed synchronously, meaning that the client will block and
-wait for a response to be returned. The `performRequest` variants that return
-`void` accept a `ResponseListener` as an argument and are executed
-asynchronously. The provided listener will be notified upon completion or
-failure. The following are the arguments accepted by the different
-`performRequest` methods:
+the available `performRequest` or `performRequestAsync` method variants.
+The `performRequest` methods are synchronous and they return the `Response`
+directly, meaning that the client will block and wait for a response to be returned.
+The `performRequestAsync` variants, which return `void` and accept an extra
+`ResponseListener` as an argument, are executed asynchronously. The provided
+listener will be notified upon completion or failure.
+
+[source,java]
+--------------------------------------------------
+// Synchronous variants
+Response performRequest(String method, String endpoint,
+                        Header... headers)
+    throws IOException;
+
+Response performRequest(String method, String endpoint,
+                        Map<String, String> params, Header... headers)
+    throws IOException;
+
+Response performRequest(String method, String endpoint,
+                        Map<String, String> params,
+                        HttpEntity entity,
+                        Header... headers)
+    throws IOException;
+
+Response performRequest(String method, String endpoint,
+                        Map<String, String> params,
+                        HttpEntity entity,
+                        HttpAsyncResponseConsumerFactory responseConsumerFactory,
+                        Header... headers)
+    throws IOException;
+
+// Asynchronous variants
+void performRequestAsync(String method, String endpoint,
+                         ResponseListener responseListener,
+                         Header... headers);
+
+void performRequestAsync(String method, String endpoint,
+                         Map<String, String> params,
+                         ResponseListener responseListener,
+                         Header... headers);
+
+void performRequestAsync(String method, String endpoint,
+                         Map<String, String> params,
+                         HttpEntity entity,
+                         ResponseListener responseListener,
+                         Header... headers);
+
+void performRequestAsync(String method, String endpoint,
+                         Map<String, String> params,
+                         HttpEntity entity,
+                         HttpAsyncResponseConsumerFactory responseConsumerFactory,
+                         ResponseListener responseListener,
+                         Header... headers);
+--------------------------------------------------
+
+==== Request Arguments
+
+The following are the arguments accepted by the different methods:
 
 `method`:: the http method or verb
-`endpoint`:: the request path, which identifies the Elasticsearch api to
+`endpoint`:: the request path, which identifies the Elasticsearch API to
 call (e.g. `/_cluster/health`)
 `params`:: the optional parameters to be sent as querystring parameters
 `entity`:: the optional request body enclosed in an
 `org.apache.http.HttpEntity` object
-`responseConsumer`:: the optional
+`responseConsumerFactory`:: the optional factory that is used to create an
 http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
- callback. Controls how the response body gets streamed from a non-blocking
-HTTP connection on the client side. When not provided, the default
-implementation is used which buffers the whole response body in heap memory
-`responseListener`:: the listener to be notified upon request success or failure
-whenever the async `performRequest` method variants are used
+ callback instance per request attempt. Controls how the response body gets
+ streamed from a non-blocking HTTP connection on the client side. When not
+ provided, the default implementation is used which buffers the whole response
+ body in heap memory, up to 100 MB
+`responseListener`:: the listener to be notified upon asynchronous
+request success or failure
 `headers`:: optional request headers
 
 === Reading responses
 
-The `Response` object, either returned by the sync `performRequest` methods or
- received as an argument in `ResponseListener#onSucces(Response)`, wraps the
+The `Response` object, either returned by the synchronous `performRequest` methods or
+received as an argument in `ResponseListener#onSuccess(Response)`, wraps the
 response object returned by the http client and exposes the following information:
 
 `getRequestLine`:: information about the performed request
@@ -129,13 +195,25 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
  object
 
 When performing a request, an exception is thrown (or received as an argument
- in `ResponseListener#onSucces(Exception)` in the following scenarios:
+ in `ResponseListener#onFailure(Exception)` in the following scenarios:
 
 `IOException`:: communication problem (e.g. SocketTimeoutException etc.)
 `ResponseException`:: a response was returned, but its status code indicated
-an error (either `4xx` or `5xx`). A `ResponseException` originates from a valid
+an error (not `2xx`). A `ResponseException` originates from a valid
 http response, hence it exposes its corresponding `Response` object which gives
 access to the returned response.
+
+NOTE: A `ResponseException` is **not** thrown for `HEAD` requests that return
+a `404` status code because it is an expected `HEAD` response that simply
+denotes that the resource is not found. All other HTTP methods (e.g., `GET`)
+throw a `ResponseException` for `404` responses unless the `ignore` parameter
+contains `404`. `ignore` is a special client parameter that doesn't get sent
+to Elasticsearch and contains a comma separated list of error status codes.
+It allows to control whether some error status code should be treated as an
+expected response rather than as an exception. This is useful for instance
+with the get api as it can return `404` when the document is missing, in which
+case the response body will not contain an error but rather the usual get api
+response, just without the document as it was not found.
 
 
 === Example requests
@@ -167,6 +245,7 @@ Response indexResponse = restClient.performRequest(
 Note that the low-level client doesn't expose any helper for json marshalling
 and un-marshalling. Users are free to use the library that they prefer for that
 purpose.
+
 The underlying Apache Async Http Client ships with different
 https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
  implementations that allow to provide the request body in different formats
@@ -184,7 +263,7 @@ The following is a basic example of how async requests can be sent:
 int numRequests = 10;
 final CountDownLatch latch = new CountDownLatch(numRequests);
 for (int i = 0; i < numRequests; i++) {
-    restClient.performRequest(
+    restClient.performRequestAsync(
         "PUT",
         "/twitter/tweet/" + i,
         Collections.<String, String>emptyMap(),

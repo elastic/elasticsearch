@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation needs to be lazily set to the
  * previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
  */
-public final class Sniffer implements Closeable {
+public class Sniffer implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
 

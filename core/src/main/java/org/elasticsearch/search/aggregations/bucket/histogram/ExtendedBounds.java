@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +44,7 @@ public class ExtendedBounds implements ToXContent, Writeable {
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 
-    public static final ConstructingObjectParser<ExtendedBounds, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ExtendedBounds, Void> PARSER = new ConstructingObjectParser<>(
             "extended_bounds", a -> {
         assert a.length == 2;
         Long min = null;
@@ -153,11 +152,11 @@ public class ExtendedBounds implements ToXContent, Writeable {
         Long max = this.max;
         assert format != null;
         if (minAsStr != null) {
-            min = format.parseLong(minAsStr, false, context::nowInMillis);
+            min = format.parseLong(minAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (maxAsStr != null) {
             // TODO: Should we rather pass roundUp=true?
-            max = format.parseLong(maxAsStr, false, context::nowInMillis);
+            max = format.parseLong(maxAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +

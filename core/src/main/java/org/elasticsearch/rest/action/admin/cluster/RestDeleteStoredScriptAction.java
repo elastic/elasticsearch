@@ -20,19 +20,17 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
-
-    @Inject
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
         this(settings, controller, true);
     }
@@ -49,9 +47,9 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(getScriptLang(request), request.param("id"));
-        client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

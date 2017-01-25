@@ -19,27 +19,25 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -66,7 +64,8 @@ import java.util.concurrent.TimeUnit;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService extends AbstractComponent
+    implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
         Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
@@ -84,37 +83,32 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
-    private final TransportNodesStatsAction transportNodesStatsAction;
-    private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final NodeClient client;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
-    @Inject
-    public InternalClusterInfoService(Settings settings, ClusterSettings clusterSettings,
-                                      TransportNodesStatsAction transportNodesStatsAction,
-                                      TransportIndicesStatsAction transportIndicesStatsAction, ClusterService clusterService,
-                                      ThreadPool threadPool) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         super(settings);
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();
         this.shardSizes = ImmutableOpenMap.of();
-        this.transportNodesStatsAction = transportNodesStatsAction;
-        this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.client = client;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
-        this.enabled = DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
-        clusterSettings.addSettingsUpdateConsumer(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.add((LocalNodeMasterListener)this);
+        this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
-        this.clusterService.add((ClusterStateListener)this);
+        this.clusterService.addListener(this);
     }
 
     private void setEnabled(boolean enabled) {
@@ -174,7 +168,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
         }
 
-        if (this.isMaster && dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
+        if (this.isMaster && dataNodeAdded && event.state().getNodes().getDataNodes().size() > 1) {
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
@@ -259,8 +253,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         nodesStatsRequest.clear();
         nodesStatsRequest.fs(true);
         nodesStatsRequest.timeout(fetchTimeout);
-
-        transportNodesStatsAction.execute(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
+        client.admin().cluster().nodesStats(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
     }
 
@@ -274,7 +267,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         indicesStatsRequest.clear();
         indicesStatsRequest.store(true);
 
-        transportIndicesStatsAction.execute(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
+        client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
     }
 
@@ -379,19 +372,18 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return clusterInfo;
     }
 
-    static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
+    static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
                                     ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
         MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
             IndexMetaData indexMeta = meta.index(s.getShardRouting().index());
-            Settings indexSettings = indexMeta == null ? null : indexMeta.getSettings();
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
             String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
             }
-            if (indexSettings != null && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
+            if (indexMeta != null && indexMeta.isIndexUsingShadowReplicas()) {
                 // Shards on a shared filesystem should be considered of size 0
                 if (logger.isTraceEnabled()) {
                     logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);
@@ -402,7 +394,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         }
     }
 
-    static void fillDiskUsagePerNode(ESLogger logger, List<NodeStats> nodeStatsArray,
+    static void fillDiskUsagePerNode(Logger logger, List<NodeStats> nodeStatsArray,
             ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
@@ -415,9 +407,9 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                     if (leastAvailablePath == null) {
                         assert mostAvailablePath == null;
                         mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().bytes() > info.getAvailable().bytes()){
+                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()){
                         leastAvailablePath = info;
-                    } else if (mostAvailablePath.getAvailable().bytes() < info.getAvailable().bytes()) {
+                    } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
                         mostAvailablePath = info;
                     }
                 }
@@ -428,21 +420,21 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             nodeId, mostAvailablePath.getTotal(), leastAvailablePath.getAvailable(),
                             leastAvailablePath.getTotal(), leastAvailablePath.getAvailable());
                 }
-                if (leastAvailablePath.getTotal().bytes() < 0) {
+                if (leastAvailablePath.getTotal().getBytes() < 0) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                                nodeId, leastAvailablePath.getTotal().bytes());
+                                nodeId, leastAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(), leastAvailablePath.getTotal().bytes(), leastAvailablePath.getAvailable().bytes()));
+                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(), leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
                 }
-                if (mostAvailablePath.getTotal().bytes() < 0) {
+                if (mostAvailablePath.getTotal().getBytes() < 0) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                                nodeId, mostAvailablePath.getTotal().bytes());
+                                nodeId, mostAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(), mostAvailablePath.getTotal().bytes(), mostAvailablePath.getAvailable().bytes()));
+                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(), mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
                 }
 
             }

@@ -25,15 +25,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     final List<Entry> entries = new ArrayList<>();
     BucketCollector collector;
-    final AggregationContext aggContext;
+    final SearchContext searchContext;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
     PackedLongValues.Builder buckets;
@@ -69,8 +67,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     LongHash selectedBuckets;
 
     /** Sole constructor. */
-    public BestBucketsDeferringCollector(AggregationContext context) {
-        this.aggContext = context;
+    public BestBucketsDeferringCollector(SearchContext context) {
+        this.searchContext = context;
     }
 
     @Override
@@ -119,6 +117,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void preCollection() throws IOException {
+        collector.preCollection();
     }
 
     @Override
@@ -145,12 +144,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        collector.preCollection();
         boolean needsScores = collector.needsScores();
         Weight weight = null;
         if (needsScores) {
-            weight = aggContext.searchContext().searcher()
-                        .createNormalizedWeight(aggContext.searchContext().query(), true);
+            weight = searchContext.searcher()
+                        .createNormalizedWeight(searchContext.query(), true);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
@@ -29,11 +28,15 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -66,14 +69,14 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
          * @see CLOUD_S3#KEY_SETTING
          */
-        Setting<String> KEY_SETTING =
-            new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, true);
+
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
          * @see CLOUD_S3#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING =
-            new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, true);
+
         /**
          * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
          * @see CLOUD_S3#REGION_SETTING
@@ -102,14 +105,27 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
             Setting.boolSetting("repositories.s3.server_side_encryption", false, Property.NodeScope);
+
+        /**
+         * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
+         * the available memory for smaller heaps.
+         */
+        ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+                Math.max(
+                        ByteSizeUnit.MB.toBytes(5), // minimum value
+                        Math.min(
+                                ByteSizeUnit.MB.toBytes(100),
+                                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+                ByteSizeUnit.BYTES);
+
         /**
          * repositories.s3.buffer_size: Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
          * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
          * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
-         * use of the Multipart API and may result in upload errors. Defaults to 100m.
+         * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.s3.buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("repositories.s3.buffer_size", DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
@@ -165,12 +181,13 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key");
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("access_key", null, true);
+
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key");
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("secret_key", null, true);
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING
@@ -196,12 +213,13 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-            Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
+            Setting.byteSizeSetting("buffer_size", Repositories.DEFAULT_BUFFER_SIZE,
                 new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries
@@ -259,8 +277,9 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service) throws IOException {
-        super(metadata, settings);
+    public S3Repository(RepositoryMetaData metadata, Settings settings,
+                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+        super(metadata, settings, namedXContentRegistry);
 
         String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {
@@ -307,11 +326,12 @@ public class S3Repository extends BlobStoreRepository {
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
-            BlobPath path = new BlobPath();
-            for(String elem : basePath.split("/")) {
-                path = path.add(elem);
+            if (basePath.startsWith("/")) {
+                basePath = basePath.substring(1);
+                deprecationLogger.deprecated("S3 repository base_path trimming the leading `/`, and " +
+                                                 "leading `/` will not be supported for the S3 repository in future releases");
             }
-            this.basePath = path;
+            this.basePath = new BlobPath().add(basePath);
         } else {
             this.basePath = BlobPath.cleanPath();
         }

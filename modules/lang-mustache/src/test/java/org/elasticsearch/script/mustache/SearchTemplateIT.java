@@ -24,9 +24,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -94,9 +94,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedString() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String query = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
-                + "  \"params\":{" + "    \"size\": 1" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(query));
+        String query =
+                  "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"params\":{"
+                + "    \"size\": 1"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -109,10 +113,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringStartingWithConditionalClause() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
+        String templateString =
+                  "{"
                 + "  \"inline\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
-                + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+                + "  \"params\":{"
+                + "    \"size\": 1,"
+                + "    \"use_size\": true"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -125,10 +134,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringWithConditionalClauseAtEnd() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
+        String templateString =
+                  "{"
                 + "  \"inline\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
-                + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+                + "  \"params\":{"
+                + "    \"size\": 1,"
+                + "    \"use_size\": true"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -269,17 +283,18 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         templateParams.put("fieldParam", "bar");
         searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/mustache/2").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
+                .setScript("/mustache/2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", ScriptService.ScriptType.STORED, vars);
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", ScriptType.STORED, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
+        assertWarnings("[template] query is deprecated, use search template api instead");
     }
 
     // Relates to #10397
@@ -292,39 +307,36 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get();
         client().admin().indices().prepareRefresh().get();
 
-        int iterations = randomIntBetween(2, 11);
-        for (int i = 1; i < iterations; i++) {
-            assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
-                    .setId("git01")
-                    .setSource(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"ooophrase_prefix\"}}}}}")));
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("git01")
+                .setSource(new BytesArray("{\"template\":{\"query\": {\"match_phrase_prefix\": " +
+                        "{\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                        "\"unsupported\": \"unsupported\"}}}}}")));
 
-            GetStoredScriptResponse getResponse = client().admin().cluster()
-                    .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
-            assertNotNull(getResponse.getStoredScript());
+        GetStoredScriptResponse getResponse = client().admin().cluster()
+                .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
+        assertNotNull(getResponse.getStoredScript());
 
-            Map<String, Object> templateParams = new HashMap<>();
-            templateParams.put("P_Keyword1", "dev");
+        Map<String, Object> templateParams = new HashMap<>();
+        templateParams.put("P_Keyword1", "dev");
 
-            ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
-                    .get());
-            assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
+        ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
+                .setRequest(new SearchRequest("testindex").types("test"))
+                .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .get());
+        assertThat(e.getMessage(), containsString("[match_phrase_prefix] query does not support [unsupported]"));
 
-            assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
-                    .setId("git01")
-                    .setSource(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"phrase_prefix\"}}}}")));
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("git01")
+                .setSource(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"}}}}")));
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
-                    .get();
-            assertHitCount(searchResponse.getResponse(), 1);
-        }
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
+                .setRequest(new SearchRequest("testindex").types("test"))
+                .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .get();
+        assertHitCount(searchResponse.getResponse(), 1);
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
@@ -350,7 +362,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/mustache/4").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(arrayTemplateParams)
+                .setScript("/mustache/4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);
     }

@@ -16,8 +16,8 @@ The interface has one method that receives an instance of
 https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  as an argument and has the same return type. The request config builder can
 be modified and then returned. In the following example we increase the
-connect timeout (defaults to 1 second) and the socket timeout (defaults to 10
-seconds). Also we adjust the max retry timeout accordingly (defaults to 10
+connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
+seconds). Also we adjust the max retry timeout accordingly (defaults to 30
 seconds too).
 
 [source,java]
@@ -27,10 +27,10 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
             @Override
             public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
                 return requestConfigBuilder.setConnectTimeout(5000)
-                        .setSocketTimeout(30000);
+                        .setSocketTimeout(60000);
             }
         })
-        .setMaxRetryTimeoutMillis(30000)
+        .setMaxRetryTimeoutMillis(60000)
         .build();
 --------------------------------------------------
 
@@ -81,6 +81,29 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
+You can disable Preemptive Authentication, which means that every request will be sent without
+authorization headers to see if it is accepted and, upon receiving a HTTP 401 response, it will
+resend the exact same request with the basic authentication header. If you wish to do this, then
+you can do so by disabling it via the `HttpAsyncClientBuilder`:
+
+[source,java]
+--------------------------------------------------
+final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+credentialsProvider.setCredentials(AuthScope.ANY,
+        new UsernamePasswordCredentials("user", "password"));
+
+RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+        .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+            @Override
+            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                // disable preemptive authentication
+                httpClientBuilder.disableAuthCaching();
+                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+            }
+        })
+        .build();
+--------------------------------------------------
+
 === Encrypted communication
 
 Encrypted communication can also be configured through the
@@ -93,9 +116,9 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
 
 [source,java]
 --------------------------------------------------
-KeyStore keyStore = KeyStore.getInstance("jks");
+KeyStore keystore = KeyStore.getInstance("jks");
 try (InputStream is = Files.newInputStream(keyStorePath)) {
-    keyStore.load(is, keyStorePass.toCharArray());
+    keystore.load(is, keyStorePass.toCharArray());
 }
 RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {

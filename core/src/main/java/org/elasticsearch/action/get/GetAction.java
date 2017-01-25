@@ -22,8 +22,6 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetAction extends Action<GetRequest, GetResponse, GetRequestBuilder> {
 
     public static final GetAction INSTANCE = new GetAction();

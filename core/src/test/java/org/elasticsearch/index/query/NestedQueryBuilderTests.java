@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
@@ -56,7 +55,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object",
-                GEO_POINT_FIELD_NAME, GEO_POINT_FIELD_MAPPING,
+                GEO_POINT_FIELD_NAME, "type=geo_point",
                 "nested1", "type=nested"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
@@ -73,18 +72,18 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         }
         NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
+        nqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             nqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(INT_FIELD_NAME).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(INT_FIELD_NAME).order(SortOrder.ASC)), nqb.ignoreUnmapped());
         }
-        nqb.ignoreUnmapped(randomBoolean());
         return nqb;
     }
 
     @Override
-    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
         assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
         ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
@@ -92,9 +91,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
 
-            SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
             Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
             InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
@@ -194,5 +192,16 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         failingQueryBuilder.ignoreUnmapped(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));
+    }
+
+    public void testIgnoreUnmappedWithRewrite() throws IOException {
+        // WrapperQueryBuilder makes sure we always rewrite
+        final NestedQueryBuilder queryBuilder =
+            new NestedQueryBuilder("unmapped", new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
+        queryBuilder.ignoreUnmapped(true);
+        QueryShardContext queryShardContext = createShardContext();
+        Query query = queryBuilder.rewrite(queryShardContext).toQuery(queryShardContext);
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 }

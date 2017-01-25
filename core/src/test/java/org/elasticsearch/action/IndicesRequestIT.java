@@ -56,7 +56,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -64,11 +63,11 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -77,25 +76,25 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -109,7 +108,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -117,7 +115,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -143,8 +140,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(ordinal))
             // InternalClusterInfoService sends IndicesStatsRequest periodically which messes with this test
             // this setting disables it...
-            .put("cluster.routing.allocation.disk.threshold_enabled", false)
-            .put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
+            .put("cluster.routing.allocation.disk.threshold_enabled", false).build();
     }
 
     @Override
@@ -204,7 +200,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        String[] indexShardActions = new String[]{IndexAction.NAME, IndexAction.NAME + "[p]", IndexAction.NAME + "[r]"};
+        String[] indexShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(indexShardActions);
 
         IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
@@ -215,7 +211,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testDelete() {
-        String[] deleteShardActions = new String[]{DeleteAction.NAME, DeleteAction.NAME + "[p]", DeleteAction.NAME + "[r]"};
+        String[] deleteShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(deleteShardActions);
 
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
@@ -227,7 +223,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdate() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -242,7 +238,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdateUpsert() {
         //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -256,13 +252,13 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public void testUpdateDelete() {
         //update action goes to the primary, delete op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", DeleteAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
-                .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
 
@@ -638,8 +634,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
                 assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             }
             for (TransportRequest internalRequest : requests) {
-                assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                IndicesRequest indicesRequest = (IndicesRequest) internalRequest;
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
                 assertThat(internalRequest.getClass().getName(), indicesRequest.indices(), equalTo(originalRequest.indices()));
                 assertThat(indicesRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
             }
@@ -651,12 +646,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
             List<TransportRequest> requests = consumeTransportRequests(action);
             assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             for (TransportRequest internalRequest : requests) {
-                assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                for (String index : ((IndicesRequest) internalRequest).indices()) {
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
+                for (String index : indicesRequest.indices()) {
                     assertThat(indices, hasItem(index));
                 }
             }
         }
+    }
+
+    static IndicesRequest convertRequest(TransportRequest request) {
+        final IndicesRequest indicesRequest;
+        if (request instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) request;
+        } else {
+            indicesRequest = TransportReplicationActionTests.resolveRequest(request);
+        }
+        return indicesRequest;
     }
 
     private String randomIndexOrAlias() {
@@ -692,31 +697,39 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     private static void assertAllRequestsHaveBeenConsumed() {
-        Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
-        for (TransportService transportService : transportServices) {
-            assertThat(((InterceptingTransportService)transportService).requests.entrySet(), emptyIterable());
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            Set<Map.Entry<String, List<TransportRequest>>> entries =
+                pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.requests.entrySet();
+            assertThat(entries, emptyIterable());
+
         }
     }
 
     private static void clearInterceptedActions() {
-        Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
-        for (TransportService transportService : transportServices) {
-            ((InterceptingTransportService) transportService).clearInterceptedActions();
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.clearInterceptedActions();
         }
     }
 
     private static void interceptTransportActions(String... actions) {
-        Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
-        for (TransportService transportService : transportServices) {
-            ((InterceptingTransportService) transportService).interceptTransportActions(actions);
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.interceptTransportActions(actions);
         }
     }
 
     private static List<TransportRequest> consumeTransportRequests(String action) {
         List<TransportRequest> requests = new ArrayList<>();
-        Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
-        for (TransportService transportService : transportServices) {
-            List<TransportRequest> transportRequests = ((InterceptingTransportService) transportService).consumeRequests(action);
+
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            List<TransportRequest> transportRequests = pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class)
+                .stream().findFirst().get().instance.consumeRequests(action);
             if (transportRequests != null) {
                 requests.addAll(transportRequests);
             }
@@ -724,12 +737,14 @@ public class IndicesRequestIT extends ESIntegTestCase {
         return requests;
     }
 
-    public static class InterceptingTransportService extends TransportService {
+    public static class InterceptingTransportService implements TransportInterceptor {
 
-        public static class TestPlugin extends Plugin {
-
-            public void onModule(NetworkModule module) {
-                module.registerTransportService("intercepting", InterceptingTransportService.class);
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+            public final InterceptingTransportService instance = new InterceptingTransportService();
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
+                return Collections.singletonList(instance);
             }
         }
 
@@ -737,9 +752,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
-        @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        boolean forceExecution,
+                                                                                        TransportRequestHandler<T> actualHandler) {
+            return new InterceptingRequestHandler<>(action, actualHandler);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {
@@ -754,19 +771,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             actions.clear();
         }
 
-        @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor,
-                                                                              boolean forceExecution, boolean canTripCircuitBreaker,
-                                                                              TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, new
-                    InterceptingRequestHandler<>(action, handler));
-        }
-
-        @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String
-                executor, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler<>(action, handler));
-        }
 
         private class InterceptingRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 

@@ -43,9 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class FastVectorHighlighter implements Highlighter {
 
     private static final SimpleBoundaryScanner DEFAULT_BOUNDARY_SCANNER = new SimpleBoundaryScanner();

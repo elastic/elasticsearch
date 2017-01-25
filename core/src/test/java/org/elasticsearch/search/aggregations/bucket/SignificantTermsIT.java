@@ -58,9 +58,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class SignificantTermsIT extends ESIntegTestCase {
 
@@ -131,7 +128,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testStructuredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(2))
@@ -147,7 +144,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         long[] excludeTerms = { MUSIC_CATEGORY };
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "paul"))
+                .setQuery(new TermQueryBuilder("description", "paul"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(1).includeExclude(new IncludeExclude(null, excludeTerms)))
@@ -161,7 +158,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testIncludeExclude() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQueryBuilder("description", "weller"))
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .includeExclude(new IncludeExclude(null, "weller")))
                 .get();
@@ -180,7 +177,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         assertThat(terms.contains("the"), is(true));
 
         response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQueryBuilder("description", "weller"))
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .includeExclude(new IncludeExclude("weller", null)))
                 .get();
@@ -197,7 +194,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testIncludeExcludeExactValues() throws Exception {
         String []incExcTerms={"weller","nosuchterm"};
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQueryBuilder("description", "weller"))
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .includeExclude(new IncludeExclude(null, incExcTerms)))
                 .get();
@@ -210,7 +207,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         assertEquals(new HashSet<String>(Arrays.asList("jam", "council", "style", "paul", "of", "the")), terms);
 
         response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQueryBuilder("description", "weller"))
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .includeExclude(new IncludeExclude(incExcTerms, null)))
                 .get();
@@ -227,7 +224,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                         .minDocCount(2))
@@ -241,7 +238,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testTextAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                            .minDocCount(2))
@@ -255,7 +252,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testTextAnalysisGND() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new GND(true))
                         .minDocCount(2))
@@ -269,7 +266,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testTextAnalysisChiSquare() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new ChiSquare(false,true))
                         .minDocCount(2))
@@ -284,7 +281,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0)
                 .setSize(60)
                 .setExplain(true)
@@ -303,7 +300,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         // as the background source of term statistics.
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
                            .minDocCount(2).backgroundFilter(QueryBuilders.termQuery("fact_category", 1)))
@@ -327,7 +324,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testFilteredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQueryBuilder("description", "weller"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
                            .minDocCount(1).backgroundFilter(QueryBuilders.termsQuery("description",  "paul")))
@@ -377,7 +374,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
                             .executionHint(randomExecutionHint())
@@ -392,7 +389,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testPartiallyUnmappedWithFormat() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(boolQuery().should(termQuery("_all", "the")).should(termQuery("_all", "terje")))
+                .setQuery(boolQuery().should(termQuery("description", "the")).should(termQuery("description", "terje")))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")
                         .field("fact_category")
@@ -429,7 +426,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testDefaultSignificanceHeuristic() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")
                         .field("description")
@@ -446,7 +443,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testMutualInformation() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")
                         .field("description")

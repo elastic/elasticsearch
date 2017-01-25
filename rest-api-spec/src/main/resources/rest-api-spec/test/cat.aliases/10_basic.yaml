@@ -216,3 +216,50 @@
                     -                   \s+
                 $/
 
+---
+"Alias sorting":
+
+  - skip:
+      version: " - 5.0.99"
+      reason:  sorting was introduced in 5.1.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            my_alias: {}
+
+  - do:
+      indices.create:
+        index: other_index
+        body:
+          aliases:
+            other_alias: {}
+
+  - do:
+      cat.aliases:
+        h:      [alias, index]
+        s:      [index, alias]
+
+  - match:
+      $body: |
+            /^
+                other_alias \s+ other_index\n
+                my_alias \s+ test_index\n
+                test_alias \s+ test_index\n
+            $/
+
+  - do:
+      cat.aliases:
+        h:      [alias, index]
+        s:      [index, "a:desc"]
+
+  - match:
+      $body: |
+            /^
+                other_alias \s+ other_index\n
+                test_alias \s+ test_index\n
+                my_alias \s+ test_index\n
+            $/

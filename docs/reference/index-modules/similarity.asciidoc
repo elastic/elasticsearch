@@ -174,9 +174,41 @@ implementation used for these two methods, while not changing the
 `default`, it is possible to configure a similarity with the name
 `base`. This similarity will then be used for the two methods.
 
-You can change the default similarity for all fields by putting the following setting into `elasticsearch.yml`:
+You can change the default similarity for all fields in an index when
+it is <<indices-create-index,created>>:
 
 [source,js]
 --------------------------------------------------
-index.similarity.default.type: classic
+PUT /my_index
+{
+  "settings": {
+    "index": {
+      "similarity": {
+        "default": {
+          "type": "classic"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+If you want to change the default similarity after creating the index
+you must <<indices-open-close,close>> your index, send the follwing
+request and <<indices-open-close,open>> it again afterwards:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index/_settings
+{
+  "settings": {
+    "index": {
+      "similarity": {
+        "default": {
+          "type": "classic"
+        }
+      }
+    }
+  }
+}
 --------------------------------------------------

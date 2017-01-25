@@ -21,15 +21,14 @@ package org.elasticsearch.versioning;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -48,9 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class SimpleVersioningIT extends ESIntegTestCase {
     public void testExternalVersioningInitialDelete() throws Exception {
         createIndex("test");
@@ -70,36 +66,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(18).
                 setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(18L));
-    }
-
-    public void testForce() throws Exception {
-        createIndex("test");
-        ensureGreen("test"); // we are testing force here which doesn't work if we are recovering at the same time - zzzzz...
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.FORCE).get();
-        assertThat(indexResponse.getVersion(), equalTo(12L));
-
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(12).setVersionType(VersionType.FORCE).get();
-        assertThat(indexResponse.getVersion(), equalTo(12L));
-
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(14).setVersionType(VersionType.FORCE).get();
-        assertThat(indexResponse.getVersion(), equalTo(14L));
-
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.FORCE).get();
-        assertThat(indexResponse.getVersion(), equalTo(13L));
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        if (randomBoolean()) {
-            refresh();
-        }
-        for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(13L));
-        }
-
-        // deleting with a lower version works.
-        long v = randomIntBetween(12, 14);
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(v).setVersionType(VersionType.FORCE).get();
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        assertThat(deleteResponse.getVersion(), equalTo(v));
     }
 
     public void testExternalGTE() throws Exception {
@@ -647,11 +613,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                             }
                             if (threadRandom.nextInt(100) == 7) {
                                 logger.trace("--> {}: TEST: now flush at {}", threadID, System.nanoTime() - startTime);
-                                try {
-                                    flush();
-                                } catch (FlushNotAllowedEngineException fnaee) {
-                                    // OK
-                                }
+                                flush();
                                 logger.trace("--> {}: TEST: flush done at {}", threadID, System.nanoTime() - startTime);
                             }
                         }
@@ -724,7 +686,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client()
                 .prepareIndex("test", "type", "id")
                 .setSource("foo", "bar")
-                .setOpType(IndexRequest.OpType.INDEX)
+                .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()
@@ -793,7 +755,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client()
                 .prepareIndex("test", "type", "id")
                 .setSource("foo", "bar")
-                .setOpType(IndexRequest.OpType.INDEX)
+                .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()

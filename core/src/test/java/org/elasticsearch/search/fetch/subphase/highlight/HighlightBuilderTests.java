@@ -22,19 +22,18 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -47,11 +46,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
@@ -72,14 +67,14 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class HighlightBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * setup for the whole base test class
@@ -88,13 +83,13 @@ public class HighlightBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -115,31 +110,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            HighlightBuilder firstBuilder = randomHighlighterBuilder();
-            assertFalse("highlighter is equal to null", firstBuilder.equals(null));
-            assertFalse("highlighter is equal to incompatible type", firstBuilder.equals(""));
-            assertTrue("highlighter is not equal to self", firstBuilder.equals(firstBuilder));
-            assertThat("same highlighter's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-            assertThat("different highlighters should not be equal", mutate(firstBuilder), not(equalTo(firstBuilder)));
-
-            HighlightBuilder secondBuilder = serializedCopy(firstBuilder);
-            assertTrue("highlighter is not equal to self", secondBuilder.equals(secondBuilder));
-            assertTrue("highlighter is not equal to its copy", firstBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("highlighter copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            HighlightBuilder thirdBuilder = serializedCopy(secondBuilder);
-            assertTrue("highlighter is not equal to self", thirdBuilder.equals(thirdBuilder));
-            assertTrue("highlighter is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("highlighter copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("highlighter copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
+            checkEqualsAndHashCode(randomHighlighterBuilder(), HighlightBuilderTests::serializedCopy, HighlightBuilderTests::mutate);
         }
     }
 
@@ -156,8 +127,8 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+            XContentParser parser = createParser(shuffled);
+            QueryParseContext context = new QueryParseContext(parser);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
             try {
@@ -196,9 +167,9 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    private static <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+    private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        QueryParseContext context = new QueryParseContext(parser);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
 
@@ -293,8 +264,8 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -335,7 +306,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     String[] copy = Arrays.copyOf(fieldBuilder.matchedFields, fieldBuilder.matchedFields.length);
                     Arrays.sort(copy);
                     assertArrayEquals(copy,
-                            new TreeSet<String>(fieldOptions.matchedFields()).toArray(new String[fieldOptions.matchedFields().size()]));
+                            new TreeSet<>(fieldOptions.matchedFields()).toArray(new String[fieldOptions.matchedFields().size()]));
                 } else {
                     assertNull(fieldOptions.matchedFields());
                 }
@@ -406,9 +377,9 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
@@ -418,9 +389,9 @@ public class HighlightBuilderTests extends ESTestCase {
         highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
@@ -439,23 +410,23 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
     }
@@ -536,7 +507,7 @@ public class HighlightBuilderTests extends ESTestCase {
         return testHighlighter;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes"})
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain
@@ -600,7 +571,7 @@ public class HighlightBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int items = randomIntBetween(0, 5);
-            Map<String, Object> options = new HashMap<String, Object>(items);
+            Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
                 Object value = null;
                 switch (randomInt(2)) {
@@ -673,7 +644,7 @@ public class HighlightBuilderTests extends ESTestCase {
             break;
         case 15:
             int items = 6;
-            Map<String, Object> options = new HashMap<String, Object>(items);
+            Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
                 options.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
             }
@@ -699,7 +670,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     private static String[] randomStringArray(int minSize, int maxSize) {
         int size = randomIntBetween(minSize, maxSize);
-        Set<String> randomStrings = new HashSet<String>(size);
+        Set<String> randomStrings = new HashSet<>(size);
         for (int f = 0; f < size; f++) {
             randomStrings.add(randomAsciiOfLengthBetween(3, 10));
         }
@@ -741,11 +712,11 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     private static HighlightBuilder serializedCopy(HighlightBuilder original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return new HighlightBuilder(in);
-            }
-        }
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, HighlightBuilder::new);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

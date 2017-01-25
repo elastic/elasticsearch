@@ -26,7 +26,7 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -45,7 +45,14 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngineService(Settings.EMPTY);
+        scriptEngine = new PainlessScriptEngineService(scriptEngineSettings());
+    }
+
+    /**
+     * Settings used to build the script engine. Override to customize settings like {@link RegexTests} does to enable regexes.
+     */
+    protected Settings scriptEngineSettings() {
+        return Settings.EMPTY;
     }
 
     /** Compiles and returns the result of {@code script} */
@@ -71,11 +78,12 @@ public abstract class ScriptTestCase extends ESTestCase {
         if (picky) {
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
+            pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
             Walker.buildPainlessTree(getTestName(), script, pickySettings, null);
         }
         // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);
-        CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
+        CompiledScript compiled = new CompiledScript(ScriptType.INLINE, getTestName(), "painless", object);
         ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
         if (scorer != null) {
             ((ScorerAware)executableScript).setScorer(scorer);

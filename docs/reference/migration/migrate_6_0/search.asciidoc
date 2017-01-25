@@ -1,0 +1,47 @@
+[[breaking_60_search_changes]]
+=== Search and Query DSL changes
+
+==== Changes to queries
+
+* The `collect_payloads` parameter of the `span_near` query has been removed. Payloads will be
+  loaded when needed.
+
+* Queries on boolean fields now strictly parse boolean-like values. This means
+  only the strings `"true"` and `"false"` will be parsed into their boolean
+  counterparts. Other strings will cause an error to be thrown.
+
+* The `in` query (a synonym for the `terms` query) has been removed
+
+* The `geo_bbox` query (a synonym for the `geo_bounding_box` query) has been removed
+
+* The `mlt` query (a synonym for the `more_like_this` query) has been removed
+
+* The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
+
+* The `terms` query now always returns scores equal to `1` and is not subject to
+  `indices.query.bool.max_clause_count` anymore.
+
+* The deprecated `indices` query has been removed.
+
+* Support for empty query objects (`{ }`) has been removed from the query DSL.
+  An error is thrown whenever an empty query object is provided.
+
+* The deprecated `minimum_number_should_match` parameter in the `bool` query has
+  been removed, use `minimum_should_match` instead.
+
+* The `query_string` query now correctly parses the maximum number of
+  states allowed when
+  "https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]"
+  a regex as `max_determinized_states` instead of the typo
+  `max_determined_states`.
+
+==== Search shards API
+
+The search shards API no longer accepts the `type` url parameter, which didn't
+have any effect in previous versions.
+
+==== Changes to the Profile API
+
+* The `"time"` field showing human readable timing output has been replaced by the `"time_in_nanos"`
+  field which displays the elapsed time in nanoseconds. The `"time"` field can be turned on by adding
+  `"?human=true"` to the request url. It will display a rounded, human readable time value.

@@ -1,5 +1,5 @@
 ---
-"Test script processor with inline script":
+"Test script processor with inline script and params":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -9,8 +9,10 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
-                  "inline": "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+                  "inline": "ctx.bytes_total = (ctx.bytes_in + ctx.bytes_out) * params.factor",
+                  "params": {
+                     "factor": 10
+                  }
                 }
               }
             ]
@@ -32,7 +34,7 @@
         id: 1
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
-  - match: { _source.bytes_total: 5555 }
+  - match: { _source.bytes_total: 55550 }
 
 ---
 "Test script processor with file script":
@@ -45,7 +47,6 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
                   "file": "master"
                 }
               }
@@ -91,7 +92,6 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
                   "id" : "sum_bytes"
                 }
               }
@@ -115,3 +115,26 @@
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
   - match: { _source.bytes_total: 5555 }
+
+---
+"Test script processor with syntax error in inline script":
+  - do:
+      catch: request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "inline": "invalid painless, hear me roar!"
+                }
+              }
+            ]
+          }
+  - match: { error.header.processor_type: "script" }
+  - match: { error.header.property_name: "inline" }
+  - match: { error.type: "script_exception" }
+  - match: { error.reason: "compile error" }
+

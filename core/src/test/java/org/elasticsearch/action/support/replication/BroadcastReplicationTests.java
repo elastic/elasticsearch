@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -26,7 +26,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -36,7 +35,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -46,8 +47,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -90,19 +91,22 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, new NamedWriteableRegistry(Collections.emptyList()), circuitBreakerService);
+        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY,
+            threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, new NamedWriteableRegistry(Collections.emptyList()),
+            new NetworkService(Settings.EMPTY, Collections.emptyList()));
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        clusterService.close();
-        transportService.close();
+        IOUtils.close(clusterService, transportService);
     }
 
     @AfterClass
@@ -115,7 +119,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        logger.debug("--> using initial state:\n{}", clusterService.state());
         Future<BroadcastResponse> response = (broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index)));
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
@@ -134,11 +138,11 @@ public class BroadcastReplicationTests extends ESTestCase {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 ShardRoutingState.STARTED));
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        logger.debug("--> using initial state:\n{}", clusterService.state());
         Future<BroadcastResponse> response = (broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index)));
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
-            replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1, new ReplicationResponse.ShardInfo.Failure[0]));
+            replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
             shardRequests.v2().onResponse(replicationResponse);
         }
         logger.info("total shards: {}, ", response.get().getTotalShards());
@@ -149,7 +153,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         final String index = "test";
         int numShards = 1 + randomInt(3);
         setState(clusterService, stateWithAssignedPrimariesAndOneReplica(index, numShards));
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        logger.debug("--> using initial state:\n{}", clusterService.state());
         Future<BroadcastResponse> response = (broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index)));
         int succeeded = 0;
         int failed = 0;
@@ -179,7 +183,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
     public void testNoShards() throws InterruptedException, ExecutionException, IOException {
         setState(clusterService, stateWithNoShard());
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        logger.debug("--> using initial state:\n{}", clusterService.state());
         BroadcastResponse response = executeAndAssertImmediateResponse(broadcastReplicationAction, new DummyBroadcastRequest());
         assertBroadcastResponse(0, 0, 0, response, null);
     }
@@ -189,7 +193,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState clusterState = state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED);
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        logger.debug("--> using initial state:\n{}", clusterService.state());
         List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.getIndexName()), clusterState);
         assertThat(shards.size(), equalTo(1));
         assertThat(shards.get(0), equalTo(shardId));

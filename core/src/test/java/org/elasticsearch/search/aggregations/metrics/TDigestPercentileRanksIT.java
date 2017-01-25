@@ -20,12 +20,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -43,8 +42,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -53,7 +50,9 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -242,7 +241,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("value")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -263,7 +262,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("value")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -298,7 +297,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -316,7 +315,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(new Script("_value * -1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value * -1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -337,7 +336,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -355,7 +354,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -370,7 +369,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", params);
 
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -391,7 +390,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
-        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
@@ -482,6 +481,44 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             assertThat(ranks.percent(99), equalTo(Double.NaN));
 
         }
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(percentileRanks("foo").field("d").values(50.0)
+                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(percentileRanks("foo").field("d").values(50.0)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 
 }

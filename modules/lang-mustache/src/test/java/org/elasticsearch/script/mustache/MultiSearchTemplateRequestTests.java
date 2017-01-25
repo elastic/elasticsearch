@@ -21,7 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -34,23 +34,23 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/script/mustache/simple-msearch-template.json");
-        RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).getRequest().indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(0).indices(), arrayContaining("test0", "test1"));
+        assertThat(request.requests().get(0).getRequest().indices(), arrayContaining("test0", "test1"));
         assertThat(request.requests().get(0).getRequest().requestCache(), equalTo(true));
         assertThat(request.requests().get(0).getRequest().preference(), nullValue());
-        assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
-        assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
+        assertThat(request.requests().get(1).getRequest().indices()[0], equalTo("test2"));
+        assertThat(request.requests().get(1).getRequest().indices()[1], equalTo("test3"));
         assertThat(request.requests().get(1).getRequest().types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).getRequest().requestCache(), nullValue());
         assertThat(request.requests().get(1).getRequest().preference(), equalTo("_local"));
-        assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
-        assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(2).getRequest().indices()[0], equalTo("test4"));
+        assertThat(request.requests().get(2).getRequest().indices()[1], equalTo("test1"));
         assertThat(request.requests().get(2).getRequest().types()[0], equalTo("type2"));
         assertThat(request.requests().get(2).getRequest().types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).getRequest().routing(), equalTo("123"));
@@ -58,9 +58,9 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertNotNull(request.requests().get(1).getScript());
         assertNotNull(request.requests().get(2).getScript());
 
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(0).getScriptType());
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(1).getScriptType());
-        assertEquals(ScriptService.ScriptType.INLINE, request.requests().get(2).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(0).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(1).getScriptType());
+        assertEquals(ScriptType.INLINE, request.requests().get(2).getScriptType());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(0).getScript());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(1).getScript());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(2).getScript());

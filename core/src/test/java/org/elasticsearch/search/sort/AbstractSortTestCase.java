@@ -21,17 +21,14 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -41,9 +38,9 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -53,7 +50,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -62,6 +58,7 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -76,15 +73,14 @@ import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static final int NUMBER_OF_TESTBUILDERS = 20;
-    static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
     private static ScriptService scriptService;
 
     @BeforeClass
@@ -108,13 +104,13 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /** Returns random sort that is put under test */
@@ -139,7 +135,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser itemParser = createParser(shuffled);
             itemParser.nextToken();
 
             /*
@@ -149,7 +145,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(itemParser);
             T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
@@ -178,7 +174,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T testsort = createTestItem();
-            T deserializedsort = copyItem(testsort);
+            T deserializedsort = copy(testsort);
             assertEquals(testsort, deserializedsort);
             assertEquals(testsort.hashCode(), deserializedsort.hashCode());
             assertNotSame(testsort, deserializedsort);
@@ -190,35 +186,14 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            T firstsort = createTestItem();
-            assertFalse("sort is equal to null", firstsort.equals(null));
-            assertFalse("sort is equal to incompatible type", firstsort.equals(""));
-            assertTrue("sort is not equal to self", firstsort.equals(firstsort));
-            assertThat("same sort's hashcode returns different values if called multiple times", firstsort.hashCode(),
-                    equalTo(firstsort.hashCode()));
-            assertThat("different sorts should not be equal", mutate(firstsort), not(equalTo(firstsort)));
-            assertThat("different sorts should have different hashcode", mutate(firstsort).hashCode(), not(equalTo(firstsort.hashCode())));
-
-            T secondsort = copyItem(firstsort);
-            assertTrue("sort is not equal to self", secondsort.equals(secondsort));
-            assertTrue("sort is not equal to its copy", firstsort.equals(secondsort));
-            assertTrue("equals is not symmetric", secondsort.equals(firstsort));
-            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(firstsort.hashCode()));
-
-            T thirdsort = copyItem(secondsort);
-            assertTrue("sort is not equal to self", thirdsort.equals(thirdsort));
-            assertTrue("sort is not equal to its copy", secondsort.equals(thirdsort));
-            assertThat("sort copy's hashcode is different from original hashcode", secondsort.hashCode(), equalTo(thirdsort.hashCode()));
-            assertTrue("equals is not transitive", firstsort.equals(thirdsort));
-            assertThat("sort copy's hashcode is different from original hashcode", firstsort.hashCode(), equalTo(thirdsort.hashCode()));
-            assertTrue("equals is not symmetric", thirdsort.equals(secondsort));
-            assertTrue("equals is not symmetric", thirdsort.equals(firstsort));
+            checkEqualsAndHashCode(createTestItem(), this::copy, this::mutate);
         }
     }
 
     protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache, null, null);
@@ -232,8 +207,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
-        return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null) {
+        long nowInMillis = randomNonNegativeLong();
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
+                xContentRegistry(), null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -241,21 +217,26 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
+                BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
                 return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
             }
         };
     }
 
     /**
-     * Return a field type. We use {@link DoubleFieldType} by default since it is compatible with all sort modes
+     * Return a field type. We use {@link NumberFieldMapper.NumberFieldType} by default since it is compatible with all sort modes
      * Tests that require other field type than double can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        DoubleFieldType doubleFieldType = new DoubleFieldType();
+        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     protected static QueryBuilder randomNestedFilter() {
@@ -271,12 +252,10 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     @SuppressWarnings("unchecked")
-    private T copyItem(T original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
-            }
-        }
+    private T copy(T original) throws IOException {
+        /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
+         * T but Java 9 infers it to be SortBuilder. */
+        return (T) copyWriteable(original, namedWriteableRegistry,
+                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

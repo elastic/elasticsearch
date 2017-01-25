@@ -22,40 +22,59 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
 
-    private final LongAccessor subsetSizeHolder;
-    private final LongAccessor supersetSizeHolder;
-    private final LongAccessor subsetDfHolder;
-    private final LongAccessor supersetDfHolder;
     private final Script script;
-    ExecutableScript searchScript = null;
+
+    // This class holds an executable form of the script with private variables ready for execution
+    // on a single search thread.
+    static class ExecutableScriptHeuristic extends ScriptHeuristic {
+        private final LongAccessor subsetSizeHolder;
+        private final LongAccessor supersetSizeHolder;
+        private final LongAccessor subsetDfHolder;
+        private final LongAccessor supersetDfHolder;
+        private final ExecutableScript executableScript;
+
+        ExecutableScriptHeuristic(Script script, ExecutableScript executableScript){
+            super(script);
+            subsetSizeHolder = new LongAccessor();
+            supersetSizeHolder = new LongAccessor();
+            subsetDfHolder = new LongAccessor();
+            supersetDfHolder = new LongAccessor();
+            this.executableScript = executableScript;
+            executableScript.setNextVar("_subset_freq", subsetDfHolder);
+            executableScript.setNextVar("_subset_size", subsetSizeHolder);
+            executableScript.setNextVar("_superset_freq", supersetDfHolder);
+            executableScript.setNextVar("_superset_size", supersetSizeHolder);
+        }
+
+        @Override
+        public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+            subsetSizeHolder.value = subsetSize;
+            supersetSizeHolder.value = supersetSize;
+            subsetDfHolder.value = subsetFreq;
+            supersetDfHolder.value = supersetFreq;
+            return ((Number) executableScript.run()).doubleValue();
+       }
+    }
 
     public ScriptHeuristic(Script script) {
-        subsetSizeHolder = new LongAccessor();
-        supersetSizeHolder = new LongAccessor();
-        subsetDfHolder = new LongAccessor();
-        supersetDfHolder = new LongAccessor();
         this.script = script;
     }
 
@@ -72,22 +91,15 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(context.scriptService());
+    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
+        return new ExecutableScriptHeuristic(script, context.scriptService().executable(script, ScriptContext.Standard.AGGS));
     }
 
     @Override
-    public void initialize(SearchContext context) {
-        initialize(context.scriptService());
+    public SignificanceHeuristic rewrite(SearchContext context) {
+        return new ExecutableScriptHeuristic(script, context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS));
     }
 
-    public void initialize(ScriptService scriptService) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
-        searchScript.setNextVar("_subset_freq", subsetDfHolder);
-        searchScript.setNextVar("_subset_size", subsetSizeHolder);
-        searchScript.setNextVar("_superset_freq", supersetDfHolder);
-        searchScript.setNextVar("_superset_size", supersetSizeHolder);
-    }
 
     /**
      * Calculates score with a script
@@ -100,19 +112,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        if (searchScript == null) {
-            //In tests, wehn calling assertSearchResponse(..) the response is streamed one additional time with an arbitrary version, see assertVersionSerializable(..).
-            // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
-            // assertSearchResponse() might therefore fail although there is no problem.
-            // This should be replaced by an exception in 2.0.
-            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet.");
-            return 0;
-        }
-        subsetSizeHolder.value = subsetSize;
-        supersetSizeHolder.value = supersetSize;
-        subsetDfHolder.value = subsetFreq;
-        supersetDfHolder.value = supersetFreq;
-        return ((Number) searchScript.run()).doubleValue();
+        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready for use");
     }
 
     @Override
@@ -123,7 +123,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
-        builder.field(ScriptField.SCRIPT.getPreferredName());
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName());
         script.toXContent(builder, builderParams);
         builder.endObject();
         return builder;
@@ -146,8 +146,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+    public static SignificanceHeuristic parse(QueryParseContext context)
             throws IOException, QueryShardException {
+        XContentParser parser = context.parser();
         String heuristicName = parser.currentName();
         Script script = null;
         XContentParser.Token token;
@@ -156,8 +157,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (token.equals(XContentParser.Token.FIELD_NAME)) {
                 currentFieldName = parser.currentName();
             } else {
-                if (parseFieldMatcher.match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseFieldMatcher);
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                 }
@@ -168,26 +169,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
         }
         return new ScriptHeuristic(script);
-    }
-
-    public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
-
-        private Script script = null;
-
-        public ScriptHeuristicBuilder setScript(Script script) {
-            this.script = script;
-            return this;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-            builder.startObject(NAME);
-            builder.field(ScriptField.SCRIPT.getPreferredName());
-            script.toXContent(builder, builderParams);
-            builder.endObject();
-            return builder;
-        }
-
     }
 
     public final class LongAccessor extends Number {

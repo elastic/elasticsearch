@@ -26,14 +26,10 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.RateLimitedFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.store.SleepingLockWrapper;
-import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -46,9 +42,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- */
-public class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
+public class FsDirectoryService extends DirectoryService {
 
     protected final IndexStore indexStore;
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
@@ -62,7 +56,6 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
-    private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 
     @Inject
@@ -70,16 +63,6 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         super(path.getShardId(), indexSettings);
         this.path = path;
         this.indexStore = indexStore;
-    }
-
-    @Override
-    public long throttleTimeInNanos() {
-        return rateLimitingTimeInNanos.count();
-    }
-
-    @Override
-    public StoreRateLimiting rateLimiting() {
-        return indexStore.rateLimiting();
     }
 
     @Override
@@ -91,21 +74,16 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         Set<String> preLoadExtensions = new HashSet<>(
                 indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
+        if (indexSettings.isOnSharedFilesystem()) {
             wrapped = new SleepingLockWrapper(wrapped, 5000);
         }
-        return new RateLimitedFSDirectory(wrapped, this, this) ;
-    }
-
-    @Override
-    public void onPause(long nanos) {
-        rateLimitingTimeInNanos.inc(nanos);
+        return wrapped;
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
             IndexModule.Type.FS.getSettingsKey());
-        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
+        if (IndexModule.Type.FS.match(storeType)) {
             return FSDirectory.open(location, lockFactory); // use lucene defaults
         } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);

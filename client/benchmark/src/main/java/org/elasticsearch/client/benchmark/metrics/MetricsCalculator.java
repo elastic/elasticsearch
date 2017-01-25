@@ -50,13 +50,16 @@ public final class MetricsCalculator {
         for (Map.Entry<String, List<Sample>> operationAndMetrics : samplesPerOperation.entrySet()) {
             List<Sample> samples = operationAndMetrics.getValue();
             double[] serviceTimes = new double[samples.size()];
+            double[] latencies = new double[samples.size()];
             int it = 0;
             long firstStart = Long.MAX_VALUE;
             long latestEnd = Long.MIN_VALUE;
             for (Sample sample : samples) {
                 firstStart = Math.min(sample.getStartTimestamp(), firstStart);
                 latestEnd = Math.max(sample.getStopTimestamp(), latestEnd);
-                serviceTimes[it++] = sample.getServiceTime();
+                serviceTimes[it] = sample.getServiceTime();
+                latencies[it] = sample.getLatency();
+                it++;
             }
 
             metrics.add(new Metrics(operationAndMetrics.getKey(),
@@ -65,11 +68,18 @@ public final class MetricsCalculator {
                 // throughput calculation is based on the total (Wall clock) time it took to generate all samples
                 calculateThroughput(samples.size(), latestEnd - firstStart),
                 // convert ns -> ms without losing precision
+                StatUtils.percentile(serviceTimes, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
                 StatUtils.percentile(serviceTimes, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
                 StatUtils.percentile(serviceTimes, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
                 StatUtils.percentile(serviceTimes, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
                 StatUtils.percentile(serviceTimes, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L)));
+                StatUtils.percentile(serviceTimes, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(latencies, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L)));
         }
         return metrics;
     }

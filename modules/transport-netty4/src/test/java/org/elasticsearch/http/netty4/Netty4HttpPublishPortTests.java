@@ -21,7 +21,7 @@ package org.elasticsearch.http.netty4;
 
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -73,16 +73,16 @@ public class Netty4HttpPublishPortTests extends ESTestCase {
         }
     }
 
-    private InetSocketTransportAddress address(String host, int port) throws UnknownHostException {
-        return new InetSocketTransportAddress(getByName(host), port);
+    private TransportAddress address(String host, int port) throws UnknownHostException {
+        return new TransportAddress(getByName(host), port);
     }
 
-    private InetSocketTransportAddress randomAddress() throws UnknownHostException {
+    private TransportAddress randomAddress() throws UnknownHostException {
         return address("127.0.0." + randomIntBetween(1, 100), randomIntBetween(9200, 9300));
     }
 
-    private List<InetSocketTransportAddress> randomAddresses() throws UnknownHostException {
-        List<InetSocketTransportAddress> addresses = new ArrayList<>();
+    private List<TransportAddress> randomAddresses() throws UnknownHostException {
+        List<TransportAddress> addresses = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             addresses.add(randomAddress());
         }

@@ -30,9 +30,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final SearchContext searchContext;

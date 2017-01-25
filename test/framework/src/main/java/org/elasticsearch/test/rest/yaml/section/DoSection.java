@@ -18,16 +18,22 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
@@ -65,8 +72,88 @@ import static org.junit.Assert.fail;
  *
  */
 public class DoSection implements ExecutableSection {
+    public static DoSection parse(XContentParser parser) throws IOException {
+        String currentFieldName = null;
+        XContentParser.Token token;
 
-    private static final ESLogger logger = Loggers.getLogger(DoSection.class);
+        DoSection doSection = new DoSection(parser.getTokenLocation());
+        ApiCallSection apiCallSection = null;
+        Map<String, String> headers = new HashMap<>();
+        List<String> expectedWarnings = new ArrayList<>();
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("catch".equals(currentFieldName)) {
+                    doSection.setCatch(parser.text());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("warnings".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
+                        expectedWarnings.add(parser.text());
+                    }
+                    if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ParsingException(parser.getTokenLocation(), "[warnings] must be a string array but saw [" + token + "]");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unknown array [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("headers".equals(currentFieldName)) {
+                    String headerName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            headerName = parser.currentName();
+                        } else if (token.isValue()) {
+                            headers.put(headerName, parser.text());
+                        }
+                    }
+                } else if (currentFieldName != null) { // must be part of API call then
+                    apiCallSection = new ApiCallSection(currentFieldName);
+                    String paramName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            paramName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("body".equals(paramName)) {
+                                String body = parser.text();
+                                XContentType bodyContentType = XContentFactory.xContentType(body);
+                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(
+                                        NamedXContentRegistry.EMPTY, body);
+                                //multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                while(bodyParser.nextToken() != null) {
+                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                }
+                            } else {
+                                apiCallSection.addParam(paramName, parser.text());
+                            }
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            if ("body".equals(paramName)) {
+                                apiCallSection.addBody(parser.mapOrdered());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            if (apiCallSection == null) {
+                throw new IllegalArgumentException("client call section is mandatory within a do section");
+            }
+            if (headers.isEmpty() == false) {
+                apiCallSection.addHeaders(headers);
+            }
+            doSection.setApiCallSection(apiCallSection);
+            doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
+        } finally {
+            parser.nextToken();
+        }
+        return doSection;
+    }
+
+
+    private static final Logger logger = Loggers.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;

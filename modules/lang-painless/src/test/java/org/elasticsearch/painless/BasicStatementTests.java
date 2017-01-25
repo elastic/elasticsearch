@@ -1,5 +1,6 @@
 package org.elasticsearch.painless;
 
+import java.util.ArrayList;
 import java.util.Collections;
 
 /*
@@ -22,6 +23,7 @@ import java.util.Collections;
  */
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class BasicStatementTests extends ScriptTestCase {
@@ -271,5 +273,199 @@ public class BasicStatementTests extends ScriptTestCase {
                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
                              null, true
        ));
+    }
+
+    // tests both single break and multiple breaks used in a script
+    public void testForWithBreak() {
+        // single break test
+        assertEquals(1, exec(
+            "Map settings = ['test1' : '1'];" +
+            "int i = 0;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (; i < keys.size(); ++i) {" +
+            "    if (settings.containsKey(keys[i])) {" +
+            "        break;" +
+            "    }" +
+            "}" +
+            "return i;"
+        ));
+
+        List<Integer> expected = new ArrayList<>();
+        expected.add(1);
+        expected.add(0);
+
+        // multiple breaks test
+        assertEquals(expected, exec(
+            "Map outer = ['test1' : '1'];" +
+            "Map inner = ['test0' : '2'];" +
+            "boolean found = false;" +
+            "int i = 0, j = 0;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (; i < keys.size(); ++i) {" +
+            "    if (outer.containsKey(keys[i])) {" +
+            "        for (; j < keys.size(); ++j) {" +
+            "            if (inner.containsKey(keys[j])) {" +
+            "                found = true;" +
+            "                break;" +
+            "            }" +
+            "        }" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "}" +
+            "[i, j];"
+        ));
+
+        expected.set(1, 3);
+
+        // multiple breaks test, ignore inner break
+        assertEquals(expected, exec(
+            "Map outer = ['test1' : '1'];" +
+            "Map inner = ['test3' : '2'];" +
+            "int i = 0, j = 0;" +
+            "boolean found = false;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (; i < keys.size(); ++i) {" +
+            "    if (outer.containsKey(keys[i])) {" +
+            "        for (; j < keys.size(); ++j) {" +
+            "            if (found) {" +
+            "                break;" +
+            "            }" +
+            "        }" +
+            "        found = true;" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "}" +
+            "[i, j];"
+        ));
+
+        expected.set(0, 3);
+        expected.set(1, 1);
+
+        // multiple breaks test, ignore outer break
+        assertEquals(expected, exec(
+            "Map outer = ['test3' : '1'];" +
+            "Map inner = ['test1' : '2'];" +
+            "int i = 0, j = 0;" +
+            "boolean found = false;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (; i < keys.size(); ++i) {" +
+            "    if (outer.containsKey('test3')) {" +
+            "        for (; j < keys.size(); ++j) {" +
+            "            if (inner.containsKey(keys[j])) {" +
+            "                break;" +
+            "            }" +
+            "        }" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "}" +
+            "[i, j];"
+        ));
+    }
+
+    // tests both single break and multiple breaks used in a script
+    public void testForEachWithBreak() {
+        // single break test
+        assertEquals(1, exec(
+            "Map settings = ['test1' : '1'];" +
+            "int i = 0;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (String key : keys) {" +
+            "    if (settings.containsKey(key)) {" +
+            "        break;" +
+            "    }" +
+            "    ++i;" +
+            "}" +
+            "return i;"
+        ));
+
+        List<Integer> expected = new ArrayList<>();
+        expected.add(1);
+        expected.add(0);
+
+        // multiple breaks test
+        assertEquals(expected, exec(
+            "Map outer = ['test1' : '1'];" +
+            "Map inner = ['test0' : '2'];" +
+            "int i = 0, j = 0;" +
+            "boolean found = false;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (String okey : keys) {" +
+            "    if (outer.containsKey(okey)) {" +
+            "        for (String ikey : keys) {" +
+            "            if (inner.containsKey(ikey)) {" +
+            "                found = true;" +
+            "                break;" +
+            "            }" +
+            "            ++j;" +
+            "        }" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "    ++i;" +
+            "}" +
+            "[i, j];"
+        ));
+
+        expected.set(0, 3);
+        expected.set(1, 1);
+
+        // multiple breaks test, ignore outer break
+        assertEquals(expected, exec(
+            "Map outer = ['test1' : '1'];" +
+            "Map inner = ['test1' : '1'];" +
+            "int i = 0, j = 0;" +
+            "boolean found = false;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (String okey : keys) {" +
+            "    if (outer.containsKey(okey)) {" +
+            "        for (String ikey : keys) {" +
+            "            if (inner.containsKey(ikey)) {" +
+            "                break;" +
+            "            }" +
+            "            ++j;" +
+            "        }" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "    ++i;" +
+            "}" +
+            "[i, j];"
+        ));
+
+        expected.set(0, 1);
+        expected.set(1, 3);
+
+        // multiple breaks test, ignore inner break
+        assertEquals(expected, exec(
+            "Map outer = ['test1' : '1'];" +
+            "Map inner = ['test1' : '1'];" +
+            "int i = 0, j = 0;" +
+            "boolean found = false;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (String okey : keys) {" +
+            "    if (outer.containsKey(okey)) {" +
+            "        for (String ikey : keys) {" +
+            "            if (found) {" +
+            "                break;" +
+            "            }" +
+            "            ++j;" +
+            "        }" +
+            "        found = true;" +
+            "        if (found) {" +
+            "            break;" +
+            "        }" +
+            "    }" +
+            "    ++i;" +
+            "}" +
+            "[i, j];"
+        ));
     }
 }

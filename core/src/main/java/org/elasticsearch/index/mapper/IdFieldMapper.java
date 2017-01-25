@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -78,7 +80,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new IdFieldMapper(indexSettings, fieldType);
         }
     }
@@ -135,7 +138,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
 
     @Override
     protected String contentType() {

@@ -28,11 +28,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -43,6 +43,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -60,7 +61,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -89,7 +89,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         }
 
         client().admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder))
+                .settings(settingsBuilder)
+                .mapping("type", "foo", "type=geo_point"))
                 .actionGet();
 
         ensureGreen();
@@ -150,8 +151,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat(hit.explanation(), notNullValue());
                 assertThat(hit.explanation().getDetails().length, equalTo(1));
                 assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                    endsWith("idf(docFreq=100, docCount=100)"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                    equalTo("docFreq"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                    equalTo(100.0f));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                    equalTo("docCount"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                    equalTo(100.0f));
                 assertThat("id[" + hit.id() + "] -> " + hit.explanation().toString(), hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
@@ -178,8 +186,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat(hit.explanation(), notNullValue());
                 assertThat(hit.explanation().getDetails().length, equalTo(1));
                 assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                    endsWith("idf(docFreq=100, docCount=100)"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                    equalTo("docFreq"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                    equalTo(100.0f));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                    equalTo("docCount"));
+                assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                    equalTo(100.0f));
                 assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;
@@ -328,8 +343,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             assertThat(hit.explanation(), notNullValue());
             assertThat(hit.explanation().getDetails().length, equalTo(1));
             assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDescription(),
-                endsWith("idf(docFreq=100, docCount=100)"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
+                equalTo("docFreq"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
+                equalTo(100.0f));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
+                equalTo("docCount"));
+            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
+                equalTo(100.0f));
 //            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
@@ -378,7 +400,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed search with wrong query");
         try {
             SearchResponse searchResponse = client().search(
-                    searchRequest("test").source(new SearchSourceBuilder().query(new GeohashCellQuery.Builder("foo", "biz")))).actionGet();
+                    searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -426,8 +448,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
-                // Add geo distance range query against a field that doesn't exist (should be a geo point for the query to work)
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.geoDistanceRangeQuery("non_existing_field", 1, 1).from(10).to(15)))
+                .add(client().prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
@@ -450,7 +471,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with bogus script
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script("foo", ScriptService.ScriptType.INLINE, "bar", null)))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1), new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap())))))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();

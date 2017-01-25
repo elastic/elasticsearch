@@ -24,24 +24,12 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TermBasedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -51,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -108,7 +97,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_source", "_all"), doc);
+        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
 
     public void testExplicitEnabled() throws Exception {
@@ -125,7 +114,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .bytes());
 
-        assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_source", "_all"), doc);
+        assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
 
     public void testDisabled() throws Exception {
@@ -177,7 +166,8 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+                final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
                 return new DummyMetadataFieldMapper(indexSettings);
             }
 
@@ -227,7 +217,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         }
 
         @Override
@@ -244,9 +234,14 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             Collections.singletonMap("_dummy", new DummyMetadataFieldMapper.TypeParser())
         );
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+        Supplier<QueryShardContext> queryShardContext = () -> {
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+        };
+        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.getIndexAnalyzers(),
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
+                queryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDocument = mapper.parse("index", "type", "id", new BytesArray("{}"));

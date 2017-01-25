@@ -37,14 +37,12 @@ import java.nio.file.Path;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
-/**
- */
 public class IcuTokenizerFactoryTests extends ESTestCase {
 
     public void testSimpleIcuTokenizer() throws IOException {
-        AnalysisService analysisService = createAnalysisService();
+        TestAnalysis analysis = createTestAnalysis();
 
-        TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("icu_tokenizer");
         ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
 
         Reader reader = new StringReader("向日葵, one-two");
@@ -53,10 +51,10 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
     }
 
     public void testIcuCustomizeRuleFile() throws IOException {
-        AnalysisService analysisService = createAnalysisService();
+        TestAnalysis analysis = createTestAnalysis();
 
         // test the tokenizer with single rule file
-        TokenizerFactory tokenizerFactory = analysisService.tokenizer("user_rule_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("user_rule_tokenizer");
         ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
         Reader reader = new StringReader
             ("One-two punch.  Brang-, not brung-it.  This one--not that one--is the right one, -ish.");
@@ -68,10 +66,10 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
     }
 
     public void testMultipleIcuCustomizeRuleFiles() throws IOException {
-        AnalysisService analysisService = createAnalysisService();
+        TestAnalysis analysis = createTestAnalysis();
 
         // test the tokenizer with two rule files
-        TokenizerFactory tokenizerFactory = analysisService.tokenizer("multi_rule_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("multi_rule_tokenizer");
         ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
         StringReader reader = new StringReader
             ("Some English.  Немного русский.  ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  More English.");
@@ -84,7 +82,7 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
     }
 
 
-    private static AnalysisService createAnalysisService() throws IOException {
+    private static TestAnalysis createTestAnalysis() throws IOException {
         InputStream keywords = IcuTokenizerFactoryTests.class.getResourceAsStream("KeywordTokenizer.rbbi");
         InputStream latin = IcuTokenizerFactoryTests.class.getResourceAsStream("Latin-dont-break-on-hyphens.rbbi");
 
@@ -102,6 +100,6 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
 
-        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisICUPlugin());
+        return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisICUPlugin());
     }
 }

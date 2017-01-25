@@ -28,8 +28,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends RestBuilderListener<T> {
 
     public AcknowledgedRestListener(RestChannel channel) {

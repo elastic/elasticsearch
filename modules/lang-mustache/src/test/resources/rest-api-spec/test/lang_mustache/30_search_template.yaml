@@ -106,3 +106,19 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
+
+  - do:
+      search_template:
+        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "explain" : true }
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._explanation.description: "weight(otherField:foo in 0) [PerFieldSimilarity], result of:" }
+
+  - do:
+      search_template:
+        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "profile" : true }
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - length: { profile: 1 }

@@ -28,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class GetStats implements Streamable, ToXContent {
 
     private long existsCount;
@@ -134,12 +132,6 @@ public class GetStats implements Streamable, ToXContent {
         static final String MISSING_TIME = "missing_time";
         static final String MISSING_TIME_IN_MILLIS = "missing_time_in_millis";
         static final String CURRENT = "current";
-    }
-
-    public static GetStats readGetStats(StreamInput in) throws IOException {
-        GetStats stats = new GetStats();
-        stats.readFrom(in);
-        return stats;
     }
 
     @Override

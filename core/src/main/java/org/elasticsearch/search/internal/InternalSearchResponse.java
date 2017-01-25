@@ -38,9 +38,6 @@ import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
-/**
- *
- */
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {

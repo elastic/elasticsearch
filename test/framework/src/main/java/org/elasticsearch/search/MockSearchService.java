@@ -20,19 +20,13 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -40,11 +34,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
-    public static class TestPlugin extends Plugin {
-        public void onModule(SearchModule module) {
-            module.searchServiceImpl = MockSearchService.class;
-        }
-    }
+    /**
+     * Marker plugin used by {@link MockNode} to enable {@link MockSearchService}.
+     */
+    public static class TestPlugin extends Plugin {}
 
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
@@ -73,11 +66,10 @@ public class MockSearchService extends SearchService {
         ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
-    @Inject
-    public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
+    public MockSearchService(ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
             BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
     }
 
     @Override

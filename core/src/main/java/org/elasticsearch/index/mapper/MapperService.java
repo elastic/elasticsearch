@@ -21,21 +21,25 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -43,12 +47,14 @@ import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,12 +65,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
-/**
- *
- */
-public class MapperService extends AbstractIndexComponent {
+public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * The reason why a mapping is being merged.
@@ -99,7 +101,7 @@ public class MapperService extends AbstractIndexComponent {
     @Deprecated
     public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
-    private final AnalysisService analysisService;
+    private final IndexAnalyzers indexAnalyzers;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -113,6 +115,7 @@ public class MapperService extends AbstractIndexComponent {
     private volatile FieldTypeLookup fieldTypes;
     private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
+    private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
     private final DocumentMapperParser documentParser;
 
@@ -126,16 +129,17 @@ public class MapperService extends AbstractIndexComponent {
 
     final MapperRegistry mapperRegistry;
 
-    public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
+    public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<QueryShardContext> queryShardContextSupplier) {
         super(indexSettings);
-        this.analysisService = analysisService;
+        this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry, queryShardContextSupplier);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
-        this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
+        this.documentParser = new DocumentMapperParser(indexSettings, this, indexAnalyzers, xContentRegistry, similarityService,
+                mapperRegistry, queryShardContextSupplier);
+        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
+        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
@@ -150,6 +154,13 @@ public class MapperService extends AbstractIndexComponent {
 
     public boolean hasNested() {
         return this.hasNested;
+    }
+
+    /**
+     * Returns true if the "_all" field is enabled on any type.
+     */
+    public boolean allEnabled() {
+        return this.allEnabled;
     }
 
     /**
@@ -170,164 +181,250 @@ public class MapperService extends AbstractIndexComponent {
         };
     }
 
-    public AnalysisService analysisService() {
-        return this.analysisService;
+    public IndexAnalyzers getIndexAnalyzers() {
+        return this.indexAnalyzers;
     }
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
     }
 
-    public static Map<String, Object> parseMapping(String mappingSource) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
+        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(xContentRegistry, mappingSource)) {
             return parser.map();
         }
     }
 
+    /**
+     * Update mapping by only merging the metadata that is different between received and stored entries
+     */
     public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
         assert indexMetaData.getIndex().equals(index()) : "index mismatch: expected " + index() + " but was " + indexMetaData.getIndex();
         // go over and add the relevant mappings (or update them)
+        final Set<String> existingMappers = new HashSet<>(mappers.keySet());
+        final Map<String, DocumentMapper> updatedEntries;
+        try {
+            // only update entries if needed
+            updatedEntries = internalMerge(indexMetaData, MergeReason.MAPPING_RECOVERY, true, true);
+        } catch (Exception e) {
+            logger.warn((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
+            throw e;
+        }
+
         boolean requireRefresh = false;
-        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-            MappingMetaData mappingMd = cursor.value;
-            String mappingType = mappingMd.type();
-            CompressedXContent mappingSource = mappingMd.source();
+
+        for (DocumentMapper documentMapper : updatedEntries.values()) {
+            String mappingType = documentMapper.type();
+            CompressedXContent incomingMappingSource = indexMetaData.mapping(mappingType).source();
+
+            String op = existingMappers.contains(mappingType) ? "updated" : "added";
+            if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
+                logger.debug("[{}] {} mapping [{}], source [{}]", index(), op, mappingType, incomingMappingSource.string());
+            } else if (logger.isTraceEnabled()) {
+                logger.trace("[{}] {} mapping [{}], source [{}]", index(), op, mappingType, incomingMappingSource.string());
+            } else {
+                logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)", index(), op, mappingType);
+            }
+
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
             // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
-            try {
-                DocumentMapper existingMapper = documentMapper(mappingType);
+            if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
+                logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index(), mappingType,
+                    incomingMappingSource, documentMapper(mappingType).mappingSource());
 
-                if (existingMapper == null || mappingSource.equals(existingMapper.mappingSource()) == false) {
-                    String op = existingMapper == null ? "adding" : "updating";
-                    if (logger.isDebugEnabled() && mappingSource.compressed().length < 512) {
-                        logger.debug("[{}] {} mapping [{}], source [{}]", index(), op, mappingType, mappingSource.string());
-                    } else if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] {} mapping [{}], source [{}]", index(), op, mappingType, mappingSource.string());
-                    } else {
-                        logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)", index(), op,
-                            mappingType);
-                    }
-                    merge(mappingType, mappingSource, MergeReason.MAPPING_RECOVERY, true);
-                    if (!documentMapper(mappingType).mappingSource().equals(mappingSource)) {
-                        logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index(),
-                            mappingType, mappingSource, documentMapper(mappingType).mappingSource());
-                        requireRefresh = true;
-                    }
-                }
-            } catch (Exception e) {
-                logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index(), mappingType, mappingSource);
-                throw e;
+                requireRefresh = true;
             }
         }
+
         return requireRefresh;
     }
 
-    //TODO: make this atomic
-    public void merge(Map<String, Map<String, Object>> mappings, boolean updateAllTypes) throws MapperParsingException {
-        // first, add the default mapping
-        if (mappings.containsKey(DEFAULT_MAPPING)) {
-            try {
-                this.merge(DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(DEFAULT_MAPPING)).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
-            } catch (Exception e) {
-                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
-            }
-        }
+    public void merge(Map<String, Map<String, Object>> mappings, MergeReason reason, boolean updateAllTypes) {
+        Map<String, CompressedXContent> mappingSourcesCompressed = new LinkedHashMap<>(mappings.size());
         for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
-            if (entry.getKey().equals(DEFAULT_MAPPING)) {
-                continue;
-            }
             try {
-                // apply the default here, its the first time we parse it
-                this.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
+
+        internalMerge(mappingSourcesCompressed, reason, updateAllTypes);
+    }
+
+    public void merge(IndexMetaData indexMetaData, MergeReason reason, boolean updateAllTypes) {
+        internalMerge(indexMetaData, reason, updateAllTypes, false);
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
-        if (DEFAULT_MAPPING.equals(type)) {
+        return internalMerge(Collections.singletonMap(type, mappingSource), reason, updateAllTypes).get(type);
+    }
+
+    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData, MergeReason reason, boolean updateAllTypes,
+                                                                   boolean onlyUpdateIfNeeded) {
+        Map<String, CompressedXContent> map = new LinkedHashMap<>();
+        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
+            MappingMetaData mappingMetaData = cursor.value;
+            if (onlyUpdateIfNeeded) {
+                DocumentMapper existingMapper = documentMapper(mappingMetaData.type());
+                if (existingMapper == null || mappingMetaData.source().equals(existingMapper.mappingSource()) == false) {
+                    map.put(mappingMetaData.type(), mappingMetaData.source());
+                }
+            } else {
+                map.put(mappingMetaData.type(), mappingMetaData.source());
+            }
+        }
+        return internalMerge(map, reason, updateAllTypes);
+    }
+
+    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason, boolean updateAllTypes) {
+        DocumentMapper defaultMapper = null;
+        String defaultMappingSource = null;
+
+        if (mappings.containsKey(DEFAULT_MAPPING)) {
             // verify we can parse it
             // NOTE: never apply the default here
-            DocumentMapper mapper = documentParser.parse(type, mappingSource);
-            // still add it as a document mapper so we have it registered and, for example, persisted back into
-            // the cluster meta data if needed, or checked for existence
-            synchronized (this) {
-                mappers = newMapBuilder(mappers).put(type, mapper).map();
+            try {
+                defaultMapper = documentParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
             }
             try {
-                defaultMappingSource = mappingSource.string();
+                defaultMappingSource = mappings.get(DEFAULT_MAPPING).string();
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("failed to un-compress", e);
             }
-            return mapper;
+        }
+
+        final String defaultMappingSourceOrLastStored;
+        if (defaultMappingSource != null) {
+            defaultMappingSourceOrLastStored = defaultMappingSource;
         } else {
-            synchronized (this) {
-                final boolean applyDefault =
-                        // the default was already applied if we are recovering
-                        reason != MergeReason.MAPPING_RECOVERY
-                        // only apply the default mapping if we don't have the type yet
-                        && mappers.containsKey(type) == false;
-                DocumentMapper mergeWith = parse(type, mappingSource, applyDefault);
-                return merge(mergeWith, reason, updateAllTypes);
+            defaultMappingSourceOrLastStored = this.defaultMappingSource;
+        }
+
+        List<DocumentMapper> documentMappers = new ArrayList<>();
+        for (Map.Entry<String, CompressedXContent> entry : mappings.entrySet()) {
+            String type = entry.getKey();
+            if (type.equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+
+            final boolean applyDefault =
+                // the default was already applied if we are recovering
+                reason != MergeReason.MAPPING_RECOVERY
+                    // only apply the default mapping if we don't have the type yet
+                    && mappers.containsKey(type) == false;
+
+            try {
+                DocumentMapper documentMapper = documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                documentMappers.add(documentMapper);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
+
+        return internalMerge(defaultMapper, defaultMappingSource, documentMappers, reason, updateAllTypes);
     }
 
-    private synchronized DocumentMapper merge(DocumentMapper mapper, MergeReason reason, boolean updateAllTypes) {
-        if (mapper.type().length() == 0) {
-            throw new InvalidTypeNameException("mapping type name is empty");
-        }
-        if (mapper.type().length() > 255) {
-            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-        }
-        if (mapper.type().charAt(0) == '_') {
-            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-        }
-        if (mapper.type().contains("#")) {
-            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-        }
-        if (mapper.type().contains(",")) {
-            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-        }
-        if (mapper.type().equals(mapper.parentFieldMapper().type())) {
-            throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-        }
-        if (typeNameStartsWithIllegalDot(mapper)) {
-            throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
-        }
-
-        // 1. compute the merged DocumentMapper
-        DocumentMapper oldMapper = mappers.get(mapper.type());
-        DocumentMapper newMapper;
-        if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping(), updateAllTypes);
-        } else {
-            newMapper = mapper;
-        }
-
-        // 2. check basic sanity of the new mapping
-        List<ObjectMapper> objectMappers = new ArrayList<>();
-        List<FieldMapper> fieldMappers = new ArrayList<>();
-        Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
-        MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
-        checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers);
-        checkObjectsCompatibility(objectMappers, updateAllTypes);
-
-        // 3. update lookup data-structures
-        // this will in particular make sure that the merged fields are compatible with other types
-        FieldTypeLookup fieldTypes = this.fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, updateAllTypes);
-
+    private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
+                                                                   List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
         boolean hasNested = this.hasNested;
-        Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
-        for (ObjectMapper objectMapper : objectMappers) {
-            fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
-            if (objectMapper.nested().isNested()) {
-                hasNested = true;
-            }
+        boolean allEnabled = this.allEnabled;
+        Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
+        FieldTypeLookup fieldTypes = this.fieldTypes;
+        Set<String> parentTypes = this.parentTypes;
+        Map<String, DocumentMapper> mappers = new HashMap<>(this.mappers);
+
+        Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
+
+        if (defaultMapper != null) {
+            assert defaultMapper.type().equals(DEFAULT_MAPPING);
+            mappers.put(DEFAULT_MAPPING, defaultMapper);
+            results.put(DEFAULT_MAPPING, defaultMapper);
         }
-        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        for (DocumentMapper mapper : documentMappers) {
+            // check naming
+            if (mapper.type().length() == 0) {
+                throw new InvalidTypeNameException("mapping type name is empty");
+            }
+            if (mapper.type().length() > 255) {
+                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
+            }
+            if (mapper.type().charAt(0) == '_') {
+                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
+            }
+            if (mapper.type().contains("#")) {
+                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
+            }
+            if (mapper.type().contains(",")) {
+                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
+            }
+            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
+                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
+            }
+            if (typeNameStartsWithIllegalDot(mapper)) {
+                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
+            }
+
+            // compute the merged DocumentMapper
+            DocumentMapper oldMapper = mappers.get(mapper.type());
+            DocumentMapper newMapper;
+            if (oldMapper != null) {
+                newMapper = oldMapper.merge(mapper.mapping(), updateAllTypes);
+            } else {
+                newMapper = mapper;
+            }
+
+            // check basic sanity of the new mapping
+            List<ObjectMapper> objectMappers = new ArrayList<>();
+            List<FieldMapper> fieldMappers = new ArrayList<>();
+            Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
+            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
+            checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
+            checkObjectsCompatibility(objectMappers, updateAllTypes, fullPathObjectMappers);
+            checkPartitionedIndexConstraints(newMapper);
+
+            // update lookup data-structures
+            // this will in particular make sure that the merged fields are compatible with other types
+            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, updateAllTypes);
+
+            for (ObjectMapper objectMapper : objectMappers) {
+                if (fullPathObjectMappers == this.fullPathObjectMappers) {
+                    fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
+                }
+                fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
+
+                if (objectMapper.nested().isNested()) {
+                    hasNested = true;
+                }
+            }
+
+            if (reason == MergeReason.MAPPING_UPDATE) {
+                // this check will only be performed on the master node when there is
+                // a call to the update mapping API. For all other cases like
+                // the master node restoring mappings from disk or data nodes
+                // deserializing cluster state that was sent by the master node,
+                // this check will be skipped.
+                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
+            }
+
+            if (oldMapper == null && newMapper.parentFieldMapper().active()) {
+                if (parentTypes == this.parentTypes) {
+                    parentTypes = new HashSet<>(this.parentTypes);
+                }
+                parentTypes.add(mapper.parentFieldMapper().type());
+            }
+
+            // this is only correct because types cannot be removed and we do not
+            // allow to disable an existing _all field
+            allEnabled |= mapper.allFieldMapper().enabled();
+
+            results.put(newMapper.type(), newMapper);
+            mappers.put(newMapper.type(), newMapper);
+        }
 
         if (reason == MergeReason.MAPPING_UPDATE) {
             // this check will only be performed on the master node when there is
@@ -336,42 +433,46 @@ public class MapperService extends AbstractIndexComponent {
             // deserializing cluster state that was sent by the master node,
             // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
-            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
             checkDepthLimit(fullPathObjectMappers.keySet());
         }
 
-        Set<String> parentTypes = this.parentTypes;
-        if (oldMapper == null && newMapper.parentFieldMapper().active()) {
-            parentTypes = new HashSet<>(parentTypes.size() + 1);
-            parentTypes.addAll(this.parentTypes);
-            parentTypes.add(mapper.parentFieldMapper().type());
-            parentTypes = Collections.unmodifiableSet(parentTypes);
-        }
-
-        Map<String, DocumentMapper> mappers = new HashMap<>(this.mappers);
-        mappers.put(newMapper.type(), newMapper);
         for (Map.Entry<String, DocumentMapper> entry : mappers.entrySet()) {
             if (entry.getKey().equals(DEFAULT_MAPPING)) {
                 continue;
             }
-            DocumentMapper m = entry.getValue();
+            DocumentMapper documentMapper = entry.getValue();
             // apply changes to the field types back
-            m = m.updateFieldType(fieldTypes.fullNameToFieldType);
-            entry.setValue(m);
+            DocumentMapper updatedDocumentMapper = documentMapper.updateFieldType(fieldTypes.fullNameToFieldType);
+            if (updatedDocumentMapper != documentMapper) {
+                // update both mappers and result
+                entry.setValue(updatedDocumentMapper);
+                if (results.containsKey(updatedDocumentMapper.type())) {
+                    results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
+                }
+            }
         }
-        mappers = Collections.unmodifiableMap(mappers);
 
-        // 4. commit the change
+        // make structures immutable
+        mappers = Collections.unmodifiableMap(mappers);
+        results = Collections.unmodifiableMap(results);
+        parentTypes = Collections.unmodifiableSet(parentTypes);
+        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        // commit the change
+        if (defaultMappingSource != null) {
+            this.defaultMappingSource = defaultMappingSource;
+        }
         this.mappers = mappers;
         this.fieldTypes = fieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
+        this.allEnabled = allEnabled;
 
-        assert assertSerialization(newMapper);
         assert assertMappersShareSameFieldType();
+        assert results.values().stream().allMatch(this::assertSerialization);
 
-        return newMapper;
+        return results;
     }
 
     private boolean assertMappersShareSameFieldType() {
@@ -408,8 +509,8 @@ public class MapperService extends AbstractIndexComponent {
         return true;
     }
 
-    private void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
-        assert Thread.holdsLock(this);
+    private static void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers,
+                                             Map<String, ObjectMapper> fullPathObjectMappers, FieldTypeLookup fieldTypes) {
 
         // first check within mapping
         final Set<String> objectFullNames = new HashSet<>();
@@ -446,9 +547,8 @@ public class MapperService extends AbstractIndexComponent {
         }
     }
 
-    private void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers, boolean updateAllTypes) {
-        assert Thread.holdsLock(this);
-
+    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers, boolean updateAllTypes,
+                                                  Map<String, ObjectMapper> fullPathObjectMappers) {
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
@@ -497,6 +597,20 @@ public class MapperService extends AbstractIndexComponent {
         if (depth > maxDepth) {
             throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
                     + "] has been exceeded due to object field [" + objectPath + "]");
+        }
+    }
+
+    private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
+        if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            if (newMapper.parentFieldMapper().active()) {
+                throw new IllegalArgumentException("mapping type name [" + newMapper.type() + "] cannot have a "
+                        + "_parent field for the partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
+
+            if (!newMapper.routingFieldMapper().required()) {
+                throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
+                        + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
         }
     }
 
@@ -614,6 +728,11 @@ public class MapperService extends AbstractIndexComponent {
         return parentTypes;
     }
 
+    @Override
+    public void close() throws IOException {
+        indexAnalyzers.close();
+    }
+
     /**
      * @return Whether a field is a metadata field.
      */
@@ -649,4 +768,5 @@ public class MapperService extends AbstractIndexComponent {
             return defaultAnalyzer;
         }
     }
+
 }

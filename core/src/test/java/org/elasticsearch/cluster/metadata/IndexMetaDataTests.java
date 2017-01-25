@@ -20,13 +20,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -54,8 +52,8 @@ public class IndexMetaDataTests extends ESTestCase {
         builder.startObject();
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
-        final IndexMetaData fromXContentMeta = IndexMetaData.PROTO.fromXContent(parser, null);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
         assertEquals(metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 
@@ -69,7 +67,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
-        IndexMetaData deserialized = IndexMetaData.PROTO.readFrom(out.bytes().streamInput());
+        IndexMetaData deserialized = IndexMetaData.readFrom(out.bytes().streamInput());
         assertEquals(metaData, deserialized);
         assertEquals(metaData.hashCode(), deserialized.hashCode());
 

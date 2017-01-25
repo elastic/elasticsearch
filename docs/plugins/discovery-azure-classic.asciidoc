@@ -17,10 +17,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install discovery-azure-classic
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-azure-classic/discovery-azure-classic-{version}.zip.
 
 [[discovery-azure-classic-remove]]
 [float]
@@ -32,7 +34,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove discovery-azure-classic
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -55,7 +56,7 @@ cloud:
                    type: pkcs12
 
 discovery:
-    type: azure
+    zen.hosts_provider: azure
 ----
 
 [IMPORTANT]
@@ -359,7 +360,7 @@ ssh azure-elasticsearch-cluster.cloudapp.net
 
 Once connected, install Elasticsearch:
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 ----
 # Install Latest Java version
 # Read http://www.webupd8.org/2012/09/install-oracle-java-8-in-ubuntu-via-ppa.html for details
@@ -372,36 +373,46 @@ sudo apt-get install oracle-java8-installer
 # sudo apt-get install openjdk-8-jre-headless
 
 # Download Elasticsearch
-curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb -o elasticsearch-2.0.0.deb
+curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.deb -o elasticsearch-{version}.deb
 
 # Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-2.0.0.deb
+sudo dpkg -i elasticsearch-{version}.deb
 ----
+// NOTCONSOLE
 
 Check that elasticsearch is running:
 
-[source,sh]
+[source,js]
 ----
-curl http://localhost:9200/
+GET /
 ----
+// CONSOLE
 
 This command should give you a JSON result:
 
-[source,js]
-----
+["source","js",subs="attributes,callouts"]
+--------------------------------------------
 {
-  "status" : 200,
-  "name" : "Living Colossus",
+  "name" : "Cp8oag6",
+  "cluster_name" : "elasticsearch",
+  "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "2.0.0",
-    "build_hash" : "a46900e9c72c0a623d71b54016357d5f94c8ea32",
-    "build_timestamp" : "2014-02-12T16:18:34Z",
+    "number" : "{version}",
+    "build_hash" : "f27399d",
+    "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
-    "lucene_version" : "5.1"
+    "lucene_version" : "{lucene_version}"
   },
   "tagline" : "You Know, for Search"
 }
-----
+--------------------------------------------
+// TESTRESPONSE[s/"name" : "Cp8oag6",/"name" : "$body.name",/]
+// TESTRESPONSE[s/"cluster_name" : "elasticsearch",/"cluster_name" : "$body.cluster_name",/]
+// TESTRESPONSE[s/"cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",/"cluster_uuid" : "$body.cluster_uuid",/]
+// TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
+// TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
+// TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]
+// So much s/// but at least we test that the layout is close to matching....
 
 [[discovery-azure-classic-long-plugin]]
 ===== Install elasticsearch cloud azure plugin

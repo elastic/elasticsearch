@@ -24,7 +24,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
     }
 }
 
@@ -44,9 +44,8 @@ task test(type: Test, overwrite: true)
 
 dependencies {
     compile("org.elasticsearch:elasticsearch:${version}") {
-        // JMH ships with the conflicting version 4.6 (JMH will not update this dependency as it is Java 6 compatible and joptsimple is one
-        // of the most recent compatible version). This prevents us from using jopt-simple in benchmarks (which should be ok) but allows us
-        // to invoke the JMH uberjar as usual.
+        // JMH ships with the conflicting version 4.6. This prevents us from using jopt-simple in benchmarks (which should be ok) but allows
+        // us to invoke the JMH uberjar as usual.
         exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
     }
     compile "org.openjdk.jmh:jmh-core:$versions.jmh"
@@ -56,7 +55,10 @@ dependencies {
     runtime 'org.apache.commons:commons-math3:3.2'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked,-processing"
+// enable the JMH's BenchmarkProcessor to generate the final benchmark classes
+// needs to be added separately otherwise Gradle will quote it and javac will fail
+compileJava.options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 forbiddenApis {

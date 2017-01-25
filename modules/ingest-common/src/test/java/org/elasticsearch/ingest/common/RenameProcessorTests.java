@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,7 +45,7 @@ public class RenameProcessorTests extends ESTestCase {
         do {
             newFieldName = RandomDocumentPicks.randomFieldName(random());
         } while (RandomDocumentPicks.canAddField(newFieldName, ingestDocument) == false || newFieldName.equals(fieldName));
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName, newFieldName);
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName, newFieldName, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(newFieldName, Object.class), equalTo(fieldValue));
     }
@@ -62,7 +63,7 @@ public class RenameProcessorTests extends ESTestCase {
         document.put("one", one);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list.0", "item");
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list.0", "item", false);
         processor.execute(ingestDocument);
         Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(actualObject, instanceOf(List.class));
@@ -75,7 +76,7 @@ public class RenameProcessorTests extends ESTestCase {
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
-        processor = new RenameProcessor(randomAsciiOfLength(10), "list.0", "list.3");
+        processor = new RenameProcessor(randomAsciiOfLength(10), "list.0", "list.3", false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -90,7 +91,8 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName, RandomDocumentPicks.randomFieldName(random()));
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName,
+            RandomDocumentPicks.randomFieldName(random()), false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -99,11 +101,21 @@ public class RenameProcessorTests extends ESTestCase {
         }
     }
 
+    public void testRenameNonExistingFieldWithIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName,
+            RandomDocumentPicks.randomFieldName(random()), true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
     public void testRenameNewFieldAlreadyExists() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Processor processor = new RenameProcessor(randomAsciiOfLength(10), RandomDocumentPicks.randomExistingFieldName(
-                random(), ingestDocument), fieldName);
+                random(), ingestDocument), fieldName, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -117,7 +129,7 @@ public class RenameProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, null);
         String newFieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName, newFieldName);
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), fieldName, newFieldName, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(false));
         assertThat(ingestDocument.hasField(newFieldName), equalTo(true));
@@ -137,7 +149,7 @@ public class RenameProcessorTests extends ESTestCase {
         source.put("list", Collections.singletonList("item"));
 
         IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list", "new_field");
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list", "new_field", false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -161,7 +173,7 @@ public class RenameProcessorTests extends ESTestCase {
         source.put("list", Collections.singletonList("item"));
 
         IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list", "new_field");
+        Processor processor = new RenameProcessor(randomAsciiOfLength(10), "list", "new_field", false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -171,4 +183,27 @@ public class RenameProcessorTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }
+
+    public void testRenameLeafIntoBranch() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
+        Processor processor1 = new RenameProcessor(randomAsciiOfLength(10), "foo", "foo.bar", false);
+        processor1.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
+
+        Processor processor2 = new RenameProcessor(randomAsciiOfLength(10), "foo.bar", "foo.bar.baz", false);
+        processor2.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar",
+                Collections.singletonMap("baz", "bar"))));
+        assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Collections.singletonMap("baz", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
+
+        // for fun lets try to restore it (which don't allow today)
+        Processor processor3 = new RenameProcessor(randomAsciiOfLength(10), "foo.bar.baz", "foo", false);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor3.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [foo] already exists"));
+    }
+
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -30,19 +31,15 @@ import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
-/**
- *
- */
 public class RootObjectMapper extends ObjectMapper {
 
     public static class Defaults {
@@ -57,78 +54,43 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
 
-        protected final List<DynamicTemplate> dynamicTemplates = new ArrayList<>();
-
-        // we use this to filter out seen date formats, because we might get duplicates during merging
-        protected Set<String> seenDateFormats = new HashSet<>();
-        protected List<FormatDateTimeFormatter> dynamicDateTimeFormatters = new ArrayList<>();
-
-        protected boolean dateDetection = Defaults.DATE_DETECTION;
-        protected boolean numericDetection = Defaults.NUMERIC_DETECTION;
+        protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        protected Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
+        protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
+        protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
 
         public Builder(String name) {
             super(name);
             this.builder = this;
         }
 
-        public Builder noDynamicDateTimeFormatter() {
-            this.dynamicDateTimeFormatters = null;
-            return builder;
-        }
-
-        public Builder dynamicDateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
-            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                if (!seenDateFormats.contains(dateTimeFormatter.format())) {
-                    seenDateFormats.add(dateTimeFormatter.format());
-                    this.dynamicDateTimeFormatters.add(dateTimeFormatter);
-                }
-            }
-            return builder;
-        }
-
-        public Builder add(DynamicTemplate dynamicTemplate) {
-            this.dynamicTemplates.add(dynamicTemplate);
+        public Builder dynamicDateTimeFormatter(Collection<FormatDateTimeFormatter> dateTimeFormatters) {
+            this.dynamicDateTimeFormatters = new Explicit<>(dateTimeFormatters.toArray(new FormatDateTimeFormatter[0]), true);
             return this;
         }
 
-        public Builder add(DynamicTemplate... dynamicTemplate) {
-            for (DynamicTemplate template : dynamicTemplate) {
-                this.dynamicTemplates.add(template);
-            }
+        public Builder dynamicTemplates(Collection<DynamicTemplate> templates) {
+            this.dynamicTemplates = new Explicit<>(templates.toArray(new DynamicTemplate[0]), true);
             return this;
         }
-
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, Map<String, Mapper> mappers, @Nullable Settings settings) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+                Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
-            FormatDateTimeFormatter[] dates = null;
-            if (dynamicDateTimeFormatters == null) {
-                dates = new FormatDateTimeFormatter[0];
-            } else if (dynamicDateTimeFormatters.isEmpty()) {
-                // add the default one
-                dates = Defaults.DYNAMIC_DATE_TIME_FORMATTERS;
-            } else {
-                dates = dynamicDateTimeFormatters.toArray(new FormatDateTimeFormatter[dynamicDateTimeFormatters.size()]);
-            }
-            return new RootObjectMapper(name, enabled, dynamic, mappers,
-                    dates,
-                    dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
-                    dateDetection, numericDetection);
+            return new RootObjectMapper(name, enabled, dynamic, includeInAll, mappers,
+                    dynamicDateTimeFormatters,
+                    dynamicTemplates,
+                    dateDetection, numericDetection, settings);
         }
     }
 
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        protected ObjectMapper.Builder createBuilder(String name) {
-            return new Builder(name);
-        }
-
-        @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
 
-            ObjectMapper.Builder builder = createBuilder(name);
+            RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -142,26 +104,22 @@ public class RootObjectMapper extends ObjectMapper {
             return builder;
         }
 
-        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode,
+        protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
                 Version indexVersionCreated) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
-                List<FormatDateTimeFormatter> dateTimeFormatters = new ArrayList<>();
                 if (fieldNode instanceof List) {
-                    for (Object node1 : (List) fieldNode) {
-                        if (node1.toString().startsWith("epoch_")) {
-                            throw new MapperParsingException("Epoch ["+ node1.toString() +"] is not supported as dynamic date format");
+                    List<FormatDateTimeFormatter> formatters = new ArrayList<>();
+                    for (Object formatter : (List<?>) fieldNode) {
+                        if (formatter.toString().startsWith("epoch_")) {
+                            throw new MapperParsingException("Epoch ["+ formatter +"] is not supported as dynamic date format");
                         }
-                        dateTimeFormatters.add(parseDateTimeFormatter(node1));
+                        formatters.add(parseDateTimeFormatter(formatter));
                     }
+                    builder.dynamicDateTimeFormatter(formatters);
                 } else if ("none".equals(fieldNode.toString())) {
-                    dateTimeFormatters = null;
+                    builder.dynamicDateTimeFormatter(Collections.emptyList());
                 } else {
-                    dateTimeFormatters.add(parseDateTimeFormatter(fieldNode));
-                }
-                if (dateTimeFormatters == null) {
-                    ((Builder) builder).noDynamicDateTimeFormatter();
-                } else {
-                    ((Builder) builder).dynamicDateTimeFormatter(dateTimeFormatters);
+                    builder.dynamicDateTimeFormatter(Collections.singleton(parseDateTimeFormatter(fieldNode)));
                 }
                 return true;
             } else if (fieldName.equals("dynamic_templates")) {
@@ -174,7 +132,8 @@ public class RootObjectMapper extends ObjectMapper {
                 //          }
                 //      }
                 //  ]
-                List tmplNodes = (List) fieldNode;
+                List<?> tmplNodes = (List<?>) fieldNode;
+                List<DynamicTemplate> templates = new ArrayList<>();
                 for (Object tmplNode : tmplNodes) {
                     Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
                     if (tmpl.size() != 1) {
@@ -185,31 +144,31 @@ public class RootObjectMapper extends ObjectMapper {
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, indexVersionCreated);
                     if (template != null) {
-                        ((Builder) builder).add(template);
+                        templates.add(template);
                     }
                 }
+                builder.dynamicTemplates(templates);
                 return true;
             } else if (fieldName.equals("date_detection")) {
-                ((Builder) builder).dateDetection = lenientNodeBooleanValue(fieldNode);
+                builder.dateDetection = new Explicit<>(nodeBooleanValue(fieldNode, "date_detection"), true);
                 return true;
             } else if (fieldName.equals("numeric_detection")) {
-                ((Builder) builder).numericDetection = lenientNodeBooleanValue(fieldNode);
+                builder.numericDetection = new Explicit<>(nodeBooleanValue(fieldNode, "numeric_detection"), true);
                 return true;
             }
             return false;
         }
     }
 
-    private final FormatDateTimeFormatter[] dynamicDateTimeFormatters;
+    private Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters;
+    private Explicit<Boolean> dateDetection;
+    private Explicit<Boolean> numericDetection;
+    private Explicit<DynamicTemplate[]> dynamicTemplates;
 
-    private final boolean dateDetection;
-    private final boolean numericDetection;
-
-    private volatile DynamicTemplate dynamicTemplates[];
-
-    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
-        super(name, name, enabled, Nested.NO, dynamic, mappers);
+    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Boolean includeInAll, Map<String, Mapper> mappers,
+                     Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
+                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
+        super(name, name, enabled, Nested.NO, dynamic, includeInAll, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
@@ -219,21 +178,26 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
-        // dynamic templates are irrelevant for dynamic mappings updates
-        update.dynamicTemplates = new DynamicTemplate[0];
+        // for dynamic updates, no need to carry root-specific options, we just
+        // set everything to they implicit default value so that they are not
+        // applied at merge time
+        update.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        update.dynamicDateTimeFormatters = new Explicit<FormatDateTimeFormatter[]>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
+        update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
+        update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
         return update;
     }
 
     public boolean dateDetection() {
-        return this.dateDetection;
+        return this.dateDetection.value();
     }
 
     public boolean numericDetection() {
-        return this.numericDetection;
+        return this.numericDetection.value();
     }
 
     public FormatDateTimeFormatter[] dynamicDateTimeFormatters() {
-        return dynamicDateTimeFormatters;
+        return dynamicDateTimeFormatters.value();
     }
 
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
@@ -263,7 +227,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
         final String pathAsString = path.pathAsText(name);
-        for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
+        for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
             if (dynamicTemplate.match(pathAsString, name, matchType)) {
                 return dynamicTemplate;
             }
@@ -280,21 +244,18 @@ public class RootObjectMapper extends ObjectMapper {
     protected void doMerge(ObjectMapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
-        // merge them
-        List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
-        for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
-            boolean replaced = false;
-            for (int i = 0; i < mergedTemplates.size(); i++) {
-                if (mergedTemplates.get(i).name().equals(template.name())) {
-                    mergedTemplates.set(i, template);
-                    replaced = true;
-                }
-            }
-            if (!replaced) {
-                mergedTemplates.add(template);
-            }
+        if (mergeWithObject.numericDetection.explicit()) {
+            this.numericDetection = mergeWithObject.numericDetection;
         }
-        this.dynamicTemplates = mergedTemplates.toArray(new DynamicTemplate[mergedTemplates.size()]);
+        if (mergeWithObject.dateDetection.explicit()) {
+            this.dateDetection = mergeWithObject.dateDetection;
+        }
+        if (mergeWithObject.dynamicDateTimeFormatters.explicit()) {
+            this.dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
+        }
+        if (mergeWithObject.dynamicTemplates.explicit()) {
+            this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+        }
     }
 
     @Override
@@ -304,19 +265,19 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (dynamicDateTimeFormatters != Defaults.DYNAMIC_DATE_TIME_FORMATTERS) {
-            if (dynamicDateTimeFormatters.length > 0) {
-                builder.startArray("dynamic_date_formats");
-                for (FormatDateTimeFormatter dateTimeFormatter : dynamicDateTimeFormatters) {
-                    builder.value(dateTimeFormatter.format());
-                }
-                builder.endArray();
+        final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+        if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
+            builder.startArray("dynamic_date_formats");
+            for (FormatDateTimeFormatter dateTimeFormatter : dynamicDateTimeFormatters.value()) {
+                builder.value(dateTimeFormatter.format());
             }
+            builder.endArray();
         }
 
-        if (dynamicTemplates != null && dynamicTemplates.length > 0) {
+        if (dynamicTemplates.explicit() || includeDefaults) {
             builder.startArray("dynamic_templates");
-            for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
+            for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
                 builder.startObject();
                 builder.field(dynamicTemplate.name(), dynamicTemplate);
                 builder.endObject();
@@ -324,11 +285,11 @@ public class RootObjectMapper extends ObjectMapper {
             builder.endArray();
         }
 
-        if (dateDetection != Defaults.DATE_DETECTION) {
-            builder.field("date_detection", dateDetection);
+        if (dateDetection.explicit() || includeDefaults) {
+            builder.field("date_detection", dateDetection.value());
         }
-        if (numericDetection != Defaults.NUMERIC_DETECTION) {
-            builder.field("numeric_detection", numericDetection);
+        if (numericDetection.explicit() || includeDefaults) {
+            builder.field("numeric_detection", numericDetection.value());
         }
     }
 }

@@ -111,7 +111,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         case 6:
             Script collateQuery = builder.collateQuery();
             if (collateQuery != null) {
-                builder.collateQuery(randomValueOtherThan(collateQuery.getScript(), () -> randomAsciiOfLengthBetween(3, 20)));
+                builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAsciiOfLengthBetween(3, 20)));
             } else {
                 builder.collateQuery(randomAsciiOfLengthBetween(3, 20));
             }

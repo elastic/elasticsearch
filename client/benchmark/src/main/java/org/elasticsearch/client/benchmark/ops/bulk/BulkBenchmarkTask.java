@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.client.benchmark.ops.bulk;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.BufferedReader;
@@ -43,15 +43,18 @@ import java.util.concurrent.TimeUnit;
 public class BulkBenchmarkTask implements BenchmarkTask {
     private final BulkRequestExecutor requestExecutor;
     private final String indexFilePath;
-    private final int totalIterations;
+    private final int warmupIterations;
+    private final int measurementIterations;
     private final int bulkSize;
     private LoadGenerator generator;
     private ExecutorService executorService;
 
-    public BulkBenchmarkTask(BulkRequestExecutor requestExecutor, String indexFilePath, int totalIterations, int bulkSize) {
+    public BulkBenchmarkTask(BulkRequestExecutor requestExecutor, String indexFilePath, int warmupIterations, int measurementIterations,
+                             int bulkSize) {
         this.requestExecutor = requestExecutor;
         this.indexFilePath = indexFilePath;
-        this.totalIterations = totalIterations;
+        this.warmupIterations = warmupIterations;
+        this.measurementIterations = measurementIterations;
         this.bulkSize = bulkSize;
     }
 
@@ -60,7 +63,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
     public void setUp(SampleRecorder sampleRecorder) {
         BlockingQueue<List<String>> bulkQueue = new ArrayBlockingQueue<>(256);
 
-        BulkIndexer runner = new BulkIndexer(bulkQueue, totalIterations, sampleRecorder, requestExecutor);
+        BulkIndexer runner = new BulkIndexer(bulkQueue, warmupIterations, measurementIterations, sampleRecorder, requestExecutor);
 
         executorService = Executors.newSingleThreadExecutor((r) -> new Thread(r, "bulk-index-runner"));
         executorService.submit(runner);
@@ -132,24 +135,26 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
 
     private static final class BulkIndexer implements Runnable {
-        private static final ESLogger logger = ESLoggerFactory.getLogger(BulkIndexer.class.getName());
+        private static final Logger logger = ESLoggerFactory.getLogger(BulkIndexer.class.getName());
 
         private final BlockingQueue<List<String>> bulkData;
-        private final int totalIterations;
+        private final int warmupIterations;
+        private final int measurementIterations;
         private final BulkRequestExecutor bulkRequestExecutor;
         private final SampleRecorder sampleRecorder;
 
-        public BulkIndexer(BlockingQueue<List<String>> bulkData, int totalIterations, SampleRecorder sampleRecorder,
-                           BulkRequestExecutor bulkRequestExecutor) {
+        public BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
+                           SampleRecorder sampleRecorder, BulkRequestExecutor bulkRequestExecutor) {
             this.bulkData = bulkData;
-            this.totalIterations = totalIterations;
+            this.warmupIterations = warmupIterations;
+            this.measurementIterations = measurementIterations;
             this.bulkRequestExecutor = bulkRequestExecutor;
             this.sampleRecorder = sampleRecorder;
         }
 
         @Override
         public void run() {
-            for (int iteration = 0; iteration < totalIterations; iteration++) {
+            for (int iteration = 0; iteration < warmupIterations + measurementIterations; iteration++) {
                 boolean success = false;
                 List<String> currentBulk;
                 try {
@@ -158,8 +163,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                // Yes, this approach is prone to coordinated omission *but* we have to consider that we want to benchmark a closed system
-                // with backpressure here instead of an open system. So this is actually correct in this case.
+                //measure only service time, latency is not that interesting for a throughput benchmark
                 long start = System.nanoTime();
                 try {
                     success = bulkRequestExecutor.bulkIndex(currentBulk);
@@ -167,7 +171,9 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     logger.warn("Error while executing bulk request", ex);
                 }
                 long stop = System.nanoTime();
-                sampleRecorder.addSample(new Sample("bulk", start, stop, success));
+                if (iteration < warmupIterations) {
+                    sampleRecorder.addSample(new Sample("bulk", start, start, stop, success));
+                }
             }
         }
     }

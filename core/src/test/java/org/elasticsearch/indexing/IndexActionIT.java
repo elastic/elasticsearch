@@ -18,16 +18,28 @@
  */
 package org.elasticsearch.indexing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -36,18 +48,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class IndexActionIT extends ESIntegTestCase {
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
+
+    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard.IndexShard:TRACE,org.elasticsearch.action.search:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
@@ -57,7 +69,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
+                builders.add(client().prepareIndex("test", "type").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -65,7 +77,13 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                    SearchResponse response = client().prepareSearch("test").get();
+                    if (response.getHits().totalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().totalHits() + " but " + numOfDocs + " was expected. "
+                            + ElasticsearchAssertions.formatShardStatus(response);
+                        logger.error("{}. search response: \n{}", message, response);
+                        fail(message);
+                    }
                 } catch (Exception e) {
                     logger.error("search for all docs types failed", e);
                     if (firstError == null) {
@@ -74,7 +92,13 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
+                    SearchResponse response = client().prepareSearch("test").setTypes("type").get();
+                    if (response.getHits().totalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().totalHits() + " but " + numOfDocs + " was expected. "
+                            + ElasticsearchAssertions.formatShardStatus(response);
+                        logger.error("{}. search response: \n{}", message, response);
+                        fail(message);
+                    }
                 } catch (Exception e) {
                     logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {
@@ -227,4 +251,27 @@ public class IndexActionIT extends ESIntegTestCase {
         }
     }
 
+    public void testDocumentWithBlankFieldName() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+                client().prepareIndex("test", "type", "1").setSource("", "value1_2").execute().actionGet();
+            }
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getRootCause().getMessage(), containsString("name cannot be empty string"));
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class); // uses index.version.created
+    }
+
+    public void testDocumentWithBlankFieldName2x() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_4);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        assertAcked(prepareCreate("test1").setSettings(settings));
+        ensureGreen();
+
+        IndexResponse indexResponse = client().prepareIndex("test1", "type", "1").setSource("", "value1_2").execute().actionGet();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+    }
 }

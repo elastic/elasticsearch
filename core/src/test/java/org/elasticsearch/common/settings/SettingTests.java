@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -30,8 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -47,11 +51,11 @@ public class SettingTests extends ESTestCase {
             Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 1024);
+        assertEquals(byteSizeValue.getBytes(), 1024);
 
         byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 2048);
+        assertEquals(byteSizeValue.getBytes(), 2048);
 
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
@@ -66,6 +70,44 @@ public class SettingTests extends ESTestCase {
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
         assertEquals(new ByteSizeValue(12), value.get());
+    }
+
+    public void testMemorySize() {
+        Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic,
+                Property.NodeScope);
+
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), 1024);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), 2048);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", "50%", Property.Dynamic, Property.NodeScope);
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.5, 1.0);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "25%", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25, 1.0);
+
+        AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(value::set, logger);
+        try {
+            settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
+            fail("no unit");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
+                    ex.getMessage());
+        }
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue(12), value.get());
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -85,7 +127,7 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
                     ex.getMessage());
         }
     }
@@ -386,7 +428,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDynamicKeySetting() {
-        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", "false", Boolean::parseBoolean, Property.NodeScope);
+        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar"));
         assertFalse(setting.match("foo"));
@@ -402,13 +444,13 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testAdfixKeySetting() {
+    public void testAffixKeySetting() {
         Setting<Boolean> setting =
-            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
+            Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
-        assertTrue(setting.match("foo.bar.baz.enable"));
+        assertFalse(setting.match("foo.bar.baz.enable"));
         assertFalse(setting.match("foo.bar"));
         assertFalse(setting.match("foo.bar.baz.enabled"));
         assertFalse(setting.match("foo"));
@@ -416,12 +458,51 @@ public class SettingTests extends ESTestCase {
         assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
         assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
 
-        try {
-            setting.getConcreteSetting("foo");
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals("key [foo] must match [foo*enable.] but didn't.", ex.getMessage());
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
+        assertEquals("key [foo] must match [foo.*.enable] but didn't.", exc.getMessage());
+
+        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)));
+        assertEquals("prefix must end with a '.'", exc.getMessage());
+
+        Setting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+
+        assertTrue(listAffixSetting.hasComplexMatcher());
+        assertTrue(listAffixSetting.match("foo.test.bar"));
+        assertTrue(listAffixSetting.match("foo.test_1.bar"));
+        assertFalse(listAffixSetting.match("foo.buzz.baz.bar"));
+        assertFalse(listAffixSetting.match("foo.bar"));
+        assertFalse(listAffixSetting.match("foo.baz"));
+        assertFalse(listAffixSetting.match("foo"));
+    }
+
+    public void testGetAllConcreteSettings() {
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+
+        Settings settings = Settings.builder()
+            .putArray("foo.1.bar", "1", "2")
+            .putArray("foo.2.bar", "3", "4", "5")
+            .putArray("foo.bar", "6")
+            .putArray("some.other", "6")
+            .putArray("foo.3.bar", "6")
+            .build();
+        Stream<Setting<List<String>>> allConcreteSettings = listAffixSetting.getAllConcreteSettings(settings);
+        Map<String, List<String>> collect = allConcreteSettings.collect(Collectors.toMap(Setting::getKey, (s) -> s.get(settings)));
+        assertEquals(3, collect.size());
+        assertEquals(Arrays.asList("1", "2"), collect.get("foo.1.bar"));
+        assertEquals(Arrays.asList("3", "4", "5"), collect.get("foo.2.bar"));
+        assertEquals(Arrays.asList("6"), collect.get("foo.3.bar"));
+    }
+
+    public void testAffixSettingsFailOnGet() {
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope));
+        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
+        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.getRaw(Settings.EMPTY));
+        assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
+        assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
     }
 
     public void testMinMaxInt() {
@@ -478,4 +559,17 @@ public class SettingTests extends ESTestCase {
             assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
     }
+
+    public void testTimeValue() {
+        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+
+        Setting<TimeValue> setting = Setting.timeSetting("foo", random);
+        assertThat(setting.get(Settings.EMPTY), equalTo(random));
+
+        final int factor = randomIntBetween(1, 10);
+        setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
+        assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
+    }
+
 }

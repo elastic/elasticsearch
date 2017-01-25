@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class ArabicStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public ArabicStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

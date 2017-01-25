@@ -1,4 +1,5 @@
-rootProject.name = 'elasticsearch'
+String dirName = rootProject.projectDir.name
+rootProject.name = dirName
 
 List projects = [
   'build-tools',
@@ -6,9 +7,11 @@ List projects = [
   'core',
   'docs',
   'client:rest',
+  'client:rest-high-level',
   'client:sniffer',
   'client:transport',
   'client:test',
+  'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
@@ -23,10 +26,8 @@ List projects = [
   'modules:aggs-matrix-stats',
   'modules:ingest-common',
   'modules:lang-expression',
-  'modules:lang-groovy',
   'modules:lang-mustache',
   'modules:lang-painless',
-  'modules:transport-netty3',
   'modules:transport-netty4',
   'modules:reindex',
   'modules:percolator',
@@ -35,15 +36,14 @@ List projects = [
   'plugins:analysis-phonetic',
   'plugins:analysis-smartcn',
   'plugins:analysis-stempel',
+  'plugins:analysis-ukrainian',
   'plugins:discovery-azure-classic',
   'plugins:discovery-ec2',
+  'plugins:discovery-file',
   'plugins:discovery-gce',
   'plugins:ingest-geoip',
   'plugins:ingest-attachment',
   'plugins:ingest-user-agent',
-  'plugins:lang-javascript',
-  'plugins:lang-python',
-  'plugins:mapper-attachments',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',
@@ -54,13 +54,17 @@ List projects = [
   'plugins:store-smb',
   'qa:backwards-5.0',
   'qa:evil-tests',
+  'qa:no-bootstrap-tests',
+  'qa:rolling-upgrade',
+  'qa:multi-cluster-search',
   'qa:smoke-test-client',
+  'qa:smoke-test-http',
   'qa:smoke-test-ingest-with-all-dependencies',
   'qa:smoke-test-ingest-disabled',
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
   'qa:smoke-test-reindex-with-painless',
-  'qa:smoke-test-http',
+  'qa:smoke-test-tribe-node',
   'qa:vagrant',
 ]
 
@@ -85,7 +89,7 @@ if (isEclipse) {
 /**
   * Iterates over sub directories, looking for build.gradle, and adds a project if found
   * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hiearchy to have a build.gradle. Otherwise we would have to iterate
+  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
   * all files/directories in the source tree to find all projects.
   */
 void addSubProjects(String path, File dir) {
@@ -95,17 +99,18 @@ void addSubProjects(String path, File dir) {
 
   String projectName = "${path}:${dir.name}"
   include projectName
+  if (path.isEmpty()) {
+    project(projectName).projectDir = dir
+  }
   for (File subdir : dir.listFiles()) {
     addSubProjects(projectName, subdir)
   }
 }
 
 // look for extra plugins for elasticsearch
-File xplugins = new File(rootProject.projectDir.parentFile, 'x-plugins')
-if (xplugins.exists()) {
-  include ':x-plugins'
-  project(':x-plugins').projectDir = xplugins
-  for (File extraPluginDir : xplugins.listFiles()) {
-    addSubProjects(':x-plugins', extraPluginDir)
+File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+if (extraProjects.exists()) {
+  for (File extraProjectDir : extraProjects.listFiles()) {
+    addSubProjects('', extraProjectDir)
   }
 }

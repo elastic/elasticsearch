@@ -26,7 +26,7 @@
             index: test
             type: type1
             id: 1
-            fields: "_size"
+            stored_fields: "_size"
 
     - match: { _size: 13 }
 

@@ -24,9 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SnapshotFailedEngineException extends EngineException {
 
     public SnapshotFailedEngineException(ShardId shardId, Throwable cause) {

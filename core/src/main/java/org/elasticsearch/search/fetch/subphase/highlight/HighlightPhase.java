@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -89,8 +88,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
                     if (fieldMapper.fieldType().typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
-                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false &&
-                        fieldMapper.fieldType().typeName().equals(StringFieldMapper.CONTENT_TYPE) == false) {
+                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
                 }

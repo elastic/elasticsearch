@@ -33,9 +33,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public class LeafDocLookup implements Map {
 
     private final Map<String, ScriptDocValues> localCacheFieldData = new HashMap<>(4);

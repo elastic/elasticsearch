@@ -34,6 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DeleteByQueryBasicTests extends ReindexTestCase {
 
@@ -207,5 +208,28 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         }
 
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+    }
+
+    public void testWorkers() throws Exception {
+        indexRandom(true,
+                client().prepareIndex("test", "test", "1").setSource("foo", "a"),
+                client().prepareIndex("test", "test", "2").setSource("foo", "a"),
+                client().prepareIndex("test", "test", "3").setSource("foo", "b"),
+                client().prepareIndex("test", "test", "4").setSource("foo", "c"),
+                client().prepareIndex("test", "test", "5").setSource("foo", "d"),
+                client().prepareIndex("test", "test", "6").setSource("foo", "e"),
+                client().prepareIndex("test", "test", "7").setSource("foo", "f")
+        );
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
+
+        // Deletes the two docs that matches "foo:a"
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(5).get(),
+                matcher().deleted(2).slices(hasSize(5)));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
+
+        // Delete remaining docs
+        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").refresh(true).setSlices(5);
+        assertThat(request.get(), matcher().deleted(5).slices(hasSize(5)));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
     }
 }

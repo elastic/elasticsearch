@@ -31,7 +31,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("_uid");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean()));
+                () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null));
         assertEquals("Field [_uid] of type [_uid] does not support range queries", e.getMessage());
     }
 }

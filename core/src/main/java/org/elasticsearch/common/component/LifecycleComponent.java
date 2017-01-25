@@ -21,9 +21,6 @@ package org.elasticsearch.common.component;
 
 import org.elasticsearch.common.lease.Releasable;
 
-/**
- *
- */
 public interface LifecycleComponent extends Releasable {
 
     Lifecycle.State lifecycleState();

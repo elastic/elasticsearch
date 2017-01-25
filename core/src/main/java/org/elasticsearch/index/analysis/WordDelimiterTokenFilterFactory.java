@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -87,7 +87,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // If set, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
         flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings, "stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
-        Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
+        Set<?> protectedWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
     }
@@ -101,7 +101,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
-        if (settings.getAsBoolean(key, defaultValue)) {
+        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), key, defaultValue, deprecationLogger)) {
             return flag;
         }
         return 0;

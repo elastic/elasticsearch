@@ -20,6 +20,8 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -42,16 +43,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
@@ -97,10 +94,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
                           ThreadPool threadPool, GatewayMetaState metaState,
                           TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
-                          NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
+                          IndicesService indicesService) {
         super(settings);
         this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
-            nodeServicesProvider, indicesService);
+            indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -132,12 +129,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     protected void doStart() {
-        clusterService.addLast(this);
+        // use post applied so that the state will be visible to the background recovery thread we spawn in performStateRecovery
+        clusterService.addListener(this);
     }
 
     @Override
     protected void doStop() {
-        clusterService.remove(this);
+        clusterService.removeListener(this);
     }
 
     @Override
@@ -280,16 +278,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(
-                            ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                            "state recovered");
-
-                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                    updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+                    return allocationService.reroute(updatedState, "state recovered");
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("unexpected failure during [{}]", e, source);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
                 }
 

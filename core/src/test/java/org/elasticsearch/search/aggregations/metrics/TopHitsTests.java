@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -32,8 +32,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -58,13 +60,25 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         if (randomBoolean()) {
             factory.trackScores(randomBoolean());
         }
-        if (randomBoolean()) {
-            int fieldsSize = randomInt(25);
-            List<String> fields = new ArrayList<>(fieldsSize);
-            for (int i = 0; i < fieldsSize; i++) {
-                fields.add(randomAsciiOfLengthBetween(5, 50));
-            }
-            factory.fields(fields);
+        switch (randomInt(3)) {
+            case 0:
+                break;
+            case 1:
+                factory.storedField("_none_");
+                break;
+            case 2:
+                factory.storedFields(Collections.emptyList());
+                break;
+            case 3:
+                int fieldsSize = randomInt(25);
+                List<String> fields = new ArrayList<>(fieldsSize);
+                for (int i = 0; i < fieldsSize; i++) {
+                    fields.add(randomAsciiOfLengthBetween(5, 50));
+                }
+                factory.storedFields(fields);
+                break;
+            default:
+                throw new IllegalStateException();
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
@@ -94,26 +108,27 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                 excludes[i] = randomAsciiOfLengthBetween(5, 20);
             }
             switch (branch) {
-            case 0:
-                fetchSourceContext = new FetchSourceContext(randomBoolean());
-                break;
-            case 1:
-                fetchSourceContext = new FetchSourceContext(includes, excludes);
-                break;
-            case 2:
-                fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
-                break;
-            case 3:
-                fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                break;
-            case 4:
-                fetchSourceContext = new FetchSourceContext(includes);
-                break;
-            case 5:
-                fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20));
-                break;
-            default:
-                throw new IllegalStateException();
+                case 0:
+                    fetchSourceContext = new FetchSourceContext(randomBoolean());
+                    break;
+                case 1:
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+                    break;
+                case 2:
+                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAsciiOfLengthBetween(5, 20)},
+                        new String[]{randomAsciiOfLengthBetween(5, 20)});
+                    break;
+                case 3:
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+                    break;
+                case 4:
+                    fetchSourceContext = new FetchSourceContext(true, includes, null);
+                    break;
+                case 5:
+                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAsciiOfLengthBetween(5, 20)}, null);
+                    break;
+                default:
+                    throw new IllegalStateException();
             }
             factory.fetchSource(fetchSourceContext);
         }
@@ -171,15 +186,11 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             "      }\n" +
             "    }\n" +
             "}";
-        try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-            aggParsers.parseAggregators(parseContext);
-            fail();
-        } catch (AggregationInitializationException e) {
-            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+        QueryParseContext parseContext = new QueryParseContext(parser);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
     }
 
 }

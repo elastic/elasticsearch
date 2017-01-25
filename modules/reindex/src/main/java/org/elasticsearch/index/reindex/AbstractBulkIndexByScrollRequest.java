@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
@@ -34,11 +35,21 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
      */
     private Script script;
 
+    /**
+     * Constructor for deserialization.
+     */
     public AbstractBulkIndexByScrollRequest() {
     }
 
-    public AbstractBulkIndexByScrollRequest(SearchRequest source) {
-        super(source);
+    /**
+     * Constructor for actual use.
+     *
+     * @param searchRequest the search request to execute to get the documents to process
+     * @param setDefaults should this request set the defaults on the search request? Usually set to true but leave it false to support
+     *        request slicing
+     */
+    protected AbstractBulkIndexByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
+        super(searchRequest, setDefaults);
     }
 
     /**
@@ -54,6 +65,11 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     public Self setScript(@Nullable Script script) {
         this.script = script;
         return self();
+    }
+
+    @Override
+    protected Self doForSlice(Self request, TaskId slicingTask) {
+        return super.doForSlice(request, slicingTask).setScript(script);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.tasks;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -32,13 +33,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -46,6 +48,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -55,6 +58,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static java.util.Collections.emptyList;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -99,21 +104,56 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private NodeTasksResponse nodeOperation(NodeTaskRequest nodeTaskRequest) {
+    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
-        List<TaskResponse> results = new ArrayList<>();
-        List<TaskOperationFailure> exceptions = new ArrayList<>();
-        processTasks(request, task -> {
-            try {
-                TaskResponse response = taskOperation(request, task);
-                if (response != null) {
-                    results.add(response);
+        List<OperationTask> tasks = new ArrayList<>();
+        processTasks(request, tasks::add);
+        if (tasks.isEmpty()) {
+            listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));
+            return;
+        }
+        AtomicArray<Tuple<TaskResponse, Exception>> responses = new AtomicArray<>(tasks.size());
+        final AtomicInteger counter = new AtomicInteger(tasks.size());
+        for (int i = 0; i < tasks.size(); i++) {
+            final int taskIndex = i;
+            ActionListener<TaskResponse> taskListener = new ActionListener<TaskResponse>() {
+                @Override
+                public void onResponse(TaskResponse response) {
+                    responses.setOnce(taskIndex, response == null ? null : new Tuple<>(response, null));
+                    respondIfFinished();
                 }
-            } catch (Exception ex) {
-                exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), task.getId(), ex));
+
+                @Override
+                public void onFailure(Exception e) {
+                    responses.setOnce(taskIndex, new Tuple<>(null, e));
+                    respondIfFinished();
+                }
+
+                private void respondIfFinished() {
+                    if (counter.decrementAndGet() != 0) {
+                        return;
+                    }
+                    List<TaskResponse> results = new ArrayList<>();
+                    List<TaskOperationFailure> exceptions = new ArrayList<>();
+                    for (AtomicArray.Entry<Tuple<TaskResponse, Exception>> response : responses.asList()) {
+                        if (response.value.v1() == null) {
+                            assert response.value.v2() != null;
+                            exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(),
+                                    response.value.v2()));
+                        } else {
+                            assert response.value.v2() == null;
+                            results.add(response.value.v1());
+                        }
+                    }
+                    listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions));
+                }
+            };
+            try {
+                taskOperation(request, tasks.get(taskIndex), taskListener);
+            } catch (Exception e) {
+                taskListener.onFailure(e);
             }
-        });
-        return new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions);
+        }
     }
 
     protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
@@ -124,7 +164,7 @@ public abstract class TransportTasksAction<
         if (request.getTaskId().isSet()) {
             return new String[]{request.getTaskId().getNodeId()};
         } else {
-            return clusterState.nodes().resolveNodes(request.getNodesIds());
+            return clusterState.nodes().resolveNodes(request.getNodes());
         }
     }
 
@@ -177,7 +217,10 @@ public abstract class TransportTasksAction<
 
     protected abstract TaskResponse readTaskResponse(StreamInput in) throws IOException;
 
-    protected abstract TaskResponse taskOperation(TasksRequest request, OperationTask task);
+    /**
+     * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     */
+    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     protected boolean transportCompress() {
         return false;
@@ -235,7 +278,6 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
@@ -275,7 +317,9 @@ public abstract class TransportTasksAction<
 
         private void onFailure(int idx, String nodeId, Throwable t) {
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug("failed to execute on node [{}]", t, nodeId);
+                logger.debug(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
             if (accumulateExceptions()) {
                 responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
@@ -302,7 +346,27 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel) throws Exception {
-            channel.sendResponse(nodeOperation(request));
+            nodeOperation(request, new ActionListener<NodeTasksResponse>() {
+                @Override
+                public void onResponse(
+                        TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        e1.addSuppressed(e);
+                        logger.warn("Failed to send failure", e1);
+                    }
+                }
+            });
         }
     }
 

@@ -30,15 +30,18 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelProgressivePromise;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -185,12 +188,13 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool)) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                         (request, channel, context) -> {})) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, writeCapturingChannel);
+            Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
 
             // send a response
             Netty4HttpChannel channel =
@@ -212,6 +216,38 @@ public class Netty4HttpChannelTests extends ESTestCase {
         }
     }
 
+    public void testConnectionClose() throws Exception {
+        final Settings settings = Settings.builder().build();
+        try (Netty4HttpServerTransport httpServerTransport =
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                     (request, channel, context) -> {})) {
+            httpServerTransport.start();
+            final FullHttpRequest httpRequest;
+            final boolean close = randomBoolean();
+            if (randomBoolean()) {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+                if (close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+                }
+            } else {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_0, HttpMethod.GET, "/");
+                if (!close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                }
+            }
+            final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
+            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, embeddedChannel);
+
+            // send a response, the channel close status should match
+            assertTrue(embeddedChannel.isOpen());
+            final Netty4HttpChannel channel =
+                new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+            final TestResponse resp = new TestResponse();
+            channel.sendResponse(resp);
+            assertThat(embeddedChannel.isOpen(), equalTo(!close));
+        }
+    }
+
     private FullHttpResponse executeRequest(final Settings settings, final String host) {
         return executeRequest(settings, null, host);
     }
@@ -219,7 +255,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     private FullHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool)) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                         (request, channel, context) -> {})) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             if (originValue != null) {
@@ -227,7 +264,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             httpRequest.headers().add(HttpHeaderNames.HOST, host);
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, writeCapturingChannel);
+            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
 
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());

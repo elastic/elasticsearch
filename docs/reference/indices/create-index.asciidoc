@@ -14,15 +14,17 @@ associated with it.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/' -d '{
+PUT twitter
+{
     "settings" : {
         "index" : {
             "number_of_shards" : 3, <1>
             "number_of_replicas" : 2 <2>
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 <1> Default for `number_of_shards` is 5
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
@@ -33,27 +35,31 @@ index settings can also be defined with http://www.json.org[JSON]:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/' -d '{
+PUT twitter
+{
     "settings" : {
         "index" : {
             "number_of_shards" : 3,
             "number_of_replicas" : 2
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 or more simplified
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/' -d '{
+PUT twitter
+{
     "settings" : {
         "number_of_shards" : 3,
         "number_of_replicas" : 2
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [NOTE]
 You do not have to explicitly specify `index` section inside the
@@ -72,7 +78,8 @@ The create index API allows to provide a set of one or more mappings:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST localhost:9200/test -d '{
+PUT test
+{
     "settings" : {
         "number_of_shards" : 1
     },
@@ -83,8 +90,9 @@ curl -XPOST localhost:9200/test -d '{
             }
         }
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[create-index-aliases]]
@@ -94,7 +102,8 @@ The create index API allows also to provide a set of <<indices-aliases,aliases>>
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test -d '{
+PUT test
+{
     "aliases" : {
         "alias_1" : {},
         "alias_2" : {
@@ -104,24 +113,9 @@ curl -XPUT localhost:9200/test -d '{
             "routing" : "kimchy"
         }
     }
-}'
+}
 --------------------------------------------------
-
-[float]
-=== Creation Date
-
-When an index is created, a timestamp is stored in the index metadata for the creation date.  By 
-default this is automatically generated but it can also be specified using the 
-`creation_date` parameter on the create index API:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test -d '{
-    "creation_date" : 1407751337000 <1>
-}'
---------------------------------------------------
-
-<1> `creation_date` is set using epoch time in milliseconds.
+// CONSOLE
 
 [float]
 [[create-index-wait-for-active-shards]]
@@ -138,6 +132,7 @@ what happened:
     "shards_acknowledged": true
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 `acknowledged` indicates whether the index was successfully created in the cluster, while 
 `shards_acknowledged` indices whether the requisite number of shard copies were started for
@@ -156,19 +151,24 @@ the `wait_for_active_shards` value on all subsequent write operations):
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test -d '{
+PUT test
+{
     "settings": {
         "index.write.wait_for_active_shards": "2"
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:requires two nodes]
 
 or through the request parameter `wait_for_active_shards`:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test?wait_for_active_shards=2
+PUT test?wait_for_active_shards=2
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:requires two nodes]
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found 
 <<index-wait-for-active-shards,here>>.

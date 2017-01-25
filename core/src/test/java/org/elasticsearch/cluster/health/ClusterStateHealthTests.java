@@ -30,11 +30,14 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,7 +50,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,6 +70,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -91,7 +95,8 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool);
+        transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -112,7 +117,11 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthWaitsForClusterStateApplication() throws InterruptedException, ExecutionException {
         final CountDownLatch applyLatch = new CountDownLatch(1);
         final CountDownLatch listenerCalled = new CountDownLatch(1);
-        clusterService.add(event -> {
+
+        setState(clusterService, ClusterState.builder(clusterService.state())
+            .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null)).build());
+
+        clusterService.addStateApplier(event -> {
             listenerCalled.countDown();
             try {
                 applyLatch.await();
@@ -121,10 +130,12 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         });
 
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        logger.info("--> submit task to restore master");
+        clusterService.submitStateUpdateTask("restore master", new LocalClusterUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return ClusterState.builder(currentState).build();
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                return newState(ClusterState.builder(currentState).nodes(
+                    DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build());
             }
 
             @Override
@@ -137,12 +148,13 @@ public class ClusterStateHealthTests extends ESTestCase {
         listenerCalled.await();
 
         TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
-            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, NoopGatewayAllocator.INSTANCE);
+            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
-        action.execute(new ClusterHealthRequest(), listener);
+        action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);
 
         assertFalse(listener.isDone());
 
+        logger.info("--> realising task to restore master");
         applyLatch.countDown();
         listener.get();
     }
@@ -275,9 +287,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
             if (primaryInactiveDueToRecovery(indexName, clusterState)) {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+                assertThat("clusterState is:\n" + clusterState, health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
+                assertThat("clusterState is:\n" + clusterState, health.getStatus(), equalTo(ClusterHealthStatus.RED));
             }
         }
     }
@@ -330,7 +342,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             boolean atLeastOne = false;
             for (int i = 0; i < numberOfShards; i++) {
                 if (atLeastOne == false || randomBoolean()) {
-                    idxMetaWithAllocationIds.putActiveAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
+                    idxMetaWithAllocationIds.putInSyncAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
                     atLeastOne = true;
                 }
             }
@@ -351,7 +363,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                                                      final int numberOfReplicas,
                                                      final boolean withPrimaryAllocationFailures) {
         // generate random node ids
-        final List<String> nodeIds = new ArrayList<>();
+        final Set<String> nodeIds = new HashSet<>();
         final int numNodes = randomIntBetween(numberOfReplicas + 1, 10);
         for (int i = 0; i < numNodes; i++) {
             nodeIds.add(randomAsciiOfLength(8));
@@ -370,7 +382,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (final ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary()) {
                     newIndexRoutingTable.addShard(
-                        shardRouting.initialize(nodeIds.get(randomIntBetween(0, numNodes - 1)), null, shardRouting.getExpectedShardSize())
+                        shardRouting.initialize(randomFrom(nodeIds), null, shardRouting.getExpectedShardSize())
                     );
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
@@ -400,7 +412,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         IndexMetaData.Builder idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -447,7 +459,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -458,17 +470,15 @@ public class ClusterStateHealthTests extends ESTestCase {
         newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
         for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
             final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+            final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
+            Set<String> allocatedNodes = new HashSet<>();
+            allocatedNodes.add(primaryNodeId);
             for (final ShardRouting shardRouting : shardRoutingTable.getShards()) {
                 if (shardRouting.primary() == false) {
                     // give the replica a different node id than the primary
-                    final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-                    String replicaNodeId;
-                    do {
-                        replicaNodeId = nodeIds.get(randomIntBetween(0, numNodes - 1));
-                    } while (primaryNodeId.equals(replicaNodeId));
-                    newIndexRoutingTable.addShard(
-                        shardRouting.initialize(replicaNodeId, null, shardRouting.getExpectedShardSize())
-                    );
+                    String replicaNodeId = randomFrom(Sets.difference(nodeIds, allocatedNodes));
+                    newIndexRoutingTable.addShard(shardRouting.initialize(replicaNodeId, null, shardRouting.getExpectedShardSize()));
+                    allocatedNodes.add(replicaNodeId);
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
                 }
@@ -518,16 +528,22 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     // returns true if the inactive primaries in the index are only due to cluster recovery
-    // (not because of allocation failure or previously having allocation ids assigned)
+    // (not because of allocation of existing shard or previously having allocation ids assigned)
     private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState) {
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.routingTable().index(indexName).shards()) {
             final ShardRouting primaryShard = shardRouting.value.primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metaData().index(indexName).activeAllocationIds(shardRouting.key).isEmpty() == false) {
+                if (clusterState.metaData().index(indexName).inSyncAllocationIds(shardRouting.key).isEmpty() == false) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo() != null &&
-                        primaryShard.unassignedInfo().getReason() == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+                if (primaryShard.recoverySource() != null &&
+                    primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getNumFailedAllocations() > 0) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     return false;
                 }
             }

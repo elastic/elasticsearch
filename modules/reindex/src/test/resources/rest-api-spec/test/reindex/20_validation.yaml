@@ -114,42 +114,6 @@
           size: -4
 
 ---
-"can't set ttl":
-  - do:
-      index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /setting ttl on destination isn't supported. use scripts instead./
-      reindex:
-        body:
-          source:
-            index: test
-          dest:
-            index: dest
-            ttl: 3m
-
----
-"can't set timestamp":
-  - do:
-      index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /setting timestamp on destination isn't supported. use scripts instead./
-      reindex:
-        body:
-          source:
-            index: test
-          dest:
-            index: dest
-            timestamp: "123"
-
----
 "requests_per_second cannot be an empty string":
   - do:
       catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
@@ -277,5 +241,75 @@
               weird: stuff
               badkey: is bad
             index: test
+          dest:
+            index: dest
+
+---
+"broken socket timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              socket_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"broken connect timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              connect_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"junk in slices fails":
+  - do:
+      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      reindex:
+        slices: junk
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be at least 1/
+      reindex:
+        slices: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"_source:false is rejected":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /_source:false is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: source
+            _source: false
           dest:
             index: dest

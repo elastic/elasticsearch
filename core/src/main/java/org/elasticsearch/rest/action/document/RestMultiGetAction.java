@@ -20,18 +20,17 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -40,7 +39,6 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
     public RestMultiGetAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mget", this);
@@ -54,23 +52,27 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", multiGetRequest.realtime()));
-        multiGetRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
-
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +
+                "please use [stored_fields] to retrieve stored fields or _source filtering if the field is not stored");
+        }
         String[] sFields = null;
-        String sField = request.param("fields");
+        String sField = request.param("stored_fields");
         if (sField != null) {
             sFields = Strings.splitStringByCommaToArray(sField);
         }
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
-        multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
-                request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
+                request.param("routing"), parser, allowExplicitIndex);
+        }
 
-        client.multiGet(multiGetRequest, new RestToXContentListener<MultiGetResponse>(channel));
+        return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));
     }
 }

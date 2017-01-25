@@ -52,9 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testMultiFieldMultiFields() throws Exception {

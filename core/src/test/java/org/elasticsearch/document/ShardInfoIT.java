@@ -39,8 +39,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class ShardInfoIT extends ESIntegTestCase {
     private int numCopies;
     private int numNodes;
@@ -136,7 +134,7 @@ public class ShardInfoIT extends ESIntegTestCase {
                 assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx")
-                        .setWaitForRelocatingShards(0)
+                        .setWaitForNoRelocatingShards(true)
                         .get();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
 

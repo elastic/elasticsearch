@@ -23,9 +23,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 import java.util.Map;
 
-/**
- *
- */
 public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
@@ -116,7 +113,7 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     /**
      * Sets attributes that will include results
      */
-    public AnalyzeRequestBuilder setAttributes(String attributes){
+    public AnalyzeRequestBuilder setAttributes(String... attributes){
         request.attributes(attributes);
         return this;
     }

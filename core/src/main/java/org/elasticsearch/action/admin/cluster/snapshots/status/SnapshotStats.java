@@ -28,8 +28,6 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class SnapshotStats implements Streamable, ToXContent {
     private long startTime;
 

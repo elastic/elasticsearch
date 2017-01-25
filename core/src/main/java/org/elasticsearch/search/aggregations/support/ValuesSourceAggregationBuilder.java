@@ -18,62 +18,50 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, type, valuesSourceType, targetValueType);
+        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+            super(name, valuesSourceType, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, type, valuesSourceType, targetValueType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, valuesSourceType, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType()} to return true.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, type, valuesSourceType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, valuesSourceType);
         }
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
+                    + getType() + "] cannot accept sub-aggregations");
         }
     }
 
@@ -87,8 +75,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private DateTimeZone timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregationBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-        super(name, type);
+    protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
         }
@@ -99,9 +87,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
-        super(in, type);
+        super(in);
         assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
@@ -112,8 +100,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
      * {@link #serializeTargetValueType()} to return true.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-        super(in, type);
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+        super(in);
         assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
@@ -294,102 +282,21 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
         ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(AggregationContext context) {
-        ValuesSourceConfig<VS> config = config(context);
-        return config;
-    }
-
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
-
-    public ValuesSourceConfig<VS> config(AggregationContext context) {
-
+    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-
-        if (field == null) {
-            if (script == null) {
-                @SuppressWarnings("unchecked")
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSourceType.ANY);
-                config.format(resolveFormat(null, valueType));
-                return config;
-            }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == ValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
-            }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
-            config.missing(missing);
-            config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
-            config.script(createScript(script, context.searchContext()));
-            config.scriptValueType(valueType);
-            return config;
-        }
-
-        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
-        if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing(missing);
-            config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType));
-            config.unmapped(true);
-            if (valueType != null) {
-                // todo do we really need this for unmapped?
-                config.scriptValueType(valueType);
-            }
-            return config;
-        }
-
-        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
-
-        ValuesSourceConfig<VS> config;
-        if (valuesSourceType == ValuesSourceType.ANY) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            }
-        } else {
-            config = new ValuesSourceConfig(valuesSourceType);
-        }
-
-        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
-        config.missing(missing);
-        config.timezone(timeZone);
-        config.script(createScript(script, context.searchContext()));
-        config.format(fieldType.docValueFormat(format, timeZone));
-        return config;
+        return ValuesSourceConfig.resolve(context.getQueryShardContext(),
+                valueType, field, script, missing, timeZone, format);
     }
 
-    private SearchScript createScript(Script script, SearchContext context) {
-        return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
-    }
-
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
-        if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
-        }
-        DocValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
-            valueFormat = new DocValueFormat.Decimal(format);
-        }
-        return valueFormat;
-    }
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

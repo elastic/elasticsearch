@@ -22,6 +22,11 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskId;
+
+import java.io.IOException;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -39,7 +44,11 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     public UpdateByQueryRequest(SearchRequest search) {
-        super(search);
+        this(search, true);
+    }
+
+    private UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
+        super(search, setDefaults);
     }
 
     /**
@@ -59,6 +68,13 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     @Override
     protected UpdateByQueryRequest self() {
         return this;
+    }
+
+    @Override
+    UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask);
+        request.setPipeline(pipeline);
+        return request;
     }
 
     @Override
@@ -88,5 +104,17 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public IndicesOptions indicesOptions() {
         assert getSearchRequest() != null;
         return getSearchRequest().indicesOptions();
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        pipeline = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(pipeline);
     }
 }

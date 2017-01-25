@@ -15,10 +15,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install analysis-phonetic
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-phonetic/analysis-phonetic-{version}.zip.
 
 [[analysis-phonetic-remove]]
 [float]
@@ -30,7 +32,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove analysis-phonetic
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -81,7 +82,11 @@ PUT phonetic_sample
   }
 }
 
-POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
 --------------------------------------------------
 // CONSOLE
 

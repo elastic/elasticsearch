@@ -6,7 +6,7 @@ The delete API is very similar to the
 Java delete API, here is an
 example:
 
-[source,js]
+[source,groovy]
 --------------------------------------------------
 def deleteF = node.client.delete {
     index "test"

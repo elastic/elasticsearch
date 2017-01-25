@@ -115,6 +115,14 @@ final class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
+        int bytesAvailable = length - offset;
+        if (bytesAvailable < bytesToRead) {
+            throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
+        }
+    }
+
+    @Override
     public long skip(long n) throws IOException {
         final int skip = (int) Math.min(Integer.MAX_VALUE, n);
         final int numBytesSkipped =  Math.min(skip, length - offset);

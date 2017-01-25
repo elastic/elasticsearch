@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -28,11 +31,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -50,7 +52,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
-    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING =
+            Setting.memorySizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
     public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.min_index_buffer_size",
@@ -103,10 +106,10 @@ public class IndexingMemoryController extends AbstractComponent implements Index
             // We only apply the min/max when % value was used for the index buffer:
             ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
             ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
-            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
+            if (indexingBuffer.getBytes() < minIndexingBuffer.getBytes()) {
                 indexingBuffer = minIndexingBuffer;
             }
-            if (maxIndexingBuffer.bytes() != -1 && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
+            if (maxIndexingBuffer.getBytes() != -1 && indexingBuffer.getBytes() > maxIndexingBuffer.getBytes()) {
                 indexingBuffer = maxIndexingBuffer;
             }
         }
@@ -177,7 +180,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", e, shard.shardId());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
             }
         });
     }
@@ -185,11 +188,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     /** force checker to run now */
     void forceCheck() {
         statusChecker.run();
-    }
-
-    /** called by IndexShard to record that this many bytes were written to translog */
-    public void bytesWritten(int bytes) {
-        statusChecker.bytesWritten(bytes);
     }
 
     /** Asks this shard to throttle indexing to one thread */
@@ -203,17 +201,20 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index, boolean created) {
-        recordOperationBytes(index);
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        recordOperationBytes(index, result);
     }
 
     @Override
-    public void postDelete(Engine.Delete delete) {
-        recordOperationBytes(delete);
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+        recordOperationBytes(delete, result);
     }
 
-    private void recordOperationBytes(Engine.Operation op) {
-        bytesWritten(op.sizeInBytes());
+    /** called by IndexShard to record estimated bytes written to translog for the operation */
+    private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
+        if (result.hasFailure() == false) {
+            statusChecker.bytesWritten(operation.estimatedSizeInBytes());
+        }
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
@@ -242,13 +243,13 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;
-            while (totalBytes > indexingBuffer.bytes()/30) {
+            while (totalBytes > indexingBuffer.getBytes()/30) {
 
                 if (runLock.tryLock()) {
                     try {
                         // Must pull this again because it may have changed since we first checked:
                         totalBytes = bytesWrittenSinceCheck.get();
-                        if (totalBytes > indexingBuffer.bytes()/30) {
+                        if (totalBytes > indexingBuffer.getBytes()/30) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
                             // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
                             // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
@@ -317,9 +318,9 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:
-            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.bytes();
+            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.getBytes();
 
-            if (totalBytesUsed > indexingBuffer.bytes()) {
+            if (totalBytesUsed > indexingBuffer.getBytes()) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
 
@@ -354,7 +355,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                 logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
                              new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
-                while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
+                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
                     writeIndexingBufferAsync(largest.shard);
@@ -383,8 +384,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {
             shard.checkIdle(inactiveTimeNS);
-        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
-            logger.trace("ignore exception while checking if shard {} is inactive", e, shard.shardId());
+        } catch (AlreadyClosedException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }
 }

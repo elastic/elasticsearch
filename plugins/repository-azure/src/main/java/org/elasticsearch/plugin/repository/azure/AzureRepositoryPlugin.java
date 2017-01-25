@@ -19,22 +19,21 @@
 
 package org.elasticsearch.plugin.repository.azure;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.azure.AzureRepository;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
@@ -47,9 +46,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, env, createStorageService(env.settings())));
+            (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, createStorageService(env.settings())));
     }
 
     @Override

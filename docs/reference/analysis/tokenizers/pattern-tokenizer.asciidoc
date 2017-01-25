@@ -8,6 +8,20 @@ terms.
 The default pattern is `\W+`, which splits text whenever it encounters
 non-word characters.
 
+[WARNING]
+.Beware of Pathological Regular Expressions
+========================================
+
+The pattern tokenizer uses
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+
+A badly written regular expression could run very slowly or even throw a
+StackOverflowError and cause the node it is running on to exit suddenly.
+
+Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+
+========================================
+
 [float]
 === Example output
 

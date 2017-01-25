@@ -56,6 +56,21 @@ public class NetworkDisruptionTests extends ESTestCase {
         assertTrue(topology.getMajoritySide().size() >= topology.getMinoritySide().size());
     }
 
+    public void testIsolateAll() {
+        Set<String> nodes = generateRandomStringSet(1, 10);
+        NetworkDisruption.DisruptedLinks topology = new NetworkDisruption.IsolateAllNodes(nodes);
+        for (int i = 0; i < 10; i++) {
+            final String node1 = randomFrom(nodes);
+            final String node2 = randomFrom(nodes);
+            if (node1.equals(node2)) {
+                continue;
+            }
+            assertTrue(topology.nodes().contains(node1));
+            assertTrue(topology.nodes().contains(node2));
+            assertTrue(topology.disrupt(node1, node2));
+        }
+    }
+
     public void testBridge() {
         Set<String> partition1 = generateRandomStringSet(1, 10);
         Set<String> partition2 = generateRandomStringSet(1, 10);

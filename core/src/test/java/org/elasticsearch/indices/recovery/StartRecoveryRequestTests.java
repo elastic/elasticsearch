@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
@@ -36,17 +35,15 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class StartRecoveryRequestTests extends ESTestCase {
     public void testSerialization() throws Exception {
         Version targetNodeVersion = randomVersion(random());
         StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
-                new DiscoveryNode("a", new LocalTransportAddress("1"), emptyMap(), emptySet(), targetNodeVersion),
-                new DiscoveryNode("b", new LocalTransportAddress("1"), emptyMap(), emptySet(), targetNodeVersion),
+                new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 Store.MetadataSnapshot.EMPTY,
-                RecoveryState.Type.PRIMARY_RELOCATION,
+                randomBoolean(),
                 1L
         );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -65,7 +62,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
+        assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
     }
 
 }

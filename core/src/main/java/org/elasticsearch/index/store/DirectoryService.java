@@ -26,15 +26,11 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class DirectoryService extends AbstractIndexShardComponent {
 
     protected DirectoryService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
     }
-
-    public abstract long throttleTimeInNanos();
 
     public abstract Directory newDirectory() throws IOException;
 }

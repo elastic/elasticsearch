@@ -21,24 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
 import java.util.Base64;
 
-/**
- *
- */
 final class TransportSearchHelper {
-
-    static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request,
-                                                             String[] filteringAliases, long nowInMillis) {
-        return new ShardSearchTransportRequest(request, shardRouting, numberOfShards, filteringAliases, nowInMillis);
-    }
 
     static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
@@ -61,7 +51,7 @@ final class TransportSearchHelper {
             for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
                 SearchPhaseResult searchPhaseResult = entry.value;
                 out.writeLong(searchPhaseResult.id());
-                out.writeString(searchPhaseResult.shardTarget().nodeId());
+                out.writeString(searchPhaseResult.shardTarget().getNodeId());
             }
             byte[] bytes = new byte[(int) out.getFilePointer()];
             out.writeTo(bytes, 0);

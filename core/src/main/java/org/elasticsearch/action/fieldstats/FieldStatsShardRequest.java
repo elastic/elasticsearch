@@ -29,8 +29,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- */
 public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     private String[] fields;

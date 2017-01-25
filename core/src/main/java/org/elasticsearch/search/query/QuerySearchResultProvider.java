@@ -22,9 +22,6 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.transport.TransportResponse;
 
-/**
- *
- */
 public abstract class QuerySearchResultProvider extends TransportResponse implements SearchPhaseResult {
 
     /**

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -49,9 +50,7 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
 
     @Test
     public void testInstallPluginTwice() {
-
-        for (Class<? extends Plugin> plugin : Arrays.asList(ReindexPlugin.class, PercolatorPlugin.class,
-            MustachePlugin.class)) {
+        for (Class<? extends Plugin> plugin : Arrays.asList(ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class)) {
             try {
                 new PreBuiltTransportClient(Settings.EMPTY, plugin);
                 fail("exception expected");

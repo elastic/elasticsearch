@@ -20,12 +20,14 @@ package org.elasticsearch.client.benchmark.metrics;
 
 public final class Sample {
     private final String operation;
+    private final long expectedStartTimestamp;
     private final long startTimestamp;
     private final long stopTimestamp;
     private final boolean success;
 
-    public Sample(String operation, long startTimestamp, long stopTimestamp, boolean success) {
+    public Sample(String operation, long expectedStartTimestamp, long startTimestamp, long stopTimestamp, boolean success) {
         this.operation = operation;
+        this.expectedStartTimestamp = expectedStartTimestamp;
         this.startTimestamp = startTimestamp;
         this.stopTimestamp = stopTimestamp;
         this.success = success;
@@ -48,7 +50,10 @@ public final class Sample {
     }
 
     public long getServiceTime() {
-        // this is *not* latency, we're not including wait time in the queue (on purpose)
         return stopTimestamp - startTimestamp;
+    }
+
+    public long getLatency() {
+        return stopTimestamp - expectedStartTimestamp;
     }
 }

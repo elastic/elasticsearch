@@ -20,23 +20,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -73,21 +65,9 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
-    public void testFormatBackCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_source").field("format", "json").endObject()
-                .endObject().endObject().string();
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
-                .build();
-
-        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        parser.parse("type", new CompressedXContent(mapping)); // no exception
-    }
-
     public void testIncludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_source").field("includes", new String[]{"path1*"}).endObject()
+            .startObject("_source").array("includes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -99,7 +79,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
@@ -108,7 +88,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testExcludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_source").field("excludes", new String[]{"path1*"}).endObject()
+            .startObject("_source").array("excludes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -120,7 +100,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));

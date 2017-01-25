@@ -24,19 +24,17 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -45,8 +43,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
-
-    @Inject
     public RestClearIndicesCacheAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
@@ -57,12 +53,13 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
-        fromRequest(request, clearIndicesCacheRequest, parseFieldMatcher);
-        client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
+        fromRequest(request, clearIndicesCacheRequest);
+        return channel ->
+                client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -78,20 +75,22 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         return false;
     }
 
-    public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest,
-            ParseFieldMatcher parseFieldMatcher) {
+    public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (parseFieldMatcher.match(entry.getKey(), Fields.QUERY)) {
+            if (Fields.QUERY.match(entry.getKey())) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELD_DATA)) {
+            if (Fields.REQUEST_CACHE.match(entry.getKey())) {
+                clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
+            }
+            if (Fields.FIELD_DATA.match(entry.getKey())) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.RECYCLER)) {
+            if (Fields.RECYCLER.match(entry.getKey())) {
                 clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELDS)) {
+            if (Fields.FIELDS.match(entry.getKey())) {
                 clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
             }
         }
@@ -101,6 +100,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     public static class Fields {
         public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
+        public static final ParseField REQUEST_CACHE = new ParseField("request_cache");
         public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
         public static final ParseField RECYCLER = new ParseField("recycler");
         public static final ParseField FIELDS = new ParseField("fields");

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -49,9 +50,15 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     public DeleteByQueryRequest(SearchRequest search) {
-        super(search);
+        this(search, true);
+    }
+
+    private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
+        super(search, setDefaults);
         // Delete-By-Query does not require the source
-        search.source().fetchSource(false);
+        if (setDefaults) {
+            search.source().fetchSource(false);
+        }
     }
 
     @Override
@@ -69,6 +76,11 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
             e = addValidationError("source is missing", e);
         }
         return e;
+    }
+
+    @Override
+    DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask);
     }
 
     @Override

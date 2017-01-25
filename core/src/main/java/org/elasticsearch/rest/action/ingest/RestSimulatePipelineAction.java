@@ -21,19 +21,15 @@ package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
-public class RestSimulatePipelineAction extends BaseRestHandler {
+import java.io.IOException;
 
-    @Inject
+public class RestSimulatePipelineAction extends BaseRestHandler {
     public RestSimulatePipelineAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/{id}/_simulate", this);
@@ -43,10 +39,10 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(RestActions.getRestContent(restRequest));
+    public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        SimulatePipelineRequest request = new SimulatePipelineRequest(restRequest.contentOrSourceParam());
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
-        client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));
     }
 }

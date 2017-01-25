@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
@@ -38,17 +37,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.tasks.Task;
@@ -62,30 +56,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
 public class TransportValidateQueryAction extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
 
-    private final IndicesService indicesService;
-
-    private final ScriptService scriptService;
-
-    private final BigArrays bigArrays;
-
-    private final FetchPhase fetchPhase;
+    private final SearchService searchService;
 
     @Inject
     public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, IndicesService indicesService, ScriptService scriptService,
-            BigArrays bigArrays, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, FetchPhase fetchPhase) {
+            TransportService transportService, SearchService searchService, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
-        this.indicesService = indicesService;
-        this.scriptService = scriptService;
-        this.bigArrays = bigArrays;
-        this.fetchPhase = fetchPhase;
+        this.searchService = searchService;
     }
 
     @Override
@@ -96,8 +77,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterService.state(), shard.getIndexName(), request.indices());
-        return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterService.state(), shard.getIndexName(),
+            request.indices());
+        return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 
     @Override
@@ -160,30 +142,19 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().id());
-
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws IOException {
         boolean valid;
         String explanation = null;
         String error = null;
-        Engine.Searcher searcher = indexShard.acquireSearcher("validate_query");
-
-        DefaultSearchContext searchContext = new DefaultSearchContext(0,
-                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()), null, searcher,
-                indexService, indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(),
-                parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
-        SearchContext.setCurrent(searchContext);
+        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
+            request.nowInMillis(), request.filteringAliases());
+        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
         try {
-            searchContext.parsedQuery(searchContext.getQueryShardContext().toQuery(request.query()));
-            searchContext.preProcess();
-
+            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
+            searchContext.parsedQuery(parsedQuery);
+            searchContext.preProcess(request.rewrite());
             valid = true;
-            if (request.rewrite()) {
-                explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());
-            } else if (request.explain()) {
-                explanation = searchContext.filteredQuery().query().toString();
-            }
+            explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
@@ -191,19 +162,18 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             valid = false;
             error = e.getMessage();
         } finally {
-            searchContext.close();
-            SearchContext.removeCurrent();
+            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String getRewrittenQuery(IndexSearcher searcher, Query query) throws IOException {
-        Query queryRewrite = searcher.rewrite(query);
-        if (queryRewrite instanceof MatchNoDocsQuery) {
-            return query.toString();
+    private String explain(SearchContext context, boolean rewritten) throws IOException {
+        Query query = context.query();
+        if (rewritten && query instanceof MatchNoDocsQuery) {
+            return context.parsedQuery().query().toString();
         } else {
-            return queryRewrite.toString();
+            return query.toString();
         }
     }
 }

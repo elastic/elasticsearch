@@ -25,14 +25,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -46,6 +48,8 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -84,9 +88,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase()
 public class TopHitsIT extends ESIntegTestCase {
 
@@ -219,7 +220,7 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(
-                    client().prepareIndex("articles", "article").setCreate(true).setSource(builder)
+                    client().prepareIndex("articles", "article").setSource(builder)
             );
         }
 
@@ -580,9 +581,9 @@ public class TopHitsIT extends ESIntegTestCase {
                                         topHits("hits").size(1)
                                             .highlighter(new HighlightBuilder().field("text"))
                                             .explain(true)
-                                            .field("text")
+                                            .storedField("text")
                                             .fieldDataField("field1")
-                                            .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                            .scriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
                                 )
@@ -864,7 +865,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
-                                        .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("comments.message", null)
+                                        .scriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap())).fetchSource("comments.message", null)
                                         .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
@@ -955,5 +956,190 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
                 .get();
         assertNoFailures(response);
+    }
+
+    public void testNoStoredFields() throws Exception {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .setTypes("type")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").storedField("_none_")
+                )
+            )
+            .get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(10L));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10L));
+            assertThat(hits.getHits().length, equalTo(3));
+            for (SearchHit hit : hits) {
+                assertThat(hit.source(), nullValue());
+                assertThat(hit.id(), nullValue());
+                assertThat(hit.type(), nullValue());
+            }
+        }
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script field does not get cached
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").scriptField("bar",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script sort does not get cached
+        r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").sort(
+                        SortBuilders.scriptSort(
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+    }
+
+    public void testWithRescore() {
+        // Rescore with default sort on relevancy (score)
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits")
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(4.0f));
+                }
+            }
+        }
+
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").sort(SortBuilders.scoreSort())
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(4.0f));
+                }
+            }
+        }
+
+        // Rescore should not be applied if the sort order is not relevancy
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").sort(SortBuilders.fieldSort("_type"))
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(Float.NaN));
+                }
+            }
+        }
+
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type"))
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(Float.NaN));
+                }
+            }
+        }
     }
 }

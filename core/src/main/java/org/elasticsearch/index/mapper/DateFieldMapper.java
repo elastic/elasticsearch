@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -37,16 +37,14 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -55,21 +53,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
-
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class DateFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final FormatDateTimeFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
             "strict_date_optional_time||epoch_millis", Locale.ROOT);
 
+    public static class Defaults {
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+    }
+
     public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
 
         private Boolean ignoreMalformed;
         private Locale locale;
+        private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
@@ -97,8 +98,14 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             return Defaults.IGNORE_MALFORMED;
         }
 
+        /** Whether an explicit format for this date field has been set already. */
+        public boolean isDateTimeFormatterSet() {
+            return dateTimeFormatterSet;
+        }
+
         public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             fieldType().setDateTimeFormatter(dateTimeFormatter);
+            dateTimeFormatterSet = true;
             return this;
         }
 
@@ -119,9 +126,8 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            DateFieldMapper fieldMapper = new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (DateFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -132,9 +138,6 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                return new LegacyDateFieldMapper.TypeParser().parse(name, node, parserContext);
-            }
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -148,7 +151,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     builder.nullValue(propNode.toString());
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
@@ -165,69 +168,6 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     }
 
     public static final class DateFieldType extends MappedFieldType {
-
-        final class LateParsingQuery extends Query {
-
-            final Object lowerTerm;
-            final Object upperTerm;
-            final boolean includeLower;
-            final boolean includeUpper;
-            final DateTimeZone timeZone;
-            final DateMathParser forcedDateParser;
-
-            public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser forcedDateParser) {
-                this.lowerTerm = lowerTerm;
-                this.upperTerm = upperTerm;
-                this.includeLower = includeLower;
-                this.includeUpper = includeUpper;
-                this.timeZone = timeZone;
-                this.forcedDateParser = forcedDateParser;
-            }
-
-            @Override
-            public Query rewrite(IndexReader reader) throws IOException {
-                Query rewritten = super.rewrite(reader);
-                if (rewritten != this) {
-                    return rewritten;
-                }
-                return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
-            }
-
-            // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (sameClassAs(o) == false) return false;
-
-                LateParsingQuery that = (LateParsingQuery) o;
-                if (includeLower != that.includeLower) return false;
-                if (includeUpper != that.includeUpper) return false;
-                if (lowerTerm != null ? !lowerTerm.equals(that.lowerTerm) : that.lowerTerm != null) return false;
-                if (upperTerm != null ? !upperTerm.equals(that.upperTerm) : that.upperTerm != null) return false;
-                if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) return false;
-
-                return true;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(classHash(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
-            }
-
-            @Override
-            public String toString(String s) {
-                final StringBuilder sb = new StringBuilder();
-                return sb.append(name()).append(':')
-                    .append(includeLower ? '[' : '{')
-                    .append((lowerTerm == null) ? "*" : lowerTerm.toString())
-                    .append(" TO ")
-                    .append((upperTerm == null) ? "*" : upperTerm.toString())
-                    .append(includeUpper ? ']' : '}')
-                    .toString();
-            }
-        }
-
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
@@ -303,7 +243,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = innerRangeQuery(value, value, true, true, null, null);
+            Query query = innerRangeQuery(value, value, true, true, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -311,19 +251,19 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
-            return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
+            return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
@@ -332,7 +272,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser);
+                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, context);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -340,7 +280,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser);
+                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, context);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -349,7 +289,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -361,28 +301,23 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, now(), roundUp, zone);
-        }
-
-        private static Callable<Long> now() {
-            return () -> {
-                final SearchContext context = SearchContext.current();
-                return context != null
-                        ? context.nowInMillis()
-                        : System.currentTimeMillis();
-            };
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
         }
 
         @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = XPointValues.size(reader, field);
-            if (size == 0) {
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
                 return null;
             }
-            int docCount = XPointValues.getDocCount(reader, field);
-            byte[] min = XPointValues.getMinPackedValue(reader, field);
-            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            long size = PointValues.size(reader, field);
+            if (size == 0) {
+                return new FieldStats.Date(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
+            }
+            int docCount = PointValues.getDocCount(reader, field);
+            byte[] min = PointValues.getMinPackedValue(reader, field);
+            byte[] max = PointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
                 isSearchable(), isAggregatable(),
                 dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
@@ -390,24 +325,15 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
-                Object from, Object to,
-                boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser) throws IOException {
+                Object from, Object to, boolean includeLower, boolean includeUpper,
+                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
 
-            if (XPointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(XPointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(XPointValues.getMaxPackedValue(reader, name()), 0);
-
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser);
+                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -418,7 +344,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser);
+                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -426,6 +352,17 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     --toInclusive;
                 }
             }
+
+            // This check needs to be done after fromInclusive and toInclusive
+            // are resolved so we can throw an exception if they are invalid
+            // even if there are no points in the shard
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;
@@ -443,7 +380,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;
@@ -473,11 +410,13 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -496,40 +435,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     }
 
     @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            DateFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            DateFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            DateFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();

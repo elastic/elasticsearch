@@ -55,7 +55,7 @@ public class RoutingBackwardCompatibilityTests extends ESTestCase {
 
                 OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-                for (Version version : VersionUtils.allVersions()) {
+                for (Version version : VersionUtils.allReleasedVersions()) {
                     if (version.onOrAfter(Version.V_2_0_0) == false) {
                         // unsupported version, no need to test
                         continue;

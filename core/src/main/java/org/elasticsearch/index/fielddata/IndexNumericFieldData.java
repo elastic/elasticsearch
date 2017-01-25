@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-/**
- */
 public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericFieldData> {
 
     public static enum NumericType {

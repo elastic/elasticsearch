@@ -34,9 +34,6 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class DfsSearchResult extends TransportResponse implements SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];

@@ -109,3 +109,24 @@
         body:
           query:
             match_all: {}
+
+---
+"junk in slices fails":
+  - do:
+      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      delete_by_query:
+        slices: junk
+        index: test
+        body:
+          query:
+            match_all: {}
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be at least 1/
+      delete_by_query:
+        slices: 0
+        index: test
+        body:
+          query:
+            match_all: {}

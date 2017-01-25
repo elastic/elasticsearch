@@ -1,12 +1,12 @@
 [[heap-size]]
 === Set JVM heap size via jvm.options
 
-In development mode, Elasticsearch tells the JVM to use a heap with a minimum
-size of 256 MB and a maximum size of 1 GB. When moving to production, it is
+By default, Elasticsearch tells the JVM to use a heap with a minimum
+and maximum size of 2 GB. When moving to production, it is
 important to configure heap size to ensure that Elasticsearch has enough
 heap available.
 
-Elasticsearch will assign the entire heap specified in <<sysconfig,es-java-opts>>
+Elasticsearch will assign the entire heap specified in <<jvm-options,jvm.options>>
 via the Xms (minimum heap size) and Xmx (maximum heap size) settings.
 
 The value for these setting depends on the amount of RAM available on
@@ -48,8 +48,8 @@ Here are examples of how to set the heap size via the jvm.options file:
 
 [source,txt]
 ------------------
-Xms2g <1>
-Xmx2g <2>
+-Xms2g <1>
+-Xmx2g <2>
 ------------------
 <1> Set the minimum heap size to 2g.
 <2> Set the maximum heap size to 2g.
@@ -67,7 +67,7 @@ ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
 <2> Set the minimum and maximum heap size to 4000 MB.
 
 NOTE: Configuring the heap for the <<windows-service,Windows service>>
-is different than the above. The values initiallly populated for the
+is different than the above. The values initially populated for the
 Windows service can be configured as above but are different after the
 service has been installed. Consult the
 <<windows-service,Windows service documentation>> for additional

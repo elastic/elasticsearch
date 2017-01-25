@@ -19,8 +19,20 @@
 
 lexer grammar PainlessLexer;
 
-@header {
-import org.elasticsearch.painless.Definition;
+@members{
+/**
+ * Check against the current whitelist to determine whether a token is a type
+ * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
+ * See also
+ * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
+ */
+protected abstract boolean isSimpleType(String name);
+
+/**
+ * Is the preceding {@code /} a the beginning of a regex (true) or a division
+ * (false).
+ */
+protected abstract boolean slashIsRegex();
 }
 
 WS: [ \t\n\r]+ -> skip;
@@ -36,7 +48,8 @@ RP:        ')';
 // between shortcuts and decimal values.  Without the mode switch
 // shortcuts such as id.0.0 will fail because 0.0 will be interpreted
 // as a decimal value instead of two individual list-style shortcuts.
-DOT:       '.' -> mode(AFTER_DOT);
+DOT:       '.'  -> mode(AFTER_DOT);
+NSDOT:     '?.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
@@ -58,7 +71,7 @@ INSTANCEOF: 'instanceof';
 BOOLNOT: '!';
 BWNOT:   '~';
 MUL:     '*';
-DIV:     '/' { false == SlashStrategy.slashIsRegex(this) }?;
+DIV:     '/' { false == slashIsRegex() }?;
 REM:     '%';
 ADD:     '+';
 SUB:     '-';
@@ -80,6 +93,7 @@ BOOLAND: '&&';
 BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
+ELVIS:   '?:';
 REF:     '::';
 ARROW:   '->';
 FIND:    '=~';
@@ -103,10 +117,10 @@ AUSH:   '>>>=';
 OCTAL: '0' [0-7]+ [lL]?;
 HEX: '0' [xX] [0-9a-fA-F]+ [lL]?;
 INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
-DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fF]?;
+DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
 
-STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
-REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { SlashStrategy.slashIsRegex(this) }?;
+STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
+REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { slashIsRegex() }?;
 
 TRUE:  'true';
 FALSE: 'false';
@@ -119,7 +133,7 @@ NULL: 'null';
 // or not.  Note this works by processing one character at a time
 // and the rule is added or removed as this happens.  This is also known
 // as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
-TYPE: ID ( DOT ID )* { Definition.isSimpleType(getText()) }?;
+TYPE: ID ( DOT ID )* { isSimpleType(getText()) }?;
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;

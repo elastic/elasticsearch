@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -86,13 +87,17 @@ final class RemoteRequestBuilders {
                 for (int i = 1; i < searchRequest.source().sorts().size(); i++) {
                     sorts.append(',').append(sortToUri(searchRequest.source().sorts().get(i)));
                 }
-                params.put("sorts", sorts.toString());
+                params.put("sort", sorts.toString());
             }
         }
-        if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().isEmpty()) {
-            StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().get(0));
-            for (int i = 1; i < searchRequest.source().storedFields().size(); i++) {
-                fields.append(',').append(searchRequest.source().storedFields().get(i));
+        if (remoteVersion.before(Version.V_2_0_0)) {
+            // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
+            searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
+        }
+        if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {
+            StringBuilder fields = new StringBuilder(searchRequest.source().storedFields().fieldNames().get(0));
+            for (int i = 1; i < searchRequest.source().storedFields().fieldNames().size(); i++) {
+                fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
             String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
             params.put(storedFieldsParamName, fields.toString());
@@ -100,20 +105,27 @@ final class RemoteRequestBuilders {
         return params;
     }
 
-    static HttpEntity initialSearchEntity(BytesReference query) {
-        try (XContentBuilder entity = JsonXContent.contentBuilder(); XContentParser queryParser = XContentHelper.createParser(query)) {
+    static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query) {
+        // EMPTY is safe here because we're not calling namedObject
+        try (XContentBuilder entity = JsonXContent.contentBuilder();
+                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
             entity.startObject();
-            entity.field("query");
-            /*
-             * We're intentionally a bit paranoid here - copying the query as xcontent rather than writing a raw field. We don't want poorly
-             * written queries to escape. Ever.
-             */
-            entity.copyCurrentStructure(queryParser);
-            XContentParser.Token shouldBeEof = queryParser.nextToken();
-            if (shouldBeEof != null) {
-                throw new ElasticsearchException(
-                        "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+
+            entity.field("query"); {
+                /* We're intentionally a bit paranoid here - copying the query as xcontent rather than writing a raw field. We don't want
+                 * poorly written queries to escape. Ever. */
+                entity.copyCurrentStructure(queryParser);
+                XContentParser.Token shouldBeEof = queryParser.nextToken();
+                if (shouldBeEof != null) {
+                    throw new ElasticsearchException(
+                            "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+                }
             }
+
+            if (searchRequest.source().fetchSource() != null) {
+                entity.field("_source", searchRequest.source().fetchSource());
+            }
+
             entity.endObject();
             BytesRef bytes = entity.bytes().toBytesRef();
             return new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON);

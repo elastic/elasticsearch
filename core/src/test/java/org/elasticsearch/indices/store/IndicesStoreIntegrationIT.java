@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -45,7 +44,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoverySource;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,7 +55,6 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -74,9 +72,6 @@ import static java.lang.Thread.sleep;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Override
@@ -125,7 +120,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -158,7 +153,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
         }
         clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -201,13 +196,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
         transportServiceNode_1.addDelegate(transportServiceNode_2, new MockTransportService.DelegateTransport(transportServiceNode_1.original()) {
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
                 if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
                     shardActiveRequestSent.countDown();
                     logger.info("prevent shard active request from being sent");
-                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
                 }
-                super.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             }
         });
 
@@ -215,7 +210,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logClusterState();
@@ -255,7 +250,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("3")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -270,7 +265,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForGreenStatus()
                 .setWaitForNodes("2")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
@@ -295,17 +290,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        InternalTestCluster.Async<String> masterFuture = internalCluster().startNodeAsync(
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), true, Node.NODE_DATA_SETTING.getKey(), false).build());
-        InternalTestCluster.Async<List<String>> nodesFutures = internalCluster().startNodesAsync(4,
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false, Node.NODE_DATA_SETTING.getKey(), true).build());
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
-        final String masterNode = masterFuture.get();
-        final String node1 = nodesFutures.get().get(0);
-        final String node2 = nodesFutures.get().get(1);
-        final String node3 = nodesFutures.get().get(2);
+        final String node1 = nodes.get(0);
+        final String node2 = nodes.get(1);
+        final String node3 = nodes.get(2);
         // we will use this later on, handy to start now to make sure it has a different data folder that node 1,2 &3
-        final String node4 = nodesFutures.get().get(3);
+        final String node4 = nodes.get(3);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(indexSettings())
@@ -313,7 +305,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
 
         // disable allocation to control the situation more easily
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -359,8 +351,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         logger.debug("--> starting the two old nodes back");
 
-        internalCluster().startNodesAsync(2,
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false, Node.NODE_DATA_SETTING.getKey(), true).build());
+        internalCluster().startDataOnlyNodes(2);
 
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("5").get().isTimedOut());
 
@@ -375,7 +366,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElseWhere() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(2).get();
+        List<String> nodes = internalCluster().startNodes(2);
 
         final String masterNode = internalCluster().getMasterName();
         final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);
@@ -404,9 +395,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
-        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
@@ -415,14 +406,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                                     .build()
                     );
                 }
-                return ClusterState.builder(currentState)
+                return newState(ClusterState.builder(currentState)
                         .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
-                        .build();
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                        .build());
             }
 
             @Override
@@ -474,11 +460,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
      * the ShardActiveRequest.
      */
     public static class ReclocationStartEndTracer extends MockTransportService.Tracer {
-        private final ESLogger logger;
+        private final Logger logger;
         private final CountDownLatch beginRelocationLatch;
         private final CountDownLatch receivedShardExistsRequestLatch;
 
-        public ReclocationStartEndTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
+        public ReclocationStartEndTracer(Logger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
             this.logger = logger;
             this.beginRelocationLatch = beginRelocationLatch;
             this.receivedShardExistsRequestLatch = receivedShardExistsRequestLatch;
@@ -486,17 +472,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         @Override
         public void receivedRequest(long requestId, String action) {
-            if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
+                logger.info("received: {}, relocation starts", action);
+                beginRelocationLatch.countDown();
+            } else if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
                 receivedShardExistsRequestLatch.countDown();
                 logger.info("received: {}, relocation done", action);
-            }
-        }
-
-        @Override
-        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            if (action.equals(RecoverySource.Actions.START_RECOVERY)) {
-                logger.info("sent: {}, relocation starts", action);
-                beginRelocationLatch.countDown();
             }
         }
     }

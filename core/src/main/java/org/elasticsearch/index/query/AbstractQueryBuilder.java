@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -299,5 +300,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
                     + processedFieldName + "] and [" + currentFieldName + "]");
         }
+    }
+
+    /**
+     * Adds {@code boost} and {@code query_name} parsing to the
+     * {@link AbstractObjectParser} passed in. All query builders except
+     * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
+     * should use this method.
+     */
+    protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
+        parser.declareFloat((builder, value) -> builder.boost(value), AbstractQueryBuilder.BOOST_FIELD);
+        parser.declareString((builder, value) -> builder.queryName(value), AbstractQueryBuilder.NAME_FIELD);
     }
 }

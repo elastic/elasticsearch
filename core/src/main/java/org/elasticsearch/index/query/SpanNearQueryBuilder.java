@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Matches spans which are near one another. One can specify slop, the maximum number
@@ -48,7 +47,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     public static boolean DEFAULT_IN_ORDER = true;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
-    private static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads").withAllDeprecated("no longer supported");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     private static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
 
@@ -145,7 +143,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endObject();
     }
 
-    public static Optional<SpanNearQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -161,27 +159,25 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
+                if (CLAUSES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
-                        if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
+                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                        if (query instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query.get());
+                        clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
+                if (IN_ORDER_FIELD.match(currentFieldName)) {
                     inOrder = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
-                    // Deprecated in 3.0.0
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
+                } else if (SLOP_FIELD.match(currentFieldName)) {
                     slop = parser.intValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
@@ -206,7 +202,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         queryBuilder.inOrder(inOrder);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
-        return Optional.of(queryBuilder);
+        return queryBuilder;
     }
 
     @Override

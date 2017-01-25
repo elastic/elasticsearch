@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public UpperCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

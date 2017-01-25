@@ -44,7 +44,7 @@
       warnings:
           - '[template] query is deprecated, use search template api instead'
       search:
-        body: { "query": { "template": { "id": "1", "params": { "my_value": "value1" } } } }
+        body: { "query": { "template": { "stored": "1", "params": { "my_value": "value1" } } } }
 
   - match: { hits.total: 1 }
 
@@ -52,7 +52,7 @@
       warnings:
           - '[template] query is deprecated, use search template api instead'
       search:
-        body: { "query": { "template": { "id": "/mustache/1", "params": { "my_value": "value1" } } } }
+        body: { "query": { "template": { "stored": "/mustache/1", "params": { "my_value": "value1" } } } }
 
   - match: { hits.total: 1 }
 

@@ -33,7 +33,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
@@ -48,7 +47,7 @@ import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -57,7 +56,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -110,7 +108,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     public void testCannotCreateWithBadPath() throws Exception {
         Settings nodeSettings = nodeSettings("/badpath");
-        internalCluster().startNodesAsync(1, nodeSettings).get();
+        internalCluster().startNodes(1, nodeSettings);
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_DATA_PATH, "/etc/foo")
@@ -132,7 +130,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
@@ -142,7 +140,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("foo", "doc", ""+i).setSource("foo", "bar").get();
         }
-        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
+        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder()
@@ -184,12 +182,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
-    @TestLogging("gateway:TRACE")
+    @TestLogging("org.elasticsearch.gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -227,10 +225,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(true).setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(true).setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         flushAndRefresh(IDX);
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "bar").get();
@@ -238,10 +236,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         refresh();
 
         // Check that we can get doc 1 and 2 without realtime
-        gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(false).setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(false).setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(false).get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(false).get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         logger.info("--> restarting all nodes");
         if (randomBoolean()) {
@@ -283,42 +281,43 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
-        String node2 = internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
         client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         flushAndRefresh(IDX);
 
         logger.info("--> stopping node1 [{}]", node1);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        ensureClusterSizeConsistency(); // wait for the new node to be elected and process the node leave
         ensureYellow(IDX);
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
 
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foobar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "foobar").get();
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("foobar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("foobar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("foobar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("foobar"));
     }
 
     public void testPrimaryRelocation() throws Exception {
@@ -340,12 +339,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -359,25 +358,28 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(build).execute().actionGet();
 
         ensureGreen(IDX);
+        // check if primary has relocated to node3
+        assertEquals(internalCluster().clusterService(node3).localNode().getId(),
+            client().admin().cluster().prepareState().get().getState().routingTable().index(IDX).shard(0).primaryShard().currentNodeId());
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
 
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "bar").get();
-        gResp1 = client().prepareGet(IDX, "doc", "3").setPreference("_primary").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "4").setPreference("_primary").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "3").setPreference("_primary").get();
+        gResp2 = client().prepareGet(IDX, "doc", "4").setPreference("_primary").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
     }
 
     public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
@@ -492,14 +494,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                     @Override
-                    public void sendRequest(DiscoveryNode node, long requestId, String action,
-                                            TransportRequest request, TransportRequestOptions options)
-                            throws IOException, TransportException {
-                        if (keepFailing.get() && action.equals(RecoveryTargetService.Actions.TRANSLOG_OPS)) {
+                    protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                               TransportRequestOptions options) throws IOException {
+                        if (keepFailing.get() && action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
-                        super.sendRequest(node, requestId, action, request, options);
+                        super.sendRequest(connection, requestId, action, request, options);
                     }
                 });
 
@@ -551,7 +552,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         final int nodeCount = randomIntBetween(2, 5);
         logger.info("--> starting {} nodes", nodeCount);
-        final List<String> nodes = internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(nodeCount, nodeSettings);
         final String IDX = "test";
         final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(nodeCount);
         final int numPrimaries = numPrimariesAndReplicas.v1();
@@ -573,10 +574,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         flushAndRefresh(IDX);
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
@@ -594,11 +595,17 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      * Tests that shadow replicas can be "naturally" rebalanced and relocated
      * around the cluster. By "naturally" I mean without using the reroute API
      */
+    // This test failed on CI when trying to assert that all the shard data has been deleted
+    // from the index path. It has not been reproduced locally. Despite the IndicesService
+    // deleting the index and hence, deleting all the shard data for the index, the test
+    // failure still showed some Lucene files in the data directory for that index. Not sure
+    // why that is, so turning on more logging here.
+    @TestLogging("org.elasticsearch.indices:TRACE,org.elasticsearch.env:TRACE,_root:DEBUG")
     public void testShadowReplicaNaturalRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        final List<String> nodes = internalCluster().startNodesAsync(2, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(2, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -654,7 +661,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -724,10 +731,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings fooSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "foo").build();
         Settings barSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "bar").build();
 
-        final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
-        final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
-        fooNodes.get();
-        barNodes.get();
+        List<String> allNodes = internalCluster().startNodes(fooSettings, fooSettings, barSettings, barSettings);
+        List<String> fooNodes = allNodes.subList(0, 2);
+        List<String> barNodes = allNodes.subList(2, 4);
         String IDX = "test";
 
         Settings includeFoo = Settings.builder()
@@ -761,27 +767,27 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeBar).get();
 
         // wait for the shards to move from "foo" nodes to "bar" nodes
-        assertNoShardsOn(fooNodes.get());
+        assertNoShardsOn(fooNodes);
 
         // put shards back on "foo"
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeFoo).get();
 
         // wait for the shards to move from "bar" nodes to "foo" nodes
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
 
         // Stop a foo node
         logger.info("--> stopping first 'foo' node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get(0)));
 
         // Ensure that the other foo node has all the shards now
-        assertShardCountOn(fooNodes.get().get(1), 5);
+        assertShardCountOn(fooNodes.get(1), 5);
 
         // Assert no shards on the "bar" nodes
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
 
         // Stop the second "foo" node
         logger.info("--> stopping second 'foo' node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get(1)));
 
         // The index should still be able to be allocated (on the "bar" nodes),
         // all the "foo" nodes are gone
@@ -792,7 +798,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         String newFooNode = internalCluster().startNode(fooSettings);
 
         assertShardCountOn(newFooNode, 5);
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
     }
 
     public void testDeletingClosedIndexRemovesFiles() throws Exception {
@@ -801,7 +807,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         final int numNodes = randomIntBetween(2, 5);
         logger.info("--> starting {} nodes", numNodes);
-        final List<String> nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(numNodes, nodeSettings);
         final String IDX = "test";
         final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(numNodes);
         final int numPrimaries = numPrimariesAndReplicas.v1();
@@ -844,7 +850,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(2, nodeSettings).get();
+        internalCluster().startNodes(2, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -861,7 +867,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         flushAndRefresh(IDX);
 
-        internalCluster().startNodesAsync(1).get();
+        internalCluster().startNodes(1);
         ensureYellow(IDX);
 
         final ClusterHealthResponse clusterHealth = client().admin().cluster()

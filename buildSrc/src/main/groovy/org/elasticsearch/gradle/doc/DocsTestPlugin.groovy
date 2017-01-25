@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.doc
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestTestPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -29,10 +30,21 @@ public class DocsTestPlugin extends RestTestPlugin {
 
     @Override
     public void apply(Project project) {
+        project.pluginManager.apply('elasticsearch.standalone-rest-test')
         super.apply(project)
+        Map<String, String> defaultSubstitutions = [
+            /* These match up with the asciidoc syntax for substitutions but
+             * the values may differ. In particular {version} needs to resolve
+             * to the version being built for testing but needs to resolve to
+             * the last released version for docs. */
+            '\\{version\\}':
+                VersionProperties.elasticsearch.replace('-SNAPSHOT', ''),
+            '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
+        ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'
         listSnippets.description 'List each snippet'
+        listSnippets.defaultSubstitutions = defaultSubstitutions
         listSnippets.perSnippet { println(it.toString()) }
 
         Task listConsoleCandidates = project.tasks.create(
@@ -40,26 +52,15 @@ public class DocsTestPlugin extends RestTestPlugin {
         listConsoleCandidates.group 'Docs'
         listConsoleCandidates.description
                 'List snippets that probably should be marked // CONSOLE'
+        listConsoleCandidates.defaultSubstitutions = defaultSubstitutions
         listConsoleCandidates.perSnippet {
-            if (
-                       it.console != null // Already marked, nothing to do
-                    || it.testResponse    // It is a response
-                ) {
-                return
+            if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
+                println(it.toString())
             }
-            List<String> languages = [
-                // This language should almost always be marked console
-                'js',
-                // These are often curl commands that should be converted but
-                // are probably false positives
-                'sh', 'shell',
-            ]
-            if (false == languages.contains(it.language)) {
-                return
-            }
-            println(it.toString())
         }
 
-        project.tasks.create('buildRestTests', RestTestsFromSnippetsTask)
+        Task buildRestTests = project.tasks.create(
+                'buildRestTests', RestTestsFromSnippetsTask)
+        buildRestTests.defaultSubstitutions = defaultSubstitutions
     }
 }

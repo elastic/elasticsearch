@@ -20,13 +20,12 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
-import org.apache.log4j.Java9Hack;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
@@ -91,9 +90,8 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
-        if (Constants.JRE_IS_MINIMUM_JAVA9) {
-            Java9Hack.fixLog4j();
-        }
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {

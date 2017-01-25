@@ -5,8 +5,10 @@ The get settings API allows to retrieve settings of index/indices:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/_settings'
+GET /twitter/_settings
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 === Multiple Indices and Types
@@ -20,12 +22,15 @@ Wildcard expressions are also supported. The following are some examples:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter,kimchy/_settings'
+GET /twitter,kimchy/_settings
 
-curl -XGET 'http://localhost:9200/_all/_settings'
+GET /_all/_settings
 
-curl -XGET 'http://localhost:9200/2013-*/_settings'
+GET /log_2013_*/_settings
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[s/^/PUT kimchy\nPUT log_2013_01_01\n/]
 
 [float]
 === Filtering settings by name
@@ -35,5 +40,5 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/2013-*/_settings/name=index.number_*'
+curl -XGET 'http://localhost:9200/2013-*/_settings/index.number_*'
 --------------------------------------------------

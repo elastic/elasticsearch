@@ -23,14 +23,19 @@ documented individually.
 [float]
 === Development vs. production mode
 
-By default, Elasticsearch binds and publishes to `localhost`. This is
+By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>>
+and <<modules-transport,transport (internal)>> communication. This is
 fine for downloading and playing with Elasticsearch, and everyday
-development but it's useless for production systems. For a production
-installation to be reachable, it must either bind or publish to an
-external interface. Thus, we consider Elasticsearch to be in development
-mode if it does not bind nor publish to an external interface (the
-default), and is otherwise in production mode if it does bind or publish
-to an external interface.
+development but it's useless for production systems. To form a cluster,
+Elasticsearch instances must be reachable via transport communication so
+they must bind transport to an external interface. Thus, we consider an
+Elasticsearch instance to be in development mode if it does not bind
+transport to an external interface (the default), and is otherwise in
+production mode if it does bind transport to an external interface. Note
+that HTTP can be configured independently of transport via
+<<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>;
+this can be useful for configuring a single instance to be reachable via
+HTTP for testing purposes without triggering production mode.
 
 === Heap size check
 
@@ -51,7 +56,7 @@ File descriptors are a Unix construct for tracking open "files". In Unix
 though, https://en.wikipedia.org/wiki/Everything_is_a_file[everything is
 a file]. For example, "files" could be a physical file, a virtual file
 (e.g., `/proc/loadavg`), or network sockets. Elasticsearch requires
-lots file descriptors (e.g., every shard is composed of multiple
+lots of file descriptors (e.g., every shard is composed of multiple
 segments and other files, plus connections to other nodes, etc.). This
 bootstrap check is enforced on OS X and Linux. To pass the file
 descriptor check, you might have to configure <<file-descriptors,file
@@ -73,36 +78,6 @@ have `memlock unlimited`). The memory lock check verifies that *if* the
 `bootstrap.memory_lock` setting is enabled, that the JVM was successfully
 able to lock the heap. To pass the memory lock check, you might have to
 configure <<mlockall,`mlockall`>>.
-
-=== Minimum master nodes check
-
-Elasticsearch uses a single master for managing cluster state but
-enables there to be multiple master-eligible nodes for
-high-availability. In the case of a partition, master-eligible nodes on
-each side of the partition might be elected as the acting master without
-knowing that there is a master on the side of the partition. This can
-lead to divergent cluster states potentially leading to data loss when
-the partition is healed. This is the notion of a split brain and it is
-the worst thing that can happen to an Elasticsearch cluster. But by
-configuring
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>> to be
-equal to a quorum of master-eligible nodes, it is not possible for the
-cluster to suffer from split brain because during a network partition
-there can be at most one side of the partition that contains a quorum of
-master nodes. The minimum master nodes check enforces that you've set
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>. To pass
-the minimum master nodes check, you must configure
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>.
-
-NOTE: The minimum master nodes check does not enforce that you've
-configured <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
-correctly, only that you have it configured. Elasticsearch does log a
-warning message if it detects that
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>> is
-incorrectly configured based on the number of master-eligible nodes
-visible in the cluster state. Future versions of Elasticsearch will
-contain stricter enforcement of
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>.
 
 === Maximum number of threads check
 
@@ -131,7 +106,7 @@ process has unlimited address space and is enforced only on Linux. To
 pass the maximum size virtual memory check, you must configure your
 system to allow the Elasticsearch process the ability to have unlimited
 address space. This can be done via `/etc/security/limits.conf` using
-the `as` setting to `unlimited` (note that you might have to increaes
+the `as` setting to `unlimited` (note that you might have to increase
 the limits for the `root` user too).
 
 === Maximum map count check
@@ -157,6 +132,32 @@ systems and operating systems, the server VM is the
 default. Additionally, Elasticsearch is configured by default to force
 the server VM.
 
+=== Use serial collector check
+
+There are various garbage collectors for the OpenJDK-derived JVMs targeting
+different workloads. The serial collector in particular is best suited for
+single logical CPU machines or extremely small heaps, neither of which are
+suitable for running Elasticsearch. Using the serial collector with
+Elasticsearch can be devastating for performance. The serial collector check
+ensures that Elasticsearch is not configured to run with the serial
+collector. To pass the serial collector check, you must not start Elasticsearch
+with the serial collector (whether it's from the defaults for the JVM that
+you're using, or you've explicitly specified it with `-XX:+UseSerialGC`). Note
+that the default JVM configuration that ship with Elasticsearch configures
+Elasticsearch to use the CMS collector.
+
+=== System call filter check
+
+Elasticsearch installs system call filters of various flavors depending on the
+operating system (e.g., seccomp on Linux). These system call filters are
+installed to prevent the ability to execute system calls related to forking as
+a defense mechanism against arbitrary code execution attacks on Elasticsearch
+The system call filter check ensures that if system call filters are enabled,
+then they were successfully installed. To pass the system call filter check you
+must either fix any configuration errors on your system that prevented system
+call filters from installing (check your logs), or *at your own risk* disable
+system call filters by setting `bootstrap.system_call_filter` to `false`.
+
 === OnError and OnOutOfMemoryError checks
 
 The JVM options `OnError` and `OnOutOfMemoryError` enable executing
@@ -172,3 +173,11 @@ enabled. This check is always enforced. To pass this check do not enable
 use the JVM flag `ExitOnOutOfMemoryError`. While this does not have the
 full capabilities of `OnError` nor `OnOutOfMemoryError`, arbitrary
 forking will not be supported with seccomp enabled.
+
+=== G1GC check
+
+Early versions of the HotSpot JVM that shipped with JDK 8 are known to have
+issues that can lead to index corruption when the G1GC collector is enabled.
+The versions impacted are those earlier than the version of HotSpot that
+shipped with JDK 8u40. The G1GC check detects these early versions of the
+HotSpot JVM.

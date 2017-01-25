@@ -32,16 +32,13 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     public static final ParseField SIGMA_FIELD = new ParseField("sigma");
@@ -57,7 +54,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     DoubleArray sumOfSqrs;
 
     public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            AggregationContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
+            SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

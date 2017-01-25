@@ -23,14 +23,13 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,11 +37,9 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-/**
- *
- */
 public class RestUpdateSettingsAction extends BaseRestHandler {
     private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
+            "error_trace",
             "pretty",
             "timeout",
             "master_timeout",
@@ -52,7 +49,6 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "ignore_unavailable",
             "allow_no_indices"));
 
-    @Inject
     public RestUpdateSettingsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
@@ -60,7 +56,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
@@ -89,6 +85,12 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

@@ -34,10 +34,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
@@ -51,20 +54,30 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.StoredScriptsIT;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.channels.SeekableByteChannel;
@@ -73,6 +86,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -80,9 +94,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -106,6 +122,14 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(IngestTestPlugin.class,
+            StoredScriptsIT.CustomScriptPlugin.class,
+            MockRepository.Plugin.class);
+    }
+
     public void testBasicWorkFlow() throws Exception {
         Client client = client();
 
@@ -421,10 +445,25 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "string").field("store", "yes").endObject()
-            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
-            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        assertThat(client.admin().indices()
+            .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+            .get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices().setWaitForCompletion(true).get();
@@ -456,11 +495,54 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", location)));
 
-        logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "string").field("store", "yes").endObject()
-            .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
-            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        boolean testTemplate = randomBoolean();
+        boolean testPipeline = randomBoolean();
+        boolean testScript = (testTemplate == false && testPipeline == false) || randomBoolean(); // At least something should be stored
+
+        if(testTemplate) {
+            logger.info("-->  creating test template");
+            assertThat(client.admin().indices()
+                .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+                .get().isAcknowledged(), equalTo(true));
+        }
+
+        if(testPipeline) {
+            logger.info("-->  creating test pipeline");
+            BytesReference pipelineSource = jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject().bytes();
+            assertAcked(client().admin().cluster().preparePutPipeline("barbaz", pipelineSource).get());
+        }
+
+        if(testScript) {
+            logger.info("-->  creating test script");
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MockScriptEngine.NAME)
+                .setId("foobar")
+                .setSource(new BytesArray("{\"script\":\"1\"}")));
+        }
 
         logger.info("--> snapshot without global state");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-no-global-state").setIndices().setIncludeGlobalState(false).setWaitForCompletion(true).get();
@@ -474,26 +556,52 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-with-global-state").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("-->  delete test template");
-        cluster().wipeTemplates("test-template");
-        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
-        assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        if (testTemplate) {
+            logger.info("-->  delete test template");
+            cluster().wipeTemplates("test-template");
+            GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+            assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        }
+
+        if (testPipeline) {
+            logger.info("-->  delete test pipeline");
+            assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+        }
+
+        if (testScript) {
+            logger.info("-->  delete test script");
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+        }
 
         logger.info("--> try restoring cluster state from snapshot without global state");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state").setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
-        getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-with-global-state").setWaitForCompletion(true).setRestoreGlobalState(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
-        logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
-        assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
+        if (testTemplate) {
+            logger.info("--> check that template is restored");
+            getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
+            assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
+        }
+
+        if (testPipeline) {
+            logger.info("--> check that pipeline is restored");
+            GetPipelineResponse getPipelineResponse = client().admin().cluster().prepareGetPipeline("barbaz").get();
+            assertTrue(getPipelineResponse.isFound());
+        }
+
+        if (testScript) {
+            logger.info("--> check that script is restored");
+            GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get();
+            assertNotNull(getStoredScriptResponse.getStoredScript());
+        }
 
         createIndex("test-idx");
         ensureGreen();
@@ -511,9 +619,19 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-no-global-state-with-index").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
-        logger.info("-->  delete test template and index ");
+        logger.info("-->  delete global state and index ");
         cluster().wipeIndices("test-idx");
-        cluster().wipeTemplates("test-template");
+        if (testTemplate) {
+            cluster().wipeTemplates("test-template");
+        }
+        if (testPipeline) {
+            assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("barbaz")).get());
+        }
+
+        if (testScript) {
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+        }
+
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
@@ -522,9 +640,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        logger.info("--> check that template wasn't restored but index was");
+        logger.info("--> check that global state wasn't restored but index was");
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
+        assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
+        assertNull(client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get().getStoredScript());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
     }
@@ -684,6 +804,47 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SearchResponse countResponse = client.prepareSearch("test-idx").setSize(0).get();
         assertThat(countResponse.getHits().totalHits(), equalTo(100L));
         logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
+    }
+
+    public void testDataFileCorruptionDuringRestore() throws Exception {
+        Path repositoryLocation = randomRepoPath();
+        Client client = client();
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+
+        logger.info("-->  update repository with mock version");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(
+                Settings.builder()
+                    .put("location", repositoryLocation)
+                    .put("random", randomAsciiOfLength(10))
+                    .put("use_lucene_corruption", true)
+                    .put("max_failure_number", 10000000L)
+                    .put("random_data_file_io_exception_rate", 1.0)));
+
+        // Test restore after index deletion
+        logger.info("--> delete index");
+        cluster().wipeIndices("test-idx");
+        logger.info("--> restore corrupt index");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
     }
 
     public void testDeletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
@@ -933,6 +1094,44 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+    }
+
+    public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
+        Path repo = randomRepoPath();
+        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
+            Settings.builder().put("location", repo).put("compress", false)));
+
+        createIndex("test-idx-1", "test-idx-2");
+        logger.info("--> indexing some data");
+        indexRandom(true,
+            client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2", "doc").setSource("foo", "bar"));
+
+        logger.info("--> creating snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIndices("test-idx-*").get();
+
+        logger.info("--> deleting shard level index file");
+        try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
+            files.forEach(indexPath ->
+                IOUtils.deleteFilesIgnoringExceptions(indexPath.resolve("0").resolve("index-0"))
+            );
+        }
+
+        logger.info("--> creating another snapshot");
+        CreateSnapshotResponse createSnapshotResponse =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
+                .setWaitForCompletion(true).setIndices("test-idx-1").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+
+        logger.info("--> restoring the first snapshot, the repository should not have lost any shard data despite deleting index-N, " +
+                        "because it should have iterated over the snap-*.data files as backup");
+        client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
+        RestoreSnapshotResponse restoreSnapshotResponse =
+            client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).get();
+        assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
     }
 
     public void testSnapshotClosedIndex() throws Exception {
@@ -1368,8 +1567,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
-                        .put("max_restore_bytes_per_sec", throttleRestore ? "0.5k" : "0")
-                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "0.5k" : "0")));
+                        .put("max_restore_bytes_per_sec", throttleRestore ? "10k" : "0")
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "10k" : "0")));
 
         createIndex("test-idx");
         ensureGreen();
@@ -1504,12 +1703,24 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> checking that _current no longer returns the snapshot");
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_current").execute().actionGet().getSnapshots().isEmpty(), equalTo(true));
 
-        try {
-            client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").execute().actionGet();
-            fail();
-        } catch (SnapshotMissingException ex) {
-            // Expected
-        }
+        // test that getting an unavailable snapshot status throws an exception if ignoreUnavailable is false on the request
+        SnapshotMissingException ex = expectThrows(SnapshotMissingException.class, () ->
+            client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").get());
+        assertEquals("[test-repo:test-snap-doesnt-exist] is missing", ex.getMessage());
+        // test that getting an unavailable snapshot status does not throw an exception if ignoreUnavailable is true on the request
+        response = client.admin().cluster().prepareSnapshotStatus("test-repo")
+                       .addSnapshots("test-snap-doesnt-exist")
+                       .setIgnoreUnavailable(true)
+                       .get();
+        assertTrue(response.getSnapshots().isEmpty());
+        // test getting snapshot status for available and unavailable snapshots where ignoreUnavailable is true
+        // (available one should be returned)
+        response = client.admin().cluster().prepareSnapshotStatus("test-repo")
+                       .addSnapshots("test-snap", "test-snap-doesnt-exist")
+                       .setIgnoreUnavailable(true)
+                       .get();
+        assertEquals(1, response.getSnapshots().size());
+        assertEquals("test-snap", response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName());
     }
 
     public void testSnapshotRelocatingPrimary() throws Exception {
@@ -1531,12 +1742,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
-        // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
-        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
-                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), 100, ByteSizeUnit.BYTES)
-        ));
-
         logger.info("--> start relocations");
         allowNodes("test-idx", internalCluster().numDataNodes());
 
@@ -1546,11 +1751,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
-
-        // Update settings to back to normal
-        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(Settings.builder()
-                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "node")
-        ));
 
         logger.info("--> wait for snapshot to complete");
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
@@ -2107,6 +2307,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                                    State.ABORTED,
                                                    Collections.singletonList(indexId),
                                                    System.currentTimeMillis(),
+                                                   repositoryData.getGenId(),
                                                    shards.build()));
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries))).build();
             }
@@ -2165,7 +2366,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
         BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
         try {
-            clusterService.addFirst(snapshotListener);
+            clusterService.addListener(snapshotListener);
             logger.info("--> snapshot");
             ListenableActionFuture<CreateSnapshotResponse> snapshotFuture = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute();
 
@@ -2180,39 +2381,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().successfulShards());
 
         } finally {
-            clusterService.remove(snapshotListener);
+            clusterService.removeListener(snapshotListener);
         }
 
         // Check that we didn't timeout
         assertFalse(snapshotListener.timedOut());
         // Check that cluster state update task was called only once
         assertEquals(1, snapshotListener.count());
-
-        logger.info("--> close indices");
-        client.admin().indices().prepareClose("test-idx").get();
-
-        BlockingClusterStateListener restoreListener = new BlockingClusterStateListener(clusterService, "restore_snapshot[", "update snapshot state", Priority.HIGH);
-
-        try {
-            clusterService.addFirst(restoreListener);
-            logger.info("--> restore snapshot");
-            ListenableActionFuture<RestoreSnapshotResponse> futureRestore = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
-
-            // Await until shard updates are in pending state.
-            assertBusyPendingTasks("update snapshot state", numberOfShards);
-            restoreListener.unblock();
-
-            RestoreSnapshotResponse restoreSnapshotResponse = futureRestore.actionGet();
-            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(numberOfShards));
-
-        } finally {
-            clusterService.remove(restoreListener);
-        }
-
-        // Check that we didn't timeout
-        assertFalse(restoreListener.timedOut());
-        // Check that cluster state update task was called only once
-        assertEquals(1, restoreListener.count());
     }
 
     public void testSnapshotName() throws Exception {
@@ -2386,8 +2561,28 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
+        // make sure we return only the in-progress snapshot when taking the first snapshot on a clean repository
+        // take initial snapshot with a block, making sure we only get 1 in-progress snapshot returned
+        // block a node so the create snapshot operation can remain in progress
+        final String initialBlockedNode = blockNodeWithIndex(repositoryName, indexName);
+        ListenableActionFuture<CreateSnapshotResponse> responseListener =
+            client.admin().cluster().prepareCreateSnapshot(repositoryName, "snap-on-empty-repo")
+                .setWaitForCompletion(false)
+                .setIndices(indexName)
+                .execute();
+        waitForBlock(initialBlockedNode, repositoryName, TimeValue.timeValueSeconds(60)); // wait for block to kick in
+        getSnapshotsResponse = client.admin().cluster()
+                                   .prepareGetSnapshots("test-repo")
+                                   .setSnapshots(randomFrom("_all", "_current", "snap-on-*", "*-on-empty-repo", "snap-on-empty-repo"))
+                                   .get();
+        assertEquals(1, getSnapshotsResponse.getSnapshots().size());
+        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
+        unblockNode(repositoryName, initialBlockedNode); // unblock node
+        responseListener.actionGet(TimeValue.timeValueMillis(10000L)); // timeout after 10 seconds
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
+
         final int numSnapshots = randomIntBetween(1, 3) + 1;
-        logger.info("--> take {} snapshot(s)", numSnapshots);
+        logger.info("--> take {} snapshot(s)", numSnapshots - 1);
         final String[] snapshotNames = new String[numSnapshots];
         for (int i = 0; i < numSnapshots - 1; i++) {
             final String snapshotName = randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
@@ -2419,9 +2614,19 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> get all snapshots with a current in-progress");
         // with ignore unavailable set to true, should not throw an exception
+        final List<String> snapshotsToGet = new ArrayList<>();
+        if (randomBoolean()) {
+            // use _current plus the individual names of the finished snapshots
+            snapshotsToGet.add("_current");
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshotsToGet.add(snapshotNames[i]);
+            }
+        } else {
+            snapshotsToGet.add("_all");
+        }
         getSnapshotsResponse = client.admin().cluster()
                                              .prepareGetSnapshots(repositoryName)
-                                             .addSnapshots("_all")
+                                             .setSnapshots(snapshotsToGet.toArray(Strings.EMPTY_ARRAY))
                                              .get();
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
@@ -2461,6 +2666,127 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         unblockNode(repositoryName, blockedNode); // unblock node
         waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
+    }
+
+    /**
+     * This test ensures that when a shard is removed from a node (perhaps due to the node
+     * leaving the cluster, then returning), all snapshotting of that shard is aborted, so
+     * all Store references held onto by the snapshot are released.
+     *
+     * See https://github.com/elastic/elasticsearch/issues/20876
+     */
+    public void testSnapshotCanceledOnRemovedShard() throws Exception {
+        final int numPrimaries = 1;
+        final int numReplicas = 1;
+        final int numDocs = 100;
+        final String repo = "test-repo";
+        final String index = "test-idx";
+        final String snapshot = "test-snap";
+
+        assertAcked(prepareCreate(index, 1,
+            Settings.builder().put("number_of_shards", numPrimaries).put("number_of_replicas", numReplicas)));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < numDocs; i++) {
+            index(index, "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> creating repository");
+        PutRepositoryResponse putRepositoryResponse =
+            client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("random", randomAsciiOfLength(10))
+                .put("wait_after_unblock", 200)
+            ).get();
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        String blockedNode = blockNodeWithIndex(repo, index);
+
+        logger.info("--> snapshot");
+        client().admin().cluster().prepareCreateSnapshot(repo, snapshot)
+            .setWaitForCompletion(false)
+            .execute();
+
+        logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
+        waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
+
+        logger.info("--> removing primary shard that is being snapshotted");
+        ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
+        IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
+        String nodeWithPrimary = clusterState.nodes().get(indexRoutingTable.shard(0).primaryShard().currentNodeId()).getName();
+        assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeWithPrimary);
+        IndexService indexService = indicesService.indexService(resolveIndex(index));
+        indexService.removeShard(0, "simulate node removal");
+
+        logger.info("--> unblocking blocked node [{}]", blockedNode);
+        unblockNode(repo, blockedNode);
+
+        logger.info("--> ensuring snapshot is aborted and the aborted shard was marked as failed");
+        SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
+        assertEquals(1, snapshotInfo.shardFailures().size());
+        assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
+        assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
+    }
+
+    public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        final Client client = client();
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("mock").setVerify(false).setSettings(
+                Settings.builder()
+                    .put("location", repoPath)
+                    .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
+                    // test that we can take a snapshot after a failed one, even if a partial index-N was written
+                    .put("atomic_move", false)
+                    .put("random", randomAsciiOfLength(10))));
+
+        logger.info("--> indexing some data");
+        assertAcked(prepareCreate("test-idx").setSettings(
+            // the less the number of shards, the less control files we have, so we are giving a higher probability of
+            // triggering an IOException toward the end when writing the pending-index-* files, which are the files
+            // that caused problems with writing subsequent snapshots if they happened to be lingering in the repository
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        ensureGreen();
+        final int numDocs = randomIntBetween(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
+
+        logger.info("--> snapshot with potential I/O failures");
+        try {
+            CreateSnapshotResponse createSnapshotResponse =
+                client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                    .setWaitForCompletion(true)
+                    .setIndices("test-idx")
+                    .get();
+            if (createSnapshotResponse.getSnapshotInfo().totalShards() != createSnapshotResponse.getSnapshotInfo().successfulShards()) {
+                assertThat(getFailureCount("test-repo"), greaterThan(0L));
+                assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), greaterThan(0));
+                for (SnapshotShardFailure shardFailure : createSnapshotResponse.getSnapshotInfo().shardFailures()) {
+                    assertThat(shardFailure.reason(), containsString("Random IOException"));
+                }
+            }
+        } catch (SnapshotCreationException | RepositoryException ex) {
+            // sometimes, the snapshot will fail with a top level I/O exception
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("Random IOException"));
+        }
+
+        logger.info("--> snapshot with no I/O failures");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo-2").setType("mock").setSettings(
+            Settings.builder().put("location", repoPath)));
+        CreateSnapshotResponse createSnapshotResponse =
+            client.admin().cluster().prepareCreateSnapshot("test-repo-2", "test-snap-2")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx")
+                .get();
+        assertEquals(0, createSnapshotResponse.getSnapshotInfo().failedShards());
+        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("test-repo-2")
+                                                        .addSnapshots("test-snap-2").get();
+        assertEquals(SnapshotState.SUCCESS, getSnapshotsResponse.getSnapshots().get(0).state());
     }
 
 }

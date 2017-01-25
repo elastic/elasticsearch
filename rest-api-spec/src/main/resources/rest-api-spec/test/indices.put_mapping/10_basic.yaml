@@ -51,3 +51,19 @@
   - match: {test_index.mappings.test_type.properties.text1.type:     text}
   - match: {test_index.mappings.test_type.properties.subfield.properties.text3.type:     text}
   - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.type: keyword}
+
+---
+"Create index with invalid mappings":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        type: test_type
+        body:
+          test_type:
+            properties:
+              "":
+               type:     keyword

@@ -29,18 +29,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
-
-import static org.hamcrest.Matchers.containsString;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collection;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -48,9 +46,14 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testDefaults() throws Exception {
@@ -184,44 +187,6 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fields.length);
     }
 
-    public void testIncludeInAll() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes());
-
-        IndexableField[] fields = doc.rootDoc().getFields("_all");
-        assertEquals(1, fields.length);
-        assertEquals("::1", fields[0].stringValue());
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip")
-                .field("include_in_all", false).endObject().endObject()
-                .endObject().endObject().string();
-
-        mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes());
-
-        fields = doc.rootDoc().getFields("_all");
-        assertEquals(0, fields.length);
-    }
-
     public void testNullValue() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -289,5 +254,16 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(got, got.contains("\"null_value\":null"));
         assertTrue(got, got.contains("\"ignore_malformed\":false"));
         assertTrue(got, got.contains("\"include_in_all\":false"));
+    }
+
+    public void testEmptyName() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "ip").endObject().endObject()
+            .endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 }

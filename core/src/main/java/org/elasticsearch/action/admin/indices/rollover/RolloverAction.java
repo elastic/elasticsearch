@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class RolloverAction extends Action<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();

@@ -13,6 +13,8 @@ GET _cluster/health
 // TEST[s/^/PUT test1\n/]
 
 Returns this:
+
+[source,js]
 --------------------------------------------------
 {
   "cluster_name" : "testcluster",
@@ -82,14 +84,14 @@ The cluster health API accepts the following request parameters:
     provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
 
-`wait_for_relocating_shards`::
-    A number controlling to how many relocating
-    shards to wait for. Usually will be `0` to indicate to wait till all
-    relocations have happened. Defaults to not wait.
+`wait_for_no_relocating_shards`::
+    A boolean value which controls whether to wait (until the timeout provided)
+    for the cluster to have no shard relocations. Defaults to false, which means
+    it will not wait for relocating shards.
 
 `wait_for_active_shards`::
-    A number controlling to how many active
-    shards to wait for. Defaults to not wait.
+    A number controlling to how many active shards to wait for, `all` to wait
+    for all shards in the cluster to be active, or `0` to not wait. Defaults to `0`.
 
 `wait_for_nodes`::
     The request waits until the specified number `N` of

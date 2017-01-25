@@ -31,9 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> extends ActionResponse {
 
     private ClusterName clusterName;

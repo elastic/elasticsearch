@@ -52,3 +52,15 @@ integTest {
     setting 'script.max_compilations_per_minute', '1000'
   }
 }
+
+// Build
+task apiJavadoc(type: Javadoc) {
+  source = sourceSets.main.allJava
+  include '**/org/elasticsearch/painless/api/'
+  destinationDir = new File(docsDir, 'apiJavadoc')
+}
+task apiJavadocJar(type: Jar) {
+  classifier = 'apiJavadoc'
+  from apiJavadoc
+}
+assemble.dependsOn apiJavadocJar

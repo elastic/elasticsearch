@@ -21,9 +21,8 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -43,24 +41,34 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
     public void testDetermineShadowEngineShouldBeUsed() {
-        Settings regularSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+        IndexSettings regularSettings = new IndexSettings(
+            IndexMetaData
+                .builder("regular")
+                .settings(Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build())
+                .build(),
+            Settings.EMPTY);
 
-        Settings shadowSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                .build();
+        IndexSettings shadowSettings = new IndexSettings(
+            IndexMetaData
+                .builder("shadow")
+                .settings(Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build())
+                .build(),
+            Settings.EMPTY);
 
         assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(true, regularSettings));
         assertFalse("no shadow replicas for normal settings", IndexService.useShadowEngine(false, regularSettings));
@@ -73,82 +81,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
         return new CompressedXContent(builder.string());
-    }
-
-    public void testFilteringAliases() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-        add(indexService, "all", null);
-
-        assertThat(indexService.getMetaData().getAliases().containsKey("cats"), equalTo(true));
-        assertThat(indexService.getMetaData().getAliases().containsKey("dogs"), equalTo(true));
-        assertThat(indexService.getMetaData().getAliases().containsKey("turtles"), equalTo(false));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats").toString(), equalTo("animal:cat"));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats", "dogs").toString(), equalTo("animal:cat animal:dog"));
-
-        // Non-filtering alias should turn off all filters because filters are ORed
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "all"), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "cats", "all"), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "all", "cats"), nullValue());
-
-        add(indexService, "cats", filter(termQuery("animal", "feline")));
-        add(indexService, "dogs", filter(termQuery("animal", "canine")));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
-    }
-
-    public void testAliasFilters() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext()), nullValue());
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs").toString(), equalTo("animal:dog"));
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:dog animal:cat"));
-
-        add(indexService, "cats", filter(termQuery("animal", "feline")));
-        add(indexService, "dogs", filter(termQuery("animal", "canine")));
-
-        assertThat(indexService.aliasFilter(indexService.newQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
-    }
-
-    public void testRemovedAliasFilter() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        remove(indexService, "cats");
-        try {
-            indexService.aliasFilter(indexService.newQueryShardContext(), "cats");
-            fail("Expected InvalidAliasNameException");
-        } catch (InvalidAliasNameException e) {
-            assertThat(e.getMessage(), containsString("Invalid alias name [cats]"));
-        }
-    }
-
-    public void testUnknownAliasFilter() throws Exception {
-        IndexService indexService = createIndex("test", Settings.EMPTY);
-
-        add(indexService, "cats", filter(termQuery("animal", "cat")));
-        add(indexService, "dogs", filter(termQuery("animal", "dog")));
-
-        try {
-            indexService.aliasFilter(indexService.newQueryShardContext(), "unknown");
-            fail();
-        } catch (InvalidAliasNameException e) {
-            // all is well
-        }
-    }
-
-    private void remove(IndexService service, String alias) {
-        IndexMetaData build = IndexMetaData.builder(service.getMetaData()).removeAlias(alias).build();
-        service.updateMetaData(build);
-    }
-
-    private void add(IndexService service, String alias, @Nullable CompressedXContent filter) {
-        IndexMetaData build = IndexMetaData.builder(service.getMetaData()).putAlias(AliasMetaData.builder(alias).filter(filter).build()).build();
-        service.updateMetaData(build);
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {
@@ -275,6 +207,20 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService = createIndex("test1", Settings.EMPTY);
         assertNull(indexService.getFsyncTask());
     }
+
+    public void testGlobalCheckpointTaskIsRunning() throws IOException {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        IndexService.AsyncGlobalCheckpointTask task = indexService.getGlobalCheckpointTask();
+        assertNotNull(task);
+        assertEquals(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getDefault(Settings.EMPTY), task.getInterval());
+        assertTrue(task.mustReschedule());
+        assertTrue(task.isScheduled());
+
+        indexService.close("simon says", false);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+    }
+
 
     public void testRefreshActuallyWorks() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);

@@ -21,15 +21,18 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
@@ -45,15 +48,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.script.ScriptService.ScriptType;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -301,30 +305,84 @@ public class LongTermsIT extends AbstractTermsTestCase {
         long includes[] = { 1, 2, 3, 98 };
         long excludes[] = { -1, 2, 4 };
         long empty[] = {};
-        testIncludeExcludeResults(includes, empty, new long[] { 1, 2, 3 });
-        testIncludeExcludeResults(includes, excludes, new long[] { 1, 3 });
-        testIncludeExcludeResults(empty, excludes, new long[] { 0, 1, 3 });
+        testIncludeExcludeResults(1, includes, empty, new long[] { 1, 2, 3 }, new long[0]);
+        testIncludeExcludeResults(1, includes, excludes, new long[] { 1, 3 }, new long[0]);
+        testIncludeExcludeResults(1, empty, excludes, new long[] { 0, 1, 3 }, new long[0]);
+
+        testIncludeExcludeResults(0, includes, empty, new long[] { 1, 2, 3}, new long[] { 98 });
+        testIncludeExcludeResults(0, includes, excludes, new long[] { 1, 3 }, new long[] { 98 });
+        testIncludeExcludeResults(0, empty, excludes, new long[] { 0, 1, 3 }, new long[] {5, 6, 7, 8, 9, 10, 11});
     }
 
-    private void testIncludeExcludeResults(long[] includes, long[] excludes, long[] expecteds) {
+    private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes,
+                                           long[] expectedWithCounts, long[] expectedZeroCounts) {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .includeExclude(new IncludeExclude(includes, excludes))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .minDocCount(minDocCount))
                 .execute().actionGet();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(expecteds.length));
+        assertThat(terms.getBuckets().size(), equalTo(expectedWithCounts.length + expectedZeroCounts.length));
 
-        for (int i = 0; i < expecteds.length; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
+        for (int i = 0; i < expectedWithCounts.length; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + expectedWithCounts[i]);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
+
+        for (int i = 0; i < expectedZeroCounts.length; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + expectedZeroCounts[i]);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getDocCount(), equalTo(0L));
+        }
     }
+
+
+
+    public void testSingleValueFieldWithPartitionedFiltering() throws Exception {
+        runTestFieldWithPartitionedFiltering(SINGLE_VALUED_FIELD_NAME);
+    }
+
+    public void testMultiValueFieldWithPartitionedFiltering() throws Exception {
+        runTestFieldWithPartitionedFiltering(MULTI_VALUED_FIELD_NAME);
+    }
+
+    private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
+        // Find total number of unique terms
+        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
+        assertSearchResponse(allResponse);
+        Terms terms = allResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        int expectedCardinality = terms.getBuckets().size();
+
+        // Gather terms using partitioned aggregations
+        final int numPartitions = randomIntBetween(2, 4);
+        Set<Number> foundTerms = new HashSet<>();
+        for (int partition = 0; partition < numPartitions; partition++) {
+            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(
+                            terms("terms").field(field).includeExclude(new IncludeExclude(partition, numPartitions))
+                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
+                    .execute().actionGet();
+            assertSearchResponse(response);
+            terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            for (Bucket bucket : terms.getBuckets()) {
+                assertFalse(foundTerms.contains(bucket.getKeyAsNumber()));
+                foundTerms.add(bucket.getKeyAsNumber());
+            }
+        }
+        assertEquals(expectedCardinality, foundTerms.size());
+    }
+
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
@@ -441,7 +499,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                        .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -494,7 +552,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value - 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value - 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -523,7 +581,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / 1000 + 1)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(new Script(
+                                    ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -559,7 +618,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
     */
 
     public void testScriptSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -585,7 +645,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -1135,5 +1196,44 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testOtherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
+                terms("terms").field("d").script(
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(terms("terms").field("d")).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

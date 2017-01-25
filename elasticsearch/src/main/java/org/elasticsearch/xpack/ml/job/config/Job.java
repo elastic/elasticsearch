@@ -18,9 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.job.config.transform.verification.TransformConfigsVerifier;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -64,7 +61,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField TIMEOUT = new ParseField("timeout");
-    public static final ParseField TRANSFORMS = new ParseField("transforms");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField INDEX_NAME = new ParseField("index_name");
 
@@ -107,7 +103,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
-        PARSER.declareObjectArray(Builder::setTransforms, TransformConfig.PARSER, TRANSFORMS);
         PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
         PARSER.declareField(Builder::setIgnoreDowntime, (p, c) -> IgnoreDowntime.fromString(p.text()), IGNORE_DOWNTIME, ValueType.STRING);
         PARSER.declareLong(Builder::setTimeout, TIMEOUT);
@@ -130,7 +125,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
-    private final List<TransformConfig> transforms;
     private final ModelDebugConfig modelDebugConfig;
     private final IgnoreDowntime ignoreDowntime;
     private final Long renormalizationWindowDays;
@@ -143,7 +137,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime, long timeout,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits,  DataDescription dataDescription,
-               List<TransformConfig> transforms, ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
+               ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
                Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
                Map<String, Object> customSettings, String modelSnapshotId, String indexName) {
         this.jobId = jobId;
@@ -155,7 +149,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
-        this.transforms = transforms;
         this.modelDebugConfig = modelDebugConfig;
         this.ignoreDowntime = ignoreDowntime;
         this.renormalizationWindowDays = renormalizationWindowDays;
@@ -177,7 +170,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
-        transforms = in.readList(TransformConfig::new);
         modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
         ignoreDowntime = in.readOptionalWriteable(IgnoreDowntime::fromStream);
         renormalizationWindowDays = in.readOptionalLong();
@@ -302,10 +294,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return dataDescription;
     }
 
-    public List<TransformConfig> getTransforms() {
-        return transforms;
-    }
-
     /**
      * The duration of the renormalization window in days
      *
@@ -342,7 +330,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     /**
      * Get a list of all input data fields mentioned in the job configuration,
-     * namely analysis fields, time field and transform input fields.
+     * namely analysis fields and the time field.
      *
      * @return the list of fields - never <code>null</code>
      */
@@ -352,16 +340,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         // analysis fields
         if (analysisConfig != null) {
             allFields.addAll(analysisConfig.analysisFields());
-        }
-
-        // transform input fields
-        if (transforms != null) {
-            for (TransformConfig tc : transforms) {
-                List<String> inputFields = tc.getInputs();
-                if (inputFields != null) {
-                    allFields.addAll(inputFields);
-                }
-            }
         }
 
         // time field
@@ -399,7 +377,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
-        out.writeList(transforms);
         out.writeOptionalWriteable(modelDebugConfig);
         out.writeOptionalWriteable(ignoreDowntime);
         out.writeOptionalLong(renormalizationWindowDays);
@@ -438,9 +415,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
         if (dataDescription != null) {
             builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
-        }
-        if (transforms != null) {
-            builder.field(TRANSFORMS.getPreferredName(), transforms);
         }
         if (modelDebugConfig != null) {
             builder.field(MODEL_DEBUG_CONFIG.getPreferredName(), modelDebugConfig, params);
@@ -488,7 +462,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && (this.timeout == that.timeout)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
-                && Objects.equals(this.modelDebugConfig, that.modelDebugConfig) && Objects.equals(this.transforms, that.transforms)
+                && Objects.equals(this.modelDebugConfig, that.modelDebugConfig)
                 && Objects.equals(this.ignoreDowntime, that.ignoreDowntime)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -502,7 +476,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig,
-                analysisLimits, dataDescription, modelDebugConfig, transforms, renormalizationWindowDays,
+                analysisLimits, dataDescription, modelDebugConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, ignoreDowntime, customSettings,
                 modelSnapshotId, indexName);
     }
@@ -533,7 +507,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
-        private List<TransformConfig> transforms = new ArrayList<>();
         private DataDescription dataDescription;
         private Date createTime;
         private Date finishedTime;
@@ -560,7 +533,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.id = job.getId();
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
-            this.transforms = job.getTransforms();
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
@@ -628,10 +600,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.lastDataTime = lastDataTime;
         }
 
-        public void setTransforms(List<TransformConfig> transforms) {
-            this.transforms = transforms;
-        }
-
         public void setDataDescription(DataDescription.Builder description) {
             dataDescription = description.build();
         }
@@ -677,19 +645,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
             }
 
-            if (transforms != null && transforms.isEmpty() == false) {
-                TransformConfigsVerifier.verify(transforms);
-                checkTransformOutputIsUsed();
-            } else {
-                if (dataDescription != null && dataDescription.getFormat() == DataDescription.DataFormat.SINGLE_LINE) {
-                    String msg = Messages.getMessage(
-                            Messages.JOB_CONFIG_DATAFORMAT_REQUIRES_TRANSFORM,
-                            DataDescription.DataFormat.SINGLE_LINE);
-
-                    throw new IllegalArgumentException(msg);
-                }
-            }
-
             checkValueNotLessThan(0, "timeout", timeout);
             checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
             checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
@@ -732,7 +687,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
-                    dataDescription, transforms, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
+                    dataDescription, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     indexName
             );
@@ -742,42 +697,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             if (value != null && value < minVal) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, name, minVal, value));
             }
-        }
-
-        /**
-         * Transform outputs should be used in either the date field,
-         * as an analysis field or input to another transform
-         */
-        private boolean checkTransformOutputIsUsed() {
-            Set<String> usedFields = new TransformConfigs(transforms).inputFieldNames();
-            usedFields.addAll(analysisConfig.analysisFields());
-            String summaryCountFieldName = analysisConfig.getSummaryCountFieldName();
-            boolean isSummarised = !Strings.isNullOrEmpty(summaryCountFieldName);
-            if (isSummarised) {
-                usedFields.remove(summaryCountFieldName);
-            }
-
-            String timeField = dataDescription == null ? DataDescription.DEFAULT_TIME_FIELD : dataDescription.getTimeField();
-            usedFields.add(timeField);
-
-            for (TransformConfig tc : transforms) {
-                // if the type has no default outputs it doesn't need an output
-                boolean usesAnOutput = tc.type().defaultOutputNames().isEmpty()
-                        || tc.getOutputs().stream().anyMatch(outputName -> usedFields.contains(outputName));
-
-                if (isSummarised && tc.getOutputs().contains(summaryCountFieldName)) {
-                    String msg = Messages.getMessage(Messages.JOB_CONFIG_TRANSFORM_DUPLICATED_OUTPUT_NAME, tc.type().prettyName());
-                    throw new IllegalArgumentException(msg);
-                }
-
-                if (!usesAnOutput) {
-                    String msg = Messages.getMessage(Messages.JOB_CONFIG_TRANSFORM_OUTPUTS_UNUSED,
-                            tc.type().prettyName());
-                    throw new IllegalArgumentException(msg);
-                }
-            }
-
-            return false;
         }
     }
 }

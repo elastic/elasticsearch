@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -14,9 +13,6 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -41,9 +37,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
 
     private AutodetectProcess autodetectProcess;
     private DataCountsReporter dataCountsReporter;
-    private Logger logger;
 
-    private List<TransformConfig> transforms;
     private DataDescription.Builder dataDescription;
     private AnalysisConfig analysisConfig;
 
@@ -53,7 +47,6 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     public void setUpMocks() throws IOException {
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
         dataCountsReporter = Mockito.mock(DataCountsReporter.class);
-        logger = Mockito.mock(Logger.class);
 
         writtenRecords = new ArrayList<>();
         doAnswer(new Answer<Void>() {
@@ -66,7 +59,6 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
             }
         }).when(autodetectProcess).writeRecord(any(String[].class));
 
-        transforms = new ArrayList<>();
 
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataFormat.JSON);
@@ -284,85 +276,13 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
-    public void testWrite_GivenDateTimeFieldIsOutputOfTransform() throws Exception {
-        TransformConfig transform = new TransformConfig("concat");
-        transform.setInputs(Arrays.asList("date", "time-of-day"));
-        transform.setOutputs(Arrays.asList("datetime"));
-
-        transforms.add(transform);
-
-        dataDescription = new DataDescription.Builder();
-        dataDescription.setFieldDelimiter(',');
-        dataDescription.setTimeField("datetime");
-        dataDescription.setFormat(DataFormat.DELIMITED);
-        dataDescription.setTimeFormat("yyyy-MM-ddHH:mm:ssX");
-
-        JsonDataToProcessWriter writer = createWriter();
-        writer.writeHeader();
-
-        StringBuilder input = new StringBuilder();
-        input.append("{\"date\":\"1970-01-01\", \"time-of-day\":\"00:00:01Z\", \"value\":\"5.0\"}");
-        input.append("{\"date\":\"1970-01-01\", \"time-of-day\":\"00:00:02Z\", \"value\":\"6.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
-
-        writer.write(inputStream);
-        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
-
-        List<String[]> expectedRecords = new ArrayList<>();
-        // The final field is the control field
-        expectedRecords.add(new String[]{"datetime", "value", "."});
-        expectedRecords.add(new String[]{"1", "5.0", ""});
-        expectedRecords.add(new String[]{"2", "6.0", ""});
-        assertWrittenRecordsEqualTo(expectedRecords);
-
-        verify(dataCountsReporter).finishReporting();
-    }
-
-    public void testWrite_GivenChainedTransforms_SortsByDependencies() throws Exception {
-        TransformConfig tc1 = new TransformConfig(TransformType.Names.UPPERCASE_NAME);
-        tc1.setInputs(Arrays.asList("dns"));
-        tc1.setOutputs(Arrays.asList("dns_upper"));
-
-        TransformConfig tc2 = new TransformConfig(TransformType.Names.CONCAT_NAME);
-        tc2.setInputs(Arrays.asList("dns1", "dns2"));
-        tc2.setArguments(Arrays.asList("."));
-        tc2.setOutputs(Arrays.asList("dns"));
-
-        transforms.add(tc1);
-        transforms.add(tc2);
-
-        Detector.Builder detector = new Detector.Builder("metric", "value");
-        detector.setByFieldName("dns_upper");
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        analysisConfig = builder.build();
-
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"dns1\":\"www\", \"dns2\":\"foo.com\", \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\", \"dns1\":\"www\", \"dns2\":\"bar.com\", \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
-        JsonDataToProcessWriter writer = createWriter();
-        writer.writeHeader();
-        writer.write(inputStream);
-        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
-
-        List<String[]> expectedRecords = new ArrayList<>();
-        // The final field is the control field
-        expectedRecords.add(new String[]{"time", "dns_upper", "value", "."});
-        expectedRecords.add(new String[]{"1", "WWW.FOO.COM", "1.0", ""});
-        expectedRecords.add(new String[]{"2", "WWW.BAR.COM", "2.0", ""});
-        assertWrittenRecordsEqualTo(expectedRecords);
-
-        verify(dataCountsReporter).finishReporting();
-    }
-
-
     private static InputStream createInputStream(String input) {
         return new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
     }
 
     private JsonDataToProcessWriter createWriter() {
         return new JsonDataToProcessWriter(true, autodetectProcess, dataDescription.build(), analysisConfig,
-                new TransformConfigs(transforms), dataCountsReporter, logger);
+                dataCountsReporter);
     }
 
     private void assertWrittenRecordsEqualTo(List<String[]> expectedRecords) {

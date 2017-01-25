@@ -76,7 +76,6 @@ public final class Messages {
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER = "job.config.condition.invalid.value.numeric";
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX = "job.config.condition.invalid.value.regex";
     public static final String JOB_CONFIG_CONDITION_UNKNOWN_OPERATOR = "job.config.condition.unknown.operator";
-    public static final String JOB_CONFIG_DATAFORMAT_REQUIRES_TRANSFORM = "job.config.dataformat.requires.transform";
     public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION = "job.config.detectionrule.condition."
             + "categorical.invalid.option";
     public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_MISSING_OPTION = "job.config.detectionrule.condition."
@@ -158,21 +157,6 @@ public final class Messages {
     public static final String JOB_CONFIG_UPDATE_DATAFEED_CONFIG_PARSE_ERROR = "job.config.update.datafeed.config.parse.error";
     public static final String JOB_CONFIG_UPDATE_DATAFEED_CONFIG_CANNOT_BE_NULL = "job.config.update.datafeed.config.cannot.be.null";
 
-    public static final String JOB_CONFIG_TRANSFORM_CIRCULAR_DEPENDENCY = "job.config.transform.circular.dependency";
-    public static final String JOB_CONFIG_TRANSFORM_CONDITION_REQUIRED = "job.config.transform.condition.required";
-    public static final String JOB_CONFIG_TRANSFORM_DUPLICATED_OUTPUT_NAME = "job.config.transform.duplicated.output.name";
-    public static final String JOB_CONFIG_TRANSFORM_EXTRACT_GROUPS_SHOULD_MATCH_OUTPUT_COUNT = "job.config.transform.extract.groups.should."
-            + "match.output.count";
-    public static final String JOB_CONFIG_TRANSFORM_INPUTS_CONTAIN_EMPTY_STRING = "job.config.transform.inputs.contain.empty.string";
-    public static final String JOB_CONFIG_TRANSFORM_INVALID_ARGUMENT = "job.config.transform.invalid.argument";
-    public static final String JOB_CONFIG_TRANSFORM_INVALID_ARGUMENT_COUNT = "job.config.transform.invalid.argument.count";
-    public static final String JOB_CONFIG_TRANSFORM_INVALID_INPUT_COUNT = "job.config.transform.invalid.input.count";
-    public static final String JOB_CONFIG_TRANSFORM_INVALID_OUTPUT_COUNT = "job.config.transform.invalid.output.count";
-    public static final String JOB_CONFIG_TRANSFORM_OUTPUTS_CONTAIN_EMPTY_STRING = "job.config.transform.outputs.contain.empty.string";
-    public static final String JOB_CONFIG_TRANSFORM_OUTPUTS_UNUSED = "job.config.transform.outputs.unused";
-    public static final String JOB_CONFIG_TRANSFORM_OUTPUT_NAME_USED_MORE_THAN_ONCE = "job.config.transform.output.name.used.more.than"
-            + ".once";
-    public static final String JOB_CONFIG_TRANSFORM_UNKNOWN_TYPE = "job.config.transform.unknown.type";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "job.config.unknown.function";
 
     public static final String JOB_INDEX_ALREADY_EXISTS = "job.index.already.exists";
@@ -206,9 +190,6 @@ public final class Messages {
 
     public static final String JSON_DETECTOR_CONFIG_MAPPING = "json.detector.config.mapping.error";
     public static final String JSON_DETECTOR_CONFIG_PARSE = "json.detector.config.parse.error";
-
-    public static final String JSON_TRANSFORM_CONFIG_MAPPING = "json.transform.config.mapping.error";
-    public static final String JSON_TRANSFORM_CONFIG_PARSE = "json.transform.config.parse.error";
 
     public static final String REST_ACTION_NOT_ALLOWED_FOR_DATAFEED_JOB = "rest.action.not.allowed.for.datafeed.job";
 

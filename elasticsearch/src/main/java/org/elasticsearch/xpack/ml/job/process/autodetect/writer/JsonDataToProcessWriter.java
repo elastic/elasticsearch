@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,10 +31,11 @@ import java.util.Map;
  */
 class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
+    private static final Logger LOGGER = Loggers.getLogger(JsonDataToProcessWriter.class);
+
     public JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess, DataDescription dataDescription,
-                                   AnalysisConfig analysisConfig, TransformConfigs transforms, DataCountsReporter dataCountsReporter,
-                                   Logger logger) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, dataCountsReporter, logger);
+                                   AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter) {
+        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }
 
     /**
@@ -61,7 +62,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private void writeJson(JsonParser parser) throws IOException {
         Collection<String> analysisFields = inputFields();
 
-        buildTransforms(analysisFields.toArray(new String[0]));
+        buildFieldIndexMapping(analysisFields.toArray(new String[0]));
 
         int numFields = outputFieldCount();
         String[] input = new String[numFields];
@@ -70,7 +71,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         // We never expect to get the control field
         boolean[] gotFields = new boolean[analysisFields.size()];
 
-        JsonRecordReader recordReader = new SimpleJsonRecordReader(parser, inFieldIndexes, logger);
+        JsonRecordReader recordReader = new SimpleJsonRecordReader(parser, inFieldIndexes, LOGGER);
         long inputFieldCount = recordReader.read(input, gotFields);
         while (inputFieldCount >= 0) {
             Arrays.fill(record, "");
@@ -87,7 +88,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 record[inOut.outputIndex] = (field == null) ? "" : field;
             }
 
-            applyTransformsAndWrite(input, record, inputFieldCount);
+            transformTimeAndWrite(record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);
         }

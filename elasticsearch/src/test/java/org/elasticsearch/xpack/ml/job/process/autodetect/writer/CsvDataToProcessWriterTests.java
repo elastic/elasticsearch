@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -14,9 +13,6 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -43,11 +39,9 @@ import static org.mockito.Mockito.when;
 public class CsvDataToProcessWriterTests extends ESTestCase {
 
     private AutodetectProcess autodetectProcess;
-    private List<TransformConfig> transforms;
     private DataDescription.Builder dataDescription;
     private AnalysisConfig analysisConfig;
     private DataCountsReporter dataCountsReporter;
-    private Logger jobLogger;
 
     private List<String[]> writtenRecords;
 
@@ -55,7 +49,6 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     public void setUpMocks() throws IOException {
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
         dataCountsReporter = Mockito.mock(DataCountsReporter.class);
-        jobLogger = Mockito.mock(Logger.class);
 
         writtenRecords = new ArrayList<>();
         doAnswer(new Answer<Void>() {
@@ -68,8 +61,6 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
             }
         }).when(autodetectProcess).writeRecord(any(String[].class));
 
-        transforms = new ArrayList<>();
-
         dataDescription = new DataDescription.Builder();
         dataDescription.setFieldDelimiter(',');
         dataDescription.setFormat(DataFormat.DELIMITED);
@@ -79,8 +70,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector)).build();
     }
 
-    public void testWrite_GivenTimeFormatIsEpochAndDataIsValid()
-            throws IOException {
+    public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws IOException {
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
         input.append("1,foo,1.0\n");
@@ -101,40 +91,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
-    public void testWrite_GivenTransformAndEmptyField()
-            throws IOException {
-        TransformConfig transform = new TransformConfig("uppercase");
-        transform.setInputs(Arrays.asList("value"));
-        transform.setOutputs(Arrays.asList("transformed"));
-        transforms.add(transform);
-
-        Detector existingDetector = analysisConfig.getDetectors().get(0);
-        Detector.Builder newDetector = new Detector.Builder(existingDetector);
-        newDetector.setFieldName("transformed");
-        analysisConfig.getDetectors().set(0, newDetector.build());
-
-        StringBuilder input = new StringBuilder();
-        input.append("time,metric,value\n");
-        input.append("1,,foo\n");
-        input.append("2,,\n");
-        InputStream inputStream = createInputStream(input.toString());
-        CsvDataToProcessWriter writer = createWriter();
-        writer.writeHeader();
-        writer.write(inputStream);
-        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
-
-        List<String[]> expectedRecords = new ArrayList<>();
-        // The final field is the control field
-        expectedRecords.add(new String[] { "time", "transformed", "." });
-        expectedRecords.add(new String[] { "1", "FOO", "" });
-        expectedRecords.add(new String[] { "2", "", "" });
-        assertWrittenRecordsEqualTo(expectedRecords);
-
-        verify(dataCountsReporter).finishReporting();
-    }
-
-    public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder()
-            throws IOException {
+    public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder() throws IOException {
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
         input.append("3,foo,3.0\n");
@@ -157,8 +114,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
-    public void testWrite_GivenTimeFormatIsEpochAndAllRecordsAreOutOfOrder()
-            throws IOException {
+    public void testWrite_GivenTimeFormatIsEpochAndAllRecordsAreOutOfOrder() throws IOException {
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
         input.append("1,foo,1.0\n");
@@ -182,8 +138,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
-    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder()
-            throws IOException {
+    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(2L);
         analysisConfig = builder.build();
@@ -216,8 +171,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
-    public void testWrite_NullByte()
-            throws IOException {
+    public void testWrite_NullByte() throws IOException {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
         builder.setLatency(0L);
         analysisConfig = builder.build();
@@ -225,7 +179,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         StringBuilder input = new StringBuilder();
         input.append("metric,value,time\n");
         input.append("foo,4.0,1\n");
-        input.append("\0"); // the csv reader skips over this line
+        input.append("\0"); // the csv reader treats this as a line (even though it doesn't end with \n) and skips over it
         input.append("foo,5.0,2\n");
         input.append("foo,3.0,3\n");
         input.append("bar,4.0,4\n");
@@ -245,7 +199,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[] { "4", "4.0", "" });
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter, times(1)).reportMissingField();
+        verify(dataCountsReporter, times(2)).reportMissingField();
         verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000);
         verify(dataCountsReporter, times(1)).reportRecordWritten(2, 2000);
         verify(dataCountsReporter, times(1)).reportRecordWritten(2, 3000);
@@ -270,83 +224,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         assertEquals(0L, counts.getInputRecordCount());
     }
 
-    public void testWrite_GivenDateTimeFieldIsOutputOfTransform()
-            throws IOException {
-        TransformConfig transform = new TransformConfig("concat");
-        transform.setInputs(Arrays.asList("date", "time-of-day"));
-        transform.setOutputs(Arrays.asList("datetime"));
-
-        transforms.add(transform);
-
-        dataDescription = new DataDescription.Builder();
-        dataDescription.setFieldDelimiter(',');
-        dataDescription.setTimeField("datetime");
-        dataDescription.setFormat(DataFormat.DELIMITED);
-        dataDescription.setTimeFormat("yyyy-MM-ddHH:mm:ssX");
-
-        CsvDataToProcessWriter writer = createWriter();
-        writer.writeHeader();
-
-        StringBuilder input = new StringBuilder();
-        input.append("date,time-of-day,metric,value\n");
-        input.append("1970-01-01,00:00:01Z,foo,5.0\n");
-        input.append("1970-01-01,00:00:02Z,foo,6.0\n");
-        InputStream inputStream = createInputStream(input.toString());
-
-        writer.write(inputStream);
-        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
-
-        List<String[]> expectedRecords = new ArrayList<>();
-        // The final field is the control field
-        expectedRecords.add(new String[] { "datetime", "value", "." });
-        expectedRecords.add(new String[] { "1", "5.0", "" });
-        expectedRecords.add(new String[] { "2", "6.0", "" });
-        assertWrittenRecordsEqualTo(expectedRecords);
-
-        verify(dataCountsReporter).finishReporting();
-    }
-
-    public void testWrite_GivenChainedTransforms_SortsByDependencies()
-            throws IOException {
-        TransformConfig tc1 = new TransformConfig(TransformType.Names.UPPERCASE_NAME);
-        tc1.setInputs(Arrays.asList("dns"));
-        tc1.setOutputs(Arrays.asList("dns_upper"));
-
-        TransformConfig tc2 = new TransformConfig(TransformType.Names.CONCAT_NAME);
-        tc2.setInputs(Arrays.asList("dns1", "dns2"));
-        tc2.setArguments(Arrays.asList("."));
-        tc2.setOutputs(Arrays.asList("dns"));
-
-        transforms.add(tc1);
-        transforms.add(tc2);
-
-        Detector.Builder detector = new Detector.Builder("metric", "value");
-        detector.setByFieldName("dns_upper");
-        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        analysisConfig = builder.build();
-
-        StringBuilder input = new StringBuilder();
-        input.append("time,dns1,dns2,value\n");
-        input.append("1,www,foo.com,1.0\n");
-        input.append("2,www,bar.com,2.0\n");
-        InputStream inputStream = createInputStream(input.toString());
-        CsvDataToProcessWriter writer = createWriter();
-        writer.writeHeader();
-        writer.write(inputStream);
-        verify(dataCountsReporter, times(1)).startNewIncrementalCount();
-
-        List<String[]> expectedRecords = new ArrayList<>();
-        // The final field is the control field
-        expectedRecords.add(new String[] { "time", "dns_upper", "value", "." });
-        expectedRecords.add(new String[] { "1", "WWW.FOO.COM", "1.0", "" });
-        expectedRecords.add(new String[] { "2", "WWW.BAR.COM", "2.0", "" });
-        assertWrittenRecordsEqualTo(expectedRecords);
-
-        verify(dataCountsReporter).finishReporting();
-    }
-
-    public void testWrite_GivenMisplacedQuoteMakesRecordExtendOverTooManyLines()
-            throws IOException {
+    public void testWrite_GivenMisplacedQuoteMakesRecordExtendOverTooManyLines() throws IOException {
 
         StringBuilder input = new StringBuilder();
         input.append("time,metric,value\n");
@@ -372,7 +250,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
     private CsvDataToProcessWriter createWriter() {
         return new CsvDataToProcessWriter(true, autodetectProcess, dataDescription.build(), analysisConfig,
-                new TransformConfigs(transforms), dataCountsReporter, jobLogger);
+                dataCountsReporter);
     }
 
     private void assertWrittenRecordsEqualTo(List<String[]> expectedRecords) {

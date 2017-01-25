@@ -67,13 +67,6 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
         return Condition.PARSER.apply(parser, null);
     }
 
-    public void testInvalidTransformName() throws Exception {
-        BytesArray json = new BytesArray("{ \"value\":\"someValue\" }");
-        XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Condition.PARSER.apply(parser, null));
-        assertThat(ex.getMessage(), containsString("Required [operator]"));
-    }
-
     public void testVerifyArgsNumericArgs() {
         new Condition(Operator.LTE, "100");
         new Condition(Operator.GT, "10.0");

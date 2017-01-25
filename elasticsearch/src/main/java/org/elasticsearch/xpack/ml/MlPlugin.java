@@ -63,8 +63,6 @@ import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
-import org.elasticsearch.xpack.ml.action.ValidateTransformAction;
-import org.elasticsearch.xpack.ml.action.ValidateTransformsAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
@@ -112,8 +110,6 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
-import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformAction;
-import org.elasticsearch.xpack.ml.rest.validate.RestValidateTransformsAction;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -255,8 +251,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
             new RestCloseJobAction(settings, restController),
             new RestFlushJobAction(settings, restController),
             new RestValidateDetectorAction(settings, restController),
-            new RestValidateTransformAction(settings, restController),
-            new RestValidateTransformsAction(settings, restController),
             new RestGetCategoriesAction(settings, restController),
             new RestGetModelSnapshotsAction(settings, restController),
             new RestRevertModelSnapshotAction(settings, restController),
@@ -295,8 +289,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
                 new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
-                new ActionHandler<>(ValidateTransformAction.INSTANCE, ValidateTransformAction.TransportAction.class),
-                new ActionHandler<>(ValidateTransformsAction.INSTANCE, ValidateTransformsAction.TransportAction.class),
                 new ActionHandler<>(GetCategoriesAction.INSTANCE, GetCategoriesAction.TransportAction.class),
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),

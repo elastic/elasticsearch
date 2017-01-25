@@ -18,13 +18,13 @@ enum Level {
     INFLUENCER("infl"),
     PARTITION("part");
 
-    private final String m_Key;
+    private final String key;
 
     Level(String key) {
-        m_Key = key;
+        this.key = key;
     }
 
     public String asString() {
-        return m_Key;
+        return key;
     }
 }

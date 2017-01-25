@@ -10,8 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
@@ -58,7 +56,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getBackgroundPersistInterval());
         assertNull(job.getModelSnapshotRetentionDays());
         assertNull(job.getResultsRetentionDays());
-        assertEquals(Collections.emptyList(), job.getTransforms());
         assertNotNull(job.allFields());
         assertFalse(job.allFields().isEmpty());
     }
@@ -298,92 +295,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.build();
     }
 
-    public void testCheckTransformOutputIsUsed_throws() {
-        Job.Builder builder = buildJobBuilder("foo");
-        TransformConfig tc = new TransformConfig(TransformType.Names.DOMAIN_SPLIT_NAME);
-        tc.setInputs(Arrays.asList("dns"));
-        builder.setTransforms(Arrays.asList(tc));
-        expectThrows(IllegalArgumentException.class, builder::build);
-        Detector.Builder newDetector = new Detector.Builder();
-        newDetector.setFunction(Detector.MIN);
-        newDetector.setFieldName(TransformType.DOMAIN_SPLIT.defaultOutputNames().get(0));
-        AnalysisConfig.Builder config = new AnalysisConfig.Builder(Collections.singletonList(newDetector.build()));
-        builder.setAnalysisConfig(config);
-        builder.build();
-    }
-
-    public void testCheckTransformDuplicatOutput_outputIsSummaryCountField() {
-        Job.Builder builder = buildJobBuilder("foo");
-        AnalysisConfig.Builder config = createAnalysisConfig();
-        config.setSummaryCountFieldName("summaryCountField");
-        builder.setAnalysisConfig(config);
-        TransformConfig tc = new TransformConfig(TransformType.Names.DOMAIN_SPLIT_NAME);
-        tc.setInputs(Arrays.asList("dns"));
-        tc.setOutputs(Arrays.asList("summaryCountField"));
-        builder.setTransforms(Arrays.asList(tc));
-        expectThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    public void testCheckTransformOutputIsUsed_outputIsSummaryCountField() {
-        Job.Builder builder = buildJobBuilder("foo");
-        TransformConfig tc = new TransformConfig(TransformType.Names.EXTRACT_NAME);
-        tc.setInputs(Arrays.asList("dns"));
-        tc.setOutputs(Arrays.asList("summaryCountField"));
-        tc.setArguments(Arrays.asList("(.*)"));
-        builder.setTransforms(Arrays.asList(tc));
-        expectThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    public void testCheckTransformOutputIsUsed_transformHasNoOutput() {
-        Job.Builder builder = buildJobBuilder("foo");
-        // The exclude filter has no output
-        TransformConfig tc = new TransformConfig(TransformType.Names.EXCLUDE_NAME);
-        tc.setCondition(new Condition(Operator.MATCH, "whitelisted_host"));
-        tc.setInputs(Arrays.asList("dns"));
-        builder.setTransforms(Arrays.asList(tc));
-        builder.build();
-    }
-
-    public void testVerify_GivenDataFormatIsSingleLineAndNullTransforms() {
-        String errorMessage = Messages.getMessage(
-                Messages.JOB_CONFIG_DATAFORMAT_REQUIRES_TRANSFORM,
-                DataDescription.DataFormat.SINGLE_LINE);
-        Job.Builder builder = buildJobBuilder("foo");
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.SINGLE_LINE);
-        builder.setDataDescription(dataDescription);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertEquals(errorMessage, e.getMessage());
-    }
-
-    public void testVerify_GivenDataFormatIsSingleLineAndEmptyTransforms() {
-        String errorMessage = Messages.getMessage(
-                Messages.JOB_CONFIG_DATAFORMAT_REQUIRES_TRANSFORM,
-                DataDescription.DataFormat.SINGLE_LINE);
-        Job.Builder builder = buildJobBuilder("foo");
-        builder.setTransforms(new ArrayList<>());
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.SINGLE_LINE);
-        builder.setDataDescription(dataDescription);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-
-        assertEquals(errorMessage, e.getMessage());
-    }
-
-    public void testVerify_GivenDataFormatIsSingleLineAndNonEmptyTransforms() {
-        ArrayList<TransformConfig> transforms = new ArrayList<>();
-        TransformConfig transform = new TransformConfig("trim");
-        transform.setInputs(Arrays.asList("raw"));
-        transform.setOutputs(Arrays.asList("time"));
-        transforms.add(transform);
-        Job.Builder builder = buildJobBuilder("foo");
-        builder.setTransforms(transforms);
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.SINGLE_LINE);
-        builder.setDataDescription(dataDescription);
-        builder.build();
-    }
-
     public void testVerify_GivenNegativeRenormalizationWindowDays() {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
                 "renormalizationWindowDays", 0, -1);
@@ -488,23 +399,12 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setDataDescription(dataDescription);
         }
         String[] outputs;
-        TransformType[] transformTypes ;
         AnalysisConfig ac = analysisConfig.build();
         if (randomBoolean()) {
-            transformTypes = new TransformType[] {TransformType.TRIM, TransformType.LOWERCASE};
             outputs = new String[] {ac.getDetectors().get(0).getFieldName(), ac.getDetectors().get(0).getOverFieldName()};
         } else {
-            transformTypes = new TransformType[] {TransformType.TRIM};
             outputs = new String[] {ac.getDetectors().get(0).getFieldName()};
         }
-        List<TransformConfig> transformConfigList = new ArrayList<>(transformTypes.length);
-        for (int i = 0; i < transformTypes.length; i++) {
-            TransformConfig tc = new TransformConfig(transformTypes[i].prettyName());
-            tc.setInputs(Collections.singletonList("input" + i));
-            tc.setOutputs(Collections.singletonList(outputs[i]));
-            transformConfigList.add(tc);
-        }
-        builder.setTransforms(transformConfigList);
         if (randomBoolean()) {
             builder.setModelDebugConfig(new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)));
         }

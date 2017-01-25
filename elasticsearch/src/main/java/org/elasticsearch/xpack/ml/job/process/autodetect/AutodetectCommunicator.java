@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsPa
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
@@ -77,7 +76,7 @@ public class AutodetectCommunicator implements Closeable {
 
     private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
         return DataToProcessWriterFactory.create(true, autodetectProcess, dataDescription.orElse(job.getDataDescription()),
-                job.getAnalysisConfig(), new TransformConfigs(job.getTransforms()) , dataCountsReporter, LOGGER);
+                job.getAnalysisConfig(), dataCountsReporter);
     }
 
     public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {

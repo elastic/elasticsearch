@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfig;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;
@@ -43,11 +41,6 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
                     Collections.singletonList(new Detector.Builder("metric", "some_field").build())).build();
             AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
-            int numTransformers = randomIntBetween(0, 32);
-            List<TransformConfig> transformConfigList = new ArrayList<>(numTransformers);
-            for (int i = 0; i < numTransformers; i++) {
-                transformConfigList.add(new TransformConfig(TransformType.UPPERCASE.prettyName()));
-            }
             ModelDebugConfig modelDebugConfig = randomBoolean() ? new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)) : null;
             IgnoreDowntime ignoreDowntime = randomFrom(IgnoreDowntime.values());
             Long normalizationWindowDays = randomBoolean() ? randomLong() : null;
@@ -59,7 +52,7 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
             String indexName = randomAsciiOfLength(10);
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
-                    timeout, analysisConfig, analysisLimits, dataDescription, transformConfigList,
+                    timeout, analysisConfig, analysisLimits, dataDescription,
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId, indexName);
 

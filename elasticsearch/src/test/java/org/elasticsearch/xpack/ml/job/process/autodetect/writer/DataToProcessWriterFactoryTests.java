@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 
 import static org.mockito.Mockito.mock;
 
@@ -31,15 +29,8 @@ public class DataToProcessWriterFactoryTests extends ESTestCase {
         assertTrue(createWriter(dataDescription.build()) instanceof CsvDataToProcessWriter);
     }
 
-    public void testCreate_GivenDataFormatIsSingleLine() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataFormat.SINGLE_LINE);
-
-        assertTrue(createWriter(dataDescription.build()) instanceof SingleLineDataToProcessWriter);
-    }
-
     private static DataToProcessWriter createWriter(DataDescription dataDescription) {
         return DataToProcessWriterFactory.create(true, mock(AutodetectProcess.class), dataDescription,
-                mock(AnalysisConfig.class), mock(TransformConfigs.class), mock(DataCountsReporter.class), mock(Logger.class));
+                mock(AnalysisConfig.class), mock(DataCountsReporter.class));
     }
 }

@@ -41,8 +41,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      */
     public enum DataFormat implements Writeable {
         JSON("json"),
-        DELIMITED("delimited"),
-        SINGLE_LINE("single_line");
+        DELIMITED("delimited");
 
         /**
          * Delimited used to be called delineated. We keep supporting that for backwards

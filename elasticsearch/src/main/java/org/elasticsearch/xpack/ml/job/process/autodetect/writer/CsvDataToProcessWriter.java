@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.config.transform.TransformConfigs;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -36,6 +36,9 @@ import java.util.Map;
  * line.
  */
 class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
+
+    private static final Logger LOGGER = Loggers.getLogger(CsvDataToProcessWriter.class);
+
     /**
      * Maximum number of lines allowed within a single CSV record.
      * <p>
@@ -51,13 +54,13 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
 
     public CsvDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
                                   DataDescription dataDescription, AnalysisConfig analysisConfig,
-                                  TransformConfigs transforms, DataCountsReporter dataCountsReporter, Logger logger) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, dataCountsReporter, logger);
+                                  DataCountsReporter dataCountsReporter) {
+        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }
 
     /**
      * Read the csv inputIndex, transform to length encoded values and pipe to
-     * the OutputStream. If any of the expected fields in the transform inputs,
+     * the OutputStream. If any of the expected fields in the
      * analysis inputIndex or if the expected time field is missing from the CSV
      * header a exception is thrown
      */
@@ -74,15 +77,14 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
         try (CsvListReader csvReader = new CsvListReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8), csvPref)) {
             String[] header = csvReader.getHeader(true);
             if (header == null) { // null if EoF
-
                 return dataCountsReporter.incrementalStats();
             }
 
             long inputFieldCount = Math.max(header.length - 1, 0); // time field doesn't count
 
-            buildTransforms(header);
+            buildFieldIndexMapping(header);
 
-            //backing array for the inputIndex
+            // backing array for the inputIndex
             String[] inputRecord = new String[header.length];
 
             int maxIndex = 0;
@@ -98,7 +100,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 Arrays.fill(record, "");
 
                 if (maxIndex >= line.size()) {
-                    logger.warn("Not enough fields in csv record, expected at least " + maxIndex + ". " + line);
+                    LOGGER.warn("Not enough fields in csv record, expected at least " + maxIndex + ". " + line);
 
                     for (InputOutputMap inOut : inputOutputMap) {
                         if (inOut.inputIndex >= line.size()) {
@@ -117,7 +119,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 }
 
                 fillRecordFromLine(line, inputRecord);
-                applyTransformsAndWrite(inputRecord, record, inputFieldCount);
+                transformTimeAndWrite(record, inputFieldCount);
             }
 
             // This function can throw
@@ -148,7 +150,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
                 String msg = String.format(Locale.ROOT, "Field configured for analysis '%s' is not in the CSV header '%s'",
                         field, Arrays.toString(header));
 
-                logger.error(msg);
+                LOGGER.error(msg);
                 throw new IllegalArgumentException(msg);
             }
         }

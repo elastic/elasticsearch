@@ -25,15 +25,11 @@ public class DataFormatTests extends ESTestCase {
 
         assertEquals(DataFormat.JSON, DataFormat.forString("json"));
         assertEquals(DataFormat.JSON, DataFormat.forString("JSON"));
-
-        assertEquals(DataFormat.SINGLE_LINE, DataFormat.forString("single_line"));
-        assertEquals(DataFormat.SINGLE_LINE, DataFormat.forString("SINGLE_LINE"));
     }
 
     public void testValidOrdinals() {
         assertThat(DataFormat.JSON.ordinal(), equalTo(0));
         assertThat(DataFormat.DELIMITED.ordinal(), equalTo(1));
-        assertThat(DataFormat.SINGLE_LINE.ordinal(), equalTo(2));
     }
 
     public void testwriteTo() throws Exception {
@@ -50,13 +46,6 @@ public class DataFormatTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFormat.SINGLE_LINE.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(in.readVInt(), equalTo(2));
-            }
-        }
     }
 
     public void testReadFrom() throws Exception {
@@ -70,12 +59,6 @@ public class DataFormatTests extends ESTestCase {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.DELIMITED));
-            }
-        }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(2);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.SINGLE_LINE));
             }
         }
     }

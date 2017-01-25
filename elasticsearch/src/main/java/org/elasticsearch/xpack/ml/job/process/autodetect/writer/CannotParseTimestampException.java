@@ -3,11 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.transforms;
+package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-public abstract class TransformException extends Exception {
+public class CannotParseTimestampException extends Exception {
 
-    public TransformException(String message) {
-        super(message);
+    public CannotParseTimestampException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

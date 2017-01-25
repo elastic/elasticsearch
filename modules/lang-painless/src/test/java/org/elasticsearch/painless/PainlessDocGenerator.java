@@ -87,10 +87,11 @@ public class PainlessDocGenerator {
                         Files.newOutputStream(typePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                         false, StandardCharsets.UTF_8.name())) {
                     emitGeneratedWarning(typeStream);
-                    typeStream.print("* [[");
+                    typeStream.print("[[");
                     emitAnchor(typeStream, type.struct);
-                    typeStream.print("]]");
-                    typeStream.println(type.name);
+                    typeStream.print("]]++");
+                    typeStream.print(type.name);
+                    typeStream.println("++::");
 
                     Consumer<Field> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
                     Consumer<Method> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
@@ -108,7 +109,7 @@ public class PainlessDocGenerator {
                     });
 
                     if (false == inherited.isEmpty()) {
-                        typeStream.print("** Inherits methods from ");
+                        typeStream.print("* Inherits methods from ");
                         boolean first = true;
                         for (Struct inheritsFrom : inherited.values()) {
                             if (first) {
@@ -116,7 +117,9 @@ public class PainlessDocGenerator {
                             } else {
                                 typeStream.print(", ");
                             }
+                            typeStream.print("++");
                             emitStruct(typeStream, inheritsFrom);
+                            typeStream.print("++");
                         }
                         typeStream.println();
                     }
@@ -157,7 +160,7 @@ public class PainlessDocGenerator {
      * Document a method.
      */
     private static void documentMethod(PrintStream stream, Method method) {
-        stream.print("** [[");
+        stream.print("* ++[[");
         emitAnchor(stream, method);
         stream.print("]]");
 
@@ -186,7 +189,7 @@ public class PainlessDocGenerator {
             }
             emitType(stream, arg);
         }
-        stream.print(")");
+        stream.print(")++");
 
         if (javadocRoot.equals("java8")) {
             stream.print(" (");

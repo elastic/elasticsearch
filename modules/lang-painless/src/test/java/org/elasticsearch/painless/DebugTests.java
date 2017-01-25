@@ -67,17 +67,17 @@ public class DebugTests extends ScriptTestCase {
     public void testPainlessExplainErrorSerialization() throws IOException {
         Map<String, Object> params = singletonMap("a", "jumped over the moon");
         ScriptException e = expectThrows(ScriptException.class, () -> exec("Debug.explain(params.a)", params, true));
-        assertEquals(singletonList("jumped over the moon"), e.getHeader("es.to_string"));
-        assertEquals(singletonList("java.lang.String"), e.getHeader("es.java_class"));
-        assertEquals(singletonList("String"), e.getHeader("es.painless_class"));
+        assertEquals(singletonList("jumped over the moon"), e.getMetadata("es.to_string"));
+        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.java_class"));
+        assertEquals(singletonList("String"), e.getMetadata("es.painless_class"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
             try (StreamInput in = out.bytes().streamInput()) {
                 ElasticsearchException read = (ScriptException) in.readException();
-                assertEquals(singletonList("jumped over the moon"), read.getHeader("es.to_string"));
-                assertEquals(singletonList("java.lang.String"), read.getHeader("es.java_class"));
-                assertEquals(singletonList("String"), read.getHeader("es.painless_class"));
+                assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
+                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.java_class"));
+                assertEquals(singletonList("String"), read.getMetadata("es.painless_class"));
             }
         }
     }

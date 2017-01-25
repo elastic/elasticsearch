@@ -22,9 +22,6 @@ esplugin {
     classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-
 integTest {
     cluster {
         setting 'repositories.url.allowed_urls', 'http://snapshot.test*'

@@ -114,14 +114,15 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Override
     protected synchronized void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
             ActionListener<TaskInfo> listener) {
-        DiscoveryNodes childNodes = clusterService.state().nodes();
-        final BanLock banLock = new BanLock(childNodes.getSize(), () -> removeBanOnNodes(cancellableTask, childNodes));
-        boolean canceled = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
-        if (canceled) {
-            if (cancellableTask.shouldCancelChildrenOnCancellation()) {
+        String nodeId = clusterService.localNode().getId();
+        final boolean canceled;
+        if (cancellableTask.shouldCancelChildrenOnCancellation()) {
+            DiscoveryNodes childNodes = clusterService.state().nodes();
+            final BanLock banLock = new BanLock(childNodes.getSize(), () -> removeBanOnNodes(cancellableTask, childNodes));
+            canceled = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
+            if (canceled) {
                 // /In case the task has some child tasks, we need to wait for until ban is set on all nodes
                 logger.trace("cancelling task {} on child nodes", cancellableTask.getId());
-                String nodeId = clusterService.localNode().getId();
                 AtomicInteger responses = new AtomicInteger(childNodes.getSize());
                 List<Exception> failures = new ArrayList<>();
                 setBanOnNodes(request.getReason(), cancellableTask, childNodes, new ActionListener<Void>() {
@@ -152,14 +153,20 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                         }
                     }
                 });
-            } else {
+            }
+        }  else {
+            canceled = taskManager.cancel(cancellableTask, request.getReason(),
+                () -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)));
+            if (canceled) {
                 logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
             }
-        } else {
+        }
+        if (canceled == false) {
             logger.trace("task {} is already cancelled", cancellableTask.getId());
             throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
         }
     }
+
 
     @Override
     protected boolean accumulateExceptions() {

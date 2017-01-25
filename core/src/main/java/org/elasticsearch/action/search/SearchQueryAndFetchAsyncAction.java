@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -49,11 +50,10 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
         super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
-
     }
 
     @Override
-    protected String firstPhaseName() {
+    protected String initialPhaseName() {
         return "query_fetch";
     }
 
@@ -64,27 +64,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     }
 
     @Override
-    protected void moveToSecondPhase() throws Exception {
-        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
-            @Override
-            public void doRun() throws IOException {
-                final boolean isScrollRequest = request.scroll() != null;
-                sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
-                    firstResults);
-                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
-                    buildTookInMillis(), buildShardFailures()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
-                }
-                super.onFailure(failure);
-            }
-        });
+    protected void executeNextPhase(AtomicArray<QueryFetchSearchResult> initialResults) throws Exception {
+        sendResponseAsync(searchPhaseController, null, initialResults, initialResults);
     }
 }

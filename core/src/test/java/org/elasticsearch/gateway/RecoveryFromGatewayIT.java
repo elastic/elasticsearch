@@ -68,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -385,8 +386,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
-    // test fails with seed FE6770A74885D66E
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard.StoreRecovery:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = Settings.builder()
             .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
@@ -465,7 +464,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     recovered += file.length();
                 }
             }
-            if (!recoveryState.getPrimary() && (useSyncIds == false)) {
+            if (recoveryState.getSequenceNumberBasedRecovery()) {
+                assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThanOrEqualTo(0));
+            } else if (!recoveryState.getPrimary() && (useSyncIds == false)) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                     recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                     recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());

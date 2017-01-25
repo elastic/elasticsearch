@@ -529,7 +529,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames,
+                final RecoveryTarget target = recoveryRef.target();
+                target.state().setSequenceNumberBasedRecovery(false);
+                target.receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames,
                         request.phase1ExistingFileSizes, request.totalTranslogOps);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }

@@ -19,16 +19,18 @@
 
 package org.elasticsearch.cloud.aws;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -46,17 +48,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.s3.S3Repository;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
-
 public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
     // pkg private for tests
-    static final Setting<String> CONFIG_NAME = new Setting<>("config", "default", Function.identity());
+    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     /**
      * (acceskey, endpoint) -&gt; client
@@ -70,7 +65,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     @Override
     public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
                                               boolean useThrottleRetries, Boolean pathStyleAccess) {
-        String configName = CONFIG_NAME.get(repositorySettings);
+        String configName = CLIENT_NAME.get(repositorySettings);
         String foundEndpoint = findEndpoint(logger, repositorySettings, settings, configName);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings, configName);
@@ -213,7 +208,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                 if (CLOUD_S3.ENDPOINT_SETTING.exists(settings)) {
                     endpoint = CLOUD_S3.ENDPOINT_SETTING.get(settings);
                     logger.debug("using explicit s3 endpoint [{}]", endpoint);
-                } else if (LEGACY_REGION_SETTING.exists(settings) || CLOUD_S3.REGION_SETTING.exists(settings)) {
+                } else if (REGION_SETTING.exists(settings) || CLOUD_S3.REGION_SETTING.exists(settings)) {
                     region = CLOUD_S3.REGION_SETTING.get(settings);
                     endpoint = getEndpoint(region);
                     logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
@@ -230,7 +225,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      * Return the region configured, or empty string.
      * TODO: remove after https://github.com/elastic/elasticsearch/issues/22761 */
     public static String getRegion(Settings repositorySettings, Settings settings) {
-        return getConfigValue(repositorySettings, settings, CONFIG_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
+        return getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
                               S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
     }
 

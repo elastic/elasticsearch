@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cloud.aws.InternalAwsS3Service;
@@ -65,8 +64,8 @@ public class S3Repository extends BlobStoreRepository {
 
     public static final String TYPE = "s3";
 
-    // prefix for aws client settings
-    private static final String PREFIX = "aws.config.";
+    // prefix for s3 client settings
+    private static final String PREFIX = "s3.client.";
 
     /** The access key (ie login id) for connecting to s3. */
     public static final AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
@@ -98,11 +97,11 @@ public class S3Repository extends BlobStoreRepository {
 
     /** The username of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.LEGACY_PROXY_USERNAME_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING, false));
 
     /** The password of a proxy to connect to s3 through. */
     public static final AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.LEGACY_PROXY_PASSWORD_SETTING, false));
+        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING, false));
 
     /** The socket timeout for connecting to s3. */
     public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
@@ -110,6 +109,7 @@ public class S3Repository extends BlobStoreRepository {
 
     /**
      * Global S3 repositories settings. Starting with: repositories.s3
+     * NOTE: These are legacy settings. Use the named client config settings above.
      */
     public interface Repositories {
         /**

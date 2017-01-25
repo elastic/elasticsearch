@@ -82,16 +82,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
         // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
-        AwsS3Service.LEGACY_KEY_SETTING,
-        AwsS3Service.LEGACY_SECRET_SETTING,
-        AwsS3Service.LEGACY_PROTOCOL_SETTING,
-        AwsS3Service.LEGACY_PROXY_HOST_SETTING,
-        AwsS3Service.LEGACY_PROXY_PORT_SETTING,
-        AwsS3Service.LEGACY_PROXY_USERNAME_SETTING,
-        AwsS3Service.LEGACY_PROXY_PASSWORD_SETTING,
-        AwsS3Service.LEGACY_SIGNER_SETTING,
-        AwsS3Service.LEGACY_REGION_SETTING,
-        AwsS3Service.LEGACY_READ_TIMEOUT,
+        AwsS3Service.KEY_SETTING,
+        AwsS3Service.SECRET_SETTING,
+        AwsS3Service.PROTOCOL_SETTING,
+        AwsS3Service.PROXY_HOST_SETTING,
+        AwsS3Service.PROXY_PORT_SETTING,
+        AwsS3Service.PROXY_USERNAME_SETTING,
+        AwsS3Service.PROXY_PASSWORD_SETTING,
+        AwsS3Service.SIGNER_SETTING,
+        AwsS3Service.REGION_SETTING,
+        AwsS3Service.READ_TIMEOUT,
 
         // Register S3 specific settings: cloud.aws.s3
         AwsS3Service.CLOUD_S3.KEY_SETTING,

@@ -392,70 +392,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
-     * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
-     *
-     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
-     */
-    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
-        t = ExceptionsHelper.unwrapCause(t);
-
-        if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params);
-        } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
-        }
-    }
-
-    /**
-     * Render any exception as a xcontent, encapsulated within a field or object named "error". The level of details that are rendered
-     * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
-     * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
-     * trace.
-     *
-     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
-     */
-    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
-            throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            builder.field(ERROR, "unknown");
-            return;
-        }
-
-        // Render the exception with a simple message
-        if (detailed == false) {
-            String message = "No ElasticsearchException found";
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof ElasticsearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-                    break;
-                }
-                t = t.getCause();
-            }
-            builder.field(ERROR, message);
-            return;
-        }
-
-        // Render the exception with all details
-        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
-        builder.startObject(ERROR);
-        {
-            builder.startArray(ROOT_CAUSE);
-            for (ElasticsearchException rootCause : rootCauses) {
-                builder.startObject();
-                rootCause.toXContent(builder, new DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-        generateThrowableXContent(builder, params, e);
-        builder.endObject();
-    }
-
-    /**
      * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
      * return the original exception type (ie NodeClosedException for example) but just wraps
      * the type, the reason and the cause of the exception. It also recursively parses the
@@ -518,6 +454,70 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             e.addHeader(header.getKey(), String.valueOf(header.getValue()));
         }
         return e;
+    }
+
+    /**
+     * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
+     * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
+     *
+     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
+     */
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        t = ExceptionsHelper.unwrapCause(t);
+
+        if (t instanceof ElasticsearchException) {
+            ((ElasticsearchException) t).toXContent(builder, params);
+        } else {
+            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+        }
+    }
+
+    /**
+     * Render any exception as a xcontent, encapsulated within a field or object named "error". The level of details that are rendered
+     * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
+     * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
+     * trace.
+     *
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
+     */
+    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
+            throws IOException {
+        // No exception to render as an error
+        if (e == null) {
+            builder.field(ERROR, "unknown");
+            return;
+        }
+
+        // Render the exception with a simple message
+        if (detailed == false) {
+            String message = "No ElasticsearchException found";
+            Throwable t = e;
+            for (int counter = 0; counter < 10 && t != null; counter++) {
+                if (t instanceof ElasticsearchException) {
+                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                    break;
+                }
+                t = t.getCause();
+            }
+            builder.field(ERROR, message);
+            return;
+        }
+
+        // Render the exception with all details
+        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
+        builder.startObject(ERROR);
+        {
+            builder.startArray(ROOT_CAUSE);
+            for (ElasticsearchException rootCause : rootCauses) {
+                builder.startObject();
+                rootCause.toXContent(builder, new DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        generateThrowableXContent(builder, params, e);
+        builder.endObject();
     }
 
     /**

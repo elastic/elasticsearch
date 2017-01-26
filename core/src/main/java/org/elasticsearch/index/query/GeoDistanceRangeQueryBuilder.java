@@ -32,6 +32,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,6 +52,8 @@ import java.util.Optional;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
     public static final String NAME = "geo_distance_range";
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(GeoDistanceRangeQueryBuilder.class));
 
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -351,7 +355,11 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             throw new QueryShardException(context, "[{}] queries are no longer supported for geo_point field types. "
                 + "Use geo_distance sort or aggregations", NAME);
-        } else if (indexVersionCreated.before(Version.V_2_2_0)) {
+        }
+
+        deprecationLogger.deprecated("geo_distance_range search is deprecated. Use geo_distance aggregation or sort instead.");
+
+        if (indexVersionCreated.before(Version.V_2_2_0)) {
             LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;

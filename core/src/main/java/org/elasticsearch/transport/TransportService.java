@@ -73,7 +73,7 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 public class TransportService extends AbstractLifecycleComponent {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
-    private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
+    public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
@@ -398,7 +398,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
     }
 
-    static class HandshakeResponse extends TransportResponse {
+    public static class HandshakeResponse extends TransportResponse {
         private DiscoveryNode discoveryNode;
         private ClusterName clusterName;
         private Version version;

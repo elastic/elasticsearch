@@ -436,17 +436,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                             currentFieldName = parser.currentName();
                         } else {
                             List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
-                            if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-                                values.add(parser.textOrNull());
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                values.add(parser.text());
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-                                        values.add(parser.textOrNull());
+                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                        values.add(parser.text());
                                     } else {
                                         parser.skipChildren();
                                     }
                                 }
-                            } else if (token == XContentParser.Token.START_ARRAY) {
+                            } else if (token == XContentParser.Token.START_OBJECT) {
                                 parser.skipChildren();
                             }
                             headers.put(currentFieldName, values);
@@ -463,8 +463,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 // Arrays of objects are not supported yet and just ignored and skipped.
                 List<String> values = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-                        values.add(parser.textOrNull());
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        values.add(parser.text());
                     } else {
                         parser.skipChildren();
                     }

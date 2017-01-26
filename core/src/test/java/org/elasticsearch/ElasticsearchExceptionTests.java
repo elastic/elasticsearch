@@ -721,7 +721,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
                 if (rarely()) {
                     // Empty or null metadata are not printed out by the toXContent method
-                    actualException.addMetadata("ignored", randomBoolean() ? emptyList() : null);
+                    actualException.addMetadata("es.ignored", randomBoolean() ? emptyList() : null);
                 }
             }
 
@@ -729,12 +729,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 int nbResources = randomIntBetween(1, 5);
                 for (int i = 0; i < nbResources; i++) {
                     String resourceType = "type_" + i;
-                    String[] resourceIds = null;
-                    if (frequently()) {
-                        resourceIds = new String[randomIntBetween(1, 3)];
-                        for (int j = 0; j < resourceIds.length; j++) {
-                            resourceIds[j] = frequently() ? randomAsciiOfLength(5) : "";
-                        }
+                    String[] resourceIds = new String[randomIntBetween(1, 3)];
+                    for (int j = 0; j < resourceIds.length; j++) {
+                        resourceIds[j] = frequently() ? randomAsciiOfLength(5) : "";
                     }
                     actualException.setResources(resourceType, resourceIds);
                     expected.setResources(resourceType, resourceIds);

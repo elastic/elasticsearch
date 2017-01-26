@@ -174,7 +174,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
             handleA.transportService.connectToNode(discoveryNode, MockTcpTransport.LIGHT_PROFILE);
         });
-        assertThat(ex.getCause().getMessage(), containsString("unexpected remote node"));
+        assertThat(ex.getMessage(), containsString("unexpected remote node"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 

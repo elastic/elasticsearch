@@ -499,7 +499,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
                 xContentType = XContentType.readFrom(in);
             } else {
                 xContentType = XContentFactory.xContentType(doc);
@@ -544,7 +544,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
                 xContentType.writeTo(out);
             }
         }

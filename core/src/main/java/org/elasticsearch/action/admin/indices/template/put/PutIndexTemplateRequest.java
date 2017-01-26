@@ -535,7 +535,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String mappingSource = in.readString();
-            if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3_0 once backported
                 mappingSource = convertToJsonIfNecessary(mappingSource, XContentFactory.xContentType(mappingSource));
             }
             mappings.put(type, mappingSource);

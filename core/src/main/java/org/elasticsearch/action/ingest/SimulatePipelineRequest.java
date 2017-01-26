@@ -103,7 +103,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(source);
@@ -116,7 +116,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
             xContentType.writeTo(out);
         }
     }

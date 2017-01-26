@@ -34,7 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.FromXContent;
+import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -166,7 +166,7 @@ public final class NetworkModule {
      *        it is the name under which the command's reader is registered.
      */
     private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
-                                                                                FromXContent<T> parser, ParseField commandName) {
+                                                                                NoContextParser<T> parser, ParseField commandName) {
         namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
         namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }

@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -111,7 +112,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         private <T extends MetaData.Custom> void registerMetaDataCustom(String name, Writeable.Reader<T> reader,
                                                                         Writeable.Reader<NamedDiff> diffReader,
-                                                                        NamedXContentRegistry.FromXContent<T> parser) {
+                                                                        NoContextParser<T> parser) {
             namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
             namedXContents.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(name), parser));

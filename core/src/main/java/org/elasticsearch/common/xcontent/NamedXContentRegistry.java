@@ -77,20 +77,20 @@ public class NamedXContentRegistry {
         public final ParseField name;
 
         /** A parser capability of parser the entry's class. */
-        private final FromXContentWithContext<?> parser;
+        private final ContextParser<Object, ?> parser;
 
         /** Creates a new entry which can be stored by the registry. */
-        public <T> Entry(Class<T> categoryClass, ParseField name, FromXContent<? extends T> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, NoContextParser<? extends T> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
-            this.parser = Objects.requireNonNull((p, c) -> parser.fromXContent(p));
+            this.parser = Objects.requireNonNull((p, c) -> parser.parse(p));
         }
         /**
          * Creates a new entry which can be stored by the registry.
          * @deprecated prefer {@link Entry#Entry(Class, ParseField, FromXContent)}. Contexts will be removed when possible
          */
         @Deprecated
-        public <T> Entry(Class<T> categoryClass, ParseField name, FromXContentWithContext<? extends T> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
             this.parser = Objects.requireNonNull(parser);
@@ -159,7 +159,7 @@ public class NamedXContentRegistry {
             throw new ParsingException(parser.getTokenLocation(),
                     "Unknown " + categoryClass.getSimpleName() + " [" + name + "]: Parser didn't match");
         }
-        return categoryClass.cast(entry.parser.fromXContent(parser, context));
+        return categoryClass.cast(entry.parser.parse(parser, context));
     }
 
     /**

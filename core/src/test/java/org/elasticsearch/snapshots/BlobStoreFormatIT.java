@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -120,7 +121,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
         protected final boolean compress;
 
-        public LegacyEmulationBlobStoreFormat(String blobNameFormat, NamedXContentRegistry.FromXContent<T> reader,
+        public LegacyEmulationBlobStoreFormat(String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
                                               NamedXContentRegistry namedXContentRegistry, boolean compress, XContentType xContentType) {
             super(blobNameFormat, reader, namedXContentRegistry);
             this.xContentType = xContentType;

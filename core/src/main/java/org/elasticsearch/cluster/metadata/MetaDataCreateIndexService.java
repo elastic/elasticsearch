@@ -53,8 +53,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -63,10 +61,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -258,9 +253,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             List<String> templateNames = new ArrayList<>();
 
-                            for (Map.Entry<String, Tuple<XContentType, BytesReference>> entry : request.mappings().entrySet()) {
-                                mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue().v2(),
-                                    entry.getValue().v1()));
+                            for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+                                mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                             }
 
                             for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
@@ -271,14 +265,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             for (IndexTemplateMetaData template : templates) {
                                 templateNames.add(template.getName());
                                 for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                                    BytesReference bytesReference = cursor.value.uncompressedReference();
-                                    XContentType xContentType = XContentFactory.xContentType(bytesReference);
+                                    String mappingString = cursor.value.string();
                                     if (mappings.containsKey(cursor.key)) {
                                         XContentHelper.mergeDefaults(mappings.get(cursor.key),
-                                                MapperService.parseMapping(xContentRegistry, bytesReference, xContentType));
+                                                MapperService.parseMapping(xContentRegistry, mappingString));
                                     } else {
                                         mappings.put(cursor.key,
-                                            MapperService.parseMapping(xContentRegistry, bytesReference, xContentType));
+                                            MapperService.parseMapping(xContentRegistry, mappingString));
                                     }
                                 }
                                 // handle custom

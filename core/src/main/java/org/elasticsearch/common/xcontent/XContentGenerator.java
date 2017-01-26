@@ -86,16 +86,40 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeBinary(byte[] value, int offset, int length) throws IOException;
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     * @deprecated use {@link #writeRawField(String, InputStream, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     void writeRawField(String name, InputStream value) throws IOException;
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
     void writeRawField(String name, InputStream value, XContentType xContentType) throws IOException;
 
+    /**
+     * Writes a raw field with the given bytes as the value
+     * @deprecated use {@link #writeRawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     void writeRawField(String name, BytesReference value) throws IOException;
 
+    /**
+     * Writes a raw field with the given bytes as the value
+     */
     void writeRawField(String name, BytesReference value, XContentType xContentType) throws IOException;
 
+    /**
+     * Writes a value with the source coming directly from the bytes
+     * @deprecated use {@link #writeRawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     void writeRawValue(BytesReference value) throws IOException;
 
+    /**
+     * Writes a value with the source coming directly from the bytes
+     */
     void writeRawValue(BytesReference value, XContentType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;

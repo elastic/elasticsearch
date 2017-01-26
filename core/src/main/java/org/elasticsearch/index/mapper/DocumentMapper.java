@@ -196,10 +196,6 @@ public class DocumentMapper implements ToXContent {
         return this.mappingSource;
     }
 
-    public XContentType mappingSourceXContentType() {
-        return XContentType.JSON;
-    }
-
     public RootObjectMapper root() {
         return mapping.root;
     }
@@ -263,7 +259,7 @@ public class DocumentMapper implements ToXContent {
 
     // TODO this method looks like it is only used in tests...
     public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(index, type, id, source, XContentFactory.xContentType(source)));
+        return parse(SourceToParse.source(index, type, id, source, XContentType.JSON));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {

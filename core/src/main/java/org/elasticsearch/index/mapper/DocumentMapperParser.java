@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -75,19 +74,13 @@ public class DocumentMapperParser {
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parse(type, source, null, null);
+        return parse(type, source, null);
     }
 
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource,
-                                XContentType xContentType) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root;
-            if (xContentType != null) {
-                root = XContentHelper.convertToMap(source.compressedReference(), true, xContentType).v2();
-            } else {
-                root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
-            }
+            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
             Tuple<String, Map<String, Object>> t = extractMapping(type, root);
             type = t.v1();
             mapping = t.v2();
@@ -169,7 +162,7 @@ public class DocumentMapperParser {
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, source)) {
             root = parser.mapOrdered();
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse mapping definition", e);

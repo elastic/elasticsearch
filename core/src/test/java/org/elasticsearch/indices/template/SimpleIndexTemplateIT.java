@@ -337,7 +337,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", new BytesArray("abcde"), XContentType.JSON)
+                .addMapping("type1", "abcde", XContentType.JSON)
                 .get());
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
 
@@ -374,8 +374,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", new BytesArray("{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}"),
-                    XContentType.JSON)
+                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}", XContentType.JSON)
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))

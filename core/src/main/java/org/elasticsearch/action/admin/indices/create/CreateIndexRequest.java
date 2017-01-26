@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -74,7 +74,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private final Map<String, Tuple<XContentType, BytesReference>> mappings = new HashMap<>();
+    private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -225,12 +225,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @Deprecated
     public CreateIndexRequest mapping(String type, String source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
-        XContentType xContentType = Objects.requireNonNull(XContentFactory.xContentType(source));
-        mappings.put(type, new Tuple<>(xContentType, new BytesArray(source.getBytes(StandardCharsets.UTF_8))));
-        return this;
+        return mapping(type, new BytesArray(source), XContentFactory.xContentType(source));
     }
 
     /**
@@ -245,7 +240,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
         Objects.requireNonNull(xContentType);
-        mappings.put(type, new Tuple<>(xContentType, source));
+        mappings.put(type, convertToJsonIfNecessary(source, xContentType));
         return this;
     }
 
@@ -264,11 +259,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
-        mappings.put(type, new Tuple<>(source.contentType(), source.bytes()));
-        return this;
+        return mapping(type, source.bytes(), source.contentType());
     }
 
     /**
@@ -289,7 +280,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder.string());
+            return mapping(type, builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -472,7 +463,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    public Map<String, Tuple<XContentType, BytesReference>> mappings() {
+    public Map<String, String> mappings() {
         return this.mappings;
     }
 
@@ -545,17 +536,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                final String type = in.readString();
-                final BytesReference bytesReference = in.readBytesReference();
-                final XContentType xContentType = XContentType.readFrom(in);
-                mappings.put(type, new Tuple<>(xContentType, bytesReference));
-            } else {
-                final String type = in.readString();
-                final BytesReference bytesReference = new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8));
-                final XContentType xContentType = XContentFactory.xContentType(bytesReference);
-                mappings.put(type, new Tuple<>(xContentType, bytesReference));
+            final String type = in.readString();
+            String source = in.readString();
+            if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+                source = convertToJsonIfNecessary(source, XContentFactory.xContentType(source));
             }
+            mappings.put(type, source);
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -579,17 +565,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         writeSettingsToStream(settings, out);
         writeTimeout(out);
         out.writeVInt(mappings.size());
-        for (Map.Entry<String, Tuple<XContentType, BytesReference>> entry : mappings.entrySet()) {
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());
-            final Tuple<XContentType, BytesReference> value = entry.getValue();
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                out.writeBytesReference(value.v2());
-                value.v1().writeTo(out);
-            } else if (value.v1().hasStringRepresentation()) {
-                out.writeString(value.v2().utf8ToString());
-            } else {
-                throw new IllegalStateException("cannot send [" + value.v1() + "] to an older node");
-            }
+            out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
@@ -602,5 +580,20 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeBoolean(updateAllTypes);
         waitForActiveShards.writeTo(out);
+    }
+
+    private String convertToJsonIfNecessary(String source, XContentType xContentType) {
+        return convertToJsonIfNecessary(new BytesArray(source), xContentType);
+    }
+
+    private String convertToJsonIfNecessary(BytesReference source, XContentType xContentType) {
+        if (xContentType == XContentType.JSON) {
+            return source.utf8ToString();
+        }
+        try {
+            return XContentHelper.convertToJson(source, false, xContentType);
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert source to JSON", e);
+        }
     }
 }

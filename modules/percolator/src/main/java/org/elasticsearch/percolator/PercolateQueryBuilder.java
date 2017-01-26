@@ -95,7 +95,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     private final String field;
     private final String documentType;
     private final BytesReference document;
-    private final XContentType xContentType;
+    private final XContentType documentXContentType;
 
     private final String indexedDocumentIndex;
     private final String indexedDocumentType;
@@ -113,7 +113,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this(field, documentType, document, XContentFactory.xContentType(document));
     }
 
-    public PercolateQueryBuilder(String field, String documentType, BytesReference document, XContentType xContentType) {
+    public PercolateQueryBuilder(String field, String documentType, BytesReference document, XContentType documentXContentType) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -126,7 +126,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.field = field;
         this.documentType = documentType;
         this.document = document;
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.documentXContentType = Objects.requireNonNull(documentXContentType);
         indexedDocumentIndex = null;
         indexedDocumentType = null;
         indexedDocumentId = null;
@@ -162,7 +162,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.indexedDocumentPreference = indexedDocumentPreference;
         this.indexedDocumentVersion = indexedDocumentVersion;
         this.document = null;
-        this.xContentType = null;
+        this.documentXContentType = null;
     }
 
     /**
@@ -185,12 +185,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         document = in.readOptionalBytesReference();
         if (document != null) {
             if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                xContentType = XContentType.readFrom(in);
+                documentXContentType = XContentType.readFrom(in);
             } else {
-                xContentType = XContentFactory.xContentType(document);
+                documentXContentType = XContentFactory.xContentType(document);
             }
         } else {
-            xContentType = null;
+            documentXContentType = null;
         }
     }
 
@@ -211,7 +211,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeOptionalBytesReference(document);
         if (document != null && out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-            xContentType.writeTo(out);
+            documentXContentType.writeTo(out);
         }
     }
 
@@ -396,7 +396,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         DocumentMapperForType docMapperForType = mapperService.documentMapperWithAutoCreate(documentType);
         DocumentMapper docMapper = docMapperForType.getDocumentMapper();
 
-        ParsedDocument doc = docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document, xContentType));
+        ParsedDocument doc = docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document, documentXContentType));
 
         FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
         // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
@@ -463,7 +463,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     //pkg-private for testing
     XContentType getXContentType() {
-        return xContentType;
+        return documentXContentType;
     }
 
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {

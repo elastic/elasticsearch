@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -95,16 +93,14 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     public static class FieldMappingMetaData implements ToXContent {
-        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY, XContentType.JSON);
+        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
 
         private String fullName;
         private BytesReference source;
-        private XContentType xContentType;
 
-        public FieldMappingMetaData(String fullName, BytesReference source, XContentType xContentType) {
+        public FieldMappingMetaData(String fullName, BytesReference source) {
             this.fullName = fullName;
             this.source = source;
-            this.xContentType = xContentType;
         }
 
         public String fullName() {
@@ -113,16 +109,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source, true, xContentType).v2();
+            return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
         }
 
         public boolean isNull() {
             return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
-        }
-
-        //pkg-private for testing
-        XContentType getXContentType() {
-            return xContentType;
         }
 
         //pkg-private for testing
@@ -136,7 +127,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (params.paramAsBoolean("pretty", false)) {
                 builder.field("mapping", sourceAsMap());
             } else {
-                builder.rawField("mapping", source, xContentType);
+                builder.rawField("mapping", source, XContentType.JSON);
             }
             return builder;
         }
@@ -156,16 +147,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 int fieldSize = in.readVInt();
                 Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
                 for (int k = 0; k < fieldSize; k++) {
-                    final String key = in.readString();
-                    final String field = in.readString();
-                    final BytesReference bytesReference = in.readBytesReference();
-                    final XContentType xContentType;
-                    if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                        xContentType = XContentType.readFrom(in);
-                    } else {
-                        xContentType = XContentFactory.xContentType(bytesReference);
-                    }
-                    fieldMapBuilder.put(key, new FieldMappingMetaData(field, bytesReference, xContentType));
+                    fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
                 }
                 typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
             }
@@ -189,9 +171,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                     FieldMappingMetaData fieldMapping = fieldEntry.getValue();
                     out.writeString(fieldMapping.fullName());
                     out.writeBytesReference(fieldMapping.source);
-                    if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                        fieldMapping.xContentType.writeTo(out);
-                    }
                 }
             }
         }

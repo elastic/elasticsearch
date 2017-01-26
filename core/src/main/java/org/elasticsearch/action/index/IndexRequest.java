@@ -26,7 +26,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -47,6 +46,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -83,7 +83,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
-    private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
+    private XContentType contentType;
 
     private String pipeline;
 
@@ -290,12 +290,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Index the Map as a {@link org.elasticsearch.client.Requests#INDEX_CONTENT_TYPE}.
+     * Index the Map in {@link XContentType#JSON} format
      *
      * @param source The map to index
      */
     public IndexRequest source(Map source) throws ElasticsearchGenerationException {
-        return source(source, contentType);
+        return source(source, XContentType.JSON);
     }
 
     /**
@@ -320,9 +320,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Deprecated
     public IndexRequest source(String source) {
-        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
-        this.contentType = XContentFactory.xContentType(source);
-        return this;
+        return source(new BytesArray(source.getBytes(StandardCharsets.UTF_8)), XContentFactory.xContentType(source));
     }
 
     /**
@@ -332,18 +330,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
-        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
-        this.contentType = xContentType;
-        return this;
+        return source(new BytesArray(source.getBytes(StandardCharsets.UTF_8)), xContentType);
     }
 
     /**
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        source = sourceBuilder.bytes();
-        contentType = sourceBuilder.contentType();
-        return this;
+        return source(sourceBuilder.bytes(), sourceBuilder.contentType());
     }
 
     /**
@@ -362,7 +356,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag was removed, please just use source(BytesReference)");
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentType sourceXContentType = contentType == null ? XContentType.JSON : contentType;
+            XContentBuilder builder = XContentFactory.contentBuilder(sourceXContentType);
             builder.startObject();
             for (int i = 0; i < source.length; i++) {
                 builder.field(source[i++].toString(), source[i]);
@@ -380,17 +375,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Deprecated
     public IndexRequest source(BytesReference source) {
-        this.source = source;
-        this.contentType = XContentFactory.xContentType(source);
-        return this;
+        return source(source, XContentFactory.xContentType(source));
+
     }
 
     /**
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.contentType = xContentType;
+        this.source = Objects.requireNonNull(source);
+        this.contentType = Objects.requireNonNull(xContentType);
         return this;
     }
 
@@ -421,9 +415,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Deprecated
     public IndexRequest source(byte[] source, int offset, int length) {
-        this.source = new BytesArray(source, offset, length);
-        this.contentType = XContentFactory.xContentType(source);
-        return this;
+        return source(new BytesArray(source, offset, length), XContentFactory.xContentType(source));
     }
 
     /**
@@ -435,9 +427,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param length The length of the data
      */
     public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        this.source = new BytesArray(source, offset, length);
-        this.contentType = xContentType;
-        return this;
+        return source(new BytesArray(source, offset, length), xContentType);
     }
 
     /**

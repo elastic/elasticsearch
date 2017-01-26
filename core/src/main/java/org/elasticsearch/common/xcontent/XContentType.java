@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -58,11 +59,6 @@ public enum XContentType implements Writeable {
         public XContent xContent() {
             return JsonXContent.jsonXContent;
         }
-
-        @Override
-        public boolean hasStringRepresentation() {
-            return true;
-        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -81,11 +77,6 @@ public enum XContentType implements Writeable {
         @Override
         public XContent xContent() {
             return SmileXContent.smileXContent;
-        }
-
-        @Override
-        public boolean hasStringRepresentation() {
-            return false;
         }
     },
     /**
@@ -106,11 +97,6 @@ public enum XContentType implements Writeable {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
-
-        @Override
-        public boolean hasStringRepresentation() {
-            return true;
-        }
     },
     /**
      * A CBOR based content type.
@@ -130,18 +116,13 @@ public enum XContentType implements Writeable {
         public XContent xContent() {
             return CborXContent.cborXContent;
         }
-
-        @Override
-        public boolean hasStringRepresentation() {
-            return false;
-        }
     };
 
     /**
      * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
      * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
      * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
-     * format query parameter. This method will return {@code null} if no match is found
+     * format query string parameter. This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaTypeOrFormat(String mediaType) {
         if (mediaType == null) {
@@ -161,11 +142,11 @@ public enum XContentType implements Writeable {
 
     /**
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
-     * The provided media type should not included any parameters. This method is suitable for parsing part of the {@code Content-Type}
+     * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
      * HTTP header. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaTypeStrict(String mediaType) {
-        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
+    public static XContentType fromMediaType(String mediaType) {
+        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
         for (XContentType type : values()) {
             if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
                 return type;
@@ -199,11 +180,6 @@ public enum XContentType implements Writeable {
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
-
-    /**
-     * Returns {@code true} if this {@link XContentType} can be represented as a String and is not a binary only format
-     */
-    public abstract boolean hasStringRepresentation();
 
     public static XContentType readFrom(StreamInput in) throws IOException {
         int index = in.readVInt();

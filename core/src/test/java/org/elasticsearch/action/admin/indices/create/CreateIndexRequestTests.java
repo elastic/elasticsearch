@@ -37,16 +37,14 @@ public class CreateIndexRequestTests extends ESTestCase {
         BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
         request.mapping("my_type", bytesReference, XContentType.JSON);
 
-        assertEquals(XContentType.JSON, request.mappings().get("my_type").v1());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
                 CreateIndexRequest serialized = new CreateIndexRequest();
                 serialized.readFrom(in);
-                assertEquals(XContentType.JSON, serialized.mappings().get("my_type").v1());
                 assertEquals(request.index(), serialized.index());
-                assertEquals(bytesReference, serialized.mappings().get("my_type").v2());
+                assertEquals(bytesReference.utf8ToString(), serialized.mappings().get("my_type"));
             }
         }
     }
@@ -59,10 +57,9 @@ public class CreateIndexRequestTests extends ESTestCase {
             in.setVersion(version);
             CreateIndexRequest serialized = new CreateIndexRequest();
             serialized.readFrom(in);
-            assertEquals(XContentType.JSON, serialized.mappings().get("my_type").v1());
             assertEquals("foo", serialized.index());
             BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
-            assertEquals(bytesReference, serialized.mappings().get("my_type").v2());
+            assertEquals(bytesReference.utf8ToString(), serialized.mappings().get("my_type"));
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);

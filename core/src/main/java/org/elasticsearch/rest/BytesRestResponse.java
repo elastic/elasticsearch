@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -139,5 +140,11 @@ public class BytesRestResponse extends RestResponse {
         builder.field("status", status.getStatus());
         builder.endObject();
         return builder;
+    }
+
+    static BytesRestResponse createSimpleErrorResponse(RestStatus status, String errorMessage) throws IOException {
+        return new BytesRestResponse(status, JsonXContent.contentBuilder().startObject()
+            .field("error", errorMessage)
+            .endObject());
     }
 }

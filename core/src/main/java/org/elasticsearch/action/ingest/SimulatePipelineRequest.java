@@ -46,7 +46,7 @@ public class SimulatePipelineRequest extends ActionRequest {
     private String id;
     private boolean verbose;
     private BytesReference source;
-    private XContentType xContentType = XContentType.JSON;
+    private XContentType xContentType;
 
     /**
      * Create a new request

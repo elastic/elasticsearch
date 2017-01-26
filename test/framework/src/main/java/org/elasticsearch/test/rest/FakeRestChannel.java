@@ -53,8 +53,8 @@ public final class FakeRestChannel extends AbstractRestChannel {
     }
 
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-        return super.newBuilder(xContentType, useFiltering);
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        return super.newBuilder(requestContentType, useFiltering);
     }
 
     @Override

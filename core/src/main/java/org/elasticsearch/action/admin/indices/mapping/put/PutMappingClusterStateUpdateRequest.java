@@ -20,8 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * Cluster state update request that allows to put a mapping
@@ -30,11 +28,9 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     private String type;
 
-    private BytesReference source;
+    private String source;
 
     private boolean updateAllTypes = false;
-
-    private XContentType xContentType;
 
     public PutMappingClusterStateUpdateRequest() {
 
@@ -49,17 +45,12 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
         return this;
     }
 
-    public BytesReference source() {
+    public String source() {
         return source;
     }
 
-    public XContentType xContentType() {
-        return xContentType;
-    }
-
-    public PutMappingClusterStateUpdateRequest source(BytesReference source, XContentType xContentType) {
+    public PutMappingClusterStateUpdateRequest source(String source) {
         this.source = source;
-        this.xContentType = xContentType;
         return this;
     }
 

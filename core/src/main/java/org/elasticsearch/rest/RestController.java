@@ -174,8 +174,10 @@ public class RestController extends AbstractComponent {
         RestChannel responseChannel = channel;
         try {
             final int contentLength = request.hasContent() ? request.content().length() : 0;
+            assert contentLength >= 0 : "content length was negative, how is that possible?";
             final RestHandler handler = getHandler(request);
-            if (checkForContentType(request, responseChannel, contentLength, handler)) {
+
+            if (contentLength == 0 || checkForContentType(request, handler)) {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
@@ -184,6 +186,8 @@ public class RestController extends AbstractComponent {
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
                 dispatchRequest(request, responseChannel, client, threadContext, handler);
+            } else {
+                sendContentTypeErrorMessage(request, responseChannel);
             }
         } catch (Exception e) {
             try {
@@ -198,8 +202,8 @@ public class RestController extends AbstractComponent {
 
     void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
                          final RestHandler handler) throws Exception {
-        if (!checkRequestParameters(request, channel)) {
-            return;
+        if (checkRequestParameters(request, channel) == false) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
         }
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             for (String key : headersToCopy) {
@@ -229,44 +233,37 @@ public class RestController extends AbstractComponent {
      * {@link XContentType} or the request is plain text, and content type is required. If content type is not required then this method
      * returns true unless a content type could not be inferred from the body and the rest handler does not support plain text
      */
-    boolean checkForContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength,
-                                final RestHandler restHandler) {
-        if (contentLength > 0) {
-            if (restRequest.getXContentType() == null) {
-                if (restHandler != null && restHandler.supportsPlainText()) {
-                    deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
-                        "in a supported format.");
-                } else if (isContentTypeRequired) {
-                    sendContentTypeErrorMessage(restRequest, channel);
-                    return false;
-                } else {
-                    deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using" +
-                        "the [Content-Type] header.");
-                    XContentType xContentType = XContentFactory.xContentType(restRequest.content());
-                    if (xContentType == null) {
-                        if (restHandler != null) {
-                            if (restHandler.supportsPlainText()) {
-                                deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
-                                    "in a supported format.");
-                            } else {
-                                try {
-                                    channel.sendErrorResponse(NOT_ACCEPTABLE, "Could not determine content type from request body.");
-                                } catch (IOException e) {
-                                    logger.warn("Failed to send response", e);
-                                }
-                                return false;
-                            }
+    boolean checkForContentType(final RestRequest restRequest, final RestHandler restHandler) {
+        if (restRequest.getXContentType() == null) {
+            if (restHandler != null && restHandler.supportsPlainText()) {
+                // content type of null with a handler that supports plain text gets through for now. Once we remove plain text this can
+                // be removed!
+                deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                    "in a supported format.");
+            } else if (isContentTypeRequired) {
+                return false;
+            } else {
+                deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using" +
+                    "the [Content-Type] header.");
+                XContentType xContentType = XContentFactory.xContentType(restRequest.content());
+                if (xContentType == null) {
+                    if (restHandler != null) {
+                        if (restHandler.supportsPlainText()) {
+                            deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                                "in a supported format.");
+                        } else {
+                            return false;
                         }
-                    } else {
-                        restRequest.setxContentType(xContentType);
                     }
+                } else {
+                    restRequest.setXContentType(xContentType);
                 }
             }
         }
         return true;
     }
 
-    private void sendContentTypeErrorMessage(RestRequest restRequest, RestChannel channel) {
+    private void sendContentTypeErrorMessage(RestRequest restRequest, RestChannel channel) throws IOException {
         final List<String> contentTypeHeader = restRequest.getAllHeaderValues("Content-Type");
         final String errorMessage;
         if (contentTypeHeader == null) {
@@ -276,11 +273,7 @@ public class RestController extends AbstractComponent {
                 Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
         }
 
-        try {
-            channel.sendErrorResponse(NOT_ACCEPTABLE, errorMessage);
-        } catch (IOException e) {
-            logger.warn("Failed to send response", e);
-        }
+        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(NOT_ACCEPTABLE, errorMessage));
     }
 
     /**
@@ -291,11 +284,6 @@ public class RestController extends AbstractComponent {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
-            try {
-                channel.sendErrorResponse(BAD_REQUEST, "error traces in responses are disabled.");
-            } catch (IOException e) {
-                logger.warn("Failed to send response", e);
-            }
             return false;
         }
 
@@ -400,11 +388,6 @@ public class RestController extends AbstractComponent {
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
-        }
-
-        @Override
-        public void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException {
-            delegate.sendErrorResponse(restStatus, errorMessage);
         }
 
         private void close() {

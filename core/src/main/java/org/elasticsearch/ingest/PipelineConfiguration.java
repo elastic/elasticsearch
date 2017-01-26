@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
@@ -76,9 +77,6 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }
 
         PipelineConfiguration build() {
-            if (xContentType == null) {
-                xContentType = XContentFactory.xContentType(config);
-            }
             return new PipelineConfiguration(id, config, xContentType);
         }
     }
@@ -91,9 +89,9 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     private final XContentType xContentType;
 
     public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
-        this.id = id;
-        this.config = config;
-        this.xContentType = xContentType;
+        this.id = Objects.requireNonNull(id);
+        this.config = Objects.requireNonNull(config);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     public String getId() {

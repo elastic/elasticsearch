@@ -191,9 +191,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
-    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, BytesReference mappingSource,
-                                                   XContentType xContentType) throws Exception {
-        try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, mappingSource)) {
+    /**
+     * Parses the mappings (formatted as JSON) into a map
+     */
+    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, mappingSource)) {
             return parser.map();
         }
     }
@@ -322,7 +324,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             try {
                 DocumentMapper documentMapper =
-                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null, null);
+                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
                 documentMappers.add(documentMapper);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -503,7 +505,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false, mapper.mappingSourceXContentType());
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
@@ -618,9 +620,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault,
-                                XContentType xContentType) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null, xContentType);
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
+        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     public boolean hasMapping(String mappingType) {
@@ -659,7 +660,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new TypeMissingException(index(),
                     new IllegalStateException("trying to auto create mapping, but dynamic mapping is disabled"), type);
         }
-        mapper = parse(type, null, true, null);
+        mapper = parse(type, null, true);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

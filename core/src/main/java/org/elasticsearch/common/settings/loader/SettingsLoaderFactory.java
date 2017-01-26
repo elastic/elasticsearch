@@ -79,8 +79,8 @@ public final class SettingsLoaderFactory {
     }
 
     /**
-     * Returns a {@link SettingsLoader} based on the {@link XContentType}. Note only types that return {@code true} from
-     * {@link XContentType#hasStringRepresentation()} are supported
+     * Returns a {@link SettingsLoader} based on the {@link XContentType}. Note only {@link XContentType#JSON} and
+     * {@link XContentType#YAML} are supported
      *
      * @param xContentType The content type
      * @return A settings loader.

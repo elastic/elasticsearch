@@ -24,10 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -52,7 +49,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
-    private final Map<String, Tuple<XContentType, BytesReference>> mappings = new HashMap<>();
+    private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -77,7 +74,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest mappings(Map<String, Tuple<XContentType, BytesReference>> mappings) {
+    public CreateIndexClusterStateUpdateRequest mappings(Map<String, String> mappings) {
         this.mappings.putAll(mappings);
         return this;
     }
@@ -132,7 +129,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return settings;
     }
 
-    public Map<String, Tuple<XContentType, BytesReference>> mappings() {
+    public Map<String, String> mappings() {
         return mappings;
     }
 

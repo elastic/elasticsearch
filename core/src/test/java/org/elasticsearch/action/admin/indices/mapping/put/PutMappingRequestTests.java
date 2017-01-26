@@ -21,9 +21,10 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.index.Index;
@@ -78,7 +79,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest("foo");
         String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
         request.source(mapping, XContentType.YAML);
-        assertEquals(mapping, request.source().utf8ToString());
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
 
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         request.writeTo(bytesStreamOutput);
@@ -86,9 +87,8 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest serialized = new PutMappingRequest();
         serialized.readFrom(in);
 
-        BytesReference source = serialized.source();
-        assertEquals(mapping, source.utf8ToString());
-        assertEquals(XContentType.YAML, request.getXContentType());
+        String source = serialized.source();
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), source);
     }
 
     public void testSerializationBwc() throws IOException {
@@ -100,14 +100,7 @@ public class PutMappingRequestTests extends ESTestCase {
             PutMappingRequest request = new PutMappingRequest();
             request.readFrom(in);
             String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-            assertEquals(mapping, request.source().utf8ToString());
-            assertEquals(XContentType.YAML, request.getXContentType());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                request.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
+            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
         }
     }
 }

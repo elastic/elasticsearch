@@ -35,7 +35,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     private String id;
     private BytesReference source;
-    private XContentType xContentType = XContentType.JSON;
+    private XContentType xContentType;
 
     @Deprecated
     public PutPipelineRequest(String id, BytesReference source) {

@@ -146,15 +146,6 @@ public final class CompressedXContent {
         }
     }
 
-    /** Return the uncompressed bytes as a {@link BytesReference} */
-    public BytesReference uncompressedReference() {
-        try {
-            return CompressorFactory.uncompress(new BytesArray(bytes));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot decompress compressed bytes", e);
-        }
-    }
-
     public String string() throws IOException {
         return new BytesRef(uncompressed()).utf8ToString();
     }

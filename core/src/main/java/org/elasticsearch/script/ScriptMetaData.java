@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -77,8 +76,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         // 3) just as is
         // In order to fetch the actual script in consistent manner this parsing logic is needed:
         // EMPTY is ok here because we never call namedObject, we're just copying structure.
-        try (XContentParser parser = xContentType == null ? XContentHelper.createParser(NamedXContentRegistry.EMPTY, scriptAsBytes) :
-                        xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
              XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             parser.nextToken();
             parser.nextToken();

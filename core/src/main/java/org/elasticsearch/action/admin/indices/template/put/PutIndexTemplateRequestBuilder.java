@@ -131,7 +131,7 @@ public class PutIndexTemplateRequestBuilder
      *
      * @param type   The mapping type
      * @param source The mapping source
-     * @deprecated use {@link #addMapping(String, BytesReference, XContentType)}
+     * @deprecated use {@link #addMapping(String, String, XContentType)}
      */
     @Deprecated
     public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
@@ -146,7 +146,7 @@ public class PutIndexTemplateRequestBuilder
      * @param source The mapping source
      * @param xContentType The type/format of the source
      */
-    public PutIndexTemplateRequestBuilder addMapping(String type, BytesReference source, XContentType xContentType) {
+    public PutIndexTemplateRequestBuilder addMapping(String type, String source, XContentType xContentType) {
         request.mapping(type, source, xContentType);
         return this;
     }

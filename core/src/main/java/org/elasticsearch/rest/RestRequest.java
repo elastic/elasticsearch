@@ -184,7 +184,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * @deprecated this is only used to allow BWC with content-type detection
      */
     @Deprecated
-    final void setxContentType(XContentType xContentType) {
+    final void setXContentType(XContentType xContentType) {
         this.xContentType.set(xContentType);
     }
 
@@ -339,7 +339,7 @@ public abstract class RestRequest implements ToXContent.Params {
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
         } else if (xContentType.get() == null) {
-            throw new IllegalStateException("Content-Type must be provided");
+            throw new IllegalStateException("no content-type has been set so we cannot create a parser");
         }
         return xContentType.get().xContent().createParser(xContentRegistry, content);
     }
@@ -485,11 +485,11 @@ public abstract class RestRequest implements ToXContent.Params {
             final String[] splitMediaType = elements[0].split("/");
             if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
-                return XContentType.fromMediaTypeStrict(elements[0]);
+                return XContentType.fromMediaType(elements[0]);
             } else {
                 throw new IllegalArgumentException("invalid Content-Type header [" + rawContentType + "]");
             }
         }
-        return null;
+        throw new IllegalArgumentException("empty Content-Type header");
     }
 }

@@ -20,9 +20,9 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -71,10 +71,11 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
 
     public void testPutIndexTemplateRequestSerializationXContent() throws IOException {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
-        BytesReference mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
+        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
         request.patterns(Collections.singletonList("foo"));
         request.mapping("bar", mapping, XContentType.YAML);
-        assertEquals(mapping, request.mappings().get("bar").v2());
+        assertNotEquals(mapping, request.mappings().get("bar"));
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
 
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
@@ -82,8 +83,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
         serialized.readFrom(in);
-        assertEquals(mapping, serialized.mappings().get("bar").v2());
-        assertEquals(XContentType.YAML, serialized.mappings().get("bar").v1());
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), serialized.mappings().get("bar"));
     }
 
     public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {
@@ -94,17 +94,11 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             in.setVersion(version);
             PutIndexTemplateRequest request = new PutIndexTemplateRequest();
             request.readFrom(in);
-            assertEquals(XContentType.YAML, request.mappings().get("bar").v1());
-            BytesReference mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-            assertEquals(mapping, request.mappings().get("bar").v2());
+            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            assertNotEquals(mapping, request.mappings().get("bar"));
+            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
             assertEquals("foo", request.name());
             assertEquals("template", request.patterns().get(0));
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                request.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
         }
     }
 }

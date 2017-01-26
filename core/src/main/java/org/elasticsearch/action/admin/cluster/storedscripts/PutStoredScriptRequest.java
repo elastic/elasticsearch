@@ -107,9 +107,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
      */
     @Deprecated
     public PutStoredScriptRequest script(BytesReference source) {
-        this.script = source;
-        this.xContentType = Objects.requireNonNull(XContentFactory.xContentType(source));
-        return this;
+        return script(source, XContentFactory.xContentType(source));
     }
 
     /**
@@ -141,7 +139,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeOptionalString(id);
         out.writeBytesReference(script);
         if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-                xContentType.writeTo(out);
+            xContentType.writeTo(out);
         }
     }
 

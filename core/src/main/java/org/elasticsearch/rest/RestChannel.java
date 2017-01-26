@@ -20,7 +20,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -48,9 +47,4 @@ public interface RestChannel {
     boolean detailedErrorsEnabled();
 
     void sendResponse(RestResponse response);
-
-    /**
-     * Sends a new simple error response with the error message included
-     */
-    void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException;
 }

@@ -66,15 +66,26 @@ public abstract class AbstractRestChannel implements RestChannel {
         return newBuilder(request.getXContentType(), false);
     }
 
+    /**
+     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type is determined by the following
+     * logic. If the request has a format parameter that will be used to attempt to map to an {@link XContentType}. If there is no format
+     * parameter, the HTTP Accept header is checked to see if it can be matched to a {@link XContentType}. If this first attempt to map
+     * fails, the request content type will be used if the value is not {@code null}; if the value is {@code null} the output format falls
+     * back to JSON.
+     */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromMediaTypeOrFormat(format);
-        if (contentType == null) {
-            if (xContentType != null) {
-                contentType = xContentType;
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        // try to determine the response content type from the media type or the format query string parameter, with the format parameter
+        // taking precedence over the Accept header
+        XContentType responseContentType = XContentType.fromMediaTypeOrFormat(format);
+        if (responseContentType == null) {
+            if (requestContentType != null) {
+                // if there was a parsed content-type for the incoming request use that since no format was specified using the query
+                // string parameter or the HTTP Accept header
+                responseContentType = requestContentType;
             } else {
-                // default to JSON output
-                contentType = XContentType.JSON;
+                // default to JSON output when all else fails
+                responseContentType = XContentType.JSON;
             }
         }
 
@@ -86,7 +97,7 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), includes, excludes);
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(responseContentType), bytesOutput(), includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -121,12 +132,5 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
-    }
-
-    @Override
-    public void sendErrorResponse(RestStatus restStatus, String errorMessage) throws IOException {
-        sendResponse(new BytesRestResponse(restStatus, newErrorBuilder().startObject()
-            .field("error", errorMessage)
-            .endObject()));
     }
 }

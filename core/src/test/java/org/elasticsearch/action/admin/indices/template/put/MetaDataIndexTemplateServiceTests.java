@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -102,7 +100,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithValidateEmptyMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("validate_template"));
-        request.putMapping("type1", new BytesArray("{}"), XContentType.JSON);
+        request.putMapping("type1", "{}");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -115,7 +113,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         request.patterns(Collections.singletonList("te*"));
         request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
             .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
-            .endObject().endObject().endObject().bytes(), XContentType.JSON);
+            .endObject().endObject().endObject().string());
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -126,7 +124,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testBrokenMapping() throws Exception {
         PutRequest request = new PutRequest("api", "broken_mapping");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", new BytesArray("abcde"), XContentType.JSON);
+        request.putMapping("type1", "abcde");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -137,7 +135,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testBlankMapping() throws Exception {
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", new BytesArray("{}"), XContentType.JSON);
+        request.putMapping("type1", "{}");
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -149,7 +147,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", new BytesArray("{}"), XContentType.JSON);
+        request.putMapping("type1", "{}");
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);

@@ -34,11 +34,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -69,8 +70,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String type;
 
-    private BytesReference source;
-    private XContentType xContentType;
+    private String source;
 
     private boolean updateAllTypes = false;
     private Index concreteIndex;
@@ -96,7 +96,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
-        } else if (source == null || source.length() == 0) {
+        } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && (indices != null && indices.length > 0)) {
@@ -167,15 +167,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public BytesReference source() {
+    public String source() {
         return source;
-    }
-
-    /**
-     * The type of content held in the source
-     */
-    public XContentType getXContentType() {
-        return xContentType;
     }
 
     /**
@@ -290,8 +283,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(String mappingSource, XContentType xContentType) {
-        this.source = new BytesArray(mappingSource.getBytes(StandardCharsets.UTF_8));
-        this.xContentType = Objects.requireNonNull(xContentType);
+        Objects.requireNonNull(xContentType);
+        this.source = convertToJsonIfNecessary(mappingSource, xContentType);
         return this;
     }
 
@@ -312,12 +305,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-            source = in.readBytesReference();
-            xContentType = XContentType.readFrom(in);
-        } else {
-            source = new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8));
-            xContentType = Objects.requireNonNull(XContentFactory.xContentType(source));
+        source = in.readString();
+        if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+            source = convertToJsonIfNecessary(source, XContentFactory.xContentType(source));
         }
         updateAllTypes = in.readBoolean();
         readTimeout(in);
@@ -330,16 +320,24 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
-            out.writeBytesReference(source);
-            xContentType.writeTo(out);
-        } else if (xContentType.hasStringRepresentation()) {
-            out.writeString(source.utf8ToString());
-        } else {
-            throw new IllegalStateException("cannot send [" + xContentType + "] to an older node");
-        }
+        out.writeString(source);
         out.writeBoolean(updateAllTypes);
         writeTimeout(out);
         out.writeOptionalWriteable(concreteIndex);
+    }
+
+    private String convertToJsonIfNecessary(String source, XContentType xContentType) {
+        return convertToJsonIfNecessary(new BytesArray(source), xContentType);
+    }
+
+    private String convertToJsonIfNecessary(BytesReference source, XContentType xContentType) {
+        if (xContentType == XContentType.JSON) {
+            return source.utf8ToString();
+        }
+        try {
+            return XContentHelper.convertToJson(source, false, xContentType);
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert source to JSON", e);
+        }
     }
 }

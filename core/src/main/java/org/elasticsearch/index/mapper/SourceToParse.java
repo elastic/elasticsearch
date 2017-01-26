@@ -60,8 +60,8 @@ public class SourceToParse {
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = new BytesArray(source.toBytesRef());
-        this.xContentType = xContentType;
+        this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     public Origin origin() {

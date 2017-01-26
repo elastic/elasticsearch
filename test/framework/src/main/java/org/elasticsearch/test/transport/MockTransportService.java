@@ -204,7 +204,8 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
@@ -248,7 +249,8 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 original.connectToNode(node, connectionProfile, connectionValidator);
             }
 
@@ -283,7 +285,8 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
 
@@ -326,7 +329,8 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNode(node, connectionProfile, connectionValidator);
@@ -456,7 +460,8 @@ public final class MockTransportService extends TransportService {
 
         @Override
         public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
             getTransport(node).connectToNode(node, connectionProfile, connectionValidator);
         }
 
@@ -511,7 +516,8 @@ public final class MockTransportService extends TransportService {
 
         @Override
         public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException {
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
             transport.connectToNode(node, connectionProfile, connectionValidator);
         }
 

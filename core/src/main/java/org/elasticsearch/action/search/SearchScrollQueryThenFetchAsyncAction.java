@@ -169,12 +169,12 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void executeFetchPhase() throws Exception {
         sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
-        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
         if (sortedShardDocs.length == 0) {
             finishHim();
             return;
         }
 
+        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
         final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
             sortedShardDocs, queryResults.length());
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.length);
@@ -207,6 +207,11 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                         }
                     }
                 });
+            } else {
+                // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
+                if (counter.decrementAndGet() == 0) {
+                    finishHim();
+                }
             }
         }
     }

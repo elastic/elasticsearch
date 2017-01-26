@@ -381,9 +381,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         private final CountDown counter;
         private final IntConsumer onFinish;
 
-        CountedCollector(AtomicArray<R> resultArray, IntConsumer onFinish) {
+        CountedCollector(AtomicArray<R> resultArray, int expectedOps, IntConsumer onFinish) {
             this.resultArray = resultArray;
-            this.counter = new CountDown(resultArray.length());
+            this.counter = new CountDown(expectedOps);
             this.onFinish = onFinish;
         }
 
@@ -452,12 +452,17 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                         final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
                             searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
                             : null;
-                        final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults, finishPhase);
+                        final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
+                            docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
+                            finishPhase);
                         for (int i = 0; i < docIdsToLoad.length; i++) {
                             IntArrayList entry = docIdsToLoad[i];
                             QuerySearchResultProvider queryResult = queryResults.get(i);
-                            if (entry == null) {
-                                resultToRelease.add(queryResult.queryResult());
+                            if (entry == null) { // no results for this shard ID
+                                if (queryResult != null) {  // if we got some hits from this shard we have to release the context there
+                                    resultToRelease.add(queryResult.queryResult());
+                                }
+                                // in any case we count down this result since we don't talk to this shard anymore
                                 counter.countDown();
                             } else {
                                 Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());

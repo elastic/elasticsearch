@@ -88,7 +88,8 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
 
         public void execute() {
             final AggregatedDfs dfs = searchPhaseController.aggregateDfs(firstResults);
-            final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, (successfulOps) -> {
+            final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, firstResults.asList().size(),
+                (successfulOps) -> {
                     if (successfulOps == 0) {
                         listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
                     } else {
@@ -101,7 +102,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
                 final int shardIndex = entry.index;
                 Transport.Connection connection = nodeIdToConnection.apply(dfsResult.shardTarget().getNodeId());
                 QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                executeQuery(querySearchRequest, connection, new ActionListener<QuerySearchResult>() {
+                searchTransportService.sendExecuteQuery(connection, querySearchRequest, task, new ActionListener<QuerySearchResult>() {
                     @Override
                     public void onResponse(QuerySearchResult result) {
                         counter.onResult(shardIndex, result, dfsResult.shardTarget());
@@ -124,12 +125,6 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
                     }
                 });
             }
-
-        }
-
-        protected void executeQuery(final QuerySearchRequest querySearchRequest, final Transport.Connection connection,
-                                    ActionListener<QuerySearchResult> queryListener) {
-            searchTransportService.sendExecuteQuery(connection, querySearchRequest, task, queryListener);
         }
     }
 }

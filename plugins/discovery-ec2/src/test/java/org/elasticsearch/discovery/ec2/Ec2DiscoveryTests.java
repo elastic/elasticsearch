@@ -201,7 +201,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             buildDynamicNodes(nodeSettings, 1);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("No enum constant"));
+            assertThat(e.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
         }
     }
 

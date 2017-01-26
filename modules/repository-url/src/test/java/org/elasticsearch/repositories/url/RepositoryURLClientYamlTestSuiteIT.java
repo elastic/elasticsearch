@@ -16,18 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle
 
-import org.gradle.logging.ProgressLogger
+package org.elasticsearch.repositories.url;
 
-/**
- * Wraps a ProgressLogger so that code in src/main/groovy does not need to
- * define imports on Gradle 2.13/2.14+ ProgressLoggers
- */
-class ProgressLoggerWrapper {
-    ProgressLogger progressLogger
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-    ProgressLoggerWrapper(ProgressLogger progressLogger) {
-        this.progressLogger = progressLogger
+import java.io.IOException;
+
+public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public RepositoryURLClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }
+

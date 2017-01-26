@@ -17,10 +17,13 @@
  * under the License.
  */
 
-import org.codehaus.groovy.control.customizers.ImportCustomizer
+esplugin {
+    description 'Module for URL repository'
+    classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+}
 
-def imports = new ImportCustomizer()
-imports.addImports(
-   'org.gradle.logging.ProgressLogger',
-   'org.gradle.logging.ProgressLoggerFactory')
-configuration.addCompilationCustomizers(imports)
+integTest {
+    cluster {
+        setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    }
+}

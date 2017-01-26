@@ -44,11 +44,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BytesRestResponseTests extends ESTestCase {
 
     class UnknownException extends Exception {
-
-        public UnknownException(final String message, final Throwable cause) {
+        UnknownException(final String message, final Throwable cause) {
             super(message, cause);
         }
-
     }
 
     public void testWithHeaders() throws Exception {
@@ -56,6 +54,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestChannel channel = randomBoolean() ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 
         BytesRestResponse response = new BytesRestResponse(channel, new WithHeadersException());
+        assertEquals(2, response.getHeaders().size());
         assertThat(response.getHeaders().get("n1"), notNullValue());
         assertThat(response.getHeaders().get("n1"), contains("v11", "v12"));
         assertThat(response.getHeaders().get("n2"), notNullValue());
@@ -206,6 +205,7 @@ public class BytesRestResponseTests extends ESTestCase {
             super("");
             this.addHeader("n1", "v11", "v12");
             this.addHeader("n2", "v21", "v22");
+            this.addMetadata("es.test", "value1", "value2");
         }
     }
 

@@ -34,10 +34,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
@@ -96,11 +98,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void createRestClient() throws IOException {
         httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+                any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
                     @Override
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                        HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
+                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                         //return the desired status code or exception depending on the path
                         if (request.getURI().getPath().equals("/soe")) {
@@ -156,7 +160,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
             verify(httpClient, times(++times)).<HttpResponse>execute(requestArgumentCaptor.capture(),
-                    any(HttpAsyncResponseConsumer.class), any(FutureCallback.class));
+                    any(HttpAsyncResponseConsumer.class), any(HttpClientContext.class), any(FutureCallback.class));
             HttpUriRequest actualRequest = (HttpUriRequest)requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());

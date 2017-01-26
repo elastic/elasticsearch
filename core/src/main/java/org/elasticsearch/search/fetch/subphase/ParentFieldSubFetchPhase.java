@@ -63,6 +63,10 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
     public static String getParentId(ParentFieldMapper fieldMapper, LeafReader reader, int docId) {
         try {
             SortedDocValues docValues = reader.getSortedDocValues(fieldMapper.name());
+            if (docValues == null) {
+                // hit has no _parent field.
+                return null;
+            }
             BytesRef parentId = docValues.get(docId);
             return parentId.length > 0 ? parentId.utf8ToString() : null;
         } catch (IOException e) {

@@ -22,6 +22,9 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.tasks.TaskId;
 
@@ -82,7 +85,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
-        ListenableActionFuture<? extends BulkIndexByScrollResponse> responseListener = request.execute();
+        ListenableActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, request.request().getSlices());
         TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
@@ -151,7 +154,7 @@ public class RethrottleTests extends ReindexTestCase {
         }
 
         // Now the response should come back quickly because we've rethrottled the request
-        BulkIndexByScrollResponse response = responseListener.get();
+        BulkByScrollResponse response = responseListener.get();
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
                 response.getBatches(), greaterThanOrEqualTo(request.request().getSlices()));
     }

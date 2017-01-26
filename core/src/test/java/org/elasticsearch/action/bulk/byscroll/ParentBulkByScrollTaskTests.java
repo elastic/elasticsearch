@@ -17,20 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.index.reindex.TransportRethrottleActionTests.captureResponse;
-import static org.elasticsearch.index.reindex.TransportRethrottleActionTests.neverCalled;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class ParentBulkByScrollTaskTests extends ESTestCase {
     private int slices;
@@ -88,9 +89,9 @@ public class ParentBulkByScrollTaskTests extends ESTestCase {
             sliceStatuses.set(slice, new BulkByScrollTask.StatusOrException(sliceStatus));
 
             @SuppressWarnings("unchecked")
-            ActionListener<BulkIndexByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
+            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
             task.onSliceResponse(listener, slice,
-                    new BulkIndexByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
+                    new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
 
             status = task.getStatus();
             assertEquals(total, status.getTotal());
@@ -104,7 +105,7 @@ public class ParentBulkByScrollTaskTests extends ESTestCase {
 
             if (slice == slices - 1) {
                 // The whole thing succeeded so we should have got the success
-                status = captureResponse(BulkIndexByScrollResponse.class, listener).getStatus();
+                status = captureResponse(BulkByScrollResponse.class, listener).getStatus();
                 assertEquals(total, status.getTotal());
                 assertEquals(created, status.getCreated());
                 assertEquals(updated, status.getUpdated());
@@ -117,5 +118,31 @@ public class ParentBulkByScrollTaskTests extends ESTestCase {
         }
     }
 
+    private <T> ActionListener<T> neverCalled() {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T response) {
+                throw new RuntimeException("Expected no interactions but got [" + response + "]");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException("Expected no interations but was received a failure", e);
+            }
+        };
+    }
+
+
+    private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {
+        ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
+        // Rethrow any failures just so we get a nice exception if there were any. We don't expect any though.
+        verify(listener, atMost(1)).onFailure(failure.capture());
+        if (false == failure.getAllValues().isEmpty()) {
+            throw new AssertionError(failure.getValue());
+        }
+        ArgumentCaptor<T> response = ArgumentCaptor.forClass(responseClass);
+        verify(listener).onResponse(response.capture());
+        return response.getValue();
+    }
 
 }

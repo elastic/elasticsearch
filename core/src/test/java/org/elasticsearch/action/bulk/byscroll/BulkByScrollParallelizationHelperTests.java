@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -27,11 +27,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.index.reindex.ReindexParallelizationHelper.sliceIntoSubRequests;
+import static org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper.sliceIntoSubRequests;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
-public class ReindexParallelizationHelperTests extends ESTestCase {
+public class BulkByScrollParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {
         SearchRequest searchRequest = randomSearchRequest(() -> randomSearchSourceBuilder(
                 () -> null,

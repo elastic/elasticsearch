@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.TaskId;
@@ -28,8 +28,8 @@ import org.junit.After;
 import org.junit.Before;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkByScrollResponse>
         extends ESTestCase {
     protected ThreadPool threadPool;
     protected WorkingBulkByScrollTask task;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -49,7 +50,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
                 try {
-                    BulkIndexByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
+                    BulkByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
                     assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                             .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                 } catch (Exception e) {

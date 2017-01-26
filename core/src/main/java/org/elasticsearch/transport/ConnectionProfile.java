@@ -88,6 +88,8 @@ public final class ConnectionProfile {
             handles.addAll(source.getHandles());
             offset = source.getNumConnections();
             handles.forEach(th -> addedTypes.addAll(th.types));
+            connectTimeout = source.getConnectTimeout();
+            handshakeTimeout = source.getHandshakeTimeout();
         }
         /**
          * Sets a connect timeout for this connection profile

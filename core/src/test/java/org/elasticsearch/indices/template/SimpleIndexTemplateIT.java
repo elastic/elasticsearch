@@ -337,7 +337,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "abcde", XContentType.JSON)
+                .addMapping("type1", "{\"foo\": \"abcde\"}", XContentType.JSON)
                 .get());
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
 

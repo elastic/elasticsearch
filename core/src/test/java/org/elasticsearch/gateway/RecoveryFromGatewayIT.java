@@ -438,11 +438,16 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (final RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             long recovered = 0;
+            long reused = 0;
             int filesRecovered = 0;
+            int filesReused = 0;
             for (final RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
                 if (files.contains(file.name()) == false) {
                     recovered += file.length();
                     filesRecovered++;
+                } else {
+                    reused += file.length();
+                    filesReused++;
                 }
             }
             if (recoveryState.getPrimary()) {
@@ -454,12 +459,14 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                     recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                     recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
-                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
+                assertThat("bytes should have been recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
-                assertThat("all bytes should be reused except the segment from the last round of indexing", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
-                assertThat("no files should be recovered except the segment from the last round of indexing", recoveryState.getIndex().recoveredFileCount(), equalTo(filesRecovered));
-                assertThat("all files should be reused except the segment from the last round of indexing", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
+                assertThat("all existing files should be reused, byte count mismatch", recoveryState.getIndex().reusedBytes(), equalTo(reused));
+                assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
+                assertThat("the segment from the last round of indexing should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(filesRecovered));
+                assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
             }

@@ -208,6 +208,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         if (createShardContext().indexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             super.testToQuery();
+            assertWarnings("geo_distance_range search is deprecated. Use geo_distance aggregation or sort instead.");
         }
     }
 
@@ -290,6 +291,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         NestedQueryBuilder builder = (NestedQueryBuilder) parseQuery(queryJson);
         QueryShardContext context = createShardContext();
         builder.toQuery(context);
+        assertWarnings("geo_distance_range search is deprecated. Use geo_distance aggregation or sort instead.");
     }
 
     public void testFromJson() throws IOException {
@@ -379,6 +381,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         if (createShardContext().indexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             super.testMustRewrite();
+            assertWarnings("geo_distance_range search is deprecated. Use geo_distance aggregation or sort instead.");
         }
     }
 

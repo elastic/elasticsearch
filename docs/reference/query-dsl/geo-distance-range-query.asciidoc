@@ -1,6 +1,10 @@
 [[query-dsl-geo-distance-range-query]]
 === Geo Distance Range Query
 
+deprecated[5.0.0,Elasticsearch will continue to support geo_distance_range queries on indexes created
+prior to 5.0.0. Range searches on indexes created in 5.0.0 and later will no longer be supported.
+Distance aggregations or sorting should be used instead.]
+
 Filters documents that exists within a range from a specific point:
 
 [source,js]

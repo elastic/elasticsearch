@@ -22,13 +22,14 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -150,7 +152,7 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link Suggester}.
      */
-    class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, NoContextParser<T>> {
+    class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
         /**
          * Specification of custom {@link Suggester}.
          *
@@ -161,7 +163,7 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the query suggester from xcontent
          */
-        public SuggesterSpec(ParseField name, Writeable.Reader<T> reader, NoContextParser<T> parser) {
+        public SuggesterSpec(ParseField name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 
@@ -174,7 +176,7 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the suggester builder from xcontent
          */
-        public SuggesterSpec(String name, Writeable.Reader<T> reader, NoContextParser<T> parser) {
+        public SuggesterSpec(String name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }
@@ -347,12 +349,13 @@ public interface SearchPlugin {
      * Specification for a {@link SearchExtBuilder} which represents an additional section that can be
      * parsed in a search request (within the ext element).
      */
-    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, NoContextParser<T>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader, NoContextParser<T> parser) {
+    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader,
+                CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 
-        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, NoContextParser<T> parser) {
+        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }

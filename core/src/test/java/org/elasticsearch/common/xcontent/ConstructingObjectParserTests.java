@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -50,7 +51,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (NoContextParser<Object>) null,
+                (o, v) -> {}, (CheckedFunction<XContentParser, Object, IOException>) null,
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(

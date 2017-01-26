@@ -19,10 +19,10 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +40,7 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
     protected final String blobNameFormat;
 
-    protected final NoContextParser<T> reader;
+    protected final CheckedFunction<XContentParser, T, IOException> reader;
 
     protected final NamedXContentRegistry namedXContentRegistry;
 
@@ -61,7 +61,8 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobNameFormat format of the blobname in {@link String#format(Locale, String, Object...)} format
      * @param reader the prototype object that can deserialize objects with type T
      */
-    protected BlobStoreFormat(String blobNameFormat, NoContextParser<T> reader, NamedXContentRegistry namedXContentRegistry) {
+    protected BlobStoreFormat(String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
+            NamedXContentRegistry namedXContentRegistry) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -109,7 +110,7 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
     protected T read(BytesReference bytes) throws IOException {
         try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, bytes)) {
-            T obj = reader.parse(parser);
+            T obj = reader.apply(parser);
             return obj;
         }
     }

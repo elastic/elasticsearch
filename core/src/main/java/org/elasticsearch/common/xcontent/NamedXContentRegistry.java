@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -61,14 +62,14 @@ public class NamedXContentRegistry {
         private final ContextParser<Object, ?> parser;
 
         /** Creates a new entry which can be stored by the registry. */
-        public <T> Entry(Class<T> categoryClass, ParseField name, NoContextParser<? extends T> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
-            this.parser = Objects.requireNonNull((p, c) -> parser.parse(p));
+            this.parser = Objects.requireNonNull((p, c) -> parser.apply(p));
         }
         /**
          * Creates a new entry which can be stored by the registry.
-         * @deprecated prefer {@link Entry#Entry(Class, ParseField, FromXContent)}. Contexts will be removed when possible
+         * @deprecated prefer {@link Entry#Entry(Class, ParseField, CheckedFunction)}. Contexts will be removed when possible
          */
         @Deprecated
         public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser) {

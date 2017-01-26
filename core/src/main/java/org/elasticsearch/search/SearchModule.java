@@ -591,7 +591,7 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(
                 SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
-                suggester.getParser()::parse));
+                suggester.getParser()));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
@@ -710,7 +710,7 @@ public class SearchModule {
     }
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
-        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), spec.getParser()::parse));
+        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), spec.getParser()));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 

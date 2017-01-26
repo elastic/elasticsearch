@@ -19,16 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
@@ -72,7 +73,7 @@ public class ExtendedBounds implements ToXContent, Writeable {
         return new ExtendedBounds(min, max, minAsStr, maxAsStr);
     });
     static {
-        NoContextParser<Object> longOrString = p -> {
+        CheckedFunction<XContentParser, Object, IOException> longOrString = p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return p.longValue(false);
             }

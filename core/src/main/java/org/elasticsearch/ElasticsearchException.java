@@ -519,7 +519,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
      *
-     * This method is usually used when the {@link Exception} is rendered as a full XContent object., and its output can be parsed
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
      * by the {@link #failureFromXContent(XContentParser)} method.
      */
     public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
@@ -569,12 +569,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ensureFieldName(parser, token, ERROR);
 
         token = parser.nextToken();
-        if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-            return new ElasticsearchException(buildMessage("exception", parser.textOrNull(), null));
+        if (token.isValue()) {
+            return new ElasticsearchException(buildMessage("exception", parser.text(), null));
         }
 
         ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
         token = parser.nextToken();
+
+        // TODO Root causes are ignored for now. They will be skipped by innerFromXContent() because
+        // it ignores metadata arrays of objects. If we decide to parse root causes, we'll have to
+        // change innerFromXContent() so that it does not parse root causes on its own.
         return innerFromXContent(parser);
     }
 

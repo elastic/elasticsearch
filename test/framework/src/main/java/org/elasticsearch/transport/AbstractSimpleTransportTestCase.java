@@ -622,7 +622,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 MockTransportService newService = buildService("TS_B_" + i, version1, null);
                 newService.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
                 serviceB = newService;
-                nodeB = new DiscoveryNode("TS_B_" + i, "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+                nodeB = newService.getLocalDiscoNode();
                 serviceB.connectToNode(nodeA);
                 serviceA.connectToNode(nodeB);
             } else if (serviceA.nodeConnected(nodeB)) {

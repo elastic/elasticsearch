@@ -16,6 +16,7 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -109,7 +111,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         LDAPConnectionPool pool = null;
         boolean success = false;
         try {
-            pool = new LDAPConnectionPool(serverSet, bindRequest, initialSize, size);
+            pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
             if (HEALTH_CHECK_ENABLED.get(settings)) {
                 String entryDn = HEALTH_CHECK_DN.get(settings).orElseGet(() -> bindRequest == null ? null : bindRequest.getBindDN());
@@ -170,7 +172,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
             } else {
                 final String dn = entry.getDN();
                 try {
-                    connectionPool.bindAndRevertAuthentication(dn, new String(password.internalChars()));
+                    LdapUtils.privilegedConnect(() -> connectionPool.bindAndRevertAuthentication(dn, new String(password.internalChars())));
                     listener.onResponse(new LdapSession(logger, connectionPool, dn, groupResolver, timeout, entry.getAttributes()));
                 } catch (LDAPException e) {
                     listener.onFailure(e);
@@ -195,7 +197,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         boolean success = false;
         LDAPConnection connection = null;
         try {
-            connection = serverSet.getConnection();
+            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
             connection.bind(bindRequest(config.settings()));
             final LDAPConnection finalConnection = connection;
             findUser(user, connection, ActionListener.wrap((entry) -> {
@@ -210,7 +212,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                             LDAPConnection userConnection = null;
                             final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
                             try {
-                                userConnection = serverSet.getConnection();
+                                userConnection = LdapUtils.privilegedConnect(serverSet::getConnection);
                                 userConnection.bind(new SimpleBindRequest(dn, passwordBytes));
                                 LdapSession session = new LdapSession(logger, userConnection, dn, groupResolver, timeout,
                                         entry.getAttributes());
@@ -255,7 +257,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
             if (useConnectionPool) {
                 ldapInterface = connectionPool;
             } else {
-                connection = serverSet.getConnection();
+                connection = LdapUtils.privilegedConnect(serverSet::getConnection);
                 connection.bind(bindRequest(config.settings()));
                 ldapInterface = connection;
             }

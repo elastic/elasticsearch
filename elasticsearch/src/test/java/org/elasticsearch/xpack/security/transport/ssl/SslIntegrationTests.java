@@ -10,6 +10,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
@@ -75,7 +77,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
-        try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
+        try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -105,7 +107,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(Settings.EMPTY),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))
                 .setDefaultCredentialsProvider(provider).build();
-            CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
+             CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
             assertThat(data, containsString("You Know, for Search"));
@@ -121,7 +123,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
                 NoopHostnameVerifier.INSTANCE);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            client.execute(new HttpGet(getNodeUrl()));
+            CloseableHttpResponse result = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())));
             fail("Expected a connection error due to SSLv3 not being supported by default");
         } catch (Exception e) {
             assertThat(e, is(instanceOf(SSLHandshakeException.class)));

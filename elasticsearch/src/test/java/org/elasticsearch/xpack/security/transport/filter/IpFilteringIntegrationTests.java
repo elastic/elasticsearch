@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -23,7 +24,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 // no client nodes, no transport clients, as they all get rejected on network connections
@@ -72,7 +72,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
 
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
-        socket.connect(address, 500);
+        SocketAccess.doPrivileged(() -> socket.connect(address, 500));
 
         assertThat(socket.isConnected(), is(true));
         try (OutputStream os = socket.getOutputStream()) {

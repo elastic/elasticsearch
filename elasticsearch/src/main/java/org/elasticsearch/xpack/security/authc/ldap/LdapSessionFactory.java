@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -74,7 +75,7 @@ public class LdapSessionFactory extends SessionFactory {
         final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
         boolean success = false;
         try {
-            connection = serverSet.getConnection();
+            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
             for (String template : userDnTemplates) {
                 String dn = buildDnFromTemplate(username, template);
                 try {

@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ssl;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.Security;
 
 import javax.net.ssl.HostnameVerifier;
@@ -443,42 +445,42 @@ public class SSLService extends AbstractComponent {
 
         @Override
         public Socket createSocket() throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket();
+            SSLSocket sslSocket = createWithPermissions(delegate::createSocket);
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(Socket socket, String host, int port, boolean autoClose) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(socket, host, port, autoClose);
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(socket, host, port, autoClose));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(String host, int port) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port, localHost, localPort);
+            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port, localHost, localPort));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress host, int port) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(host, port);
+            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(address, port, localAddress, localPort);
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(address, port, localAddress, localPort));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
@@ -488,6 +490,10 @@ public class SSLService extends AbstractComponent {
             // we use the cipher suite order so that we can prefer the ciphers we set first in the list
             parameters.setUseCipherSuitesOrder(true);
             socket.setSSLParameters(parameters);
+        }
+
+        private static SSLSocket createWithPermissions(CheckedSupplier<Socket, IOException> supplier) throws IOException {
+            return (SSLSocket) SocketAccess.doPrivileged(supplier);
         }
     }
 

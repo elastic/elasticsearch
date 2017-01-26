@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -89,7 +90,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         // authenticate. If there was a failure pass it back using the listener
         Runnable runnable;
         try {
-            final LDAPConnection connection = serverSet.getConnection();
+            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
             runnable = () -> getADAuthenticator(username).authenticate(connection, username, password,
                         ActionListener.wrap(listener::onResponse,
                                 (e) -> {

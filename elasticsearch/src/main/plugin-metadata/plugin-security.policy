@@ -26,5 +26,5 @@ grant {
   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 
   // needed for multiple server implementations used in tests
-  permission java.net.SocketPermission "*", "accept";
+  permission java.net.SocketPermission "*", "accept,connect";
 };

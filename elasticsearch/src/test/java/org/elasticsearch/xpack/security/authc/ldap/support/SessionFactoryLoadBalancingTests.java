@@ -35,7 +35,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             for (int i = 0; i < numberOfLdapServers; i++) {
                 LDAPConnection connection = null;
                 try {
-                    connection = testSessionFactory.getServerSet().getConnection();
+                    connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
                     assertThat(connection.getConnectedPort(), is(ldapServers[i].getListenPort()));
                 } finally {
                     if (connection != null) {
@@ -81,7 +81,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LDAPConnection connection = null;
                 try {
                     logger.debug("attempting connection with expected port [{}]", port);
-                    connection = testSessionFactory.getServerSet().getConnection();
+                    connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
                     assertThat(connection.getConnectedPort(), is(port));
                 } finally {
                     if (connection != null) {
@@ -102,7 +102,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         for (int i = 0; i < numberOfLdapServers; i++) {
             LDAPConnection connection = null;
             try {
-                connection = testSessionFactory.getServerSet().getConnection();
+                connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
                 assertThat(connection.getConnectedPort(), is(firstPort));
             } finally {
                 if (connection != null) {
@@ -151,7 +151,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             LDAPConnection connection = null;
             try {
                 logger.debug("attempting connection with expected port [{}] iteration [{}]", firstNonStoppedPort, iteration);
-                connection = testSessionFactory.getServerSet().getConnection();
+                connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
                 assertThat(connection.getConnectedPort(), is(firstNonStoppedPort));
             } finally {
                 if (connection != null) {

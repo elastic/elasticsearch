@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.ssl.HostnameVerifier;
@@ -156,7 +157,7 @@ public class HttpClient extends AbstractComponent {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = client.execute(internalRequest, localContext)) {
+        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(internalRequest, localContext))) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = new HashMap<>(headers.length);
@@ -166,7 +167,7 @@ public class HttpClient extends AbstractComponent {
                     String[] values = new String[old.length + 1];
 
                     System.arraycopy(old, 0, values, 0, old.length);
-                    values[values.length-1] = header.getValue();
+                    values[values.length - 1] = header.getValue();
 
                     responseHeaders.put(header.getName(), values);
                 } else {
@@ -195,7 +196,7 @@ public class HttpClient extends AbstractComponent {
         // url path escaping, and we have done this already, so this would result in double escaping
         try {
             List<NameValuePair> qparams = new ArrayList<>(request.params.size());
-            request.params.forEach((k, v)-> qparams.add(new BasicNameValuePair(k, v)));
+            request.params.forEach((k, v) -> qparams.add(new BasicNameValuePair(k, v)));
             URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
                     URLEncodedUtils.format(qparams, "UTF-8"), null);
 

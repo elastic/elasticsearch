@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -81,7 +82,9 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         subcommands.put("native", new MigrateUserOrRoles());
     }
 
-    /** Command to migrate users and roles to the native realm */
+    /**
+     * Command to migrate users and roles to the native realm
+     */
     public static class MigrateUserOrRoles extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> username;
@@ -140,13 +143,10 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
                 final SSLService sslService = new SSLService(settings, env);
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
-                AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                    @Override
-                    public Void run() {
-                        // Requires permission java.lang.RuntimePermission "setFactory";
-                        httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
-                        return null;
-                    }
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    // Requires permission java.lang.RuntimePermission "setFactory";
+                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
+                    return null;
                 });
                 conn = httpsConn;
             } else {
@@ -159,7 +159,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                     UsernamePasswordToken.basicAuthHeaderValue(username.value(options),
                             new SecuredString(password.value(options).toCharArray())));
             conn.setDoOutput(true); // we'll be sending a body
-            conn.connect();
+            SocketAccess.doPrivileged(conn::connect);
             if (bodyString != null) {
                 try (OutputStream out = conn.getOutputStream()) {
                     out.write(bodyString.getBytes(StandardCharsets.UTF_8));
@@ -333,7 +333,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 terminal.println("migrating role [" + roleName + "]");
                 String reqBody = "n/a";
                 try {
-                    reqBody = createRoleJson(roles.get(roleName));;
+                    reqBody = createRoleJson(roles.get(roleName));
                     String resp = postURL(env.settings(), env, "POST",
                             this.url.value(options) + "/_xpack/security/role/" + roleName, options, reqBody);
                     terminal.println(resp);

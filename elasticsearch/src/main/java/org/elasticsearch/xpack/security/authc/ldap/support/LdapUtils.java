@@ -26,13 +26,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import javax.naming.ldap.Rdn;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +59,15 @@ public final class LdapUtils {
             return new DN(dn);
         } catch (LDAPException e) {
             throw new IllegalArgumentException("invalid DN [" + dn + "]", e);
+        }
+    }
+
+    public static <T> T privilegedConnect(CheckedSupplier<T, LDAPException> supplier) throws LDAPException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) supplier::get);
+        } catch (PrivilegedActionException e) {
+            throw (LDAPException) e.getCause();
         }
     }
 
@@ -106,7 +120,7 @@ public final class LdapUtils {
         boolean searching = false;
         LDAPConnection ldapConnection = null;
         try {
-            ldapConnection = ldap.getConnection();
+            ldapConnection = privilegedConnect(ldap::getConnection);
             final LDAPConnection finalConnection = ldapConnection;
             searchForEntry(finalConnection, baseDN, scope, filter, timeLimitSeconds, ActionListener.wrap(
                     (entry) -> {

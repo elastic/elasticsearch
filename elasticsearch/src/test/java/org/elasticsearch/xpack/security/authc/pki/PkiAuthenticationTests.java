@@ -18,6 +18,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -39,7 +40,6 @@ import java.util.Map.Entry;
 
 import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -100,7 +100,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
-            try (CloseableHttpResponse response = client.execute(put)) {
+            try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
                 String body = EntityUtils.toString(response.getEntity());
                 assertThat(body, containsString("\"acknowledged\":true"));
             }
@@ -111,7 +111,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
-            try (CloseableHttpResponse response = client.execute(put)) {
+            try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));
                 String body = EntityUtils.toString(response.getEntity());
                 assertThat(body, containsString("unable to authenticate user [Elasticsearch Test Client]"));

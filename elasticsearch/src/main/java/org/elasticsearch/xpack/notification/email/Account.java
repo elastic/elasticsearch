@@ -21,6 +21,8 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 import java.util.Properties;
 
@@ -33,19 +35,16 @@ public class Account {
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                // required as java doesn't always find the correct mailcap to properly handle mime types
-                final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
-                mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
-                mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
-                mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
-                mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
-                mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
-                CommandMap.setDefaultCommandMap(mailcap);
-                return null;
-            }
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            // required as java doesn't always find the correct mailcap to properly handle mime types
+            final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
+            mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
+            mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
+            mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
+            mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
+            mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
+            CommandMap.setDefaultCommandMap(mailcap);
+            return null;
         });
     }
 
@@ -110,7 +109,7 @@ public class Account {
             profile = config.profile;
         }
 
-        transport.connect(config.smtp.host, config.smtp.port, user, password);
+        executeConnect(transport, user, password);
         ClassLoader contextClassLoader = null;
         try {
             MimeMessage message = profile.toMimeMessage(email, session);
@@ -146,6 +145,18 @@ public class Account {
             }
         }
         return email;
+    }
+
+    private void executeConnect(Transport transport, String user, String password) throws MessagingException {
+        SpecialPermission.check();
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                transport.connect(config.smtp.host, config.smtp.port, user, password);
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            throw (MessagingException) e.getCause();
+        }
     }
 
     private void setContextClassLoader(final ClassLoader classLoader) {

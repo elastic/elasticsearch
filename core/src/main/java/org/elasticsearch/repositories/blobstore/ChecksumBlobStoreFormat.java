@@ -33,7 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.FromXContent;
+import org.elasticsearch.common.xcontent.NoContextParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -73,7 +73,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param compress       true if the content should be compressed
      * @param xContentType   content type that should be used for write operations
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContent<T> reader,
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, NoContextParser<T> reader,
                                    NamedXContentRegistry namedXContentRegistry, boolean compress, XContentType xContentType) {
         super(blobNameFormat, reader, namedXContentRegistry);
         this.xContentType = xContentType;
@@ -87,7 +87,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param reader         prototype object that can deserialize T from XContent
      * @param compress       true if the content should be compressed
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContent<T> reader,
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, NoContextParser<T> reader,
                                    NamedXContentRegistry namedXContentRegistry, boolean compress) {
         this(codec, blobNameFormat, reader, namedXContentRegistry, compress, DEFAULT_X_CONTENT_TYPE);
     }

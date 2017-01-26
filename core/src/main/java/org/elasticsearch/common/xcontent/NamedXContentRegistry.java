@@ -48,25 +48,6 @@ public class NamedXContentRegistry {
     public static final NamedXContentRegistry EMPTY = new NamedXContentRegistry(emptyList());
 
     /**
-     * Parses an object with the type T from parser.
-     */
-    public interface FromXContent<T> {
-        /**
-         * Parses an object with the type T from parser.
-         */
-        T fromXContent(XContentParser parser) throws IOException;
-    }
-
-    /**
-     * Parses an object with the type T from parser.
-     * @deprecated prefer {@link FromXContent} if possible
-     */
-    @Deprecated
-    public interface FromXContentWithContext<T> {
-        T fromXContent(XContentParser parser, Object context) throws IOException;
-    }
-
-    /**
      * An entry in the {@linkplain NamedXContentRegistry} containing the name of the object and the parser that can parse it.
      */
     public static class Entry {

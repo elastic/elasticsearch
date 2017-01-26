@@ -185,4 +185,21 @@ public class IndexRequestTests extends ESTestCase {
             // don't test writing to earlier versions since output differs due to no timestamp
         }
     }
+
+    // reindex makes use of index requests without a source so this needs to be handled
+    public void testSerializationOfEmptyRequestWorks() throws IOException {
+        IndexRequest request = new IndexRequest("index", "type");
+        assertNull(request.getContentType());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                IndexRequest serialized = new IndexRequest();
+                serialized.readFrom(in);
+                assertNull(request.getContentType());
+                assertEquals("index", request.index());
+                assertEquals("type", request.type());
+            }
+        }
+    }
 }

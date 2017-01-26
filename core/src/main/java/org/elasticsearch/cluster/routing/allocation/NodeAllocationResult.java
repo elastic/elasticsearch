@@ -153,7 +153,14 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
             if (isWeightRanked()) {
                 builder.field("weight_ranking", getWeightRanking());
             }
-            if (canAllocateDecision.getDecisions().isEmpty() == false) {
+            boolean hasDecisions = false;
+            for (Decision d : canAllocateDecision.getDecisions()) {
+                if (d != canAllocateDecision) {
+                    hasDecisions = true;
+                    break;
+                }
+            }
+            if (hasDecisions) {
                 builder.startArray("deciders");
                 canAllocateDecision.toXContent(builder, params);
                 builder.endArray();

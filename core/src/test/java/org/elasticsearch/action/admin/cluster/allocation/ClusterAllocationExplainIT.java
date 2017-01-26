@@ -1009,6 +1009,68 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
+    public void testCannotAllocateStaleReplicaExplanation() throws Exception {
+        logger.info("--> starting 3 nodes");
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startNodes(2);
+
+        logger.info("--> creating an index with 1 primary and 1 replica");
+        createIndexAndIndexData(1, 1);
+
+        logger.info("--> stop node with the replica shard");
+        String stoppedNode = replicaNode().getName();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(stoppedNode));
+
+        logger.info("--> index more data, now the replica is stale");
+        indexData();
+
+        logger.info("--> stop the node with the primary");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
+
+        logger.info("--> restart the node with the stale replica");
+        String restartedNode = internalCluster().startNode(Settings.builder().put("node.name", stoppedNode).build());
+
+        // wait until the system has fetched shard data and we know there is no valid shard copy
+        assertBusy(() -> {
+            ClusterAllocationExplanation explanation = client().admin().cluster().prepareAllocationExplain()
+                .setIndex("idx").setShard(0).setPrimary(true).get().getExplanation();
+            assertEquals(AllocationDecision.NO_VALID_SHARD_COPY,
+                explanation.getShardAllocationDecision().getAllocateDecision().getAllocationDecision());
+        });
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertEquals(ShardRoutingState.UNASSIGNED, shardRoutingState);
+        assertNull(currentNode);
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+
+        // verify decision object
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
+        assertEquals(1, allocateDecision.getNodeDecisions().size());
+        NodeAllocationResult nodeAllocationResult = allocateDecision.getNodeDecisions().get(0);
+        assertEquals(restartedNode, nodeAllocationResult.getNode().getName());
+        assertNotNull(nodeAllocationResult.getShardStoreInfo());
+        assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
+    }
+
     private void verifyClusterInfo(ClusterInfo clusterInfo, boolean includeDiskInfo, int numNodes) {
         if (includeDiskInfo) {
             assertThat(clusterInfo.getNodeMostAvailableDiskUsages().size(), greaterThanOrEqualTo(0));
@@ -1057,11 +1119,15 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .setWaitForActiveShards(activeShardCount)
             .get();
         if (activeShardCount != ActiveShardCount.NONE) {
-            for (int i = 0; i < 10; i++) {
-                index("idx", "t", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
-            }
-            flushAndRefresh("idx");
+            indexData();
         }
+    }
+
+    private void indexData() {
+        for (int i = 0; i < 10; i++) {
+            index("idx", "t", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
+        }
+        flushAndRefresh("idx");
     }
 
     private String primaryNodeName() {

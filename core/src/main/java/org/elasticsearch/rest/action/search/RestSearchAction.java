@@ -93,7 +93,7 @@ public class RestSearchAction extends BaseRestHandler {
         // not be specified explicitly by the user.
         String searchType = request.param("search_type");
         if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
-                SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+                "dfs_query_and_fetch".equals(searchType)) {
             throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
             searchRequest.searchType(searchType);

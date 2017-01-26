@@ -469,12 +469,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         case DISJOINT:
             return new MatchNoneQueryBuilder();
         case WITHIN:
-            if (from != null || to != null) {
+            if (from != null || to != null || format != null || timeZone != null) {
                 RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                 newRangeQuery.from(null);
                 newRangeQuery.to(null);
-                newRangeQuery.format = format;
-                newRangeQuery.timeZone = timeZone;
+                newRangeQuery.format = null;
+                newRangeQuery.timeZone = null;
                 return newRangeQuery;
             } else {
                 return this;

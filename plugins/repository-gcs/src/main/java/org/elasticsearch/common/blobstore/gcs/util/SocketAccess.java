@@ -20,6 +20,7 @@
 package org.elasticsearch.common.blobstore.gcs.util;
 
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -46,20 +47,15 @@ public final class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoidIOException(StorageRunnable action) throws IOException {
+    public static void doPrivilegedVoidIOException(CheckedRunnable<IOException> action) throws IOException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                action.executeCouldThrow();
+                action.run();
                 return null;
             });
         } catch (PrivilegedActionException e) {
             throw (IOException) e.getCause();
         }
-    }
-
-    @FunctionalInterface
-    public interface StorageRunnable {
-        void executeCouldThrow() throws IOException;
     }
 }

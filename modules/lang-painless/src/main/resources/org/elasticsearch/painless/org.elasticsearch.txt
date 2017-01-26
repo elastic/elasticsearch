@@ -60,7 +60,7 @@ class def -> java.lang.Object {
 
 #### Painless debugging API
 
-class Debug -> org.elasticsearch.painless.Debug extends Object {
+class Debug -> org.elasticsearch.painless.api.Debug extends Object {
   void explain(Object)
 }
 

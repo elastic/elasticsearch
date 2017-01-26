@@ -438,7 +438,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             } catch (Exception e) {
                 BroadcastShardOperationFailedException failure =
                     new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
-                failure.setIndex(shardRouting.getIndexName());
                 failure.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {

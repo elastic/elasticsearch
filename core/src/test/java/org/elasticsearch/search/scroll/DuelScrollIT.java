@@ -97,38 +97,6 @@ public class DuelScrollIT extends ESIntegTestCase {
         clearScroll(scrollId);
     }
 
-    public void testDuelQueryAndFetch() throws Exception {
-        // *_QUERY_AND_FETCH search types are tricky: the ordering can be incorrect, since it returns num_shards * (from + size)
-        // a subsequent scroll call can return hits that should have been in the hits of the first scroll call.
-
-        TestContext context = create(SearchType.DFS_QUERY_AND_FETCH, SearchType.QUERY_AND_FETCH);
-        SearchResponse searchScrollResponse = client().prepareSearch("index")
-                .setSearchType(context.searchType)
-                .addSort(context.sort)
-                .setSize(context.scrollRequestSize)
-                .setScroll("10m").get();
-
-        assertNoFailures(searchScrollResponse);
-        assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-
-        int counter = searchScrollResponse.getHits().hits().length;
-        String scrollId = searchScrollResponse.getScrollId();
-        while (true) {
-            searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll("10m").get();
-            assertNoFailures(searchScrollResponse);
-            assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
-            if (searchScrollResponse.getHits().hits().length == 0) {
-                break;
-            }
-
-            counter += searchScrollResponse.getHits().hits().length;
-            scrollId = searchScrollResponse.getScrollId();
-        }
-
-        assertThat(counter, equalTo(context.numDocs));
-        clearScroll(scrollId);
-    }
-
 
     private TestContext create(SearchType... searchTypes) throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -289,7 +257,7 @@ public class DuelScrollIT extends ESIntegTestCase {
     }
 
     public void testDuelIndexOrderQueryAndFetch() throws Exception {
-        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_AND_FETCH, SearchType.DFS_QUERY_AND_FETCH));
+        final SearchType searchType = SearchType.QUERY_AND_FETCH;
         // QUERY_AND_FETCH only works with a single shard
         final int numDocs = createIndex(true);
         testDuelIndexOrder(searchType, false, numDocs);

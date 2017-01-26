@@ -26,13 +26,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -500,6 +501,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setProfile(boolean profile) {
         sourceBuilder().profile(profile);
+        return this;
+    }
+
+    public SearchRequestBuilder setCollapse(CollapseBuilder collapse) {
+        sourceBuilder().collapse(collapse);
         return this;
     }
 

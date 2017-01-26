@@ -19,13 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.CoreMatchers.either;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -52,7 +45,8 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -62,6 +56,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -511,6 +512,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
     }
 
+    /**
+     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
+     */
+    public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject(); {
+            builder.startObject("query_string"); {
+                builder.field("query", "/[ac]*a[ac]{1,10}/");
+                builder.field("default_field", STRING_FIELD_NAME);
+                builder.field("max_determinized_states", 10);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        QueryBuilder queryBuilder = new QueryParseContext(createParser(builder)).parseInnerQueryBuilder();
+        TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
+                () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("would result in more than 10 states"));
+    }
+
     public void testToQueryFuzzyQueryAutoFuzziness() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
@@ -784,7 +808,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"tie_breaker\" : 0.0,\n" +
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"auto_generate_phrase_queries\" : false,\n" +
-                "    \"max_determined_states\" : 10000,\n" +
+                "    \"max_determinized_states\" : 10000,\n" +
                 "    \"enable_position_increment\" : true,\n" +
                 "    \"fuzziness\" : \"AUTO\",\n" +
                 "    \"fuzzy_prefix_length\" : 0,\n" +

@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.painless.api.Augmentation;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -461,15 +463,21 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
+        private final Struct struct;
         public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<MethodKey, Method> methods,
+        private RuntimeClass(final Struct struct, final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
+            this.struct = struct;
             this.methods = Collections.unmodifiableMap(methods);
             this.getters = Collections.unmodifiableMap(getters);
             this.setters = Collections.unmodifiableMap(setters);
+        }
+
+        public Struct getStruct() {
+            return struct;
         }
     }
 
@@ -501,6 +509,11 @@ public final class Definition {
 
     public static RuntimeClass getRuntimeClass(Class<?> clazz) {
         return INSTANCE.runtimeMap.get(clazz);
+    }
+
+    /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
+    static Collection<Type> allSimpleTypes() {
+        return INSTANCE.simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -1047,7 +1060,7 @@ public final class Definition {
             }
         }
 
-        runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+        runtimeMap.put(struct.clazz, new RuntimeClass(struct, methods, getters, setters));
     }
 
     /** computes the functional interface method for a class, or returns null */

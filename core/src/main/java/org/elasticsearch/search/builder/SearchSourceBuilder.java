@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -99,6 +101,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField EXT_FIELD = new ParseField("ext");
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
+    public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
@@ -168,6 +171,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private boolean profile = false;
 
+    private CollapseBuilder collapse = null;
 
     /**
      * Constructs a new search source builder.
@@ -216,6 +220,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            collapse = in.readOptionalWriteable(CollapseBuilder::new);
+        }
     }
 
     @Override
@@ -264,6 +271,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            out.writeOptionalWriteable(collapse);
+        }
     }
 
     /**
@@ -511,6 +521,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public SliceBuilder slice() {
         return sliceBuilder;
+    }
+
+
+    public CollapseBuilder collapse() {
+        return collapse;
+    }
+
+    public SearchSourceBuilder collapse(CollapseBuilder collapse) {
+        this.collapse = collapse;
+        return this;
     }
 
     /**
@@ -873,7 +893,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@linkplain slice}. Used by
+     * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
      * {@link #rewrite(QueryShardContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
      */
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder, SliceBuilder slice) {
@@ -903,6 +923,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         rewrittenBuilder.timeout = timeout;
         rewrittenBuilder.trackScores = trackScores;
         rewrittenBuilder.version = version;
+        rewrittenBuilder.collapse = collapse;
         return rewrittenBuilder;
     }
 
@@ -1011,6 +1032,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                 } else if (SLICE.match(currentFieldName)) {
                     sliceBuilder = SliceBuilder.fromXContent(context);
+                } else if (COLLAPSE.match(currentFieldName)) {
+                    collapse = CollapseBuilder.fromXContent(context);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1201,6 +1224,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 extBuilder.toXContent(builder, params);
             }
             builder.endObject();
+        }
+
+        if (collapse != null) {
+            builder.field(COLLAPSE.getPreferredName(), collapse);
         }
     }
 
@@ -1406,7 +1433,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                profile, extBuilders);
+                profile, extBuilders, collapse);
     }
 
     @Override
@@ -1442,6 +1469,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(trackScores, other.trackScores)
                 && Objects.equals(version, other.version)
                 && Objects.equals(profile, other.profile)
-                && Objects.equals(extBuilders, other.extBuilders);
+                && Objects.equals(extBuilders, other.extBuilders)
+                && Objects.equals(collapse, other.collapse);
     }
 }

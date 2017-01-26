@@ -197,12 +197,11 @@ public class Ec2DiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
-        try {
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             buildDynamicNodes(nodeSettings, 1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
-        }
+        });
+        assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
     public void testFilterByTags() throws InterruptedException {

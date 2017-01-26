@@ -288,6 +288,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return this;
     }
 
+    /**
+     * The mapping source definition.
+     */
+    public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        this.source = convertToJsonIfNecessary(mappingSource, xContentType);
+        return this;
+    }
+
     /** True if all fields that span multiple types should be updated, false otherwise */
     public boolean updateAllTypes() {
         return updateAllTypes;

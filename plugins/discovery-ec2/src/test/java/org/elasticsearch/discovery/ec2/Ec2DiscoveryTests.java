@@ -52,7 +52,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 
 public class Ec2DiscoveryTests extends ESTestCase {
 

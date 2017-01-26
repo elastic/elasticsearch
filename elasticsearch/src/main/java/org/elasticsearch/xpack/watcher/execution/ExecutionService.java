@@ -179,7 +179,8 @@ public final class ExecutionService extends AbstractComponent {
         }
 
         // Lets show the execution that pending the longest first:
-        Collections.sort(queuedWatches, Comparator.comparing(QueuedWatch::executionTime));
+        // Note that the type parameters on comparing are required to make the comparing method work
+        Collections.sort(queuedWatches, Comparator.<QueuedWatch, DateTime>comparing(QueuedWatch::executionTime));
         return queuedWatches;
     }
 

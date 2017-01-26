@@ -202,7 +202,8 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(validate.validationErrors(), not(empty()));
         assertThat(validate.validationErrors(), contains(
                 "script or doc is missing",
-                "source is missing"));
+                "source is missing",
+                "content type is missing"));
     }
 
     public void testCannotAddNullRequests() throws Exception {

@@ -309,7 +309,8 @@ public class TransportService extends AbstractLifecycleComponent {
             return;
         }
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
-            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), clusterName::equals);
+            // We don't validate cluster names to allow for tribe node connections.
+            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
             if (node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }

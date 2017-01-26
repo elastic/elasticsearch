@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -82,7 +82,7 @@ public class ObjectParserTests extends ESTestCase {
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (NoContextParser<Object>) null,
+                (o, v) -> {}, (CheckedFunction<XContentParser, Object, IOException>) null,
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(

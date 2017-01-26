@@ -487,9 +487,10 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             }
         }
 
-        private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final  CountedCollector<FetchSearchResult> counter,
-                          final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
-                          Transport.Connection connection) {
+        private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,
+                                    final CountedCollector<FetchSearchResult> counter,
+                                    final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
+                                    final Transport.Connection connection) {
             searchTransportService.sendExecuteFetch(connection, fetchSearchRequest, task, new ActionListener<FetchSearchResult>() {
                 @Override
                 public void onResponse(FetchSearchResult result) {
@@ -530,7 +531,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 }
             }
         }
-
     }
 
     /**

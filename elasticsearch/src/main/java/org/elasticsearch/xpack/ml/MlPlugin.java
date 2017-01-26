@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -159,7 +158,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
-                        UsageReporter.UPDATE_INTERVAL_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
     }
 

@@ -49,6 +49,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -68,8 +69,6 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.usage.Usage;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -94,11 +93,6 @@ import java.util.function.Supplier;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
-
-    /**
-     * The index to store total usage/metering information
-     */
-    public static final String ML_USAGE_INDEX = "ml-usage";
 
     /**
      * Where to store the ml info in Elasticsearch - must match what's
@@ -238,7 +232,6 @@ public class JobProvider {
             XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping(termFields);
             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
-            XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
 
             String jobId = job.getId();
@@ -252,9 +245,6 @@ public class JobProvider {
             createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
-            // NORELASE These mappings shouldn't go in the results index once the index
-            // strategy has been reworked
-            createIndexRequest.mapping(Usage.TYPE, usageMapping);
 
             if (createIndexAlias) {
                 final ActionListener<Boolean> responseListener = listener;

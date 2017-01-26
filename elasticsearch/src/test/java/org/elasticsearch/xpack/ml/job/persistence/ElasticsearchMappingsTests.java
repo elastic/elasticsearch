@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.usage.Usage;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import com.fasterxml.jackson.core.JsonFactory;
@@ -89,7 +88,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
-        overridden.add(Usage.TYPE);
 
         // These are not reserved because they're in the ml-int index
         // not the job indices
@@ -146,11 +144,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.quantilesMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.usageMapping();
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);

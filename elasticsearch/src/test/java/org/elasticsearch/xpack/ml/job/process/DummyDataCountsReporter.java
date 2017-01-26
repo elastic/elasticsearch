@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
 
 import static org.mockito.Mockito.mock;
 
@@ -20,9 +19,9 @@ class DummyDataCountsReporter extends DataCountsReporter {
 
     int logStatusCallCount = 0;
 
-    public DummyDataCountsReporter(UsageReporter usageReporter) {
+    public DummyDataCountsReporter() {
         super(mock(ThreadPool.class), Settings.EMPTY, "DummyJobId", new DataCounts("DummyJobId"),
-                usageReporter, mock(JobDataCountsPersister.class));
+                mock(JobDataCountsPersister.class));
     }
 
     /**

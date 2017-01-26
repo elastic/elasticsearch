@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.UsagePersister;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.usage.UsageReporter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -73,7 +71,6 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
 
-    private final UsagePersister usagePersister;
     private final StateProcessor stateProcessor;
     private final JobResultsPersister jobResultsPersister;
     private final JobRenormalizedResultsPersister jobRenormalizedResultsPersister;
@@ -101,7 +98,6 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobResultsPersister = jobResultsPersister;
         this.jobRenormalizedResultsPersister = jobRenormalizedResultsPersister;
         this.stateProcessor = new StateProcessor(settings, jobResultsPersister);
-        this.usagePersister = new UsagePersister(settings, client);
         this.jobDataCountsPersister = jobDataCountsPersister;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
@@ -235,9 +231,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(MlPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
-        UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
         try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job.getId(), fetchDataCounts(jobId),
-                usageReporter, jobDataCountsPersister)) {
+                jobDataCountsPersister)) {
             ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
                     threadPool.executor(MlPlugin.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());

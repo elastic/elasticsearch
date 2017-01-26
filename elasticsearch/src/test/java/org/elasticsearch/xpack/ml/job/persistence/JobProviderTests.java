@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.usage.Usage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.mockito.ArgumentCaptor;
 
@@ -148,9 +147,8 @@ public class JobProviderTests extends ESTestCase {
                 assertTrue(request.mappings().containsKey(Result.TYPE.getPreferredName()));
                 assertTrue(request.mappings().containsKey(CategoryDefinition.TYPE.getPreferredName()));
                 assertTrue(request.mappings().containsKey(DataCounts.TYPE.getPreferredName()));
-                assertTrue(request.mappings().containsKey(Usage.TYPE));
                 assertTrue(request.mappings().containsKey(ModelSnapshot.TYPE.getPreferredName()));
-                assertEquals(5, request.mappings().size());
+                assertEquals(4, request.mappings().size());
 
                 clientBuilder.verifyIndexCreated(AnomalyDetectorsIndex.jobResultsIndexName("foo"));
             }

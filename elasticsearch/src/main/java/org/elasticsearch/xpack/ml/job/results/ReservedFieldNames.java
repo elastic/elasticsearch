@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.usage.Usage;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -153,11 +152,6 @@ public final class ReservedFieldNames {
             Quantiles.QUANTILE_STATE.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName(),
-
-            Usage.INPUT_BYTES,
-            Usage.INPUT_FIELD_COUNT,
-            Usage.INPUT_RECORD_COUNT,
-            Usage.TIMESTAMP,
 
             JOB_ID_NAME,
             ES_TIMESTAMP

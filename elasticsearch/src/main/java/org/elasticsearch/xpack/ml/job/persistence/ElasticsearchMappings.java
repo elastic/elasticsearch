@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.usage.Usage;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -615,32 +614,6 @@ public class ElasticsearchMappings {
                 .endObject();
 
         return builder;
-    }
-
-    /**
-     * The Elasticsearch mappings for the usage documents.
-     * The '_all' field is disabled but the type is searchable
-     */
-    public static XContentBuilder usageMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(Usage.TYPE)
-                        .startObject(PROPERTIES)
-                            .startObject(Usage.TIMESTAMP)
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(Usage.INPUT_BYTES)
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Usage.INPUT_FIELD_COUNT)
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(Usage.INPUT_RECORD_COUNT)
-                                .field(TYPE, LONG)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
     }
 
     public static XContentBuilder auditMessageMapping() throws IOException {

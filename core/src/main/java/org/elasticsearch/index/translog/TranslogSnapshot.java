@@ -29,6 +29,8 @@ import java.nio.file.Path;
 final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snapshot {
 
     private final int totalOperations;
+    private final long minSeqNo;
+    private final long maxSeqNo;
     protected final long length;
 
     private final ByteBuffer reusableBuffer;
@@ -37,13 +39,14 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     private BufferedChecksumStreamInput reuse;
 
     /**
-     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
-     * at the end of the last operation in this snapshot.
+     * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
-        super(generation, channel, path, firstOperationOffset);
+    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+        super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
         this.length = length;
-        this.totalOperations = totalOperations;
+        this.totalOperations = reader.totalOperations();
+        this.minSeqNo = reader.getMinSeqNo();
+        this.maxSeqNo = reader.getMaxSeqNo();
         this.reusableBuffer = ByteBuffer.allocate(1024);
         readOperations = 0;
         position = firstOperationOffset;
@@ -53,6 +56,16 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     @Override
     public int totalOperations() {
         return totalOperations;
+    }
+
+    @Override
+    long getMinSeqNo() {
+        return minSeqNo;
+    }
+
+    @Override
+    long getMaxSeqNo() {
+        return maxSeqNo;
     }
 
     @Override

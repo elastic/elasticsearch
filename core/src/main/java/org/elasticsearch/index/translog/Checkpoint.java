@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -35,11 +36,13 @@ import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
-class Checkpoint {
+final class Checkpoint {
 
     final long offset;
     final int numOps;
     final long generation;
+    final long minSeqNo;
+    final long maxSeqNo;
     final long globalCheckpoint;
 
     private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
@@ -52,6 +55,8 @@ class Checkpoint {
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
+        + Long.BYTES // minimum sequence number, introduced in 6.0.0
+        + Long.BYTES // maximum sequence number, introduced in 6.0.0
         + Long.BYTES // global checkpoint, introduced in 6.0.0
         + CodecUtil.footerLength();
 
@@ -62,14 +67,23 @@ class Checkpoint {
         + Long.BYTES // generation
         + CodecUtil.footerLength();
 
-    static final int LEGACY_NON_CHECKSUMMED_FILE_LENGTH = Integer.BYTES  // ops
-            + Long.BYTES // offset
-            + Long.BYTES; // generation
-
-    Checkpoint(long offset, int numOps, long generation, long globalCheckpoint) {
+    /**
+     * Create a new translog checkpoint.
+     *
+     * @param offset           the current offset in the translog
+     * @param numOps           the current number of operations in the translog
+     * @param generation       the current translog generation
+     * @param minSeqNo         the current minimum sequence number of all operations in the translog
+     * @param maxSeqNo         the current maximum sequence number of all operations in the translog
+     * @param globalCheckpoint the last-known global checkpoint
+     */
+    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint) {
+        assert minSeqNo <= maxSeqNo;
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
+        this.minSeqNo = minSeqNo;
+        this.maxSeqNo = maxSeqNo;
         this.globalCheckpoint = globalCheckpoint;
     }
 
@@ -77,21 +91,24 @@ class Checkpoint {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);
+        out.writeLong(minSeqNo);
+        out.writeLong(maxSeqNo);
         out.writeLong(globalCheckpoint);
     }
 
+    static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint) {
+        return new Checkpoint(offset, 0, generation, Translog.INITIAL_MIN_SEQ_NO, Translog.INITIAL_MAX_SEQ_NO, globalCheckpoint);
+    }
+
     static Checkpoint readChecksummedV2(DataInput in) throws IOException {
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong());
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
     static Checkpoint readChecksummedV1(DataInput in) throws IOException {
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
-    }
-
-    // reads checkpoint from ES < 5.0.0
-    static Checkpoint readNonChecksummed(DataInput in) throws IOException {
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        final long minSeqNo = Translog.INITIAL_MIN_SEQ_NO;
+        final long maxSeqNo = Translog.INITIAL_MAX_SEQ_NO;
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
     @Override
@@ -99,29 +116,26 @@ class Checkpoint {
         return "Checkpoint{" +
             "offset=" + offset +
             ", numOps=" + numOps +
-            ", translogFileGeneration=" + generation +
+            ", generation=" + generation +
+            ", minSeqNo=" + minSeqNo +
+            ", maxSeqNo=" + maxSeqNo +
             ", globalCheckpoint=" + globalCheckpoint +
             '}';
     }
 
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new SimpleFSDirectory(path.getParent())) {
-            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
-                if (indexInput.length() == LEGACY_NON_CHECKSUMMED_FILE_LENGTH) {
-                    // OLD unchecksummed file that was written < ES 5.0.0
-                    return Checkpoint.readNonChecksummed(indexInput);
+            try (final IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+                // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
+                CodecUtil.checksumEntireFile(indexInput);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, CURRENT_VERSION);
+                if (fileVersion == INITIAL_VERSION) {
+                    assert indexInput.length() == V1_FILE_SIZE;
+                    return Checkpoint.readChecksummedV1(indexInput);
                 } else {
-                    // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
-                    CodecUtil.checksumEntireFile(indexInput);
-                    final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, CURRENT_VERSION);
-                    if (fileVersion == INITIAL_VERSION) {
-                        assert indexInput.length() == V1_FILE_SIZE;
-                        return Checkpoint.readChecksummedV1(indexInput);
-                    } else {
-                        assert fileVersion == CURRENT_VERSION;
-                        assert indexInput.length() == FILE_SIZE;
-                        return Checkpoint.readChecksummedV2(indexInput);
-                    }
+                    assert fileVersion == CURRENT_VERSION;
+                    assert indexInput.length() == FILE_SIZE;
+                    return Checkpoint.readChecksummedV2(indexInput);
                 }
             }
         }
@@ -159,23 +173,17 @@ class Checkpoint {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         Checkpoint that = (Checkpoint) o;
 
-        if (offset != that.offset) {
-            return false;
-        }
-        if (numOps != that.numOps) {
-            return false;
-        }
-        return generation == that.generation;
-
+        if (offset != that.offset) return false;
+        if (numOps != that.numOps) return false;
+        if (generation != that.generation) return false;
+        if (minSeqNo != that.minSeqNo) return false;
+        if (maxSeqNo != that.maxSeqNo) return false;
+        return globalCheckpoint == that.globalCheckpoint;
     }
 
     @Override
@@ -183,6 +191,10 @@ class Checkpoint {
         int result = Long.hashCode(offset);
         result = 31 * result + numOps;
         result = 31 * result + Long.hashCode(generation);
+        result = 31 * result + Long.hashCode(minSeqNo);
+        result = 31 * result + Long.hashCode(maxSeqNo);
+        result = 31 * result + Long.hashCode(globalCheckpoint);
         return result;
     }
+
 }

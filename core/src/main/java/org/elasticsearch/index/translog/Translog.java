@@ -128,6 +128,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
 
+    static final long INITIAL_MIN_SEQ_NO = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+    static final long INITIAL_MAX_SEQ_NO = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
      * {@code null}. If the generation is {@code null} this method is destructive and will delete all files in the translog path given. If
@@ -198,7 +201,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
                 final long generation = 1;
-                Checkpoint checkpoint = new Checkpoint(0, 0, generation, globalCheckpointSupplier.getAsLong());
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong());
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
@@ -400,13 +403,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a delete / index operations to the transaction log.
+     * Adds an operation to the transaction log.
      *
-     * @see org.elasticsearch.index.translog.Translog.Operation
-     * @see Index
-     * @see org.elasticsearch.index.translog.Translog.Delete
+     * @param operation the operation to add
+     * @return the location of the operation in the translog
+     * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
-    public Location add(Operation operation) throws IOException {
+    public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
@@ -419,22 +422,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeInt(operationSize);
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
-            try (ReleasableLock lock = readLock.acquire()) {
+            try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                Location location = current.add(bytes);
-                return location;
+                return current.add(bytes, operation.seqNo());
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (final AlreadyClosedException | IOException ex) {
             try {
                 closeOnTragicEvent(ex);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 ex.addSuppressed(inner);
             }
             throw ex;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             try {
                 closeOnTragicEvent(e);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 e.addSuppressed(inner);
             }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -1222,6 +1224,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     public enum Durability {
+
         /**
          * Async durability - translogs are synced based on a time interval.
          */
@@ -1229,7 +1232,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Request durability - translogs are synced for each high level request (bulk, index, delete)
          */
-        REQUEST;
+        REQUEST
 
     }
 

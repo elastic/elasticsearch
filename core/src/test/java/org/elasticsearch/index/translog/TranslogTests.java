@@ -967,10 +967,32 @@ public class TranslogTests extends ESTestCase {
         final int numOps = randomIntBetween(10, 100);
         byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+        long minSeqNo = Translog.INITIAL_MIN_SEQ_NO;
+        long maxSeqNo = Translog.INITIAL_MAX_SEQ_NO;
+        final Set<Long> seenSeqNos = new HashSet<>();
+        boolean opsHaveValidSequenceNumbers = false;
         for (int i = 0; i < numOps; i++) {
             out.reset(bytes);
             out.writeInt(i);
-            writer.add(new BytesArray(bytes));
+            long seqNo;
+            do {
+                seqNo = opsHaveValidSequenceNumbers ? randomNonNegativeLong() : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                opsHaveValidSequenceNumbers = opsHaveValidSequenceNumbers || !rarely();
+            } while (seenSeqNos.contains(seqNo));
+            if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                seenSeqNos.add(seqNo);
+                if (minSeqNo == Translog.INITIAL_MIN_SEQ_NO) {
+                    minSeqNo = seqNo;
+                } else {
+                    minSeqNo = Math.min(minSeqNo, seqNo);
+                }
+                if (maxSeqNo == Translog.INITIAL_MAX_SEQ_NO) {
+                    maxSeqNo = seqNo;
+                } else {
+                    maxSeqNo = Math.max(maxSeqNo, seqNo);
+                }
+            }
+            writer.add(new BytesArray(bytes), seqNo);
         }
         writer.sync();
 
@@ -982,10 +1004,12 @@ public class TranslogTests extends ESTestCase {
             final int value = buffer.getInt();
             assertEquals(i, value);
         }
+        assertThat(reader.getMinSeqNo(), equalTo(minSeqNo));
+        assertThat(reader.getMaxSeqNo(), equalTo(maxSeqNo));
 
         out.reset(bytes);
         out.writeInt(2048);
-        writer.add(new BytesArray(bytes));
+        writer.add(new BytesArray(bytes), randomNonNegativeLong());
 
         if (reader instanceof TranslogReader) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1006,42 +1030,6 @@ public class TranslogTests extends ESTestCase {
             assertEquals(2048, value);
         }
         IOUtils.close(writer);
-    }
-
-    public void testFailWriterWhileClosing() throws IOException {
-        Path tempDir = createTempDir();
-        final FailSwitch fail = new FailSwitch();
-        fail.failNever();
-        TranslogConfig config = getTranslogConfig(tempDir);
-        try (Translog translog = getFailableTranslog(fail, config)) {
-            final TranslogWriter writer = translog.createWriter(0);
-            final int numOps = randomIntBetween(10, 100);
-            byte[] bytes = new byte[4];
-            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-            for (int i = 0; i < numOps; i++) {
-                out.reset(bytes);
-                out.writeInt(i);
-                writer.add(new BytesArray(bytes));
-            }
-            writer.sync();
-            try {
-                fail.failAlways();
-                writer.closeIntoReader();
-                fail();
-            } catch (MockDirectoryWrapper.FakeIOException ex) {
-            }
-            try (TranslogReader reader = translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)))) {
-                for (int i = 0; i < numOps; i++) {
-                    ByteBuffer buffer = ByteBuffer.allocate(4);
-                    reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
-                    buffer.flip();
-                    final int value = buffer.getInt();
-                    assertEquals(i, value);
-                }
-            }
-
-        }
-
     }
 
     public void testBasicRecovery() throws IOException {
@@ -1209,12 +1197,12 @@ public class TranslogTests extends ESTestCase {
         TranslogConfig config = translog.getConfig();
         Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint read = Checkpoint.read(ckp);
-        Checkpoint corrupted = new Checkpoint(0, 0, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        Checkpoint corrupted = Checkpoint.emptyTranslogCheckpoint(0, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         try (Translog ignored = new Translog(config, translogGeneration, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3123, numOps=55, translogFileGeneration=2, globalCheckpoint=-2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration=0, globalCheckpoint=-2}");
+            assertEquals("Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3123, numOps=55, generation=2, minSeqNo=0, maxSeqNo=0, globalCheckpoint=-2} but got: Checkpoint{offset=0, numOps=0, generation=0, minSeqNo=-2, maxSeqNo=-2, globalCheckpoint=-2}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogGeneration, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
@@ -1663,7 +1651,7 @@ public class TranslogTests extends ESTestCase {
                     FileChannel channel = factory.open(file, openOption);
                     boolean success = false;
                     try {
-                        final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the 20bytes are written as an atomic operation
+                        final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
                         ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, isCkpFile ? false : paritalWrites, throwUnknownException, channel);
                         success = true;
                         return throwingFileChannel;
@@ -1962,11 +1950,26 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    private Checkpoint randomCheckpoint() {
+        final long a = randomNonNegativeLong();
+        final long b = randomNonNegativeLong();
+        final long minSeqNo;
+        final long maxSeqNo;
+        if (a <= b) {
+            minSeqNo = a;
+            maxSeqNo = b;
+        } else {
+            minSeqNo = b;
+            maxSeqNo = a;
+        }
+        return new Checkpoint(randomLong(), randomInt(), randomLong(), minSeqNo, maxSeqNo, randomNonNegativeLong());
+    }
+
     public void testCheckpointOnDiskFull() throws IOException {
-        Checkpoint checkpoint = new Checkpoint(randomLong(), randomInt(), randomLong(), randomLong());
+        final Checkpoint checkpoint = randomCheckpoint();
         Path tempDir = createTempDir();
         Checkpoint.write(FileChannel::open, tempDir.resolve("foo.cpk"), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        Checkpoint checkpoint2 = new Checkpoint(randomLong(), randomInt(), randomLong(), randomLong());
+        final Checkpoint checkpoint2 = randomCheckpoint();
         try {
             Checkpoint.write((p, o) -> {
                 if (randomBoolean()) {

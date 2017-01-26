@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
@@ -409,6 +410,31 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
         assertThat(rewrittenRange.from(), equalTo(null));
         assertThat(rewrittenRange.to(), equalTo(null));
+    }
+
+    public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {
+        String fieldName = randomAsciiOfLengthBetween(1, 20);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+                return Relation.WITHIN;
+            }
+        };
+        DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        query.from(queryFromValue);
+        query.to(queryToValue);
+        query.timeZone(randomFrom(DateTimeZone.getAvailableIDs()));
+        query.format("yyyy-MM-dd");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
+        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
+        assertThat(rewrittenRange.from(), equalTo(null));
+        assertThat(rewrittenRange.to(), equalTo(null));
+        assertThat(rewrittenRange.timeZone(), equalTo(null));
+        assertThat(rewrittenRange.format(), equalTo(null));
     }
 
     public void testRewriteDateToMatchNone() throws IOException {

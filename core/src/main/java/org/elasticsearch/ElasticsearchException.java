@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,7 +51,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -392,11 +392,124 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
+     * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
+     * return the original exception type (ie NodeClosedException for example) but just wraps
+     * the type, the reason and the cause of the exception. It also recursively parses the
+     * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
+     * instances.
+     */
+    public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        return innerFromXContent(parser);
+    }
+
+    private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String type = null, reason = null, stack = null;
+        ElasticsearchException cause = null;
+        Map<String, List<String>> metadata = new HashMap<>();
+        Map<String, List<String>> headers = new HashMap<>();
+
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+
+            if (token.isValue()) {
+                if (TYPE.equals(currentFieldName)) {
+                    type = parser.text();
+                } else if (REASON.equals(currentFieldName)) {
+                    reason = parser.text();
+                } else if (STACK_TRACE.equals(currentFieldName)) {
+                    stack = parser.text();
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    metadata.put(currentFieldName, Collections.singletonList(parser.text()));
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (CAUSED_BY.equals(currentFieldName)) {
+                    cause = fromXContent(parser);
+                } else if (HEADER.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else {
+                            List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                values.add(parser.text());
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                        values.add(parser.text());
+                                    } else {
+                                        parser.skipChildren();
+                                    }
+                                }
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                parser.skipChildren();
+                            }
+                            headers.put(currentFieldName, values);
+                        }
+                    }
+                } else {
+                    // Any additional metadata object added by the metadataToXContent method is ignored
+                    // and skipped, so that the parser does not fail on unknown fields. The parser only
+                    // support metadata key-pairs and metadata arrays of values.
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                // Parse the array and add each item to the corresponding list of metadata.
+                // Arrays of objects are not supported yet and just ignored and skipped.
+                List<String> values = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        values.add(parser.text());
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+                if (values.size() > 0) {
+                    if (metadata.containsKey(currentFieldName)) {
+                        values.addAll(metadata.get(currentFieldName));
+                    }
+                    metadata.put(currentFieldName, values);
+                }
+            }
+        }
+
+        StringBuilder message = new StringBuilder("Elasticsearch exception [");
+        message.append(TYPE).append('=').append(type).append(", ");
+        message.append(REASON).append('=').append(reason);
+        if (stack != null) {
+            message.append(", ").append(STACK_TRACE).append('=').append(stack);
+        }
+        message.append(']');
+
+        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
+
+        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
+            //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
+            //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
+            //Those key-value pairs become part of the metadata set and inherit the "es." prefix as that is currently required
+            //by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
+            //TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
+            //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
+            e.addMetadata("es." + entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+            e.addHeader(header.getKey(), header.getValue());
+        }
+        return e;
+    }
+
+    /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
      * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
      *
-     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object.
+     * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
+     * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
@@ -453,71 +566,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         builder.endObject();
-    }
-
-    /**
-     * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
-     * return the original exception type (ie NodeClosedException for example) but just wraps
-     * the type, the reason and the cause of the exception. It also recursively parses the
-     * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
-     * instances.
-     */
-    public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-
-        String type = null, reason = null, stack = null;
-        ElasticsearchException cause = null;
-        Map<String, List<String>> metadata = new HashMap<>();
-        Map<String, Object> headers = new HashMap<>();
-
-        do {
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
-            if (token.isValue()) {
-                if (TYPE.equals(currentFieldName)) {
-                    type = parser.text();
-                } else if (REASON.equals(currentFieldName)) {
-                    reason = parser.text();
-                } else if (STACK_TRACE.equals(currentFieldName)) {
-                    stack = parser.text();
-                } else {
-                    metadata.put(currentFieldName, Collections.singletonList(parser.text()));
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
-                    cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
-                    headers.putAll(parser.map());
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            }
-        } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
-
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-
-        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
-
-        for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
-            //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
-            //Those key-value pairs become part of the metadata set and inherit the "es." prefix as that is currently required
-            //by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
-            //TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
-            //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
-            e.addMetadata("es." + entry.getKey(), entry.getValue());
-        }
-        for (Map.Entry<String, Object> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), String.valueOf(header.getValue()));
-        }
-        return e;
     }
 
     /**

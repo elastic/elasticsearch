@@ -21,8 +21,8 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -100,7 +100,7 @@ public class ClusterChangedEvent {
             return false;
         }
         if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
-            return state.routingTable().index(index) != previousState.routingTable().index(index);
+            return state.routingTable().index(index).equals(previousState.routingTable().index(index)) == false;
         }
         return true;
     }

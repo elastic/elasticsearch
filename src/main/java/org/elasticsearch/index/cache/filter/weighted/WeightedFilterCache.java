@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -163,6 +164,8 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             Cache<FilterCacheKey, DocIdSet> innerCache = cache.indicesFilterCache.cache();
 
             DocIdSet cacheValue = innerCache.getIfPresent(cacheKey);
+            ShardId shardId = ShardUtils.extractShardId(context.reader());
+            IndexShard shard = null;
             if (cacheValue == null) {
                 if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
                     Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
@@ -177,17 +180,25 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, null));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
-                ShardId shardId = ShardUtils.extractShardId(context.reader());
+
                 if (shardId != null) {
-                    IndexShard shard = cache.indexService.shard(shardId.id());
+                    shard = cache.indexService.shard(shardId.id());
                     if (shard != null) {
                         cacheKey.removalListener = shard.filterCache();
                         shard.filterCache().onCached(DocIdSets.sizeInBytes(cacheValue));
+                        shard.filterCache().onMiss();
                     }
                 }
                 innerCache.put(cacheKey, cacheValue);
-            }
+            } else {
 
+                if (shardId != null) {
+                    shard = cache.indexService.shard(shardId.id());
+                    if (shard != null) {
+                        shard.filterCache().onHit();
+                    }
+                }
+            }
             // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
             // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
             // filter on its own

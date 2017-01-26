@@ -406,10 +406,11 @@ public abstract class RestRequest implements ToXContent.Params {
             }
             return new Tuple<>(xContentType.get(), content());
         }
+
         String source = param("source");
+        String typeParam = param("source_content_type");
         if (source != null) {
             BytesArray bytes = new BytesArray(source);
-            String typeParam = param("source_content_type");
             final XContentType xContentType;
             if (typeParam != null) {
                 xContentType = parseContentType(Collections.singletonList(typeParam));

@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -72,11 +71,9 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     private InputStream search() throws IOException {
+        LOGGER.debug("[{}] Executing aggregated search", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
-        if (searchResponse.status() != RestStatus.OK) {
-            throw new IOException("[" + context.jobId + "] Search request returned status code: " + searchResponse.status()
-                    + ". Response was:\n" + searchResponse.toString());
-        }
+        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return processSearchResponse(searchResponse);
     }
 

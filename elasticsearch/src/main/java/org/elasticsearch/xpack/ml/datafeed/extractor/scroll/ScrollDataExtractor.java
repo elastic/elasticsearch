@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -82,11 +81,8 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private InputStream initScroll() throws IOException {
+        LOGGER.debug("[{}] Initializing scroll", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
-        if (searchResponse.status() != RestStatus.OK) {
-            throw new IOException("[" + context.jobId + "] Search request returned status code: " + searchResponse.status()
-                    + ". Response was:\n" + searchResponse.toString());
-        }
         return processSearchResponse(searchResponse);
     }
 
@@ -118,6 +114,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
+        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().hits().length == 0) {
             hasNext = false;
@@ -146,11 +143,8 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private InputStream continueScroll() throws IOException {
+        LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
         SearchResponse searchResponse = executeSearchScrollRequest(scrollId);
-        if (searchResponse.status() != RestStatus.OK) {
-            throw new IOException("[" + context.jobId + "] Continue search scroll request with id '" + scrollId + "' returned status code: "
-                    + searchResponse.status() + ". Response was:\n" + searchResponse.toString());
-        }
         return processSearchResponse(searchResponse);
     }
 

@@ -130,7 +130,7 @@ public class TransportService extends AbstractLifecycleComponent {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            sendLocalRequest(requestId, action, request);
+            sendLocalRequest(requestId, action, request, options);
         }
 
         @Override
@@ -206,6 +206,7 @@ public class TransportService extends AbstractLifecycleComponent {
             HANDSHAKE_ACTION_NAME,
             () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
+            false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
@@ -600,9 +601,10 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    private void sendLocalRequest(long requestId, final String action, final TransportRequest request) {
+    private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
         final DirectResponseChannel channel = new DirectResponseChannel(logger, localNode, action, requestId, adapter, threadPool);
         try {
+            adapter.onRequestSent(localNode, requestId, action, request, options);
             final RequestHandlerRegistry reg = adapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");

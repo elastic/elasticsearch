@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -65,36 +66,35 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     }
 
     @Override
-    protected void executeNextPhase(AtomicArray<DfsSearchResult> initialResults) {
-        DfsQueryPhase queryPhase = new DfsQueryPhase(initialResults, searchPhaseController,
+    protected CheckedRunnable<Exception> getNextPhase(AtomicArray<DfsSearchResult> initialResults) {
+        return new DfsQueryPhase(initialResults, searchPhaseController,
             (queryResults) -> new FetchPhase(queryResults, searchPhaseController));
-        queryPhase.execute();
     }
 
-    private class DfsQueryPhase {
+    private class DfsQueryPhase implements CheckedRunnable<Exception> {
         private final AtomicArray<QuerySearchResultProvider> queryResult;
         private final SearchPhaseController searchPhaseController;
         private final AtomicArray<DfsSearchResult> firstResults;
-        private final Function<AtomicArray<QuerySearchResultProvider>, Runnable> nextPhaseFactory;
+        private final Function<AtomicArray<QuerySearchResultProvider>, CheckedRunnable<Exception>> nextPhaseFactory;
 
         public DfsQueryPhase(AtomicArray<DfsSearchResult> firstResults,
                              SearchPhaseController searchPhaseController,
-                             Function<AtomicArray<QuerySearchResultProvider>, Runnable> nextPhaseFactory) {
+                             Function<AtomicArray<QuerySearchResultProvider>, CheckedRunnable<Exception>> nextPhaseFactory) {
             this.queryResult = new AtomicArray<>(firstResults.length());
             this.searchPhaseController = searchPhaseController;
             this.firstResults = firstResults;
             this.nextPhaseFactory = nextPhaseFactory;
         }
 
-        public void execute() {
+        @Override
+        public void run() throws Exception {
             final AggregatedDfs dfs = searchPhaseController.aggregateDfs(firstResults);
             final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, firstResults.asList().size(),
                 (successfulOps) -> {
                     if (successfulOps == 0) {
                         listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
                     } else {
-                        Runnable nextPhase = this.nextPhaseFactory.apply(queryResult);
-                        nextPhase.run();
+                        executePhase("fetch", this.nextPhaseFactory.apply(queryResult), null);
                     }
                 });
             for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {

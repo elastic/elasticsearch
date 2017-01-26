@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -170,22 +171,27 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         // and when that happens, we break on total ops, so we must maintain them
         final int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
         if (xTotalOps == expectedTotalOps) {
-            try {
-                innerStartNextPhase();
-            } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "{}: Failed to execute [{}] while moving to second phase",
-                            shardIt.shardId(),
-                            request),
-                        e);
-                }
-                raiseEarlyFailure(new ReduceSearchPhaseException(initialPhaseName(), "", e, buildShardFailures()));
-            }
+            executePhase(initialPhaseName(), innerGetNextPhase(), null);
         } else if (xTotalOps > expectedTotalOps) {
             raiseEarlyFailure(new IllegalStateException("unexpected higher total ops [" + xTotalOps + "] compared " +
                 "to expected [" + expectedTotalOps + "]"));
+        }
+    }
+
+    protected void executePhase(String phaseName, CheckedRunnable<Exception> phase, Exception suppressedException) {
+        try {
+            phase.run();
+        } catch (Exception e) {
+            if (suppressedException != null) {
+                e.addSuppressed(suppressedException);
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Failed to execute [{}] while moving to second phase", request),
+                    e);
+            }
+            raiseEarlyFailure(new ReduceSearchPhaseException(phaseName, "", e, buildShardFailures()));
         }
     }
 
@@ -219,12 +225,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 // no successful ops, raise an exception
                 raiseEarlyFailure(new SearchPhaseExecutionException(initialPhaseName(), "all shards failed", e, shardSearchFailures));
             } else {
-                try {
-                    innerStartNextPhase();
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    raiseEarlyFailure(new ReduceSearchPhaseException(initialPhaseName(), "", inner, shardSearchFailures));
-                }
+                executePhase(initialPhaseName(), innerGetNextPhase(), e);
             }
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -345,7 +346,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
     }
 
-    final void innerStartNextPhase() throws Exception {
+    final CheckedRunnable<Exception> innerGetNextPhase() {
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             boolean hadOne = false;
@@ -364,10 +365,10 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
             logger.trace("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterStateVersion);
         }
-        executeNextPhase(initialResults);
+        return getNextPhase(initialResults);
     }
 
-    protected abstract void executeNextPhase(AtomicArray<FirstResult> initialResults) throws Exception;
+    protected abstract CheckedRunnable<Exception> getNextPhase(AtomicArray<FirstResult> initialResults);
 
     protected abstract String initialPhaseName();
 
@@ -422,7 +423,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
      *  The AbstractSearchAsyncAction should be final and it should just get a factory for the next phase instead of requiring subclasses
      *  etc.
      */
-    final class FetchPhase implements Runnable {
+    final class FetchPhase implements CheckedRunnable<Exception> {
         private final AtomicArray<FetchSearchResult> fetchResults;
         private final SearchPhaseController searchPhaseController;
         private final AtomicArray<QuerySearchResultProvider> queryResults;
@@ -435,60 +436,53 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
 
         @Override
-        public void run() {
+        public void run() throws Exception {
+            final boolean isScrollRequest = request.scroll() != null;
+            ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
+            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
+            final IntConsumer finishPhase =  successOpts
+                -> sendResponseAsync(searchPhaseController, sortedShardDocs, queryResults, fetchResults);
+            List<QuerySearchResult> resultToRelease = Collections.emptyList();
             try {
-                final boolean isScrollRequest = request.scroll() != null;
-                ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-                final IntConsumer finishPhase =  successOpts
-                    -> sendResponseAsync(searchPhaseController, sortedShardDocs, queryResults, fetchResults);
-                List<QuerySearchResult> resultToRelease = Collections.emptyList();
-                try {
-                    if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
-                        resultToRelease = queryResults.asList().stream().map(e -> e.value.queryResult()).collect(Collectors.toList());
-                        finishPhase.accept(successfulOps.get());
-                    } else {
-                        resultToRelease = new ArrayList<>();
-                        final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
-                            searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
-                            : null;
-                        final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
-                            docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                            finishPhase);
-                        for (int i = 0; i < docIdsToLoad.length; i++) {
-                            IntArrayList entry = docIdsToLoad[i];
-                            QuerySearchResultProvider queryResult = queryResults.get(i);
-                            if (entry == null) { // no results for this shard ID
-                                if (queryResult != null) {  // if we got some hits from this shard we have to release the context there
-                                    resultToRelease.add(queryResult.queryResult());
-                                }
-                                // in any case we count down this result since we don't talk to this shard anymore
-                                counter.countDown();
-                            } else {
-                                Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                                ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
-                                    lastEmittedDocPerShard);
-                                executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
-                                    connection);
+                if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+                    resultToRelease = queryResults.asList().stream().map(e -> e.value.queryResult()).collect(Collectors.toList());
+                    finishPhase.accept(successfulOps.get());
+                } else {
+                    resultToRelease = new ArrayList<>();
+                    final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
+                        searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
+                        : null;
+                    final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
+                        docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
+                        finishPhase);
+                    for (int i = 0; i < docIdsToLoad.length; i++) {
+                        IntArrayList entry = docIdsToLoad[i];
+                        QuerySearchResultProvider queryResult = queryResults.get(i);
+                        if (entry == null) { // no results for this shard ID
+                            if (queryResult != null) {  // if we got some hits from this shard we have to release the context there
+                                resultToRelease.add(queryResult.queryResult());
                             }
+                            // in any case we count down this result since we don't talk to this shard anymore
+                            counter.countDown();
+                        } else {
+                            Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
+                            ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
+                                lastEmittedDocPerShard);
+                            executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
+                                connection);
                         }
                     }
-                } finally {
-                    final List<QuerySearchResult> finalResultToRelease = resultToRelease;
-                    if (resultToRelease.isEmpty() == false) {
-                        getExecutor().execute(() -> {
-                            // now release all search contexts for the shards we don't fetch results for
-                            for (QuerySearchResult toRelease : finalResultToRelease) {
-                                releaseIrrelevantSearchContext(toRelease);
-                            }
-                        });
-                    }
                 }
-            } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to fetch results", e);
+            } finally {
+                final List<QuerySearchResult> finalResultToRelease = resultToRelease;
+                if (resultToRelease.isEmpty() == false) {
+                    getExecutor().execute(() -> {
+                        // now release all search contexts for the shards we don't fetch results for
+                        for (QuerySearchResult toRelease : finalResultToRelease) {
+                            releaseIrrelevantSearchContext(toRelease);
+                        }
+                    });
                 }
-                listener.onFailure(e);
             }
         }
 

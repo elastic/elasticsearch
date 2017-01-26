@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -115,14 +116,16 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected void executeNextPhase(AtomicArray<TestSearchPhaseResult> initialResults) throws Exception {
-                for (int i = 0; i < initialResults.length(); i++) {
-                    TestSearchPhaseResult result = initialResults.get(i);
-                    assertEquals(result.node.getId(), result.shardTarget().getNodeId());
-                    sendReleaseSearchContext(result.id(), new MockConnection(result.node));
-                }
-                responseListener.onResponse(response);
-                latch.countDown();
+            protected CheckedRunnable<Exception> getNextPhase(AtomicArray<TestSearchPhaseResult> initialResults) {
+                return () -> {
+                    for (int i = 0; i < initialResults.length(); i++) {
+                        TestSearchPhaseResult result = initialResults.get(i);
+                        assertEquals(result.node.getId(), result.shardTarget().getNodeId());
+                        sendReleaseSearchContext(result.id(), new MockConnection(result.node));
+                    }
+                    responseListener.onResponse(response);
+                    latch.countDown();
+                };
             }
 
             @Override

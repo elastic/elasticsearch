@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -64,7 +65,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     }
 
     @Override
-    protected void executeNextPhase(AtomicArray<QueryFetchSearchResult> initialResults) throws Exception {
-        sendResponseAsync(searchPhaseController, null, initialResults, initialResults);
+    protected CheckedRunnable<Exception> getNextPhase(AtomicArray<QueryFetchSearchResult> initialResults) {
+        return () -> sendResponseAsync(searchPhaseController, null, initialResults, initialResults);
     }
 }

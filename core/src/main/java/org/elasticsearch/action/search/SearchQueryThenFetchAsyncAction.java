@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -59,8 +60,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     }
 
     @Override
-    protected void executeNextPhase(AtomicArray<QuerySearchResultProvider> initialResults) throws Exception {
-        final FetchPhase fetchPhase = new FetchPhase(initialResults, searchPhaseController);
-        fetchPhase.run();
+    protected CheckedRunnable<Exception> getNextPhase(AtomicArray<QuerySearchResultProvider> initialResults) {
+        return new FetchPhase(initialResults, searchPhaseController);
     }
 }

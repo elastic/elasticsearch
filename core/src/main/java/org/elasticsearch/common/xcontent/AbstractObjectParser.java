@@ -37,14 +37,6 @@ public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
     /**
-     * Reads an object right from the parser without any context.
-     */
-    @FunctionalInterface
-    public interface NoContextParser<T> {
-        T parse(XContentParser p) throws IOException;
-    }
-
-    /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
      * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.
      */

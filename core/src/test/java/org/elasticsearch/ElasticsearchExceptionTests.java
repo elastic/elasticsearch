@@ -543,7 +543,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertNotNull(parsedException);
 
         ElasticsearchException expected = exceptions.v2();
-        while (expected != null) {
+        do {
             assertEquals(expected.getMessage(), parsedException.getMessage());
             assertEquals(expected.getHeaders(), parsedException.getHeaders());
             assertEquals(expected.getMetadata(), parsedException.getMetadata());
@@ -555,7 +555,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             if (expected == null) {
                 assertNull(parsedException);
             }
-        }
+        } while (expected != null);
     }
 
     /**
@@ -633,10 +633,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         if (actual instanceof ElasticsearchException) {
+            ElasticsearchException actualException = (ElasticsearchException) actual;
             if (randomBoolean()) {
-                Map<String, List<String>> randomHeaders = new HashMap<>();
-
                 int nbHeaders = randomIntBetween(1, 5);
+                Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);
+
                 for (int i = 0; i < nbHeaders; i++) {
                     List<String> values = new ArrayList<>();
 
@@ -648,15 +649,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 }
 
                 for (Map.Entry<String, List<String>> entry : randomHeaders.entrySet()) {
-                    ((ElasticsearchException) actual).addHeader(entry.getKey(), entry.getValue());
+                    actualException.addHeader(entry.getKey(), entry.getValue());
                     expected.addHeader(entry.getKey(), entry.getValue());
                 }
             }
 
             if (randomBoolean()) {
-                Map<String, List<String>> randomMetadata = new HashMap<>();
-
                 int nbMetadata = randomIntBetween(1, 5);
+                Map<String, List<String>> randomMetadata = new HashMap<>(nbMetadata);
+
                 for (int i = 0; i < nbMetadata; i++) {
                     List<String> values = new ArrayList<>();
 
@@ -668,7 +669,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 }
 
                 for (Map.Entry<String, List<String>> entry : randomMetadata.entrySet()) {
-                    ((ElasticsearchException) actual).addMetadata(entry.getKey(), entry.getValue());
+                    actualException.addMetadata(entry.getKey(), entry.getValue());
                     expected.addMetadata(entry.getKey(), entry.getValue());
                 }
             }
@@ -679,13 +680,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     String resourceType = "type_" + i;
                     String[] resourceIds = null;
                     if (frequently()) {
-                        resourceIds = new String[randomIntBetween(0, 3)];
+                        resourceIds = new String[randomIntBetween(1, 3)];
                         for (int j = 0; j < resourceIds.length; j++) {
                             resourceIds[j] = frequently() ? randomAsciiOfLength(5) : null;
                         }
                     }
-
-                    ((ElasticsearchException) actual).setResources(resourceType, resourceIds);
+                    actualException.setResources(resourceType, resourceIds);
                     expected.setResources(resourceType, resourceIds);
                 }
             }

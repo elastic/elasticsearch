@@ -405,20 +405,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
 
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = parser.currentName();
-        do {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-                token = parser.nextToken();
-            }
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
 
-            if (token != null && token.isValue()) {
+            if (token.isValue()) {
                 if (TYPE.equals(currentFieldName)) {
                     type = parser.text();
                 } else if (REASON.equals(currentFieldName)) {
@@ -432,18 +431,25 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 if (CAUSED_BY.equals(currentFieldName)) {
                     cause = fromXContent(parser);
                 } else if (HEADER.equals(currentFieldName)) {
-                    Map<String, Object> headerMap = parser.map();
-                    if (headerMap != null) {
-                        for (Map.Entry<String, Object> header : headerMap.entrySet()) {
-                            List<String> values = headers.getOrDefault(header.getKey(), new ArrayList<>());
-                            if (header.getValue() instanceof Iterable) {
-                                for (Object value : (Iterable) header.getValue()) {
-                                    values.add(String.valueOf(value));
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else {
+                            List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
+                            if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
+                                values.add(parser.textOrNull());
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
+                                        values.add(parser.textOrNull());
+                                    } else {
+                                        parser.skipChildren();
+                                    }
                                 }
-                            } else {
-                                values.add(String.valueOf(header.getValue()));
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                parser.skipChildren();
                             }
-                            headers.put(header.getKey(), values);
+                            headers.put(currentFieldName, values);
                         }
                     }
                 } else {
@@ -470,7 +476,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     metadata.put(currentFieldName, values);
                 }
             }
-        } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
+        }
 
         StringBuilder message = new StringBuilder("Elasticsearch exception [");
         message.append(TYPE).append('=').append(type).append(", ");

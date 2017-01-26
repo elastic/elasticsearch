@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -161,7 +162,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 InputStream content = responseEntity.getContent();
                                 XContentType xContentType = null;
                                 if (responseEntity.getContentType() != null) {
-                                    xContentType = XContentType.fromMediaType(responseEntity.getContentType().getValue());
+                                    final String mimeType = ContentType.parse(responseEntity.getContentType().getValue()).getMimeType();
+                                    xContentType = XContentType.fromMediaType(mimeType);
                                 }
                                 if (xContentType == null) {
                                     try {

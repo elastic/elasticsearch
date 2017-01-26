@@ -79,7 +79,8 @@ public class MlInitializationService extends AbstractComponent implements Cluste
                                 if (error instanceof ResourceAlreadyExistsException) {
                                     logger.debug("not able to create {} index as it already exists", Auditor.NOTIFICATIONS_INDEX);
                                 } else {
-                                    logger.error(new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
+                                    logger.error(
+                                            new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
                                 }
                             }
                             createMlAuditIndexCheck.set(false);

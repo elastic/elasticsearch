@@ -371,7 +371,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             request.clear();
                             request.nodes(true);
                             // here we pass on the connection since we can only close it once the sendRequest returns otherwise
-                            // due to the async nature (it will return before it's actually send) this can cause the request to fail
+                            // due to the async nature (it will return before it's actually sent) this can cause the request to fail
                             // due to an already closed connection.
                             transportService.sendRequest(connection,
                                 ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
@@ -450,8 +450,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         // we have to close this connection before we notify listeners - this is mainly needed for test correctness
                         // since if we do it afterwards we might fail assertions that check if all high level connections are closed.
                         // from a code correctness perspective we could also close it afterwards. This try/with block will
-                        // maintain the actual exceptions thrown from within the try block and suppress the ones that are possible thrown
-                        // by closing hte connection
+                        // maintain the possibly exceptions thrown from within the try block and suppress the ones that are possible thrown
+                        // by closing the connection
                         cancellableThreads.executeIO(() -> {
                             DiscoveryNodes nodes = response.getState().nodes();
                             Iterable<DiscoveryNode> nodesIter = nodes.getNodes()::valuesIt;

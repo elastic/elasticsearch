@@ -104,7 +104,7 @@ public class JobProvider {
      * Where to store the ml info in Elasticsearch - must match what's
      * expected by kibana/engineAPI/app/directives/mlLogUsage.js
      */
-    private static final String ML_INFO_INDEX = "ml-int";
+    public static final String ML_META_INDEX = ".ml-meta";
 
     private static final String ASYNC = "async";
 
@@ -129,21 +129,37 @@ public class JobProvider {
     }
 
     /**
-     * If the {@value JobProvider#ML_USAGE_INDEX} index does
-     * not exist then create it here with the usage document mapping.
+     * Create the Audit index with the audit message document mapping.
      */
-    public void createUsageMeteringIndex(BiConsumer<Boolean, Exception> listener) {
+    public void createNotificationMessageIndex(BiConsumer<Boolean, Exception> listener) {
         try {
-            LOGGER.info("Creating the internal '{}' index", ML_USAGE_INDEX);
-            XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
-            LOGGER.trace("ES API CALL: create index {}", ML_USAGE_INDEX);
-            client.admin().indices().prepareCreate(ML_USAGE_INDEX)
-                    .setSettings(mlResultsIndexSettings())
-                    .addMapping(Usage.TYPE, usageMapping)
-                    .execute(ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
-        } catch (Exception e) {
-            LOGGER.warn("Error creating the usage metering index", e);
+            LOGGER.info("Creating the internal '{}' index", Auditor.NOTIFICATIONS_INDEX);
+            XContentBuilder auditMessageMapping = ElasticsearchMappings.auditMessageMapping();
+            XContentBuilder auditActivityMapping = ElasticsearchMappings.auditActivityMapping();
+
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(Auditor.NOTIFICATIONS_INDEX);
+            createIndexRequest.settings(mlNotificationIndexSettings());
+            createIndexRequest.mapping(AuditMessage.TYPE.getPreferredName(), auditMessageMapping);
+            createIndexRequest.mapping(AuditActivity.TYPE.getPreferredName(), auditActivityMapping);
+
+            client.admin().indices().create(createIndexRequest,
+                    ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
+        } catch (IOException e) {
+            LOGGER.warn("Error creating mappings for the audit message index", e);
         }
+    }
+
+    /**
+     * Create the meta index with the filter list document mapping.
+     */
+    public void createMetaIndex(BiConsumer<Boolean, Exception> listener) {
+        LOGGER.info("Creating the internal '{}' index", ML_META_INDEX);
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(ML_META_INDEX);
+        createIndexRequest.settings(mlNotificationIndexSettings());
+
+        client.admin().indices().create(createIndexRequest,
+                ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
     }
 
     /**
@@ -197,6 +213,23 @@ public class JobProvider {
     }
 
     /**
+     * Settings for the notification messages index
+     *
+     * @return An Elasticsearch builder initialised with the desired settings
+     * for Ml indexes.
+     */
+    Settings.Builder mlNotificationIndexSettings() {
+        return Settings.builder()
+                // Our indexes are small and one shard puts the
+                // least possible burden on Elasticsearch
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                // We need to allow fields not mentioned in the mappings to
+                // pick up default mappings and be used in queries
+                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true);
+    }
+
+    /**
      * Create the Elasticsearch index and the mappings
      */
     public void createJobResultIndex(Job job, ActionListener<Boolean> listener) {
@@ -206,8 +239,6 @@ public class JobProvider {
             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
             XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
-            XContentBuilder auditMessageMapping = ElasticsearchMappings.auditMessageMapping();
-            XContentBuilder auditActivityMapping = ElasticsearchMappings.auditActivityMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
 
             String jobId = job.getId();
@@ -224,9 +255,6 @@ public class JobProvider {
             // NORELASE These mappings shouldn't go in the results index once the index
             // strategy has been reworked
             createIndexRequest.mapping(Usage.TYPE, usageMapping);
-            createIndexRequest.mapping(AuditMessage.TYPE.getPreferredName(), auditMessageMapping);
-            createIndexRequest.mapping(AuditActivity.TYPE.getPreferredName(), auditActivityMapping);
-
 
             if (createIndexAlias) {
                 final ActionListener<Boolean> responseListener = listener;
@@ -1062,7 +1090,7 @@ public class JobProvider {
      * @param ids the id of the requested filter
      */
     public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, String... ids) {
-        mget(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
+        mget(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
     }
 
     /**
@@ -1072,6 +1100,6 @@ public class JobProvider {
      * @return the {@code Auditor}
      */
     public Auditor audit(String jobId) {
-        return new Auditor(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId), jobId);
+        return new Auditor(client, jobId);
     }
 }

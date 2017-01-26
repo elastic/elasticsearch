@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
@@ -340,7 +341,9 @@ public class MockClientBuilder {
     }
 
     public void verifyIndexCreated(String index) {
-        verify(indicesAdminClient).prepareCreate(eq(index));
+        ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        verify(indicesAdminClient).create(requestCaptor.capture(), any());
+        assertEquals(index, requestCaptor.getValue().index());
     }
 
     public void resetIndices() {

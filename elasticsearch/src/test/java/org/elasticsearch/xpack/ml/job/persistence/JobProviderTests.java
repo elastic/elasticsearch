@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.usage.Usage;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
@@ -118,17 +119,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("", quantiles.getQuantileState());
     }
 
-    public void testCreateUsageMetering() throws InterruptedException, ExecutionException {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .addIndicesExistsResponse(JobProvider.ML_USAGE_INDEX, false)
-                .prepareCreate(JobProvider.ML_USAGE_INDEX)
-                .addClusterStatusYellowResponse(JobProvider.ML_USAGE_INDEX);
-        Client client = clientBuilder.build();
-        JobProvider provider = createProvider(client);
-        provider.createUsageMeteringIndex((result, error) -> logger.info("result={}", result));
-        clientBuilder.verifyIndexCreated(JobProvider.ML_USAGE_INDEX);
-    }
-
     public void testMlResultsIndexSettings() {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         JobProvider provider = createProvider(clientBuilder.build());
@@ -159,10 +149,10 @@ public class JobProviderTests extends ESTestCase {
                 assertTrue(request.mappings().containsKey(CategoryDefinition.TYPE.getPreferredName()));
                 assertTrue(request.mappings().containsKey(DataCounts.TYPE.getPreferredName()));
                 assertTrue(request.mappings().containsKey(Usage.TYPE));
-                assertTrue(request.mappings().containsKey(AuditMessage.TYPE.getPreferredName()));
-                assertTrue(request.mappings().containsKey(AuditActivity.TYPE.getPreferredName()));
                 assertTrue(request.mappings().containsKey(ModelSnapshot.TYPE.getPreferredName()));
-                assertEquals(7, request.mappings().size());
+                assertEquals(5, request.mappings().size());
+
+                clientBuilder.verifyIndexCreated(AnomalyDetectorsIndex.jobResultsIndexName("foo"));
             }
 
             @Override
@@ -196,7 +186,6 @@ public class JobProviderTests extends ESTestCase {
         });
     }
 
-
     public void testCreateJobRelatedIndicies_doesntCreateAliasIfIndexNameIsSameAsJobId() {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
@@ -217,6 +206,55 @@ public class JobProviderTests extends ESTestCase {
             public void onFailure(Exception e) {
                 fail(e.toString());
             }
+        });
+    }
+
+    public void testMlAuditIndexSettings() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        JobProvider provider = createProvider(clientBuilder.build());
+        Settings settings = provider.mlResultsIndexSettings().build();
+
+        assertEquals("1", settings.get("index.number_of_shards"));
+        assertEquals("0", settings.get("index.number_of_replicas"));
+        assertEquals("async", settings.get("index.translog.durability"));
+        assertEquals("true", settings.get("index.mapper.dynamic"));
+    }
+
+    public void testCreateAuditMessageIndex() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        clientBuilder.createIndexRequest(Auditor.NOTIFICATIONS_INDEX, captor);
+
+        JobProvider provider = createProvider(clientBuilder.build());
+
+        provider.createNotificationMessageIndex((result, error) -> {
+                assertTrue(result);
+                CreateIndexRequest request = captor.getValue();
+                assertNotNull(request);
+                assertEquals(provider.mlNotificationIndexSettings().build(), request.settings());
+                assertTrue(request.mappings().containsKey(AuditMessage.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(AuditActivity.TYPE.getPreferredName()));
+                assertEquals(2, request.mappings().size());
+
+                clientBuilder.verifyIndexCreated(Auditor.NOTIFICATIONS_INDEX);
+            });
+    }
+
+    public void testCreateMetaIndex() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        clientBuilder.createIndexRequest(JobProvider.ML_META_INDEX, captor);
+
+        JobProvider provider = createProvider(clientBuilder.build());
+
+        provider.createMetaIndex((result, error) -> {
+            assertTrue(result);
+            CreateIndexRequest request = captor.getValue();
+            assertNotNull(request);
+            assertEquals(provider.mlNotificationIndexSettings().build(), request.settings());
+            assertEquals(0, request.mappings().size());
+
+            clientBuilder.verifyIndexCreated(JobProvider.ML_META_INDEX);
         });
     }
 

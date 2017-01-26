@@ -21,15 +21,14 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Auditor {
 
+    public static final String NOTIFICATIONS_INDEX = ".ml-notifications";
     private static final Logger LOGGER = Loggers.getLogger(Auditor.class);
 
     private final Client client;
-    private final String index;
     private final String jobId;
 
-    public Auditor(Client client, String index, String jobId) {
+    public Auditor(Client client, String jobId) {
         this.client = Objects.requireNonNull(client);
-        this.index = index;
         this.jobId = jobId;
     }
 
@@ -45,17 +44,13 @@ public class Auditor {
         indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message));
     }
 
-    public void activity(String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newActivity(jobId, message));
-    }
-
     public void activity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors) {
         String type = AuditActivity.TYPE.getPreferredName();
         indexDoc(type, AuditActivity.newActivity(totalJobs, totalDetectors, runningJobs, runningDetectors));
     }
 
     private void indexDoc(String type, ToXContent toXContent) {
-        client.prepareIndex(index, type)
+        client.prepareIndex(NOTIFICATIONS_INDEX, type)
                 .setSource(toXContentBuilder(toXContent))
                 .execute(new ActionListener<IndexResponse>() {
                     @Override

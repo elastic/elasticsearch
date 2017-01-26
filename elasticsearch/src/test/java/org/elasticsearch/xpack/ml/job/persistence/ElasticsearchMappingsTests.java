@@ -170,8 +170,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertEquals(ReservedFieldNames.RESERVED_FIELD_NAMES.size(), expected.size());
 
         for (String s : expected) {
-            // By comparing like this the failure messages say which string is
-            // missing
+            // By comparing like this the failure messages say which string is missing
             String reserved = ReservedFieldNames.RESERVED_FIELD_NAMES.contains(s) ? s : null;
             assertEquals(s, reserved);
         }

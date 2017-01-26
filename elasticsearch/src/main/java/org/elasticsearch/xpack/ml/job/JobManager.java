@@ -166,7 +166,7 @@ public class JobManager extends AbstractComponent {
     public void putJob(PutJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJob();
 
-        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobSaved ->
+        ActionListener<Boolean> createResultsIndexListener = ActionListener.wrap(jobSaved ->
                 jobProvider.createJobResultIndex(job, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
@@ -182,12 +182,11 @@ public class JobManager extends AbstractComponent {
             @Override
             public void onFailure(Exception e) {
                 actionListener.onFailure(e);
-
             }
         }), actionListener::onFailure);
-        clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                new AckedClusterStateUpdateTask<Boolean>(request, delegateListener) {
 
+        clusterService.submitStateUpdateTask("put-job-" + job.getId(),
+                new AckedClusterStateUpdateTask<Boolean>(request, createResultsIndexListener) {
             @Override
             protected Boolean newResponse(boolean acknowledged) {
                 return acknowledged;
@@ -223,10 +222,7 @@ public class JobManager extends AbstractComponent {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted.");
                 actionListener.onResponse(new DeleteJobAction.Response(true));
-
-                //norelease: needs #626, because otherwise the audit message re-creates the index
-                // we just deleted.  :)
-                //audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
             } else {
                 actionListener.onResponse(new DeleteJobAction.Response(false));
             }

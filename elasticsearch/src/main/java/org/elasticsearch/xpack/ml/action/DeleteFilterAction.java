@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -145,9 +146,6 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
         private final TransportDeleteAction transportAction;
 
-        // TODO these need to be moved to a settings object later. See #20
-        private static final String ML_INFO_INDEX = "ml-int";
-
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
@@ -189,7 +187,7 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
                         + currentlyUsedBy);
             }
 
-            DeleteRequest deleteRequest = new DeleteRequest(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            DeleteRequest deleteRequest = new DeleteRequest(JobProvider.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             transportAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {

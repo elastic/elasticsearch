@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
@@ -58,7 +59,8 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(1)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        verify(jobProvider, times(1)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(1)).createNotificationMessageIndex(any());
+        verify(jobProvider, times(1)).createMetaIndex(any());
         verify(jobProvider, times(1)).createJobStateIndex(any());
     }
 
@@ -84,7 +86,9 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        verify(jobProvider, times(0)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(0)).createNotificationMessageIndex(any());
+        verify(jobProvider, times(0)).createMetaIndex(any());
+        verify(jobProvider, times(0)).createJobStateIndex(any());
     }
 
     public void testInitialize_alreadyInitialized() throws Exception {
@@ -107,7 +111,12 @@ public class MlInitializationServiceTests extends ESTestCase {
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder()
-                        .put(IndexMetaData.builder(JobProvider.ML_USAGE_INDEX).settings(Settings.builder()
+                        .put(IndexMetaData.builder(Auditor.NOTIFICATIONS_INDEX).settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        ))
+                        .put(IndexMetaData.builder(JobProvider.ML_META_INDEX).settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -122,7 +131,8 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        verify(jobProvider, times(0)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(0)).createNotificationMessageIndex(any());
+        verify(jobProvider, times(0)).createMetaIndex(any());
         verify(jobProvider, times(0)).createJobStateIndex(any());
     }
 
@@ -151,7 +161,8 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(1)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        verify(jobProvider, times(1)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(1)).createNotificationMessageIndex(any());
+        verify(jobProvider, times(1)).createMetaIndex(any());
         verify(jobProvider, times(1)).createJobStateIndex(any());
     }
 }

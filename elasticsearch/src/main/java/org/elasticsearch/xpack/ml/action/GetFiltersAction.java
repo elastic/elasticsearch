@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -231,10 +232,6 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         private final TransportGetAction transportGetAction;
         private final TransportSearchAction transportSearchAction;
 
-        // TODO these need to be moved to a settings object later
-        // See #20
-        private static final String ML_INFO_INDEX = "ml-int";
-
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
@@ -274,7 +271,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(ML_INFO_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            GetRequest getRequest = new GetRequest(JobProvider.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {
@@ -311,7 +308,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                     .from(pageParams.getFrom())
                     .size(pageParams.getSize());
 
-            SearchRequest searchRequest = new SearchRequest(new String[]{ML_INFO_INDEX}, sourceBuilder)
+            SearchRequest searchRequest = new SearchRequest(new String[]{JobProvider.ML_META_INDEX}, sourceBuilder)
                     .types(MlFilter.TYPE.getPreferredName());
 
             transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

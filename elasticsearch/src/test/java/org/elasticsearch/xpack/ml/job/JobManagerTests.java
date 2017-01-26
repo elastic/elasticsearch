@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -42,6 +43,8 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
@@ -187,6 +190,7 @@ public class JobManagerTests extends ESTestCase {
 
         assertEquals("Cannot create index '.ml-anomalies-my-special-place' as it already exists", e.getMessage());
     }
+
 
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();

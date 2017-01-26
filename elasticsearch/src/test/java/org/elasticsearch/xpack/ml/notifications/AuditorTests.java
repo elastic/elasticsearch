@@ -41,9 +41,9 @@ public class AuditorTests extends ESTestCase {
 
     public void testInfo() {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "ml-int", "foo");
+        Auditor auditor = new Auditor(client, "foo");
         auditor.info("Here is my info");
-        assertEquals("ml-int", indexCaptor.getValue());
+        assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
         assertEquals("foo", auditMessage.getJobId());
@@ -53,9 +53,9 @@ public class AuditorTests extends ESTestCase {
 
     public void testWarning() {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "someIndex", "bar");
+        Auditor auditor = new Auditor(client, "bar");
         auditor.warning("Here is my warning");
-        assertEquals("someIndex", indexCaptor.getValue());
+        assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
         assertEquals("bar", auditMessage.getJobId());
@@ -65,9 +65,9 @@ public class AuditorTests extends ESTestCase {
 
     public void testError() {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "someIndex", "foobar");
+        Auditor auditor = new Auditor(client, "foobar");
         auditor.error("Here is my error");
-        assertEquals("someIndex", indexCaptor.getValue());
+        assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
         assertEquals("foobar", auditMessage.getJobId());
@@ -75,23 +75,11 @@ public class AuditorTests extends ESTestCase {
         assertEquals(Level.ERROR, auditMessage.getLevel());
     }
 
-    public void testActivity_GivenString() {
-        givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "someIndex", "");
-        auditor.activity("Here is my activity");
-        assertEquals("someIndex", indexCaptor.getValue());
-        assertEquals("audit_message", typeCaptor.getValue());
-        AuditMessage auditMessage = parseAuditMessage();
-        assertEquals("", auditMessage.getJobId());
-        assertEquals("Here is my activity", auditMessage.getMessage());
-        assertEquals(Level.ACTIVITY, auditMessage.getLevel());
-    }
-
     public void testActivity_GivenNumbers() {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "someIndex", "");
+        Auditor auditor = new Auditor(client, "");
         auditor.activity(10, 100, 5, 50);
-        assertEquals("someIndex", indexCaptor.getValue());
+        assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_activity", typeCaptor.getValue());
         AuditActivity auditActivity = parseAuditActivity();
         assertEquals(10, auditActivity.getTotalJobs());

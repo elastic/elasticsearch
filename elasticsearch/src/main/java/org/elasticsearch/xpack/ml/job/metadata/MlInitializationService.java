@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.metadata;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -27,7 +29,8 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     private final JobProvider jobProvider;
 
     private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
-    private final AtomicBoolean createMlUsageIndexCheck = new AtomicBoolean(false);
+    private final AtomicBoolean createMlAuditIndexCheck = new AtomicBoolean(false);
+    private final AtomicBoolean createMlMetaIndexCheck = new AtomicBoolean(false);
     private final AtomicBoolean createStateIndexCheck = new AtomicBoolean(false);
 
     public MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -66,20 +69,38 @@ public class MlInitializationService extends AbstractComponent implements Cluste
             } else {
                 installMlMetadataCheck.set(false);
             }
-            if (metaData.hasIndex(JobProvider.ML_USAGE_INDEX) == false) {
-                if (createMlUsageIndexCheck.compareAndSet(false, true)) {
+            if (metaData.hasIndex(Auditor.NOTIFICATIONS_INDEX) == false) {
+                if (createMlAuditIndexCheck.compareAndSet(false, true)) {
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                        jobProvider.createUsageMeteringIndex((result, error) -> {
+                        jobProvider.createNotificationMessageIndex((result, error) -> {
                             if (result) {
-                                logger.info("successfully created ml-usage index");
-                                createMlUsageIndexCheck.set(false);
+                                logger.info("successfully created {} index", Auditor.NOTIFICATIONS_INDEX);
                             } else {
                                 if (error instanceof ResourceAlreadyExistsException) {
-                                    logger.debug("not able to create ml-usage index as it already exists");
+                                    logger.debug("not able to create {} index as it already exists", Auditor.NOTIFICATIONS_INDEX);
                                 } else {
-                                    logger.error("not able to create ml-usage index", error);
+                                    logger.error(new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
                                 }
                             }
+                            createMlAuditIndexCheck.set(false);
+                        });
+                    });
+                }
+            }
+            if (metaData.hasIndex(JobProvider.ML_META_INDEX) == false) {
+                if (createMlMetaIndexCheck.compareAndSet(false, true)) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                        jobProvider.createMetaIndex((result, error) -> {
+                            if (result) {
+                                logger.info("successfully created {} index", JobProvider.ML_META_INDEX);
+                            } else {
+                                if (error instanceof ResourceAlreadyExistsException) {
+                                    logger.debug("not able to create {} index as it already exists", JobProvider.ML_META_INDEX);
+                                } else {
+                                    logger.error(new ParameterizedMessage("not able to create {} index", JobProvider.ML_META_INDEX), error);
+                                }
+                            }
+                            createMlMetaIndexCheck.set(false);
                         });
                     });
                 }
@@ -91,7 +112,6 @@ public class MlInitializationService extends AbstractComponent implements Cluste
                         jobProvider.createJobStateIndex((result, error) -> {
                             if (result) {
                                 logger.info("successfully created {} index", stateIndexName);
-                                createStateIndexCheck.set(false);
                             } else {
                                 if (error instanceof ResourceAlreadyExistsException) {
                                     logger.debug("not able to create {} index as it already exists", stateIndexName);
@@ -99,6 +119,7 @@ public class MlInitializationService extends AbstractComponent implements Cluste
                                     logger.error("not able to create " + stateIndexName + " index", error);
                                 }
                             }
+                            createStateIndexCheck.set(false);
                         });
                     });
                 }

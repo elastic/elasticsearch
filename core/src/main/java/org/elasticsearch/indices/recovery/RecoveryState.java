@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -111,7 +110,6 @@ public class RecoveryState implements ToXContent, Streamable {
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
     private boolean primary = false;
-    private boolean sequenceNumberBasedRecovery = true;
 
     private RecoveryState() {
     }
@@ -221,14 +219,6 @@ public class RecoveryState implements ToXContent, Streamable {
         return primary;
     }
 
-    public boolean getSequenceNumberBasedRecovery() {
-        return sequenceNumberBasedRecovery;
-    }
-
-    public void setSequenceNumberBasedRecovery(final boolean sequenceNumberBasedRecovery) {
-        this.sequenceNumberBasedRecovery = sequenceNumberBasedRecovery;
-    }
-
     public static RecoveryState readRecoveryState(StreamInput in) throws IOException {
         RecoveryState recoveryState = new RecoveryState();
         recoveryState.readFrom(in);
@@ -247,11 +237,6 @@ public class RecoveryState implements ToXContent, Streamable {
         translog.readFrom(in);
         verifyIndex.readFrom(in);
         primary = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            sequenceNumberBasedRecovery = in.readBoolean();
-        } else {
-            sequenceNumberBasedRecovery = false;
-        }
     }
 
     @Override
@@ -266,9 +251,6 @@ public class RecoveryState implements ToXContent, Streamable {
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeBoolean(sequenceNumberBasedRecovery);
-        }
     }
 
     @Override
@@ -278,7 +260,6 @@ public class RecoveryState implements ToXContent, Streamable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.field(Fields.SEQUENCE_NUMBER_BASED_RECOVERY, sequenceNumberBasedRecovery);
         builder.dateField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
             builder.dateField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
@@ -327,7 +308,6 @@ public class RecoveryState implements ToXContent, Streamable {
         static final String TYPE = "type";
         static final String STAGE = "stage";
         static final String PRIMARY = "primary";
-        static final String SEQUENCE_NUMBER_BASED_RECOVERY = "sequence_number_based_recovery";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
         static final String STOP_TIME = "stop_time";

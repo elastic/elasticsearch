@@ -293,7 +293,7 @@ public class RecoverySourceHandler {
                     response.phase1ExistingFileSizes.add(md.length());
                     existingTotalSize += md.length();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}]," +
+                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exist in local store and has checksum [{}]," +
                                         " size [{}]",
                                 indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
                     }
@@ -308,7 +308,7 @@ public class RecoverySourceHandler {
                                         "[{}], local [{}]",
                                 indexName, shardId, request.targetNode(), md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
                     } else {
-                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exist in remote",
                                 indexName, shardId, request.targetNode(), md.name());
                     }
                     response.phase1FileNames.add(md.name());

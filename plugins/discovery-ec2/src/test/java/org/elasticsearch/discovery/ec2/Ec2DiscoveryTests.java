@@ -41,6 +41,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class Ec2DiscoveryTests extends ESTestCase {
 
@@ -195,12 +197,11 @@ public class Ec2DiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "does_not_exist")
                 .build();
-        try {
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             buildDynamicNodes(nodeSettings, 1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("No enum constant"));
-        }
+        });
+        assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
     public void testFilterByTags() throws InterruptedException {
@@ -258,6 +259,39 @@ public class Ec2DiscoveryTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
         assertThat(discoveryNodes, hasSize(prodInstances));
     }
+
+    public void testReadHostFromTag() throws InterruptedException, UnknownHostException {
+        int nodes = randomIntBetween(5, 10);
+
+        String[] addresses = new String[nodes];
+
+        for (int node = 0; node < nodes; node++) {
+            addresses[node] = "192.168.0." + (node + 1);
+            poorMansDNS.put("node" + (node + 1), new TransportAddress(InetAddress.getByName(addresses[node]), 9300));
+        }
+
+        Settings nodeSettings = Settings.builder()
+            .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "tag:foo")
+            .build();
+
+        List<List<Tag>> tagsList = new ArrayList<>();
+
+        for (int node = 0; node < nodes; node++) {
+            List<Tag> tags = new ArrayList<>();
+            tags.add(new Tag("foo", "node" + (node + 1)));
+            tagsList.add(tags);
+        }
+
+        logger.info("started [{}] instances", nodes);
+        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
+        assertThat(discoveryNodes, hasSize(nodes));
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
+            TransportAddress address = discoveryNode.getAddress();
+            TransportAddress expected = poorMansDNS.get(discoveryNode.getName());
+            assertEquals(address, expected);
+        }
+    }
+
 
     abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
         public int fetchCount = 0;

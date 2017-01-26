@@ -94,6 +94,7 @@ public class LocalTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
+        stream.setVersion(version);
         writeResponseExceptionHeader(stream);
         RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
                 targetTransport.boundAddress().boundAddresses()[0], action, exception);

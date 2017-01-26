@@ -140,7 +140,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
-
+        if (contentType == null) {
+            validationException = addValidationError("content type is missing", validationException);
+        }
         final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
@@ -187,11 +189,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Sets the content type. This will be used when generating a document from user provided objects (like Map) and when parsing the
+     * Sets the content type. This will be used when generating a document from user provided objects (like Maps) and when parsing the
      * source at index time
      */
     public IndexRequest contentType(XContentType contentType) {
-        this.contentType = contentType;
+        this.contentType = Objects.requireNonNull(contentType);
         return this;
     }
 
@@ -320,7 +322,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Deprecated
     public IndexRequest source(String source) {
-        return source(new BytesArray(source.getBytes(StandardCharsets.UTF_8)), XContentFactory.xContentType(source));
+        return source(new BytesArray(source), XContentFactory.xContentType(source));
     }
 
     /**
@@ -330,7 +332,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
-        return source(new BytesArray(source.getBytes(StandardCharsets.UTF_8)), xContentType);
+        return source(new BytesArray(source), xContentType);
     }
 
     /**
@@ -356,8 +358,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag was removed, please just use source(BytesReference)");
         }
         try {
-            XContentType sourceXContentType = contentType == null ? XContentType.JSON : contentType;
-            XContentBuilder builder = XContentFactory.contentBuilder(sourceXContentType);
+            if (contentType == null) {
+                contentType = XContentType.JSON;
+            }
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject();
             for (int i = 0; i < source.length; i++) {
                 builder.field(source[i++].toString(), source[i]);

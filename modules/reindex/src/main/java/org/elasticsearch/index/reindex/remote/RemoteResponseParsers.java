@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex.remote;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
@@ -37,6 +39,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
@@ -54,7 +57,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, Void> HIT_PARSER =
+    public static final ConstructingObjectParser<BasicHit, ResponseContext> HIT_PARSER =
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -68,15 +71,16 @@ final class RemoteResponseParsers {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
-        HIT_PARSER.declareObject(BasicHit::setSource, (p, s) -> {
+        HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {
             try {
                 /*
                  * We spool the data from the remote back into xcontent so we can get bytes to send. There ought to be a better way but for
                  * now this should do.
                  */
-                try (XContentBuilder b = JsonXContent.contentBuilder()) {
+                try (XContentBuilder b = XContentBuilder.builder(s.getXContentType().xContent())) {
                     b.copyCurrentStructure(p);
-                    return b.bytes();
+                    // a hack but this lets us get the right xcontent type to go with the source
+                    return new Tuple<>(b.bytes(), s.getXContentType());
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
@@ -92,7 +96,7 @@ final class RemoteResponseParsers {
             String routing;
             String parent;
         }
-        ObjectParser<Fields, Void> fieldsParser = new ObjectParser<>("fields", Fields::new);
+        ObjectParser<Fields, ResponseContext> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
             hit.setRouting(fields.routing);
             hit.setParent(fields.parent);
@@ -105,7 +109,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
      */
-    public static final ConstructingObjectParser<Object[], Void> HITS_PARSER =
+    public static final ConstructingObjectParser<Object[], ResponseContext> HITS_PARSER =
             new ConstructingObjectParser<>("hits", true, a -> a);
     static {
         HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
@@ -115,7 +119,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
+    public static final ConstructingObjectParser<SearchFailure, ResponseContext> SEARCH_FAILURE_PARSER =
             new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -148,7 +152,7 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
+    public static final ConstructingObjectParser<List<Throwable>, ResponseContext> SHARDS_PARSER =
             new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
@@ -159,7 +163,7 @@ final class RemoteResponseParsers {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
     }
 
-    public static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
+    public static final ConstructingObjectParser<Response, ResponseContext> RESPONSE_PARSER =
             new ConstructingObjectParser<>("search_response", true, a -> {
                 int i = 0;
                 Throwable catastrophicFailure = (Throwable) a[i++];
@@ -198,9 +202,9 @@ final class RemoteResponseParsers {
      * Collects stuff about Throwables and attempts to rebuild them.
      */
     public static class ThrowableBuilder {
-        public static final BiFunction<XContentParser, Void, Throwable> PARSER;
+        public static final BiFunction<XContentParser, ResponseContext, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, Void> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, ResponseContext> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));
@@ -219,7 +223,7 @@ final class RemoteResponseParsers {
 
         public Throwable build() {
             Throwable t = buildWithoutCause();
-            if (causedBy != null) { 
+            if (causedBy != null) {
                 t.initCause(causedBy);
             }
             return t;
@@ -264,12 +268,25 @@ final class RemoteResponseParsers {
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
-    public static final ConstructingObjectParser<Version, Void> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Version, ResponseContext> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
             "/", true, a -> (Version) a[0]);
     static {
-        ConstructingObjectParser<Version, Void> versionParser = new ConstructingObjectParser<>(
+        ConstructingObjectParser<Version, ResponseContext> versionParser = new ConstructingObjectParser<>(
                 "version", true, a -> Version.fromString((String) a[0]));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
+    }
+
+    static final class ResponseContext {
+
+        private final XContentType xContentType;
+
+        ResponseContext(XContentType xContentType) {
+            this.xContentType = Objects.requireNonNull(xContentType);
+        }
+
+        XContentType getXContentType() {
+            return this.xContentType;
+        }
     }
 }

@@ -62,9 +62,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -522,6 +524,53 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
     }
 
+    /**
+     * Test that some values like arrays of numbers are ignored when parsing back
+     * an exception.
+     */
+    public void testFromXContentWithIgnoredMetadataAndHeaders() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        // The exception content to parse is built using a XContentBuilder
+        // because the current Java API does not allow to add metadata/headers
+        // of other types than list of strings.
+        BytesReference originalBytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+            builder.startObject();
+            builder.field("metadata_int", 1);
+            builder.array("metadata_array_of_ints", new int[]{8, 13, 21});
+            builder.field("reason", "Custom reason");
+            builder.array("metadata_array_of_boolean", new boolean[]{false, false});
+            builder.field("type", "custom_exception");
+            builder.field("metadata_long", 1L);
+            builder.array("metadata_array_of_longs", new long[]{2L, 3L, 5L});
+            builder.field("metadata_other", "some metadata");
+            builder.startObject("header");
+            builder.field("header_string", "some header");
+            builder.array("header_array_of_strings", new String[]{"foo", "bar", "baz"});
+            builder.endObject();
+            builder.endObject();
+
+            originalBytes = builder.bytes();
+        }
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsedException);
+        assertEquals("Elasticsearch exception [type=custom_exception, reason=Custom reason]", parsedException.getMessage());
+        assertEquals(2, parsedException.getHeaderKeys().size());
+        assertThat(parsedException.getHeader("header_string"), hasItem("some header"));
+        assertThat(parsedException.getHeader("header_array_of_strings"), hasItems("foo", "bar", "baz"));
+        assertEquals(1, parsedException.getMetadataKeys().size());
+        assertThat(parsedException.getMetadata("es.metadata_other"), hasItem("some metadata"));
+    }
+
     public void testThrowableToAndFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
@@ -590,14 +639,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             case 1:
                 actual = new CircuitBreakingException("Data too large", 123, 456);
                 expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=Data too large]");
-                expected.addMetadata("es.bytes_wanted", "123");
-                expected.addMetadata("es.bytes_limit", "456");
                 break;
             case 2:
                 actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
-                expected.addMetadata("es.line", "12");
-                expected.addMetadata("es.col", "98");
                 break;
             case 3:
                 actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
@@ -612,7 +657,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                             });
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
                         "reason=all shards failed]");
-                expected.addMetadata("es.grouped", "true");
                 expected.addMetadata("es.phase", "search");
                 break;
             case 5:
@@ -623,9 +667,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 ElasticsearchException expectedCause = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, " +
                         "reason=Wrong state]", new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " +
                         "reason=Unexpected null value]"));
-                expectedCause.addMetadata("es.line", "9");
-                expectedCause.addMetadata("es.col", "42");
-
                 expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
                 break;
             default:
@@ -652,6 +693,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     actualException.addHeader(entry.getKey(), entry.getValue());
                     expected.addHeader(entry.getKey(), entry.getValue());
                 }
+
+                if (rarely()) {
+                    // Empty or null headers are not printed out by the toXContent method
+                    actualException.addHeader("ignored", randomBoolean() ? emptyList() : null);
+                }
             }
 
             if (randomBoolean()) {
@@ -671,6 +717,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 for (Map.Entry<String, List<String>> entry : randomMetadata.entrySet()) {
                     actualException.addMetadata(entry.getKey(), entry.getValue());
                     expected.addMetadata(entry.getKey(), entry.getValue());
+                }
+
+                if (rarely()) {
+                    // Empty or null metadata are not printed out by the toXContent method
+                    actualException.addMetadata("ignored", randomBoolean() ? emptyList() : null);
                 }
             }
 

@@ -424,7 +424,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     reason = parser.text();
                 } else if (STACK_TRACE.equals(currentFieldName)) {
                     stack = parser.text();
-                } else {
+                } else if (token == XContentParser.Token.VALUE_STRING) {
                     metadata.put(currentFieldName, Collections.singletonList(parser.text()));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {

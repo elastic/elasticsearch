@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -209,8 +208,7 @@ public abstract class ScrollableHitSource implements Closeable {
     }
 
     /**
-     * An implementation of {@linkplain Hit} that uses getters and setters. Primarily used for testing and {@link RemoteScrollableHitSource}
-     * .
+     * An implementation of {@linkplain Hit} that uses getters and setters.
      */
     public static class BasicHit implements Hit {
         private final String index;

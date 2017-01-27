@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -31,11 +31,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 public abstract class AbstractBulkByScrollRequestBuilder<
                 Request extends AbstractBulkByScrollRequest<Request>,
                 Self extends AbstractBulkByScrollRequestBuilder<Request, Self>>
-        extends ActionRequestBuilder<Request, BulkIndexByScrollResponse, Self> {
+        extends ActionRequestBuilder<Request, BulkByScrollResponse, Self> {
     private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, BulkIndexByScrollResponse, Self> action, SearchRequestBuilder source, Request request) {
+            Action<Request, BulkByScrollResponse, Self> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;
     }

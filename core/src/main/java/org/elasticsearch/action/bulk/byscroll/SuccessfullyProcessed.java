@@ -17,27 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-
-public class ReindexAction extends Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> {
-    public static final ReindexAction INSTANCE = new ReindexAction();
-    public static final String NAME = "indices:data/write/reindex";
-
-    private ReindexAction() {
-        super(NAME);
+/**
+ * Implemented by {@link BulkByScrollTask} and {@link BulkByScrollTask.Status} to consistently implement
+ * {@link #getSuccessfullyProcessed()}.
+ */
+public interface SuccessfullyProcessed {
+    /**
+     * Total number of successfully processed documents.
+     */
+    default long getSuccessfullyProcessed() {
+        return getUpdated() + getCreated() + getDeleted();
     }
 
-    @Override
-    public ReindexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ReindexRequestBuilder(client, this);
-    }
-
-    @Override
-    public BulkByScrollResponse newResponse() {
-        return new BulkByScrollResponse();
-    }
+    /**
+     * Count of documents updated.
+     */
+    long getUpdated();
+    /**
+     * Count of documents created.
+     */
+    long getCreated();
+    /**
+     * Count of successful delete operations.
+     */
+    long getDeleted();
 }

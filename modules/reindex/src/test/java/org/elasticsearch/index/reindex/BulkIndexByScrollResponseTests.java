@@ -20,8 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -35,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 public class BulkIndexByScrollResponseTests extends ESTestCase {
     public void testMergeConstructor() {
         int mergeCount = between(2, 10);
-        List<BulkIndexByScrollResponse> responses = new ArrayList<>(mergeCount);
+        List<BulkByScrollResponse> responses = new ArrayList<>(mergeCount);
         int took = between(1000, 10000);
         int tookIndex = between(0, mergeCount - 1);
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
@@ -59,10 +61,10 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             allSearchFailures.addAll(searchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;
-            responses.add(new BulkIndexByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
+            responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
-        BulkIndexByScrollResponse merged = new BulkIndexByScrollResponse(responses, reasonCancelled);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());

@@ -37,6 +37,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -58,7 +65,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
@@ -80,7 +86,7 @@ import static java.util.Collections.synchronizedList;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
-public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkIndexByScrollResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
@@ -104,9 +110,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         if (request.getSlices() > 1) {
-            ReindexParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE, clusterService.localNode().getId(),
+            BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE, clusterService.localNode().getId(),
                     (ParentBulkByScrollTask) task, request, listener);
         } else {
             checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
@@ -120,7 +126,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         throw new UnsupportedOperationException("task required");
     }
 
@@ -242,7 +248,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
-                ActionListener<BulkIndexByScrollResponse> listener) {
+                ActionListener<BulkByScrollResponse> listener) {
             super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
         }
 
@@ -268,7 +274,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+        protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
             super.finishHim(failure, indexingFailures, searchFailures, timedOut);
             // A little extra paranoia so we log something if we leave any threads running
             for (Thread thread : createdThreads) {
@@ -280,7 +286,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 return new ReindexScriptApplier(task, scriptService, script, script.getParams());

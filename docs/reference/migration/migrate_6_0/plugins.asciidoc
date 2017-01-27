@@ -5,3 +5,9 @@
 
 * The mapper attachments plugin has been deprecated in elasticsearch 5.0 and is now removed.
 You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.
+
+==== S3 Repository plugin
+
+* Support for specifying s3 credentials through environment variables and
+system properties has been removed. Use the `elasticsearch-keystore` tool
+to securely store the credentials.

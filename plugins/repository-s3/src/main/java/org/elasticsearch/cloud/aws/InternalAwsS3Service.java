@@ -19,23 +19,20 @@
 
 package org.elasticsearch.cloud.aws;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -44,12 +41,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
@@ -142,21 +133,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                                             S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
 
             if (key.length() == 0 && secret.length() == 0) {
-                // create a "manual" chain of providers here, so we can log deprecation of unsupported methods
-                AWSCredentials envCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                    new EnvironmentVariableCredentialsProvider(), "environment variables");
-                if (envCredentials != null) {
-                    credentials = new StaticCredentialsProvider(envCredentials);
-                } else {
-                    AWSCredentials syspropCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                        new SystemPropertiesCredentialsProvider(), "system properties");
-                    if (syspropCredentials != null) {
-                        credentials = new StaticCredentialsProvider(syspropCredentials);
-                    } else {
-                        logger.debug("Using instance profile credentials");
-                        credentials = new InstanceProfileCredentialsProvider();
-                    }
-                }
+                logger.debug("Using instance profile credentials");
+                credentials = new InstanceProfileCredentialsProvider();
             } else {
                 logger.debug("Using basic key/secret credentials");
                 credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
@@ -164,23 +142,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return credentials;
-    }
-
-    /** Return credentials from the given provider, or null if full credentials are not available */
-    private static AWSCredentials getDeprecatedCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                           AWSCredentialsProvider provider, String description) {
-        try {
-            AWSCredentials credentials = provider.getCredentials();
-            if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
-                logger.debug("Using " + description + " credentials");
-                deprecationLogger.deprecated("Supplying S3 credentials through " + description + " is deprecated. " +
-                    "See the breaking changes lists in the documentation for details.");
-                return credentials;
-            }
-        } catch (Exception e) {
-            logger.debug("Failed to get aws credentials from " + description, e);
-        }
-        return null;
     }
 
     protected static String findEndpoint(Logger logger, Settings settings, String endpoint, String region) {

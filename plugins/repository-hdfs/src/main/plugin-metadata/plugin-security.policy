@@ -35,4 +35,6 @@ grant {
   permission javax.security.auth.AuthPermission "getSubject";
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+
+  permission java.net.SocketPermission "*", "connect";
 };

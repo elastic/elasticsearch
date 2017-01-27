@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -92,13 +93,28 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         }
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connection on read() or skip()
+        //
+        // In order to deal with socket permissions we ensure that we read (and then reset)
+        // some of the input stream. So that the caller of this method receives a stream that
+        // has already been opened.
         return store.execute(fileContext -> {
+            boolean success = false;
             FSDataInputStream is = fileContext.open(new Path(path, blobName), bufferSize);
-            InputStream stream = is.markSupported() ? is : new BufferedInputStream(is);
-            stream.mark(1);
-            stream.skip(1);
-            stream.reset();
-            return stream;
+
+            try {
+                InputStream bufferedStream = is.markSupported() ? is : new BufferedInputStream(is);
+                bufferedStream.mark(1);
+                bufferedStream.skip(1);
+                bufferedStream.reset();
+                success = true;
+                return bufferedStream;
+            } finally {
+                if (success == false) {
+                    if (is != null) {
+                        IOUtils.closeWhileHandlingException(is);
+                    }
+                }
+            }
         });
     }
 

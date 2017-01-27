@@ -41,6 +41,9 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -65,7 +68,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,10 +84,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            null, randomBoolean(), randomLong());
+        final StartRecoveryRequest request = new StartRecoveryRequest(
+            shardId,
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            null,
+            randomBoolean(),
+            randomNonNegativeLong(),
+            randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), logger);
@@ -131,10 +140,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(
+                shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            null, randomBoolean(), randomLong());
+                null,
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : 0L);
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -195,10 +209,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(
+                shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            null, randomBoolean(), randomLong());
+                null,
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : 0L);
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -254,18 +273,40 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Completed() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            null, false, randomLong());
-        IndexShard shard = mock(IndexShard.class);
-        Translog.View translogView = mock(Translog.View.class);
+        final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
+        final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(
+                shardId,
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                null,
+                false,
+                randomNonNegativeLong(),
+                attemptSequenceNumberBasedRecovery ? randomNonNegativeLong() : SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        final Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).thenReturn(IndexShardState.RELOCATED);
-        AtomicBoolean phase1Called = new AtomicBoolean();
-        AtomicBoolean phase2Called = new AtomicBoolean();
-        RecoverySourceHandler handler = new RecoverySourceHandler(shard, null, request, () -> 0L, e -> () -> {},
-            recoverySettings.getChunkSize().bytesAsInt(), logger) {
+        final AtomicBoolean phase1Called = new AtomicBoolean();
+        final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
+        final AtomicBoolean phase2Called = new AtomicBoolean();
+        final RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            request,
+            () -> 0L,
+            e -> () -> {
+            },
+            recoverySettings.getChunkSize().bytesAsInt(),
+            logger) {
+
+            @Override
+            boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
+                return isTranslogReadyForSequenceNumberBasedRecovery;
+            }
 
             @Override
             public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
@@ -273,29 +314,47 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
+            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+                prepareTargetForTranslogCalled.set(true);
+            }
+
+            @Override
             public void phase2(Translog.Snapshot snapshot) {
                 phase2Called.set(true);
             }
+
         };
-        expectThrows(IndexShardRelocatedException.class, () -> handler.recoverToTarget());
-        assertTrue(phase1Called.get());
+        expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
+        // phase1 should only be attempted if we are not doing a sequence-number-based recovery
+        assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
+        assertTrue(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
     }
 
     public void testWaitForClusterStateOnPrimaryRelocation() throws IOException, InterruptedException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
-        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            null, true, randomLong());
-        AtomicBoolean phase1Called = new AtomicBoolean();
-        AtomicBoolean phase2Called = new AtomicBoolean();
-        AtomicBoolean ensureClusterStateVersionCalled = new AtomicBoolean();
-        AtomicBoolean recoveriesDelayed = new AtomicBoolean();
-        AtomicBoolean relocated = new AtomicBoolean();
+        final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
+        final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(
+                shardId,
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                null,
+                true,
+                randomNonNegativeLong(),
+                attemptSequenceNumberBasedRecovery ? randomNonNegativeLong(): SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        final AtomicBoolean phase1Called = new AtomicBoolean();
+        final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
+        final AtomicBoolean phase2Called = new AtomicBoolean();
+        final AtomicBoolean ensureClusterStateVersionCalled = new AtomicBoolean();
+        final AtomicBoolean recoveriesDelayed = new AtomicBoolean();
+        final AtomicBoolean relocated = new AtomicBoolean();
 
-        IndexShard shard = mock(IndexShard.class);
-        Translog.View translogView = mock(Translog.View.class);
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        final Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).then(i -> relocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
         doAnswer(i -> {
@@ -304,16 +363,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             return null;
         }).when(shard).relocated(any(String.class));
 
-        RecoveryTargetHandler targetHandler = mock(RecoveryTargetHandler.class);
-
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {
             assertFalse(ensureClusterStateVersionCalled.get());
             assertTrue(recoveriesDelayed.get());
             ensureClusterStateVersionCalled.set(true);
             return 0L;
         };
+
         final Function<String, Releasable> delayNewRecoveries = s -> {
-            assertTrue(phase1Called.get());
+            // phase1 should only be attempted if we are not doing a sequence-number-based recovery
+            assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
+            assertTrue(prepareTargetForTranslogCalled.get());
             assertTrue(phase2Called.get());
 
             assertFalse(recoveriesDelayed.get());
@@ -324,8 +384,19 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             };
         };
 
-        RecoverySourceHandler handler = new RecoverySourceHandler(shard, targetHandler, request, currentClusterStateVersionSupplier,
-            delayNewRecoveries, recoverySettings.getChunkSize().bytesAsInt(), logger) {
+        final RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            request,
+            currentClusterStateVersionSupplier,
+            delayNewRecoveries,
+            recoverySettings.getChunkSize().bytesAsInt(),
+            logger) {
+
+            @Override
+            boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
+                return isTranslogReadyForSequenceNumberBasedRecovery;
+            }
 
             @Override
             public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
@@ -333,13 +404,22 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void phase2(Translog.Snapshot snapshot) {
+            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+                prepareTargetForTranslogCalled.set(true);
+            }
+
+            @Override
+            public void phase2(final Translog.Snapshot snapshot) {
                 phase2Called.set(true);
             }
+
         };
+
         handler.recoverToTarget();
         assertTrue(ensureClusterStateVersionCalled.get());
-        assertTrue(phase1Called.get());
+        // phase1 should only be attempted if we are not doing a sequence-number-based recovery
+        assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
+        assertTrue(prepareTargetForTranslogCalled.get());
         assertTrue(phase2Called.get());
         assertTrue(relocated.get());
         assertFalse(recoveriesDelayed.get());

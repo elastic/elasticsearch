@@ -39,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -82,14 +83,13 @@ public class RecoveriesCollection {
                 new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
     }
 
-
     /**
      * Resets the recovery and performs a recovery restart on the currently recovering index shard
      *
      * @see IndexShard#performRecoveryRestart()
      * @return newly created RecoveryTarget
      */
-    public RecoveryTarget resetRecovery(final long recoveryId, TimeValue activityTimeout) {
+    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
         RecoveryTarget oldRecoveryTarget = null;
         final RecoveryTarget newRecoveryTarget;
 
@@ -107,7 +107,7 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.CancellableThreads());
+            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
             if (successfulReset) {
                 logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
                     newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());

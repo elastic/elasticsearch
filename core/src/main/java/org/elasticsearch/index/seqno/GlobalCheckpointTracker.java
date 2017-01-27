@@ -22,25 +22,27 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
 /**
- * A shard component that is responsible of tracking the global checkpoint. The global checkpoint is the highest sequence number for which
- * all lower (or equal) sequence number have been processed on all shards that are currently active. Since shards count as "active" when the
- * master starts them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery.
- * These shards have received all old operations via the recovery mechanism and are kept up to date by the various replications actions.
- * The set of shards that are taken into account for the global checkpoint calculation are called the "in-sync shards".
+ * This class is responsible of tracking the global checkpoint. The global checkpoint is the highest sequence number for which all lower (or
+ * equal) sequence number have been processed on all shards that are currently active. Since shards count as "active" when the master starts
+ * them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery. These shards
+ * have received all old operations via the recovery mechanism and are kept up to date by the various replications actions. The set of
+ * shards that are taken into account for the global checkpoint calculation are called the "in-sync shards".
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
-public class GlobalCheckpointService extends AbstractIndexShardComponent {
+public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     /*
      * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up to speed
@@ -63,14 +65,14 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     private long globalCheckpoint;
 
     /**
-     * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint for this
-     * shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
+     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
      *
-     * @param shardId          the shard this service is tracking local checkpoints for
+     * @param shardId          the shard ID
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
      */
-    GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
+    GlobalCheckpointTracker(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
@@ -127,8 +129,9 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
             minCheckpoint = Math.min(cp.value, minCheckpoint);
         }
         if (minCheckpoint < globalCheckpoint) {
-            throw new IllegalStateException(shardId + " new global checkpoint [" + minCheckpoint
-                + "] is lower than previous one [" + globalCheckpoint + "]");
+            final String message =
+                String.format(Locale.ROOT, "new global checkpoint [%d] is lower than previous one [%d]", minCheckpoint, globalCheckpoint);
+            throw new IllegalStateException(message);
         }
         if (globalCheckpoint != minCheckpoint) {
             logger.trace("global checkpoint updated to [{}]", minCheckpoint);

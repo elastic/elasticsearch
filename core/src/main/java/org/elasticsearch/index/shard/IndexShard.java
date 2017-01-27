@@ -100,7 +100,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.seqno.GlobalCheckpointService;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -1368,7 +1368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
-     * {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     * {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for details.
      *
      * @param allocationId the allocation ID of the shard to update the local checkpoint for
      * @param checkpoint   the local checkpoint for the shard
@@ -1379,8 +1379,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
+        getEngine().seqNoService().waitForOpsToComplete(seqNo);
+    }
+
+    /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
-     * {@link GlobalCheckpointService#markAllocationIdAsInSync(String)} for additional details.
+     * {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String)} for additional details.
      *
      * @param allocationId the allocation ID of the shard to mark as in-sync
      */
@@ -1430,7 +1440,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
      *
      * @param activeAllocationIds       the allocation IDs of the currently active shard copies
      * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies

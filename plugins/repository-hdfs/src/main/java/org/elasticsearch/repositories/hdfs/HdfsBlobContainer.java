@@ -91,18 +91,12 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
         // FSDataInputStream does buffering internally
+        // FSDataInputStream can open connection on read() or skip()
         return store.execute(fileContext -> {
             FSDataInputStream is = fileContext.open(new Path(path, blobName), bufferSize);
             InputStream stream = is.markSupported() ? is : new BufferedInputStream(is);
             stream.mark(1);
-
-            try {
-                SpecialPermission.check();
-                // FSDataInputStream can open connection on read()
-                AccessController.doPrivileged((PrivilegedExceptionAction<Long>) () -> stream.skip(1));
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
+            stream.skip(1);
             stream.reset();
             return stream;
         });

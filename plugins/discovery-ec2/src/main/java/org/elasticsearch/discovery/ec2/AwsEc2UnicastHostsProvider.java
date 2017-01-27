@@ -33,6 +33,7 @@ import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.GroupIdentifier;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
+import com.amazonaws.services.ec2.model.Tag;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
@@ -56,6 +57,11 @@ import java.util.Set;
 import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.TAG_PREFIX;
+import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_DNS;
+import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PRIVATE_IP;
+import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_DNS;
+import static org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2.HostType.PUBLIC_IP;
 
 /**
  *
@@ -74,7 +80,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final Set<String> availabilityZones;
 
-    private final DISCOVERY_EC2.HostType hostType;
+    private final String hostType;
 
     private final DiscoNodesCache discoNodes;
 
@@ -157,19 +163,27 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                 }
 
                 String address = null;
-                switch (hostType) {
-                    case PRIVATE_DNS:
-                        address = instance.getPrivateDnsName();
-                        break;
-                    case PRIVATE_IP:
-                        address = instance.getPrivateIpAddress();
-                        break;
-                    case PUBLIC_DNS:
-                        address = instance.getPublicDnsName();
-                        break;
-                    case PUBLIC_IP:
-                        address = instance.getPublicIpAddress();
-                        break;
+                if (hostType.equals(PRIVATE_DNS)) {
+                    address = instance.getPrivateDnsName();
+                } else if (hostType.equals(PRIVATE_IP)) {
+                    address = instance.getPrivateIpAddress();
+                } else if (hostType.equals(PUBLIC_DNS)) {
+                    address = instance.getPublicDnsName();
+                } else if (hostType.equals(PUBLIC_IP)) {
+                    address = instance.getPublicIpAddress();
+                } else if (hostType.startsWith(TAG_PREFIX)) {
+                    // Reading the node host from its metadata
+                    String tagName = hostType.substring(TAG_PREFIX.length());
+                    logger.debug("reading hostname from [{}] instance tag", tagName);
+                    List<Tag> tags = instance.getTags();
+                    for (Tag tag : tags) {
+                        if (tag.getKey().equals(tagName)) {
+                            address = tag.getValue();
+                            logger.debug("using [{}] as the instance address", address);
+                        }
+                    }
+                } else {
+                    throw new IllegalArgumentException(hostType + " is unknown for discovery.ec2.host_type");
                 }
                 if (address != null) {
                     try {
@@ -177,8 +191,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
-                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
+                            discoNodes.add(new DiscoveryNode(instance.getInstanceId(), "#cloud-" + instance.getInstanceId() + "-" + i,
+                                addresses[i], emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
                         final String finalAddress = address;

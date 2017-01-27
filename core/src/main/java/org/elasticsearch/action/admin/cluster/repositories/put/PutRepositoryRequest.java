@@ -142,7 +142,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     /**
      * Sets the repository settings.
      *
-     * @param source repository settings in json, yaml or properties format
+     * @param source repository settings in json or yaml format
      * @return this request
      * @deprecated use {@link #settings(String, XContentType)} to avoid content type auto-detection
      */

@@ -37,11 +37,18 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private BytesReference source;
     private XContentType xContentType;
 
+    /**
+     * Create a new pipeline request
+     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, XContentType)} to avoid content type auto-detection
+     */
     @Deprecated
     public PutPipelineRequest(String id, BytesReference source) {
         this(id, source, XContentFactory.xContentType(source));
     }
 
+    /**
+     * Create a new pipeline request with the id and source along with the content type of the source
+     */
     public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);

@@ -283,9 +283,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(String mappingSource, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        this.source = convertToJsonIfNecessary(mappingSource, xContentType);
-        return this;
+        return source(new BytesArray(mappingSource), xContentType);
     }
 
     /**
@@ -293,8 +291,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        this.source = convertToJsonIfNecessary(mappingSource, xContentType);
-        return this;
+        try {
+            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
+            return this;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert source to json", e);
+        }
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */
@@ -316,7 +318,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         type = in.readOptionalString();
         source = in.readString();
         if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3 once backported
-            source = convertToJsonIfNecessary(source, XContentFactory.xContentType(source));
+            // we do not know the format from earlier versions so convert if necessary
+            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
         }
         updateAllTypes = in.readBoolean();
         readTimeout(in);
@@ -333,20 +336,5 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeBoolean(updateAllTypes);
         writeTimeout(out);
         out.writeOptionalWriteable(concreteIndex);
-    }
-
-    private String convertToJsonIfNecessary(String source, XContentType xContentType) {
-        return convertToJsonIfNecessary(new BytesArray(source), xContentType);
-    }
-
-    private String convertToJsonIfNecessary(BytesReference source, XContentType xContentType) {
-        if (xContentType == XContentType.JSON) {
-            return source.utf8ToString();
-        }
-        try {
-            return XContentHelper.convertToJson(source, false, xContentType);
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to JSON", e);
-        }
     }
 }

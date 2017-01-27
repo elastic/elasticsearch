@@ -45,7 +45,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -240,8 +239,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
         Objects.requireNonNull(xContentType);
-        mappings.put(type, convertToJsonIfNecessary(source, xContentType));
-        return this;
+        try {
+            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
+            return this;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert to json", e);
+        }
     }
 
     /**
@@ -354,14 +357,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @Deprecated
     public CreateIndexRequest source(String source) {
-        return source(source.getBytes(StandardCharsets.UTF_8));
+        return source(new BytesArray(source));
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(String source, XContentType xContentType) {
-        return source(source.getBytes(StandardCharsets.UTF_8), xContentType);
+        return source(new BytesArray(source), xContentType);
     }
 
     /**
@@ -539,7 +542,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             final String type = in.readString();
             String source = in.readString();
             if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to 5.3.0 after backport
-                source = convertToJsonIfNecessary(source, XContentFactory.xContentType(source));
+                // we do not know the content type that comes from earlier versions so we autodetect and convert
+                source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
             }
             mappings.put(type, source);
         }
@@ -580,20 +584,5 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeBoolean(updateAllTypes);
         waitForActiveShards.writeTo(out);
-    }
-
-    private String convertToJsonIfNecessary(String source, XContentType xContentType) {
-        return convertToJsonIfNecessary(new BytesArray(source), xContentType);
-    }
-
-    private String convertToJsonIfNecessary(BytesReference source, XContentType xContentType) {
-        if (xContentType == XContentType.JSON) {
-            return source.utf8ToString();
-        }
-        try {
-            return XContentHelper.convertToJson(source, false, xContentType);
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to JSON", e);
-        }
     }
 }

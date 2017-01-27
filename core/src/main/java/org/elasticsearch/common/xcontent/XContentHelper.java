@@ -63,6 +63,14 @@ public class XContentHelper {
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(bytes, ordered, null);
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+        throws ElasticsearchParseException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -72,36 +80,12 @@ public class XContentHelper {
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
-                contentType = XContentFactory.xContentType(compressedStreamInput);
-                input = compressedStreamInput;
-            } else {
-                contentType = XContentFactory.xContentType(bytes);
-                input = bytes.streamInput();
-            }
-            return new Tuple<>(contentType, convertToMap(XContentFactory.xContent(contentType), input, ordered));
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
-        }
-    }
-
-    /**
-     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
-     */
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-        throws ElasticsearchParseException {
-        try {
-            InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
-            if (compressor != null) {
-                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
-                if (compressedStreamInput.markSupported() == false) {
-                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
-                }
                 input = compressedStreamInput;
             } else {
                 input = bytes.streamInput();
             }
-            return new Tuple<>(Objects.requireNonNull(xContentType), convertToMap(XContentFactory.xContent(xContentType), input, ordered));
+            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+            return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), input, ordered));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
@@ -150,10 +134,9 @@ public class XContentHelper {
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
+        Objects.requireNonNull(xContentType);
         if (xContentType == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
-        } else if (xContentType == null) {
-            throw new IllegalArgumentException("the xcontent type must be provided");
         }
 
         // It is safe to use EMPTY here because this never uses namedObject

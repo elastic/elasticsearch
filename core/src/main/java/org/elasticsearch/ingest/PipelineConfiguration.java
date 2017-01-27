@@ -49,8 +49,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes());
-            builder.setXContentType(contentBuilder.contentType());
+            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }
@@ -68,11 +67,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             this.id = id;
         }
 
-        void setConfig(BytesReference config) {
+        void setConfig(BytesReference config, XContentType xContentType) {
             this.config = config;
-        }
-
-        void setXContentType(XContentType xContentType) {
             this.xContentType = xContentType;
         }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -204,17 +205,24 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * number. Also the first argument in each pair (the field name) must have a
      * valid String representation.</b>
      * </p>
+     * @deprecated use {@link #setSource(XContentType, Object...)} instead to be explicit about the content type
      */
+    @Deprecated
     public IndexRequestBuilder setSource(Object... source) {
-        request.source(source);
+        request.source(Requests.INDEX_CONTENT_TYPE, source);
         return this;
     }
 
     /**
-     * The content type that will be used to generate a document from user provided objects (like Map).
+     * Constructs a simple document with a field name and value pairs.
+     * <p>
+     * <b>Note: the number of objects passed as varargs to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
-    public IndexRequestBuilder setContentType(XContentType contentType) {
-        request.contentType(contentType);
+    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
+        request.source(xContentType, source);
         return this;
     }
 

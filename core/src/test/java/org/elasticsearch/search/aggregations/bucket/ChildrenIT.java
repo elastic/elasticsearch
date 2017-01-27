@@ -22,6 +22,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -268,7 +269,7 @@ public class ChildrenIT extends ESIntegTestCase {
              */
             UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
                     .setParent("1")
-                    .setDoc("count", 1)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)
                     .get();
             assertThat(updateResponse.getVersion(), greaterThan(1L));

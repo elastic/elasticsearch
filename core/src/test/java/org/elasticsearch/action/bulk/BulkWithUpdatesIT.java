@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -210,9 +211,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "1").setVersion(4L).setDoc("field", "2"))
-                .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
-                .add(client().prepareUpdate("test", "type", "1").setVersion(2L).setDoc("field", "3")).get();
+                .add(client().prepareUpdate("test", "type", "1").setVersion(4L).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+                .add(client().prepareUpdate("test", "type", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+                .add(client().prepareUpdate("test", "type", "1").setVersion(2L).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
@@ -236,9 +237,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc("field", "2").setVersion(10)) // INTERNAL
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2").setVersion(10)) // INTERNAL
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc("field", "3").setVersion(13).setVersionType(VersionType.INTERNAL))
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3").setVersion(13).setVersionType(VersionType.INTERNAL))
                 .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
@@ -681,7 +682,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     return;
                 }
                 BulkRequestBuilder requestBuilder = client().prepareBulk();
-                requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1).setDoc("field", threadID));
+                requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID));
                 responses[threadID] = requestBuilder.get();
 
             });
@@ -769,10 +771,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
         createIndex("bulkindex1", "bulkindex2");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
-                   .add(new IndexRequest("bulkindex2", "index2_type", "1").source("text", "hallo2"))
-                   .add(new IndexRequest("bulkindex2", "index2_type").source("text", "hallo2"))
-                   .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc("foo", "bar"))
+        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+                   .add(new IndexRequest("bulkindex2", "index2_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+                   .add(new IndexRequest("bulkindex2", "index2_type").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+                   .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
                    .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
@@ -795,8 +797,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("bulkindex1"));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
-                .add(new UpdateRequest("bulkindex1", "index1_type", "1").doc("foo", "bar"))
+        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+                .add(new UpdateRequest("bulkindex1", "index1_type", "1").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
                 .add(new DeleteRequest("bulkindex1", "index1_type", "1"));
 
         BulkResponse bulkResponse = client().bulk(bulkRequest).get();
@@ -811,8 +813,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     // issue 9821
     public void testInvalidIndexNamesCorrectOpType() {
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex().setIndex("INVALID.NAME").setType("type1").setId("1").setSource("field", 1))
-                .add(client().prepareUpdate().setIndex("INVALID.NAME").setType("type1").setId("1").setDoc("field", randomInt()))
+                .add(client().prepareIndex().setIndex("INVALID.NAME").setType("type1").setId("1")
+                    .setSource(Requests.INDEX_CONTENT_TYPE, "field", 1))
+                .add(client().prepareUpdate().setIndex("INVALID.NAME").setType("type1").setId("1")
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", randomInt()))
                 .add(client().prepareDelete().setIndex("INVALID.NAME").setType("type1").setId("1")).get();
         assertThat(bulkResponse.getItems().length, is(3));
         assertThat(bulkResponse.getItems()[0].getOpType(), is(OpType.INDEX));

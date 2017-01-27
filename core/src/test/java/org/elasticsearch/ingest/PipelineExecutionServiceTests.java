@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -274,7 +275,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 }
             } else {
                 IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-                indexRequest.source("field1", "value1");
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
                 request = indexRequest;
                 numIndexRequests++;
             }
@@ -304,7 +305,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-            indexRequest.source("field1", "value1");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
 

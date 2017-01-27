@@ -156,7 +156,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     }
 
     /**
-     * Sets the settings to be updated (either json/yaml/properties format)
+     * Sets the settings to be updated (either json or yaml format)
      */
     @SuppressWarnings("unchecked")
     public UpdateSettingsRequest settings(Map source) {

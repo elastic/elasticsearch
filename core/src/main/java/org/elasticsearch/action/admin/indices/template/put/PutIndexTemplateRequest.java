@@ -199,7 +199,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * The settings to create the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {
@@ -237,9 +237,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param xContentType The type of content contained within the source
      */
     public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        mappings.put(type, convertToJsonIfNecessary(source, xContentType));
-        return this;
+        return mapping(type, new BytesArray(source), xContentType);
     }
 
     /**
@@ -261,10 +259,23 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
+        return mapping(type, source.bytes(), source.contentType());
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType the source content type
+     */
+    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
         try {
-            return mapping(type, source.string(), source.contentType());
+            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
+            return this;
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to parse mapping", e);
+            throw new UncheckedIOException("failed to convert source to json", e);
         }
     }
 
@@ -536,7 +547,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             final String type = in.readString();
             String mappingSource = in.readString();
             if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3_0 once backported
-                mappingSource = convertToJsonIfNecessary(mappingSource, XContentFactory.xContentType(mappingSource));
+                // we do not know the incoming type so convert it if needed
+                mappingSource =
+                    XContentHelper.convertToJson(new BytesArray(mappingSource), false, false, XContentFactory.xContentType(mappingSource));
             }
             mappings.put(type, mappingSource);
         }
@@ -581,20 +594,5 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
-    }
-
-    private String convertToJsonIfNecessary(String source, XContentType xContentType) {
-        return convertToJsonIfNecessary(new BytesArray(source), xContentType);
-    }
-
-    private String convertToJsonIfNecessary(BytesReference source, XContentType xContentType) {
-        if (xContentType == XContentType.JSON) {
-            return source.utf8ToString();
-        }
-        try {
-            return XContentHelper.convertToJson(source, false, xContentType);
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to JSON", e);
-        }
     }
 }

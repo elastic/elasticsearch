@@ -154,7 +154,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
-     * Sets repository-specific restore settings in JSON, YAML or properties format
+     * Sets repository-specific restore settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
@@ -169,7 +169,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
-     * Sets repository-specific restore settings in JSON, YAML or properties format
+     * Sets repository-specific restore settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *

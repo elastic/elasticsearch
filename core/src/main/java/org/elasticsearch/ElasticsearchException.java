@@ -51,6 +51,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -478,16 +479,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
 
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-
-        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
-
+        ElasticsearchException e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
             //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
@@ -527,7 +519,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
      *
-     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
+     * by the {@link #failureFromXContent(XContentParser)} method.
      */
     public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
             throws IOException {
@@ -566,6 +559,27 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         builder.endObject();
+    }
+
+    /**
+     * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
+     */
+    public static ElasticsearchException failureFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureFieldName(parser, token, ERROR);
+
+        token = parser.nextToken();
+        if (token.isValue()) {
+            return new ElasticsearchException(buildMessage("exception", parser.text(), null));
+        }
+
+        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        token = parser.nextToken();
+
+        // TODO Root causes are ignored for now. They will be skipped by innerFromXContent() because
+        // it ignores metadata arrays of objects. If we decide to parse root causes, we'll have to
+        // change innerFromXContent() so that it does not parse root causes on its own.
+        return innerFromXContent(parser);
     }
 
     /**
@@ -611,6 +625,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName);
+    }
+
+    static String buildMessage(String type, String reason, String stack) {
+        StringBuilder message = new StringBuilder("Elasticsearch exception [");
+        message.append(TYPE).append('=').append(type).append(", ");
+        message.append(REASON).append('=').append(reason);
+        if (stack != null) {
+            message.append(", ").append(STACK_TRACE).append('=').append(stack);
+        }
+        message.append(']');
+        return message.toString();
     }
 
     @Override

@@ -589,22 +589,67 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
-        assertNotNull(parsedException);
+        assertDeepEquals(exceptions.v2(), parsedException);
+    }
+
+    public void testUnknownFailureToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+            // Prints a null failure using generateFailureXContent()
+            ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean());
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        // Failure was null, expecting a "unknown" reason
+        assertEquals("Elasticsearch exception [type=exception, reason=unknown]", parsedFailure.getMessage());
+        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getMetadata().size());
+    }
+
+    public void testFailureToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final boolean detailed = randomBoolean();
+
+        Exception failure = (Exception) exceptions.v1();
+        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+            ElasticsearchException.generateFailureXContent(builder, params, failure, detailed);
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertNotNull(parsedFailure);
 
         ElasticsearchException expected = exceptions.v2();
-        do {
-            assertEquals(expected.getMessage(), parsedException.getMessage());
-            assertEquals(expected.getHeaders(), parsedException.getHeaders());
-            assertEquals(expected.getMetadata(), parsedException.getMetadata());
-            assertEquals(expected.getResourceType(), parsedException.getResourceType());
-            assertEquals(expected.getResourceId(), parsedException.getResourceId());
-
-            expected = (ElasticsearchException) expected.getCause();
-            parsedException = (ElasticsearchException) parsedException.getCause();
-            if (expected == null) {
-                assertNull(parsedException);
+        if (detailed) {
+            assertDeepEquals(expected, parsedFailure);
+        } else {
+            String reason;
+            if (failure instanceof ElasticsearchException) {
+                reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
+            } else {
+                reason = "No ElasticsearchException found";
             }
-        } while (expected != null);
+            assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
+            assertEquals(0, parsedFailure.getHeaders().size());
+            assertEquals(0, parsedFailure.getMetadata().size());
+            assertNull(parsedFailure.getCause());
+        }
     }
 
     /**
@@ -623,6 +668,28 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
+    }
+
+    private static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
+        if (expected == null) {
+            assertNull(actual);
+        } else {
+            assertNotNull(actual);
+        }
+
+        do {
+            assertEquals(expected.getMessage(), actual.getMessage());
+            assertEquals(expected.getHeaders(), actual.getHeaders());
+            assertEquals(expected.getMetadata(), actual.getMetadata());
+            assertEquals(expected.getResourceType(), actual.getResourceType());
+            assertEquals(expected.getResourceId(), actual.getResourceId());
+
+            expected = (ElasticsearchException) expected.getCause();
+            actual = (ElasticsearchException) actual.getCause();
+            if (expected == null) {
+                assertNull(actual);
+            }
+        } while (expected != null);
     }
 
     private static Tuple<Throwable, ElasticsearchException> randomExceptions() {

@@ -271,12 +271,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
 
     private boolean hasNodeWithStaleOrCorruptShard() {
         if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
-            return getNodeDecisions().stream()
-                       .filter(result -> result.getShardStoreInfo() != null
-                                             && (result.getShardStoreInfo().getAllocationId() != null
-                                                     || result.getShardStoreInfo().getStoreException() != null))
-                       .collect(Collectors.toList())
-                       .isEmpty() == false;
+            return getNodeDecisions().stream().anyMatch(result ->
+                result.getShardStoreInfo() != null
+                    && (result.getShardStoreInfo().getAllocationId() != null
+                            || result.getShardStoreInfo().getStoreException() != null));
         }
         return false;
     }

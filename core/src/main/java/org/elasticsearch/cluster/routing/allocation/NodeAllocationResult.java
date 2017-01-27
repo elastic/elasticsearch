@@ -83,7 +83,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
         if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
             canAllocateDecision = Decision.readFrom(in);
         } else {
-            canAllocateDecision = Decision.readOptional(in);
+            canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
         }
         nodeDecision = AllocationDecision.readFrom(in);
         weightRanking = in.readVInt();

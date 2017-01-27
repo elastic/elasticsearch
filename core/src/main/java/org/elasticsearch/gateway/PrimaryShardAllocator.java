@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -251,19 +252,20 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         List<NodeAllocationResult> nodeResults = new ArrayList<>();
         Collection<NodeGatewayStartedShards> ineligibleShards;
         if (nodesToAllocate != null) {
+            final Set<DiscoveryNode> discoNodes = new HashSet<>();
             nodeResults.addAll(Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
                                 .flatMap(Collection::stream)
-                                .map(dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
+                                .map(dnode -> {
+                                    discoNodes.add(dnode.nodeShardState.getNode());
+                                    return new NodeAllocationResult(dnode.nodeShardState.getNode(),
                                                                        shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
-                                                                       dnode.decision))
-                                .collect(Collectors.toList()));
+                                                                       dnode.decision);
+                                }).collect(Collectors.toList()));
             ineligibleShards = fetchedShardData.getData().values().stream().filter(shardData ->
-                nodesToAllocate.yesNodeShards.contains(shardData) == false
-                    && nodesToAllocate.noNodeShards.contains(shardData) == false
-                    && nodesToAllocate.throttleNodeShards.contains(shardData) == false
+                discoNodes.contains(shardData.getNode()) == false
             ).collect(Collectors.toList());
         } else {
-            // if there were no shard copies that were eligible for being assigned the allocation,
+            // there were no shard copies that were eligible for being assigned the allocation,
             // so all fetched shard data are ineligible shards
             ineligibleShards = fetchedShardData.getData().values();
         }

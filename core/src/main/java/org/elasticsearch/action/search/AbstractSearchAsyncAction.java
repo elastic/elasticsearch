@@ -444,8 +444,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             final IntConsumer finishPhase =  successOpts
                 -> sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, fetchResults);
             if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
-                queryResults.asList().stream().filter(Objects::nonNull).map(e -> e.value.queryResult())
-                    .forEach(this::releaseIrrelevantSearchContext);
+                queryResults.asList().stream()
+                    .map(e -> e.value.queryResult())
+                    .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
                 finishPhase.accept(successfulOps.get());
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
@@ -458,7 +459,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     IntArrayList entry = docIdsToLoad[i];
                     QuerySearchResultProvider queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
-                        if (queryResult != null && mustReleaseContext(queryResult.queryResult())) {
+                        if (queryResult != null) {
                             // if we got some hits from this shard we have to release the context there
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
@@ -499,29 +500,25 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                         // the search context might not be cleared on the node where the fetch was executed for example
                         // because the action was rejected by the thread pool. in this case we need to send a dedicated
                         // request to clear the search context.
-                        if (mustReleaseContext(querySearchResult)) {
-                            releaseIrrelevantSearchContext(querySearchResult);
-                        }
+                        releaseIrrelevantSearchContext(querySearchResult);
                     }
                 }
             });
-        }
-
-        private boolean mustReleaseContext(QuerySearchResult queryResult) {
-            // we only release search context that we did not fetch from if we are not scrolling
-            // and if it has at lease one hit that didn't make it to the global topDocs
-            return  request.scroll() == null && queryResult.hasHits();
         }
 
         /**
          * Releases shard targets that are not used in the docsIdsToLoad.
          */
         private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
-            try {
-                Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                sendReleaseSearchContext(queryResult.id(), connection);
-            } catch (Exception e) {
-                logger.trace("failed to release context", e);
+            // we only release search context that we did not fetch from if we are not scrolling
+            // and if it has at lease one hit that didn't make it to the global topDocs
+            if (request.scroll() == null && queryResult.hasHits()) {
+                try {
+                    Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
+                    sendReleaseSearchContext(queryResult.id(), connection);
+                } catch (Exception e) {
+                    logger.trace("failed to release context", e);
+                }
             }
         }
     }

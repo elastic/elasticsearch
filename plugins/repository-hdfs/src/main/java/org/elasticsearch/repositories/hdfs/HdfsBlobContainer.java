@@ -86,6 +86,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         if (!blobExists(blobName)) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+        // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.

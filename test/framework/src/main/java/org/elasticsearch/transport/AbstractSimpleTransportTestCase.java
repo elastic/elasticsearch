@@ -1871,8 +1871,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  null
              ) ) {
-            Version version = originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
-                TimeValue.timeValueSeconds(10));
+            Version version = originalTransport.executeHandshake(connection.getNode(),
+                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
         }
     }

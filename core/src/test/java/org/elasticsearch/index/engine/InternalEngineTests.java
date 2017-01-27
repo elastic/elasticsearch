@@ -110,6 +110,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -648,14 +649,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(stats1.getGeneration(), greaterThan(0L));
             assertThat(stats1.getId(), notNullValue());
             assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
-            assertThat(stats1.getUserData(), hasKey(InternalEngine.LOCAL_CHECKPOINT_KEY));
+            assertThat(stats1.getUserData(), hasKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             assertThat(
-                Long.parseLong(stats1.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats1.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
 
-            assertThat(stats1.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
+            assertThat(stats1.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
             assertThat(
-                Long.parseLong(stats1.getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                Long.parseLong(stats1.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
 
             maxSeqNo.set(rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
@@ -677,9 +678,9 @@ public class InternalEngineTests extends ESTestCase {
                 stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY),
                 not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
-            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
-            assertThat(stats2.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
-            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
+            assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
+            assertThat(stats2.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
+            assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
         } finally {
             IOUtils.close(engine);
         }
@@ -1772,14 +1773,14 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(initialEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
 
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
             initialEngine.getTranslog().sync(); // to guarantee the global checkpoint is written to the translog checkpoint
             assertThat(
                 initialEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 equalTo(maxSeqNo));
 
         } finally {
@@ -1793,13 +1794,13 @@ public class InternalEngineTests extends ESTestCase {
 
             assertEquals(primarySeqNo, recoveringEngine.seqNoService().getMaxSeqNo());
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
             assertThat(
                 recoveringEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 // after recovering from translog, all docs have been flushed to Lucene segments, so here we will assert
                 // that the committed max seq no is equivalent to what the current primary seq no is, as all data
                 // we have assigned sequence numbers to should be in the commit
@@ -1861,11 +1862,11 @@ public class InternalEngineTests extends ESTestCase {
             long prevMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
             for (IndexCommit commit : DirectoryReader.listCommits(store.directory())) {
                 Map<String, String> userData = commit.getUserData();
-                long localCheckpoint = userData.containsKey(InternalEngine.LOCAL_CHECKPOINT_KEY) ?
-                                           Long.parseLong(userData.get(InternalEngine.LOCAL_CHECKPOINT_KEY)) :
+                long localCheckpoint = userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) ?
+                                           Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) :
                                            SequenceNumbersService.NO_OPS_PERFORMED;
-                long maxSeqNo = userData.containsKey(InternalEngine.MAX_SEQ_NO) ?
-                                    Long.parseLong(userData.get(InternalEngine.MAX_SEQ_NO)) :
+                long maxSeqNo = userData.containsKey(SequenceNumbers.MAX_SEQ_NO) ?
+                                    Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO)) :
                                     SequenceNumbersService.UNASSIGNED_SEQ_NO;
                 // local checkpoint and max seq no shouldn't go backwards
                 assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));

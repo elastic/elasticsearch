@@ -590,9 +590,8 @@ public class SearchModule {
     private void registerSuggester(SuggesterSpec<?> suggester) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(
                 SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
-        // TODO Merge NoContextParser and FromXContent
         namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
-                p -> suggester.getParser().parse(p)));
+                suggester.getParser()));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
@@ -711,8 +710,7 @@ public class SearchModule {
     }
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
-        // TODO merge NoContextParser and ToXContent
-        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), p -> spec.getParser().parse(p)));
+        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), spec.getParser()));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 

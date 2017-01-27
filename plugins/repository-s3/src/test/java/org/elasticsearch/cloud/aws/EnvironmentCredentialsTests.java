@@ -27,7 +27,7 @@ public class EnvironmentCredentialsTests extends ESTestCase {
 
     public void test() {
         AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY);
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
         // NOTE: env vars are setup by the test runner in gradle
         assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
         assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());

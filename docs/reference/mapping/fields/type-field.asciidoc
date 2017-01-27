@@ -21,7 +21,7 @@ PUT my_index/type_2/2?refresh=true
   "text": "Document with type 2"
 }
 
-GET my_index/type_*/_search
+GET my_index/_search
 {
   "query": {
     "terms": {

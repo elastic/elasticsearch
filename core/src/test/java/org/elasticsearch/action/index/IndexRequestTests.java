@@ -202,4 +202,17 @@ public class IndexRequestTests extends ESTestCase {
             }
         }
     }
+
+    public void testToStringSizeLimit() {
+        IndexRequest request = new IndexRequest("index", "type");
+
+        String source = "{\"name\":\"value\"}";
+        request.source(source);
+        assertEquals("index {[index][type][null], source[" + source + "]}", request.toString());
+
+        source = "{\"name\":\"" + randomAsciiOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
+        request.source(source);
+        assertEquals("index {[index][type][null], source[" + source.substring(0, IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "...2kb]}",
+            request.toString());
+    }
 }

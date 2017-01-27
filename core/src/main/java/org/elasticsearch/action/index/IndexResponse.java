@@ -20,20 +20,15 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -78,34 +73,55 @@ public class IndexResponse extends DocWriteResponse {
         return builder;
     }
 
-    /**
-     * ConstructingObjectParser used to parse the {@link IndexResponse}. We use a ObjectParser here
-     * because most fields are parsed by the parent abstract class {@link DocWriteResponse} and it's
-     * not easy to parse part of the fields in the parent class and other fields in the children class
-     * using the usual streamed parsing method.
-     */
-    private static final ConstructingObjectParser<IndexResponse, Void> PARSER;
-    static {
-        PARSER = new ConstructingObjectParser<>(IndexResponse.class.getName(),
-                args -> {
-                    // index uuid and shard id are unknown and can't be parsed back for now.
-                    ShardId shardId = new ShardId(new Index((String) args[0], IndexMetaData.INDEX_UUID_NA_VALUE), -1);
-                    String type = (String) args[1];
-                    String id = (String) args[2];
-                    long version = (long) args[3];
-                    ShardInfo shardInfo = (ShardInfo) args[5];
-                    long seqNo = (args[6] != null) ? (long) args[6] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    boolean created = (boolean) args[7];
+    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-                    IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
-                    indexResponse.setShardInfo(shardInfo);
-                    return indexResponse;
-                });
-        DocWriteResponse.declareParserFields(PARSER);
-        PARSER.declareBoolean(constructorArg(), new ParseField(CREATED));
+        ParsingContext context = new ParsingContext();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return fromParsingContext(context);
     }
 
-    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, ParsingContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (CREATED.equals(currentFieldName)) {
+            if (token.isValue()) {
+                context.setCreated(parser.booleanValue());
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    /**
+     * Create a {@link IndexResponse} from a parsing context.
+     */
+    public static IndexResponse fromParsingContext(ParsingContext context) {
+        IndexResponse indexResponse = new IndexResponse(context.getShardId(), context.getType(), context.getId(),
+                context.getSeqNo(), context.getVersion(), context.isCreated());
+        indexResponse.setForcedRefresh(context.isForcedRefresh());
+        if (context.getShardInfo() != null) {
+            indexResponse.setShardInfo(context.getShardInfo());
+        }
+        return indexResponse;
+    }
+
+    public static class ParsingContext extends DocWriteResponse.ParsingContext {
+
+        private boolean created = false;
+
+        public boolean isCreated() {
+            return created;
+        }
+
+        public void setCreated(boolean created) {
+            this.created = created;
+        }
     }
 }

@@ -84,21 +84,34 @@ public class UpdateResponseTests extends ESTestCase {
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
         boolean humanReadable = randomBoolean();
 
+        BytesReference updateResponseBytes = toXContent(tuple.v1(), xContentType, humanReadable);
+
+        // Shuffle the XContent fields
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
+                updateResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
+
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(tuple.v1(), xContentType, humanReadable))) {
+        try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
         final UpdateResponse expectedUpdateResponse = tuple.v2();
         try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType, humanReadable))) {
-            IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parser.map());
+            assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse, parser.map());
         }
-        assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
     }
 
-    private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
+    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse parsed, Map<String, Object> actual) throws IOException {
+        IndexResponseTests.assertDocWriteResponse(expected, actual);
+        assertEquals(expected.getGetResult(), parsed.getGetResult());
+    }
+
+    public static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
         Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(xContentType);
         GetResult actualGetResult = getResults.v1();
         GetResult expectedGetResult = getResults.v2();

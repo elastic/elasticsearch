@@ -20,19 +20,14 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.
@@ -45,7 +40,6 @@ public class DeleteResponse extends DocWriteResponse {
     private static final String FOUND = "found";
 
     public DeleteResponse() {
-
     }
 
     public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean found) {
@@ -55,37 +49,6 @@ public class DeleteResponse extends DocWriteResponse {
     @Override
     public RestStatus status() {
         return result == Result.DELETED ? super.status() : RestStatus.NOT_FOUND;
-    }
-
-    @Override
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FOUND, result == Result.DELETED);
-        super.innerToXContent(builder, params);
-        return builder;
-    }
-
-    private static final ConstructingObjectParser<DeleteResponse, Void> PARSER;
-    static {
-        PARSER = new ConstructingObjectParser<>(DeleteResponse.class.getName(),
-            args -> {
-                // index uuid and shard id are unknown and can't be parsed back for now.
-                ShardId shardId = new ShardId(new Index((String) args[0], IndexMetaData.INDEX_UUID_NA_VALUE), -1);
-                String type = (String) args[1];
-                String id = (String) args[2];
-                long version = (long) args[3];
-                ShardInfo shardInfo = (ShardInfo) args[5];
-                long seqNo = (args[6] != null) ? (long) args[6] : SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                boolean found = (boolean) args[7];
-                DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, version, found);
-                deleteResponse.setShardInfo(shardInfo);
-                return deleteResponse;
-            });
-        DocWriteResponse.declareParserFields(PARSER);
-        PARSER.declareBoolean(constructorArg(), new ParseField(FOUND));
-    }
-
-    public static DeleteResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -99,5 +62,64 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
+    }
+
+    @Override
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(FOUND, result == Result.DELETED);
+        super.innerToXContent(builder, params);
+        return builder;
+    }
+
+    public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        ParsingContext context = new ParsingContext();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return fromParsingContext(context);
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, ParsingContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (FOUND.equals(currentFieldName)) {
+            if (token.isValue()) {
+                context.setFound(parser.booleanValue());
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    /**
+     * Create a {@link DeleteResponse} from a parsing context.
+     */
+    public static DeleteResponse fromParsingContext(ParsingContext context) {
+        DeleteResponse deleteResponse = new DeleteResponse(context.getShardId(), context.getType(), context.getId(),
+                context.getSeqNo(), context.getVersion(), context.isFound());
+        deleteResponse.setForcedRefresh(context.isForcedRefresh());
+        if (context.getShardInfo() != null) {
+            deleteResponse.setShardInfo(context.getShardInfo());
+        }
+        return deleteResponse;
+    }
+
+    public static class ParsingContext extends DocWriteResponse.ParsingContext {
+
+        private boolean found = false;
+
+        public boolean isFound() {
+            return found;
+        }
+
+        public void setFound(boolean found) {
+            this.found = found;
+        }
     }
 }

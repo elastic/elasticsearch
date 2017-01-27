@@ -23,15 +23,15 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,8 +42,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -284,16 +285,134 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Declare the {@link ObjectParser} fields to use when parsing a {@link DocWriteResponse}
+     * Parse the output of the {@link #innerToXContent(XContentBuilder, Params)} method.
+     *
+     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
+     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
+     * if needed and then immediately returns.
      */
-    protected static void declareParserFields(ConstructingObjectParser<? extends DocWriteResponse, Void> objParser) {
-        objParser.declareString(constructorArg(), new ParseField(_INDEX));
-        objParser.declareString(constructorArg(), new ParseField(_TYPE));
-        objParser.declareString(constructorArg(), new ParseField(_ID));
-        objParser.declareLong(constructorArg(), new ParseField(_VERSION));
-        objParser.declareString(constructorArg(), new ParseField(RESULT));
-        objParser.declareObject(optionalConstructorArg(), (p, c) -> ShardInfo.fromXContent(p), new ParseField(_SHARDS));
-        objParser.declareLong(optionalConstructorArg(), new ParseField(_SEQ_NO));
-        objParser.declareBoolean(DocWriteResponse::setForcedRefresh, new ParseField(FORCED_REFRESH));
+    public static void parseInnerToXContent(XContentParser parser, ParsingContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token.isValue()) {
+            if (_INDEX.equals(currentFieldName)) {
+                // index uuid and shard id are unknown and can't be parsed back for now.
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
+            } else if (_TYPE.equals(currentFieldName)) {
+                context.setType(parser.text());
+            } else if (_ID.equals(currentFieldName)) {
+                context.setId(parser.text());
+            } else if (_VERSION.equals(currentFieldName)) {
+                context.setVersion(parser.longValue());
+            } else if (RESULT.equals(currentFieldName)) {
+                String result = parser.text();
+                for (Result r :  Result.values()) {
+                    if (r.getLowercase().equals(result)) {
+                        context.setResult(r);
+                        break;
+                    }
+                }
+            } else if (FORCED_REFRESH.equals(currentFieldName)) {
+                context.setForcedRefresh(parser.booleanValue());
+            } else if (_SEQ_NO.equals(currentFieldName)) {
+                context.setSeqNo(parser.longValue());
+            } else {
+                throwUnknownField(currentFieldName, parser.getTokenLocation());
+            }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (_SHARDS.equals(currentFieldName)) {
+                context.setShardInfo(ShardInfo.fromXContent(parser));
+            } else {
+                throwUnknownField(currentFieldName, parser.getTokenLocation());
+            }
+        } else {
+            throwUnknownToken(token, parser.getTokenLocation());
+        }
+    }
+
+    /**
+     * {@link ParsingContext} holds information about {@link DocWriteResponse} objects during XContent parsing.
+     */
+    public static class ParsingContext {
+
+        private ShardId shardId = null;
+        private String type = null;
+        private String id = null;
+        private Long version = null;
+        private Result result = null;
+        private boolean forcedRefresh;
+        private ShardInfo shardInfo = null;
+        private Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+
+        public ParsingContext(){
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        public void setShardId(ShardId shardId) {
+            this.shardId = shardId;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public Long getVersion() {
+            return version;
+        }
+
+        public void setVersion(Long version) {
+            this.version = version;
+        }
+
+        public Result getResult() {
+            return result;
+        }
+
+        public void setResult(Result result) {
+            this.result = result;
+        }
+
+        public boolean isForcedRefresh() {
+            return forcedRefresh;
+        }
+
+        public void setForcedRefresh(boolean forcedRefresh) {
+            this.forcedRefresh = forcedRefresh;
+        }
+
+        public ShardInfo getShardInfo() {
+            return shardInfo;
+        }
+
+        public void setShardInfo(ShardInfo shardInfo) {
+            this.shardInfo = shardInfo;
+        }
+
+        public Long getSeqNo() {
+            return seqNo;
+        }
+
+        public void setSeqNo(Long seqNo) {
+            this.seqNo = seqNo;
+        }
     }
 }

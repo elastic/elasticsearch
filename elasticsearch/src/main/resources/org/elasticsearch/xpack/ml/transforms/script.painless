@@ -1,0 +1,187 @@
+String replaceDots(String input) {
+    String output = input;
+    if (output.indexOf('。') >= 0) {
+        output = output.replace('。', '.');
+    }
+    if (output.indexOf('．') >= 0) {
+        output = output.replace('．', '.');
+    }
+    if (output.indexOf('｡') >= 0) {
+        output = output.replace('｡', '.');
+    }
+    return output;
+}
+List split(String value) {
+    int nextWord = 0;
+    List splits  = [];
+    for(int i = 0; i < value.length(); i++) {
+        if(value.charAt(i) == (char)'.') {
+            splits.add(value.substring(nextWord, i));
+            nextWord = i+1;
+        }
+    }
+    if (nextWord != value.length()) {
+        splits.add(value.substring(nextWord, value.length()));
+    }
+    return splits;
+}
+List splitDomain(String domain) {
+    String dotDomain = replaceDots(domain);
+    return split(dotDomain);
+}
+boolean validateSyntax(List parts) {
+    int lastIndex = parts.length - 1;
+    /* Validate the last part specially, as it has different syntax rules. */
+    if (!validatePart(parts[lastIndex], true)) {
+        return false;
+    }
+    for (int i = 0; i < lastIndex; i++) {
+        String part = parts[i];
+        if (!validatePart(part, false)) {
+            return false;
+        }
+    }
+    return true;
+}
+boolean validatePart(String part, boolean isFinalPart) {
+    int MAX_DOMAIN_PART_LENGTH = 63;
+    if (part.length() < 1 || part.length() > MAX_DOMAIN_PART_LENGTH) {
+        return false;
+    }
+    int offset = 0;
+    int strLen = part.length();
+    while (offset < strLen) {
+        int curChar = part.charAt(offset);
+        offset += 1;
+        if (!(Character.isLetterOrDigit(curChar) || curChar == (char)'-' || curChar == (char)'_')) {
+            return false;
+        }
+    }
+    if (part.charAt(0) == (char)'-' || part.charAt(0) == (char)'_' ||
+            part.charAt(part.length() - 1) == (char)'-' || part.charAt(part.length() - 1) == (char)'_') {
+        return false;
+    }
+    if (isFinalPart && Character.isDigit(part.charAt(0))) {
+        return false;
+    }
+    return true;
+}
+int findPublicSuffix(Map params, List parts) {
+   int partsSize = parts.size();
+
+   for (int i = 0; i < partsSize; i++) {
+       StringJoiner joiner = new StringJoiner('.');
+       for (String s : parts.subList(i, partsSize)) {
+           joiner.add(s);
+       }
+       /* parts.subList(i, partsSize).each(joiner::add); */
+       String ancestorName = joiner.toString();
+
+       if (params['exact'].containsKey(ancestorName)) {
+           return i;
+       }
+
+       /* Excluded domains (e.g. !nhs.uk) use the next highest
+        domain as the effective public suffix (e.g. uk). */
+
+       if (params['excluded'].containsKey(ancestorName)) {
+           return i + 1;
+       }
+
+       List pieces = split(ancestorName);
+       if (pieces.length >= 2 && params['under'].containsKey(pieces[1])) {
+           return i;
+       }
+   }
+
+   return -1;
+}
+String ancestor(List parts, int levels) {
+   StringJoiner joiner = new StringJoiner('.');
+   for (String s : parts.subList(levels, parts.size())) {
+      joiner.add(s);
+   }
+   String name = joiner.toString();
+   if (name.endsWith('.')) {
+       name = name.substring(0, name.length() - 1);
+   }
+   return name;
+}
+String topPrivateDomain(String name, List parts, int publicSuffixIndex) {
+   if (publicSuffixIndex == 1) {
+       return name;
+   }
+   if (!(publicSuffixIndex > 0)) {
+       throw new IllegalArgumentException('Not under a public suffix: ' + name);
+   }
+   return ancestor(parts, publicSuffixIndex - 1);
+}
+List domainSplit(String host, Map params) {
+    int MAX_DNS_NAME_LENGTH = 253;
+    int MAX_LENGTH = 253;
+    int MAX_PARTS = 127;
+    if ('host'.isEmpty()) {
+        return ['',''];
+    }
+    host = host.trim();
+    if (host.contains(':')) {
+        return ['', host];
+    }
+    boolean tentativeIP = true;
+    for(int i = 0; i < host.length(); i++) {
+        if (!(Character.isDigit(host.charAt(i)) || host.charAt(i) == (char)'.')) {
+            tentativeIP = false;
+            break;
+        }
+    }
+    if (tentativeIP) {
+        /* special-snowflake rules now... */
+        if (host == '.') {
+            return ['',''];
+        }
+        return ['', host];
+    }
+    def normalizedHost = host;
+    normalizedHost = normalizedHost.toLowerCase();
+    List parts = splitDomain(normalizedHost);
+    int publicSuffixIndex = findPublicSuffix(params, parts);
+    if (publicSuffixIndex == 0) {
+        return ['', host];
+    }
+    String highestRegistered = '';
+    /* for the case where the host is internal like .local so is not a recognised public suffix */
+    if (publicSuffixIndex == -1) {
+        if (!parts.isEmpty()) {
+            if (parts.size() == 1) {
+                return ['', host];
+            }
+            if (parts.size() > 2) {
+                boolean allNumeric = true;
+                String value = parts.get(parts.size() - 1);
+                for (int i = 0; i < value.length(); i++) {
+                    if (!Character.isDigit(value.charAt(i))) {
+                        allNumeric = false;
+                        break;
+                    }
+                }
+                if (allNumeric) {
+                    highestRegistered = parts.get(parts.size() - 2) + '.' + parts.get(parts.size() - 1);
+                } else {
+                    highestRegistered = parts.get(parts.size() - 1);
+                }
+
+            } else {
+                highestRegistered = parts.get(parts.size() - 1);
+            }
+        }
+    } else {
+        /* HRD is the top private domain */
+        highestRegistered = topPrivateDomain(normalizedHost, parts, publicSuffixIndex);
+    }
+    String subDomain = host.substring(0, host.length() - highestRegistered.length());
+    if (subDomain.endsWith('.')) {
+        subDomain = subDomain.substring(0, subDomain.length() - 1);
+    }
+    return [subDomain, highestRegistered];
+}
+

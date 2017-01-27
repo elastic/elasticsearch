@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':prelert-legacy:elasticsearch', configuration: 'runtime')
+  testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.8.6'
+}
+
+integTest {
+  cluster {
+    setting 'script.inline', 'true'
+    distribution = 'zip'
+    plugin ':prelert-legacy:elasticsearch'
+  }
+}

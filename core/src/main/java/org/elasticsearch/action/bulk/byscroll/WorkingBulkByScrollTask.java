@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -95,7 +95,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
     }
 
     @Override
-    int runningSliceSubTasks() {
+    public int runningSliceSubTasks() {
         return 0;
     }
 
@@ -162,7 +162,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         bulkRetries.incrementAndGet();
     }
 
-    void countSearchRetry() {
+    public void countSearchRetry() {
         searchRetries.incrementAndGet();
     }
 
@@ -209,7 +209,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
     }
 
     @Override
-    void rethrottle(float newRequestsPerSecond) {
+    public void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}]: Rethrottling to [{}] requests per second", getId(), newRequestsPerSecond);

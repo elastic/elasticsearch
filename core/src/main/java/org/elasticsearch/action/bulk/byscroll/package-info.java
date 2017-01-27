@@ -17,30 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
-
 /**
- * Implemented by {@link BulkByScrollTask} and {@link BulkByScrollTask.Status} to consistently implement
- * {@link #getSuccessfullyProcessed()}.
+ * Infrastructure for actions that modify documents based on the results of a scrolling query.
  */
-public interface SuccessfullyProcessed {
-    /**
-     * Total number of successfully processed documents.
-     */
-    default long getSuccessfullyProcessed() {
-        return getUpdated() + getCreated() + getDeleted();
-    }
-
-    /**
-     * Count of documents updated.
-     */
-    long getUpdated();
-    /**
-     * Count of documents created.
-     */
-    long getCreated();
-    /**
-     * Count of successful delete operations.
-     */
-    long getDeleted();
-}
+package org.elasticsearch.action.bulk.byscroll;

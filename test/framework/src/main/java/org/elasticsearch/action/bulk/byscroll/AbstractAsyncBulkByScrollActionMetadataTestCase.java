@@ -17,27 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkByScrollResponse>
+        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
-public class ReindexAction extends Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> {
-    public static final ReindexAction INSTANCE = new ReindexAction();
-    public static final String NAME = "indices:data/write/reindex";
-
-    private ReindexAction() {
-        super(NAME);
+    protected ScrollableHitSource.BasicHit doc() {
+        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
     }
 
-    @Override
-    public ReindexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ReindexRequestBuilder(client, this);
-    }
-
-    @Override
-    public BulkByScrollResponse newResponse() {
-        return new BulkByScrollResponse();
-    }
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
 }

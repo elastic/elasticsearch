@@ -79,6 +79,7 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
 
+        /** create an empty builder */
         public Builder() {
 
         }

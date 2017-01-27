@@ -464,6 +464,10 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 for (final DiscoveryNode nodeToPing : nodesToPing) {
                     threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
 
+                        /**
+                         * we try to reuse existing connections but if needed we will open a temporary connection
+                         * that nodes to be closed at the end of execution.
+                         */
                         Transport.Connection connectionToClose = null;
 
                         @Override

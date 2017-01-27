@@ -872,6 +872,9 @@ public final class Settings implements ToXContent {
         public Builder put(Settings settings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
+            if (settings.getSecureSettings() != null) {
+                setSecureSettings(settings.getSecureSettings());
+            }
             return this;
         }
 

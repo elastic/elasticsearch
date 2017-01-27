@@ -290,11 +290,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings, expectedWarnings.length, actualWarnings.size());
             for (String msg : expectedWarnings) {
                 assertThat(actualWarnings, hasItem(containsString(msg)));
             }
+            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings, expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger();
         }

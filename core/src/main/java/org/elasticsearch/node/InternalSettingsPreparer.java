@@ -92,6 +92,7 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, true, properties);
         Environment environment = new Environment(output.build());
 
+        output = Settings.builder(); // start with a fresh output
         boolean settingsFileFound = false;
         Set<String> foundSuffixes = new HashSet<>();
         for (String allowedSuffix : ALLOWED_SUFFIXES) {

@@ -56,7 +56,7 @@ grant {
   permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
-  permission java.net.SocketPermission "*", "resolve";
+  permission java.net.SocketPermission "*", "connect,resolve";
 
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";

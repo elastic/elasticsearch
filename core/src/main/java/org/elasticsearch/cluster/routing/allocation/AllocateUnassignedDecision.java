@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
@@ -246,7 +247,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         } else if (allocationDecision == AllocationDecision.AWAITING_INFO) {
             return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
         } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
-            if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
+            if (hasNodeWithStaleOrCorruptShard()) {
                 return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
                 return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on " +
@@ -266,6 +267,18 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 return "cannot allocate because allocation is not permitted to any of the nodes";
             }
         }
+    }
+
+    private boolean hasNodeWithStaleOrCorruptShard() {
+        if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
+            return getNodeDecisions().stream()
+                       .filter(result -> result.getShardStoreInfo() != null
+                                             && (result.getShardStoreInfo().getAllocationId() != null
+                                                     || result.getShardStoreInfo().getStoreException() != null))
+                       .collect(Collectors.toList())
+                       .isEmpty() == false;
+        }
+        return false;
     }
 
     @Override

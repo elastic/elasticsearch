@@ -124,7 +124,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
 
         if (allocateDecision.getAllocationDecision() == AllocationDecision.NO_VALID_SHARD_COPY) {
-            assertEquals(0, allocateDecision.getNodeDecisions().size());
+            assertEquals(1, allocateDecision.getNodeDecisions().size());
 
             // verify JSON output
             try (XContentParser parser = getParser(explanation)) {
@@ -138,7 +138,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 parser.nextToken();
                 assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be found " +
                                  "on the nodes in the cluster", parser.text());
-                assertEquals(Token.END_OBJECT, parser.nextToken());
+                verifyStaleShardCopyNodeDecisions(parser, 1, Collections.emptySet());
             }
         }
     }
@@ -1011,11 +1011,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     public void testCannotAllocateStaleReplicaExplanation() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startNodes(2);
+        String masterNode = internalCluster().startNode();
+        internalCluster().startDataOnlyNodes(2);
 
         logger.info("--> creating an index with 1 primary and 1 replica");
-        createIndexAndIndexData(1, 1);
+        createIndexAndIndexData(1, 1,
+            Settings.builder().put("index.routing.allocation.exclude._name", masterNode).build(),
+            ActiveShardCount.ALL);
 
         logger.info("--> stop node with the replica shard");
         String stoppedNode = replicaNode().getName();
@@ -1028,6 +1030,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
 
         logger.info("--> restart the node with the stale replica");
+        client().admin().indices().prepareUpdateSettings("idx").setSettings(
+            Settings.builder().put("index.routing.allocation.include._name", (String) null)).get();
         String restartedNode = internalCluster().startNode(Settings.builder().put("node.name", stoppedNode).build());
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
@@ -1064,11 +1068,33 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
-        assertEquals(1, allocateDecision.getNodeDecisions().size());
+        assertEquals(2, allocateDecision.getNodeDecisions().size());
         NodeAllocationResult nodeAllocationResult = allocateDecision.getNodeDecisions().get(0);
         assertEquals(restartedNode, nodeAllocationResult.getNode().getName());
         assertNotNull(nodeAllocationResult.getShardStoreInfo());
+        assertNotNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
         assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
+        assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
+        nodeAllocationResult = allocateDecision.getNodeDecisions().get(1);
+        assertEquals(masterNode, nodeAllocationResult.getNode().getName());
+        assertNotNull(nodeAllocationResult.getShardStoreInfo());
+        assertNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
+        assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
+        assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO_VALID_SHARD_COPY.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("cannot allocate because all found copies of the shard are either stale or corrupt", parser.text());
+            verifyStaleShardCopyNodeDecisions(parser, 2, Collections.singleton(restartedNode));
+        }
     }
 
     private void verifyClusterInfo(ClusterInfo clusterInfo, boolean includeDiskInfo, int numNodes) {
@@ -1220,6 +1246,39 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
+    private void verifyStaleShardCopyNodeDecisions(XContentParser parser, int numNodes, Set<String> foundStores) throws IOException {
+        parser.nextToken();
+        assertEquals("node_allocation_decisions", parser.currentName());
+        assertEquals(Token.START_ARRAY, parser.nextToken());
+        for (int i = 0; i < numNodes; i++) {
+            String nodeName = verifyNodeDecisionPrologue(parser);
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("store", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            parser.nextToken();
+            if (foundStores.contains(nodeName)) {
+                // shard data was found on the node, but it is stale
+                assertEquals("in_sync", parser.currentName());
+                parser.nextToken();
+                assertFalse(parser.booleanValue());
+                parser.nextToken();
+                assertEquals("allocation_id", parser.currentName());
+                parser.nextToken();
+                assertNotNull(parser.text());
+            } else {
+                // no shard data was found on the node
+                assertEquals("found", parser.currentName());
+                parser.nextToken();
+                assertFalse(parser.booleanValue());
+            }
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            parser.nextToken();
+            assertEquals(Token.END_OBJECT, parser.currentToken());
+        }
+        assertEquals(Token.END_ARRAY, parser.nextToken());
+    }
+
     private void verifyNodeDecisions(XContentParser parser, Map<String, AllocationDecision> expectedNodeDecisions,
                                      boolean includeYesDecisions, boolean reuseStore) throws IOException {
         parser.nextToken();
@@ -1228,24 +1287,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         boolean encounteredNo = false;
         final int numNodes = expectedNodeDecisions.size();
         for (int i = 0; i < numNodes; i++) {
-            assertEquals(Token.START_OBJECT, parser.nextToken());
-            parser.nextToken();
-            assertEquals("node_id", parser.currentName());
-            parser.nextToken();
-            assertNotNull(parser.text());
-            parser.nextToken();
-            assertEquals("node_name", parser.currentName());
-            parser.nextToken();
-            String nodeName = parser.text();
+            String nodeName = verifyNodeDecisionPrologue(parser);
             AllocationDecision allocationDecision = expectedNodeDecisions.get(nodeName);
-            assertNotNull(nodeName);
-            parser.nextToken();
-            assertEquals("transport_address", parser.currentName());
-            parser.nextToken();
-            assertNotNull(parser.text());
-            parser.nextToken();
-            assertEquals("node_decision", parser.currentName());
-            parser.nextToken();
             assertEquals(allocationDecision.toString(), parser.text());
             if (allocationDecision != AllocationDecision.YES) {
                 encounteredNo = true;
@@ -1281,6 +1324,27 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals(Token.END_OBJECT, parser.currentToken());
         }
         assertEquals(Token.END_ARRAY, parser.nextToken());
+    }
+
+    private String verifyNodeDecisionPrologue(XContentParser parser) throws IOException {
+        assertEquals(Token.START_OBJECT, parser.nextToken());
+        parser.nextToken();
+        assertEquals("node_id", parser.currentName());
+        parser.nextToken();
+        assertNotNull(parser.text());
+        parser.nextToken();
+        assertEquals("node_name", parser.currentName());
+        parser.nextToken();
+        String nodeName = parser.text();
+        assertNotNull(nodeName);
+        parser.nextToken();
+        assertEquals("transport_address", parser.currentName());
+        parser.nextToken();
+        assertNotNull(parser.text());
+        parser.nextToken();
+        assertEquals("node_decision", parser.currentName());
+        parser.nextToken();
+        return nodeName;
     }
 
     private boolean verifyDeciders(XContentParser parser, AllocationDecision allocationDecision) throws IOException {

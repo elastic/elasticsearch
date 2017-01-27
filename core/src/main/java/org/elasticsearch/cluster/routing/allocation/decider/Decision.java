@@ -58,6 +58,13 @@ public abstract class Decision implements ToXContent, Writeable {
         return new Single(type, label, explanation, explanationParams);
     }
 
+    public static Decision readOptional(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return readFrom(in);
+        }
+        return null;
+    }
+
     public static Decision readFrom(StreamInput in) throws IOException {
         // Determine whether to read a Single or Multi Decision
         if (in.readBoolean()) {

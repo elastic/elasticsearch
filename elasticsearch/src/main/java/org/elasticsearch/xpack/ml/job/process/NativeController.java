@@ -25,9 +25,8 @@ import java.util.concurrent.TimeoutException;
 public class NativeController {
     private static final Logger LOGGER = Loggers.getLogger(NativeController.class);
 
-    // TODO: this can be reduced once Elasticsearch is automatically starting the controller process -
-    // at the moment it has to be started manually, which could take a while
-    private static final Duration CONTROLLER_CONNECT_TIMEOUT = Duration.ofMinutes(1);
+    // The controller process should already be running by the time this class tries to connect to it, so the timeout can be short
+    private static final Duration CONTROLLER_CONNECT_TIMEOUT = Duration.ofSeconds(2);
 
     private static final String START_COMMAND = "start";
 

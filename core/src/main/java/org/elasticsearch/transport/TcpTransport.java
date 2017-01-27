@@ -428,7 +428,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
         throws ConnectTransportException {
-        connectionProfile = resolveConnectionProfile(connectionProfile);
+        connectionProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
@@ -478,14 +478,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * takes a {@link ConnectionProfile} that have been passed as a parameter to the public methods
      * and resolves it to a fully specified (i.e., no nulls) profile
      */
-    protected ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile) {
+    static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
+                                                      ConnectionProfile defaultConnectionProfile) {
         if (connectionProfile == null) {
             return defaultConnectionProfile;
         } else if (connectionProfile.getConnectTimeout() != null && connectionProfile.getHandshakeTimeout() != null) {
             return connectionProfile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(connectionProfile);
-            if (connectionProfile.getHandshakeTimeout() == null) {
+            if (connectionProfile.getConnectTimeout() == null) {
                 builder.setConnectTimeout(defaultConnectionProfile.getConnectTimeout());
             }
             if (connectionProfile.getHandshakeTimeout() == null) {
@@ -502,7 +503,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         boolean success = false;
         NodeChannels nodeChannels = null;
-        connectionProfile = resolveConnectionProfile(connectionProfile);
+        connectionProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
         globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();

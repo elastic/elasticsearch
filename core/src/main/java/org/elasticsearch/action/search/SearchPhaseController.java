@@ -31,11 +31,15 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -64,6 +68,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -368,15 +373,16 @@ public class SearchPhaseController extends AbstractComponent {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public void fillDocIdsToLoad(AtomicArray<IntArrayList> docIdsToLoad, ScoreDoc[] shardDocs) {
+    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad.get(shardDoc.shardIndex);
+            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = new IntArrayList(); // can't be shared!, uses unsafe on it later on
-                docIdsToLoad.set(shardDoc.shardIndex, shardDocIdsToLoad);
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }
+        return docIdsToLoad;
     }
 
     /**

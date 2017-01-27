@@ -27,12 +27,14 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -96,7 +98,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(logger, transportService, lookup::get,
-            aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {
+            aliasFilters, Collections.emptyMap(), null, null, request, responseListener, shardsIter, 0, 0, null) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -115,18 +117,20 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected void moveToSecondPhase() throws Exception {
-                for (int i = 0; i < firstResults.length(); i++) {
-                    TestSearchPhaseResult result = firstResults.get(i);
-                    assertEquals(result.node.getId(), result.shardTarget().getNodeId());
-                    sendReleaseSearchContext(result.id(), new MockConnection(result.node));
-                }
-                responseListener.onResponse(response);
-                latch.countDown();
+            protected CheckedRunnable<Exception> getNextPhase(AtomicArray<TestSearchPhaseResult> initialResults) {
+                return () -> {
+                    for (int i = 0; i < initialResults.length(); i++) {
+                        TestSearchPhaseResult result = initialResults.get(i);
+                        assertEquals(result.node.getId(), result.shardTarget().getNodeId());
+                        sendReleaseSearchContext(result.id(), new MockConnection(result.node));
+                    }
+                    responseListener.onResponse(response);
+                    latch.countDown();
+                };
             }
 
             @Override
-            protected String firstPhaseName() {
+            protected String initialPhaseName() {
                 return "test";
             }
 

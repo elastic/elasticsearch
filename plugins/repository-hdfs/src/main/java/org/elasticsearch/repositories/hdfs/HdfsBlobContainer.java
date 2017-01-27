@@ -34,6 +34,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -90,20 +91,20 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
         // FSDataInputStream does buffering internally
-        return store.execute((Operation<InputStream>) fileContext -> {
+        return store.execute(fileContext -> {
             FSDataInputStream is = fileContext.open(new Path(path, blobName), bufferSize);
-            return new InputStream() {
-                @Override
-                public int read() throws IOException {
-                    try {
-                        SpecialPermission.check();
-                        // FSDataInputStream can open connection on read()
-                        return AccessController.doPrivileged((PrivilegedExceptionAction<Integer>) is::read);
-                    } catch (PrivilegedActionException e) {
-                        throw (IOException) e.getCause();
-                    }
-                }
-            };
+            InputStream stream = is.markSupported() ? is : new BufferedInputStream(is);
+            stream.mark(1);
+
+            try {
+                SpecialPermission.check();
+                // FSDataInputStream can open connection on read()
+                AccessController.doPrivileged((PrivilegedExceptionAction<Long>) () -> stream.skip(1));
+            } catch (PrivilegedActionException e) {
+                throw (IOException) e.getCause();
+            }
+            stream.reset();
+            return stream;
         });
     }
 
@@ -118,7 +119,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
             // that should be fixed there, no need to bring truncation into this, give the user an error.
             EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
-            CreateOpts[] opts = { CreateOpts.bufferSize(bufferSize) };
+            CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
             try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
                 int bytesRead;
                 byte[] buffer = new byte[bufferSize];

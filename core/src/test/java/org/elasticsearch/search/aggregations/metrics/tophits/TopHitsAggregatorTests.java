@@ -130,7 +130,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         iw.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         Aggregation result = searchAndReduce(indexSearcher, query, builder, STRING_FIELD_TYPE);
         indexReader.close();

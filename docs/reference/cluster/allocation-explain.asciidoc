@@ -10,6 +10,7 @@ another node.  This API can be very useful when attempting to diagnose why
 a shard is unassigned or why a shard continues to remain on its current node
 when you might expect otherwise.
 
+[float]
 === Explain API Request
 
 To explain the allocation of a shard, issue a request:
@@ -51,6 +52,7 @@ shard that it finds by sending an empty body for the request:
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain'
 --------------------------------------------------
 
+[float]
 === Explain API Response
 
 This section includes examples of the cluster allocation explain API response output

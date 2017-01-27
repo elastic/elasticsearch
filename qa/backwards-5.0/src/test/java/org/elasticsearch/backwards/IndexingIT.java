@@ -176,7 +176,7 @@ public class IndexingIT extends ESRestTestCase {
             final Node node = nodes.getSafe(nodeId);
             final SeqNoStats seqNoStats;
             if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-                Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max");
+                Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
                 Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
                 Integer globalCheckpoint = ObjectPath.evaluate(shard, "seq_no.global_checkpoint");
                 seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);

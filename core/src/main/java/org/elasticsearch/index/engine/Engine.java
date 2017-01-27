@@ -379,6 +379,7 @@ public abstract class Engine implements Closeable {
         void freeze() {
             freeze.set(true);
         }
+
     }
 
     public static class IndexResult extends Result {

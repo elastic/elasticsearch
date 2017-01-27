@@ -21,6 +21,10 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -160,5 +164,14 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             assertTrue(e.getMessage(), e.getMessage().contains(".yaml"));
             assertTrue(e.getMessage(), e.getMessage().contains(".properties"));
         }
+    }
+
+    public void testSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "secret");
+        Settings input = Settings.builder().put(baseEnvSettings).setSecureSettings(secureSettings).build();
+        Environment env = InternalSettingsPreparer.prepareEnvironment(input, null);
+        Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null, false);
+        assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
 }

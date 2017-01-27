@@ -492,6 +492,11 @@ for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPT
 ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
 ---------------------------------------------------------------------------
 
+On Windows:
+---------------------------------------------------------------------------
+cmd /V /C "set ES_JAVA_OPTS=-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y && bin\elasticsearch.bat"
+---------------------------------------------------------------------------
+
 Read your IDE documentation for how to attach a debugger to a JVM process.
 
 == Building with extra plugins

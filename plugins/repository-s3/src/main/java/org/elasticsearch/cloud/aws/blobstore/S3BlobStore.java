@@ -50,8 +50,6 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final String bucket;
 
-    private final String region;
-
     private final ByteSizeValue bufferSize;
 
     private final boolean serverSideEncryption;
@@ -62,12 +60,11 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
+    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
                        ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
-        this.region = region;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
@@ -80,35 +77,16 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
         SocketAccess.doPrivilegedVoid(() -> {
-            int retry = 0;
-            while (retry <= maxRetries) {
-                try {
-                    if (!client.doesBucketExist(bucket)) {
-                        CreateBucketRequest request;
-                        if (region != null) {
-                            request = new CreateBucketRequest(bucket, region);
-                        } else {
-                            request = new CreateBucketRequest(bucket);
-                        }
-                        request.setCannedAcl(this.cannedACL);
-                        client.createBucket(request);
-                    }
-                    break;
-                } catch (AmazonClientException e) {
-                    if (shouldRetry(e) && retry < maxRetries) {
-                        retry++;
-                    } else {
-                        logger.debug("S3 client create bucket failed");
-                        throw e;
-                    }
-                }
+            if (client.doesBucketExist(bucket) == false) {
+                throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
+                                                   " creating an s3 snapshot repository backed by it.");
             }
         });
     }
 
     @Override
     public String toString() {
-        return (region == null ? "" : region + "/") + bucket;
+        return bucket;
     }
 
     public AmazonS3 client() {

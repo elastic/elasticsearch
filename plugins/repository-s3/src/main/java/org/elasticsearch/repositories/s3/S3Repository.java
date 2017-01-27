@@ -359,9 +359,7 @@ public class S3Repository extends BlobStoreRepository {
             storageClass, pathStyleAccess);
 
         AmazonS3 client = s3Service.client(metadata.settings(), maxRetries, useThrottleRetries, pathStyleAccess);
-        String region = InternalAwsS3Service.getRegion(metadata.settings(), settings);
-        blobStore = new S3BlobStore(settings, client,
-                bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {

@@ -83,6 +83,8 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         while (retry <= maxRetries) {
             try {
                 if (!client.doesBucketExist(bucket)) {
+                    deprecationLogger.deprecated("Auto creation of the bucket for an s3 backed repository is deprecated" +
+                                                 " and will be removed in 6.0.");
                     CreateBucketRequest request = null;
                     if (region != null) {
                         request = new CreateBucketRequest(bucket, region);

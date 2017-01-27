@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
@@ -106,6 +107,7 @@ class ScrollDataExtractor implements DataExtractor {
         String[] sourceFields = context.extractedFields.getSourceFields();
         if (sourceFields.length == 0) {
             searchRequestBuilder.setFetchSource(false);
+            searchRequestBuilder.storedFields(StoredFieldsContext._NONE_);
         } else {
             searchRequestBuilder.setFetchSource(sourceFields, null);
         }

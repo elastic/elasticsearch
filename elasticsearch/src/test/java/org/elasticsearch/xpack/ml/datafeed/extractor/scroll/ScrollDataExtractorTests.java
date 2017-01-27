@@ -130,6 +130,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
                 "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false," +
                 "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
         assertThat(searchRequest, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
+        assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response.getScrollId()));

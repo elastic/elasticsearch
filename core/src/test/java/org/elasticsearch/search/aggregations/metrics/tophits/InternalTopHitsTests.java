@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
@@ -52,7 +50,6 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 
-@Repeat(iterations=1000)
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
     /**
      * Should the test instances look like they are sorted by some fields (true) or sorted by score (false). Set here because these need

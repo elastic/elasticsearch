@@ -42,8 +42,8 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Qu
                                     SearchRequest request, ActionListener<SearchResponse> listener,
                                     GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
                                     SearchTask task) {
-        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor, request, listener,
-            shardsIts, startTime, clusterStateVersion, task);
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
+            request, listener, shardsIts, startTime, clusterStateVersion, task);
     }
 
     @Override

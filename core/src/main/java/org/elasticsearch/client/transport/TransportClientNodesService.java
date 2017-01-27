@@ -460,10 +460,16 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
             final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
             final ConcurrentMap<DiscoveryNode, ClusterStateResponse> clusterStateResponses = ConcurrentCollections.newConcurrentMap();
-            List<Transport.Connection> connectionsToClose = Collections.synchronizedList(new ArrayList<>());
             try {
                 for (final DiscoveryNode nodeToPing : nodesToPing) {
                     threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+
+                        Transport.Connection connectionToClose = null;
+
+                        @Override
+                        public void onAfter() {
+                            IOUtils.closeWhileHandlingException(connectionToClose);
+                        }
 
                         @Override
                         public void onFailure(Exception e) {
@@ -491,8 +497,8 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                             }
                             if (pingConnection == null) {
                                 logger.trace("connecting to cluster node [{}]", nodeToPing);
-                                pingConnection = transportService.openConnection(nodeToPing, LISTED_NODES_PROFILE);
-                                connectionsToClose.add(pingConnection);
+                                connectionToClose = transportService.openConnection(nodeToPing, LISTED_NODES_PROFILE);
+                                pingConnection = connectionToClose;
                             }
                             transportService.sendRequest(pingConnection, ClusterStateAction.NAME,
                                 Requests.clusterStateRequest().clear().nodes(true).local(true),
@@ -531,8 +537,6 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 latch.await();
             } catch (InterruptedException e) {
                 return;
-            } finally {
-                IOUtils.closeWhileHandlingException(connectionsToClose);
             }
 
             HashSet<DiscoveryNode> newNodes = new HashSet<>();

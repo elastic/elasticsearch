@@ -189,7 +189,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
-        NodesToAllocate nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult, unassignedShard, false);
+        NodesToAllocate nodesToAllocate = buildNodesToAllocate(
+            allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, false
+        );
         DiscoveryNode node = null;
         String allocationId = null;
         boolean throttled = false;
@@ -202,7 +204,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         } else if (nodesToAllocate.throttleNodeShards.isEmpty() && !nodesToAllocate.noNodeShards.isEmpty()) {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
             // can be force-allocated to one of the nodes.
-            nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult, unassignedShard, true);
+            nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, true);
             if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
                 final DecidedNode decidedNode = nodesToAllocate.yesNodeShards.get(0);
                 final NodeGatewayStartedShards nodeShardState = decidedNode.nodeShardState;
@@ -387,13 +389,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * Split the list of node shard states into groups yes/no/throttle based on allocation deciders
      */
     private NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
-                                                 NodeShardsResult nodeShardsResult,
+                                                 List<NodeGatewayStartedShards> nodeShardStates,
                                                  ShardRouting shardRouting,
                                                  boolean forceAllocate) {
         List<DecidedNode> yesNodeShards = new ArrayList<>();
         List<DecidedNode> throttledNodeShards = new ArrayList<>();
         List<DecidedNode> noNodeShards = new ArrayList<>();
-        for (NodeGatewayStartedShards nodeShardState : nodeShardsResult.orderedAllocationCandidates) {
+        for (NodeGatewayStartedShards nodeShardState : nodeShardStates) {
             RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().getId());
             if (node == null) {
                 continue;

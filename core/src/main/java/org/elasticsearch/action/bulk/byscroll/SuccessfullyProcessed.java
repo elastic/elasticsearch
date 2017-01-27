@@ -17,16 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
-public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
-
-    protected ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+/**
+ * Implemented by {@link BulkByScrollTask} and {@link BulkByScrollTask.Status} to consistently implement
+ * {@link #getSuccessfullyProcessed()}.
+ */
+public interface SuccessfullyProcessed {
+    /**
+     * Total number of successfully processed documents.
+     */
+    default long getSuccessfullyProcessed() {
+        return getUpdated() + getCreated() + getDeleted();
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
+    /**
+     * Count of documents updated.
+     */
+    long getUpdated();
+    /**
+     * Count of documents created.
+     */
+    long getCreated();
+    /**
+     * Count of successful delete operations.
+     */
+    long getDeleted();
 }

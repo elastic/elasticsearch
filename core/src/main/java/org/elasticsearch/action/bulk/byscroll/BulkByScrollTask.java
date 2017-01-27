@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -51,15 +51,14 @@ public abstract class BulkByScrollTask extends CancellableTask {
 
     /**
      * The number of sub-slices that are still running. {@link WorkingBulkByScrollTask} will always have 0 and
-     * {@link ParentBulkByScrollTask} will return the number of waiting tasks. Used by {@link TransportRethrottleAction} to decide how to
-     * perform the rethrottling.
+     * {@link ParentBulkByScrollTask} will return the number of waiting tasks. Used to decide how to perform rethrottling.
      */
-    abstract int runningSliceSubTasks();
+    public abstract int runningSliceSubTasks();
 
     /**
      * Apply the {@code newRequestsPerSecond}.
      */
-    abstract void rethrottle(float newRequestsPerSecond);
+    public abstract void rethrottle(float newRequestsPerSecond);
 
     /*
      * Overridden to force children to return compatible status.

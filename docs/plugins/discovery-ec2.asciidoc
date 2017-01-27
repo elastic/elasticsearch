@@ -148,7 +148,11 @@ cloud.aws.read_timeout: 30s
 ==== EC2 Discovery
 
 ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast
-environments). Here is a simple sample configuration:
+environments).
+
+Note that ec2 discovery plugin expects your node running on default 9300 port.
+
+Here is a simple sample configuration:
 
 [source,yaml]
 ----

@@ -1466,42 +1466,42 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 });
 
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            DiscoveryNode node = service.getLocalNode();
             serviceA.close();
             serviceA = buildService("TS_A", version0, null,
                 Settings.EMPTY, true, false);
-            serviceA.connectToNode(node);
+            try (Transport.Connection connection = serviceA.openConnection(node, null)) {
+                CountDownLatch latch = new CountDownLatch(1);
+                serviceA.sendRequest(connection, "action", new TestRequest(), TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TestResponse>() {
+                    @Override
+                    public TestResponse newInstance() {
+                        return new TestResponse();
+                    }
 
-            CountDownLatch latch = new CountDownLatch(1);
-            serviceA.sendRequest(node, "action", new TestRequest(), new TransportResponseHandler<TestResponse>() {
-                @Override
-                public TestResponse newInstance() {
-                    return new TestResponse();
-                }
+                    @Override
+                    public void handleResponse(TestResponse response) {
+                        latch.countDown();
+                    }
 
-                @Override
-                public void handleResponse(TestResponse response) {
-                    latch.countDown();
-                }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        latch.countDown();
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    latch.countDown();
-                }
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+                });
 
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-            });
+                assertFalse(requestProcessed.get());
 
-            assertFalse(requestProcessed.get());
+                service.acceptIncomingRequests();
+                assertBusy(() -> assertTrue(requestProcessed.get()));
 
-            service.acceptIncomingRequests();
-            assertBusy(() -> assertTrue(requestProcessed.get()));
-
-            latch.await();
+                latch.await();
+            }
         }
     }
 
@@ -1780,12 +1780,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
                 Settings.EMPTY, true, false)) {
-                service.connectToNode(first, builder.build());
+                IOUtils.close(service.openConnection(first, builder.build()));
                 builder.setConnectTimeout(TimeValue.timeValueMillis(1));
                 final ConnectionProfile profile = builder.build();
                 // now with the 1ms timeout we got and test that is it's applied
                 long startTime = System.nanoTime();
-                ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> service.connectToNode(second, profile));
+                ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> service.openConnection(second, profile));
                 final long now = System.nanoTime();
                 final long timeTaken = TimeValue.nsecToMSec(now - startTime);
                 assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
@@ -1866,12 +1866,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            serviceA.connectToNode(node);
-            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
-            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
+             TcpTransport.NodeChannels connection = originalTransport.openConnection(
+                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
+                 null
+             ) ) {
+            Version version = originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
                 TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
         }

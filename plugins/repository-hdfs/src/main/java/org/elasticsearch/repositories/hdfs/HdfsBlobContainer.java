@@ -140,6 +140,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         return listBlobsByPrefix(null);
     }
 
+    /**
+     * Exists to wrap underlying InputStream methods that might make socket connections in
+     * doPrivileged blocks. This is due to the way that hdfs client libraries might open
+     * socket connections when you are reading from an InputStream.
+     */
     private static class HDFSPrivilegedInputSteam extends FilterInputStream {
 
         HDFSPrivilegedInputSteam(InputStream in) {

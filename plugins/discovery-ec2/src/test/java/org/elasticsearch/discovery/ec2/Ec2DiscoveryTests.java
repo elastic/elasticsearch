@@ -133,8 +133,8 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
-        for (int i = 0; i < nodes; i++) {
-            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
+        for (int node = 1; node < nodes + 1; node++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + node, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
             .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
@@ -152,8 +152,8 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
-        for (int i = 0; i < nodes; i++) {
-            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
+        for (int node = 1; node < nodes + 1; node++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + node, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
             .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
@@ -171,9 +171,8 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
-        for (int i = 0; i < nodes; i++) {
-            String instanceId = "node" + (i+1);
-            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId +
+        for (int node = 1; node < nodes + 1; node++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_DNS + "node" + node +
                 AmazonEC2Mock.SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
@@ -194,9 +193,8 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
-        for (int i = 0; i < nodes; i++) {
-            String instanceId = "node" + (i+1);
-            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId
+        for (int node = 1; node < nodes + 1; node++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_DNS + "node" + node
                 + AmazonEC2Mock.SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
         }
         Settings nodeSettings = Settings.builder()
@@ -283,13 +281,10 @@ public class Ec2DiscoveryTests extends ESTestCase {
     }
 
     public void testReadHostFromTag() throws InterruptedException, UnknownHostException {
-        int nodes = 2;//randomIntBetween(5, 10);
+        int nodes = randomIntBetween(5, 10);
 
-        String[] addresses = new String[nodes];
-
-        for (int node = 0; node < nodes; node++) {
-            addresses[node] = "192.168.0." + (node + 1);
-            poorMansDNS.put("node" + (node + 1), new InetSocketTransportAddress(InetAddress.getByName(addresses[node]), 9300));
+        for (int node = 1; node < nodes + 1; node++) {
+            poorMansDNS.put("node" + node, new InetSocketTransportAddress(InetAddress.getByName("192.168.0." + node), 9300));
         }
 
         Settings nodeSettings = Settings.builder()
@@ -298,9 +293,9 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
         List<List<Tag>> tagsList = new ArrayList<>();
 
-        for (int node = 0; node < nodes; node++) {
+        for (int node = 1; node < nodes + 1; node++) {
             List<Tag> tags = new ArrayList<>();
-            tags.add(new Tag("foo", "node" + (node + 1)));
+            tags.add(new Tag("foo", "node" + node));
             tagsList.add(tags);
         }
 

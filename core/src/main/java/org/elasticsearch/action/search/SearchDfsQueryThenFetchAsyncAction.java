@@ -39,9 +39,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
-
-    protected final SearchPhaseController searchPhaseController;
+final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
     SearchDfsQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                        Function<String, Transport.Connection> nodeIdToConnection,
@@ -49,9 +47,8 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
                                        SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
                                        long clusterStateVersion, SearchTask task) {
-        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
-        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
@@ -71,7 +68,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             (queryResults) -> new FetchPhase(queryResults, searchPhaseController));
     }
 
-    private class DfsQueryPhase implements CheckedRunnable<Exception> {
+    private final class DfsQueryPhase implements CheckedRunnable<Exception> {
         private final AtomicArray<QuerySearchResultProvider> queryResult;
         private final SearchPhaseController searchPhaseController;
         private final AtomicArray<DfsSearchResult> firstResults;

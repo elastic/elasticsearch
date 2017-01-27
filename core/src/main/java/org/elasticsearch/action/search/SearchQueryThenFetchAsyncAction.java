@@ -33,8 +33,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
-    private final SearchPhaseController searchPhaseController;
+final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
 
     SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                     Function<String, Transport.Connection> nodeIdToConnection,
@@ -43,9 +42,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
                                     SearchRequest request, ActionListener<SearchResponse> listener,
                                     GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
                                     SearchTask task) {
-        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request, listener,
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor, request, listener,
             shardsIts, startTime, clusterStateVersion, task);
-        this.searchPhaseController = searchPhaseController;
     }
 
     @Override

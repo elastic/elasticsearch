@@ -21,25 +21,19 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
-
-    private final SearchPhaseController searchPhaseController;
+final class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
     SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                    Function<String, Transport.Connection> nodeIdToConnection,
@@ -48,9 +42,8 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
                                    SearchRequest request, ActionListener<SearchResponse> listener,
                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
                                    SearchTask task) {
-        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
-        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
@@ -66,6 +59,6 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
 
     @Override
     protected CheckedRunnable<Exception> getNextPhase(AtomicArray<QueryFetchSearchResult> initialResults) {
-        return () -> sendResponseAsync(searchPhaseController, null, initialResults, initialResults);
+        return () -> sendResponseAsync("fetch", searchPhaseController, null, initialResults, initialResults);
     }
 }

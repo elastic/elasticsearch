@@ -49,15 +49,13 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.stream.Collectors;
 
 
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
@@ -70,6 +68,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected final SearchRequest request;
     /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
     protected final Function<String, Transport.Connection> nodeIdToConnection;
+    protected final SearchPhaseController searchPhaseController;
     protected final SearchTask task;
     private final int expectedSuccessfulOps;
     private final int expectedTotalOps;
@@ -85,10 +84,12 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                         Function<String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                        Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
-                                        GroupShardsIterator shardsIts, long startTime, long clusterStateVersion, SearchTask task) {
+                                        SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
+                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
+                                        long clusterStateVersion, SearchTask task) {
         super(startTime);
         this.logger = logger;
+        this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
         this.request = request;
@@ -441,47 +442,37 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
             final IntConsumer finishPhase =  successOpts
-                -> sendResponseAsync(searchPhaseController, sortedShardDocs, queryResults, fetchResults);
-            List<QuerySearchResult> resultToRelease = Collections.emptyList();
-            try {
-                if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
-                    resultToRelease = queryResults.asList().stream().map(e -> e.value.queryResult()).collect(Collectors.toList());
-                    finishPhase.accept(successfulOps.get());
-                } else {
-                    resultToRelease = new ArrayList<>();
-                    final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
-                        searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
-                        : null;
-                    final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
-                        docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                        finishPhase);
-                    for (int i = 0; i < docIdsToLoad.length; i++) {
-                        IntArrayList entry = docIdsToLoad[i];
-                        QuerySearchResultProvider queryResult = queryResults.get(i);
-                        if (entry == null) { // no results for this shard ID
-                            if (queryResult != null) {  // if we got some hits from this shard we have to release the context there
-                                resultToRelease.add(queryResult.queryResult());
-                            }
-                            // in any case we count down this result since we don't talk to this shard anymore
-                            counter.countDown();
-                        } else {
-                            Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                            ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
-                                lastEmittedDocPerShard);
-                            executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
-                                connection);
+                -> sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, fetchResults);
+            if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+                queryResults.asList().stream().filter(Objects::nonNull).map(e -> e.value.queryResult())
+                    .forEach(this::releaseIrrelevantSearchContext);
+                finishPhase.accept(successfulOps.get());
+            } else {
+                final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
+                    searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
+                    : null;
+                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
+                    docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
+                    finishPhase);
+                for (int i = 0; i < docIdsToLoad.length; i++) {
+                    IntArrayList entry = docIdsToLoad[i];
+                    QuerySearchResultProvider queryResult = queryResults.get(i);
+                    if (entry == null) { // no results for this shard ID
+                        if (queryResult != null && mustReleaseContext(queryResult.queryResult())) {
+                            // if we got some hits from this shard we have to release the context there
+                            // we do this as we go since it will free up resources and passing on the request on the
+                            // transport layer is cheap.
+                            releaseIrrelevantSearchContext(queryResult.queryResult());
                         }
+                        // in any case we count down this result since we don't talk to this shard anymore
+                        counter.countDown();
+                    } else {
+                        Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
+                        ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
+                            lastEmittedDocPerShard);
+                        executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
+                            connection);
                     }
-                }
-            } finally {
-                final List<QuerySearchResult> finalResultToRelease = resultToRelease;
-                if (resultToRelease.isEmpty() == false) {
-                    getExecutor().execute(() -> {
-                        // now release all search contexts for the shards we don't fetch results for
-                        for (QuerySearchResult toRelease : finalResultToRelease) {
-                            releaseIrrelevantSearchContext(toRelease);
-                        }
-                    });
                 }
             }
         }
@@ -508,26 +499,29 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                         // the search context might not be cleared on the node where the fetch was executed for example
                         // because the action was rejected by the thread pool. in this case we need to send a dedicated
                         // request to clear the search context.
-                        releaseIrrelevantSearchContext(querySearchResult);
+                        if (mustReleaseContext(querySearchResult)) {
+                            releaseIrrelevantSearchContext(querySearchResult);
+                        }
                     }
                 }
             });
+        }
+
+        private boolean mustReleaseContext(QuerySearchResult queryResult) {
+            // we only release search context that we did not fetch from if we are not scrolling
+            // and if it has at lease one hit that didn't make it to the global topDocs
+            return  request.scroll() == null && queryResult.hasHits();
         }
 
         /**
          * Releases shard targets that are not used in the docsIdsToLoad.
          */
         private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
-            // we only release search context that we did not fetch from if we are not scrolling
-            if (request.scroll() == null) {
-                if (queryResult.hasHits()) { // but none of them made it to the global top docs
-                    try {
-                        Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                        sendReleaseSearchContext(queryResult.id(), connection);
-                    } catch (Exception e) {
-                        logger.trace("failed to release context", e);
-                    }
-                }
+            try {
+                Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
+                sendReleaseSearchContext(queryResult.id(), connection);
+            } catch (Exception e) {
+                logger.trace("failed to release context", e);
             }
         }
     }
@@ -536,7 +530,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
      * Sends back a result to the user. This method will create the sorted docs if they are null and will build the scrollID for the
      * response. Note: This method will send the response in a different thread depending on the executor.
      */
-    final void sendResponseAsync(SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
+    final void sendResponseAsync(String phase, SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
                                   AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
                                   AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
         getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
@@ -554,7 +548,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
             @Override
             public void onFailure(Exception e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException(phase, "", e, buildShardFailures());
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to reduce search", failure);
                 }

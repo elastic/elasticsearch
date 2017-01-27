@@ -555,7 +555,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
+                logger.trace("index [{}][{}] (seq# [{}], source {})",
+                    index.type(), index.id(), index.seqNo(), index.source().utf8ToString());
             }
             result = engine.index(index);
         } catch (Exception e) {
@@ -604,7 +605,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("delete [{}]", delete.uid().text());
+                logger.trace("delete [{}] (seq no [{}])", delete.uid().text(), delete.seqNo());
             }
             result = engine.delete(delete);
         } catch (Exception e) {

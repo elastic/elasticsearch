@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -34,6 +33,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -125,6 +125,9 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
      * Sequence-number-based recovery on this replica has to wait until these in-flight operations complete to proceed. We verify at the end
      * of recovery that a file-based recovery was not completed, and that the expected number of operations was replayed via the translog.
      */
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
     public void testRecoveryWaitsForOps() throws Exception {
         final int docs = randomIntBetween(1, 64);
         try {

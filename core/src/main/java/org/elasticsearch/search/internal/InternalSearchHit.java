@@ -49,6 +49,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -809,6 +810,31 @@ public class InternalSearchHit implements SearchHit {
                 entry.getValue().writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalSearchHit other = (InternalSearchHit) obj;
+        return Objects.equals(id, other.id)
+                && Objects.equals(type, other.type)
+                && Objects.equals(nestedIdentity, other.nestedIdentity)
+                && Objects.equals(version, other.version)
+                && Objects.equals(source, other.source)
+                && Objects.equals(fields, other.fields)
+                && Objects.equals(highlightFields(), other.highlightFields())
+                && Arrays.equals(matchedQueries, other.matchedQueries)
+                && Objects.equals(explanation, other.explanation)
+                && Objects.equals(shard, other.shard)
+                && Objects.equals(innerHits, other.innerHits);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, type, nestedIdentity, version, source, fields, highlightFields(), Arrays.hashCode(matchedQueries),
+                explanation, shard, innerHits);
     }
 
     public static final class InternalNestedIdentity implements NestedIdentity, Writeable, ToXContent {

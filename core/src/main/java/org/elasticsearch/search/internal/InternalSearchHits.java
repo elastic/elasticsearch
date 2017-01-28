@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
@@ -207,5 +208,21 @@ public class InternalSearchHits implements SearchHits {
                 hit.writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalSearchHits other = (InternalSearchHits) obj;
+        return Objects.equals(totalHits, other.totalHits)
+                && Objects.equals(maxScore, other.maxScore)
+                && Arrays.equals(hits, other.hits);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits));
     }
 }

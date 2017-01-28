@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -84,6 +86,14 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     @Override
     public SearchHits getHits() {
         return searchHits;
+    }
+
+    TopDocs getTopDocs() {
+        return topDocs;
+    }
+
+    int getSize() {
+        return size;
     }
 
     @Override
@@ -144,5 +154,51 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         searchHits.toXContent(builder, params);
         return builder;
+    }
+
+    // Equals and hashcode implemented for testing round trips
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalTopHits other = (InternalTopHits) obj;
+        if (from != other.from) return false;
+        if (size != other.size) return false;
+        if (topDocs.totalHits != other.topDocs.totalHits) return false;
+        if (topDocs.scoreDocs.length != other.topDocs.scoreDocs.length) return false;
+        for (int d = 0; d < topDocs.scoreDocs.length; d++) {
+            ScoreDoc thisDoc = topDocs.scoreDocs[d];
+            ScoreDoc otherDoc = other.topDocs.scoreDocs[d];
+            if (thisDoc.doc != otherDoc.doc) return false;
+            if (thisDoc.score != otherDoc.score) return false;
+            if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
+            if (thisDoc instanceof FieldDoc) {
+                if (false == (otherDoc instanceof FieldDoc)) return false;
+                FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
+                FieldDoc otherFieldDoc = (FieldDoc) otherDoc;
+                if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) return false;
+                for (int f = 0; f < thisFieldDoc.fields.length; f++) {
+                    if (false == thisFieldDoc.fields[f].equals(otherFieldDoc.fields[f])) return false;
+                }
+            }
+        }
+        return searchHits.equals(other.searchHits);
+    }
+
+    @Override
+    protected int doHashCode() {
+        int hashCode = from;
+        hashCode = 31 * hashCode + size;
+        hashCode = 31 * hashCode + topDocs.totalHits;
+        for (int d = 0; d < topDocs.scoreDocs.length; d++) {
+            ScoreDoc doc = topDocs.scoreDocs[d];
+            hashCode = 31 * hashCode + doc.doc;
+            hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
+            hashCode = 31 * hashCode + doc.shardIndex;
+            if (doc instanceof FieldDoc) {
+                FieldDoc fieldDoc = (FieldDoc) doc;
+                hashCode = 31 * hashCode + Arrays.hashCode(fieldDoc.fields);
+            }
+        }
+        hashCode = 31 * hashCode + searchHits.hashCode();
+        return hashCode;
     }
 }

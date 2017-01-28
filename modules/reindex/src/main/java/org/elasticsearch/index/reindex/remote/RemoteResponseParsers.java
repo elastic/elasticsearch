@@ -20,6 +20,10 @@
 package org.elasticsearch.index.reindex.remote;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.BasicHit;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -30,10 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 
 import java.io.IOException;
 import java.util.List;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
@@ -111,7 +112,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(workers)));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), response.getCreated());
     }

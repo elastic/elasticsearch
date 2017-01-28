@@ -128,6 +128,8 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
     @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
+    @AwaitsFix(bugUrl =
+        "boaz is looking into failures: https://elasticsearch-ci.elastic.co/job/elastic+elasticsearch+master+java9-periodic/1545")
     public void testRecoveryWaitsForOps() throws Exception {
         final int docs = randomIntBetween(1, 64);
         try {

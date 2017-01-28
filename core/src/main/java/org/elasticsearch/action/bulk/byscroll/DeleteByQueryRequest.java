@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -79,7 +79,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
-    DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+    protected DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice) {
         return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask);
     }
 

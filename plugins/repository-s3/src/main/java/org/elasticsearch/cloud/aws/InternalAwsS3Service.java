@@ -19,41 +19,36 @@
 
 package org.elasticsearch.cloud.aws;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.s3.S3Repository;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
-
 public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
+
+    // pkg private for tests
+    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     /**
      * (acceskey, endpoint) -&gt; client
@@ -65,11 +60,12 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     }
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
-                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
-        String foundEndpoint = findEndpoint(logger, settings, endpoint, region);
+    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
+                                              boolean useThrottleRetries, Boolean pathStyleAccess) {
+        String clientName = CLIENT_NAME.get(repositorySettings);
+        String foundEndpoint = findEndpoint(logger, repositorySettings, settings, clientName);
 
-        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings);
+        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings, clientName);
 
         Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, credentials.getCredentials().getAWSAccessKeyId());
         AmazonS3Client client = clients.get(clientDescriptor);
@@ -79,7 +75,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
         client = new AmazonS3Client(
             credentials,
-            buildConfiguration(logger, settings, protocol, maxRetries, foundEndpoint, useThrottleRetries));
+            buildConfiguration(logger, repositorySettings, settings, clientName, maxRetries, foundEndpoint, useThrottleRetries));
 
         if (pathStyleAccess != null) {
             client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
@@ -93,19 +89,27 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return client;
     }
 
-    public static ClientConfiguration buildConfiguration(Logger logger, Settings settings, Protocol protocol, Integer maxRetries,
-                                                         String endpoint, boolean useThrottleRetries) {
+    // pkg private for tests
+    static ClientConfiguration buildConfiguration(Logger logger, Settings repositorySettings, Settings settings,
+                                                         String clientName, Integer maxRetries, String endpoint,
+                                                         boolean useThrottleRetries) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
+        Protocol protocol = getConfigValue(repositorySettings, settings, clientName, S3Repository.PROTOCOL_SETTING,
+                                           S3Repository.Repository.PROTOCOL_SETTING, S3Repository.Repositories.PROTOCOL_SETTING);
         clientConfiguration.setProtocol(protocol);
 
-        String proxyHost = CLOUD_S3.PROXY_HOST_SETTING.get(settings);
+        String proxyHost = getConfigValue(null, settings, clientName,
+                                          S3Repository.PROXY_HOST_SETTING, null, CLOUD_S3.PROXY_HOST_SETTING);
         if (Strings.hasText(proxyHost)) {
-            Integer proxyPort = CLOUD_S3.PROXY_PORT_SETTING.get(settings);
-            try (SecureString proxyUsername = CLOUD_S3.PROXY_USERNAME_SETTING.get(settings);
-                 SecureString proxyPassword = CLOUD_S3.PROXY_PASSWORD_SETTING.get(settings)) {
+            Integer proxyPort = getConfigValue(null, settings, clientName,
+                                               S3Repository.PROXY_PORT_SETTING, null, CLOUD_S3.PROXY_PORT_SETTING);
+            try (SecureString proxyUsername = getConfigValue(null, settings, clientName,
+                                                             S3Repository.PROXY_USERNAME_SETTING, null, CLOUD_S3.PROXY_USERNAME_SETTING);
+                 SecureString proxyPassword = getConfigValue(null, settings, clientName,
+                                                             S3Repository.PROXY_PASSWORD_SETTING, null, CLOUD_S3.PROXY_PASSWORD_SETTING)) {
 
                 clientConfiguration
                     .withProxyHost(proxyHost)
@@ -128,35 +132,24 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
         }
 
-        clientConfiguration.setSocketTimeout((int) CLOUD_S3.READ_TIMEOUT.get(settings).millis());
+        TimeValue readTimeout = getConfigValue(null, settings, clientName,
+                                               S3Repository.READ_TIMEOUT_SETTING, null, CLOUD_S3.READ_TIMEOUT);
+        clientConfiguration.setSocketTimeout((int)readTimeout.millis());
 
         return clientConfiguration;
     }
 
     public static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                          Settings settings, Settings repositorySettings) {
+                                                          Settings settings, Settings repositorySettings, String clientName) {
         AWSCredentialsProvider credentials;
-        try (SecureString key = getValue(repositorySettings, settings,
-                                         S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-             SecureString secret = getValue(repositorySettings, settings,
-                                            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
+        try (SecureString key = getConfigValue(repositorySettings, settings, clientName, S3Repository.ACCESS_KEY_SETTING,
+                                               S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
+             SecureString secret = getConfigValue(repositorySettings, settings, clientName, S3Repository.SECRET_KEY_SETTING,
+                                                  S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
 
             if (key.length() == 0 && secret.length() == 0) {
-                // create a "manual" chain of providers here, so we can log deprecation of unsupported methods
-                AWSCredentials envCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                    new EnvironmentVariableCredentialsProvider(), "environment variables");
-                if (envCredentials != null) {
-                    credentials = new StaticCredentialsProvider(envCredentials);
-                } else {
-                    AWSCredentials syspropCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                        new SystemPropertiesCredentialsProvider(), "system properties");
-                    if (syspropCredentials != null) {
-                        credentials = new StaticCredentialsProvider(syspropCredentials);
-                    } else {
-                        logger.debug("Using instance profile credentials");
-                        credentials = new InstanceProfileCredentialsProvider();
-                    }
-                }
+                logger.debug("Using instance profile credentials");
+                credentials = new InstanceProfileCredentialsProvider();
             } else {
                 logger.debug("Using basic key/secret credentials");
                 credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
@@ -166,24 +159,12 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return credentials;
     }
 
-    /** Return credentials from the given provider, or null if full credentials are not available */
-    private static AWSCredentials getDeprecatedCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                           AWSCredentialsProvider provider, String description) {
-        try {
-            AWSCredentials credentials = provider.getCredentials();
-            if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
-                logger.debug("Using " + description + " credentials");
-                deprecationLogger.deprecated("Supplying S3 credentials through " + description + " is deprecated. " +
-                    "See the breaking changes lists in the documentation for details.");
-                return credentials;
-            }
-        } catch (Exception e) {
-            logger.debug("Failed to get aws credentials from " + description, e);
-        }
-        return null;
-    }
-
-    protected static String findEndpoint(Logger logger, Settings settings, String endpoint, String region) {
+    // pkg private for tests
+    /** Returns the endpoint the client should use, based on the available endpoint settings found. */
+    static String findEndpoint(Logger logger, Settings repositorySettings, Settings settings, String clientName) {
+        String region = getRegion(repositorySettings, settings);
+        String endpoint = getConfigValue(repositorySettings, settings, clientName, S3Repository.ENDPOINT_SETTING,
+                                         S3Repository.Repository.ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING);
         if (Strings.isNullOrEmpty(endpoint)) {
             logger.debug("no repository level endpoint has been defined. Trying to guess from repository region [{}]", region);
             if (!region.isEmpty()) {
@@ -205,6 +186,14 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return endpoint;
+    }
+
+    /**
+     * Return the region configured, or empty string.
+     * TODO: remove after https://github.com/elastic/elasticsearch/issues/22761 */
+    public static String getRegion(Settings repositorySettings, Settings settings) {
+        return getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
+                              S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
     }
 
     private static String getEndpoint(String region) {
@@ -274,6 +263,23 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return endpoint;
+    }
+
+    /**
+     * Find the setting value, trying first with named configs,
+     * then falling back to repository and global repositories settings.
+     */
+    private static <T> T getConfigValue(Settings repositorySettings, Settings globalSettings, String clientName,
+                                        Setting.AffixSetting<T> configSetting, Setting<T> repositorySetting, Setting<T> globalSetting) {
+        Setting<T> concreteSetting = configSetting.getConcreteSettingForNamespace(clientName);
+        if (concreteSetting.exists(globalSettings)) {
+            return concreteSetting.get(globalSettings);
+        } else if (repositorySetting == null) {
+            // no repository setting, just use global setting
+            return globalSetting.get(globalSettings);
+        } else {
+            return S3Repository.getValue(repositorySettings, globalSettings, repositorySetting, globalSetting);
+        }
     }
 
     @Override

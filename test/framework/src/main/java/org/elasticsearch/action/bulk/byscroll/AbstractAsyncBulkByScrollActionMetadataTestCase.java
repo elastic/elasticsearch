@@ -17,20 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.action.bulk.byscroll;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkByScrollResponse>
+        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
-public class EnvironmentCredentialsTests extends ESTestCase {
-
-    public void test() {
-        AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY);
-        // NOTE: env vars are setup by the test runner in gradle
-        assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
-        assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through environment variables is deprecated");
+    protected ScrollableHitSource.BasicHit doc() {
+        return new ScrollableHitSource.BasicHit("index", "type", "id", 0);
     }
+
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
 }

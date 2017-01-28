@@ -128,7 +128,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+    protected ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
         sliced.setRemoteInfo(remoteInfo);
         return sliced;

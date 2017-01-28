@@ -66,7 +66,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
                                               boolean useThrottleRetries, Boolean pathStyleAccess) {
         String clientName = CLIENT_NAME.get(repositorySettings);
-        String foundEndpoint = findEndpoint(logger, repositorySettings, settings, clientName);
+        String foundEndpoint = findEndpoint(logger, deprecationLogger, repositorySettings, settings, clientName);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings, clientName);
 
@@ -194,13 +194,16 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
     // pkg private for tests
     /** Returns the endpoint the client should use, based on the available endpoint settings found. */
-    static String findEndpoint(Logger logger, Settings repositorySettings, Settings settings, String clientName) {
+    static String findEndpoint(Logger logger, DeprecationLogger deprecationLogger, Settings repositorySettings,
+                               Settings settings, String clientName) {
         String region = getRegion(repositorySettings, settings);
         String endpoint = getConfigValue(repositorySettings, settings, clientName, S3Repository.ENDPOINT_SETTING,
                                          S3Repository.Repository.ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING);
         if (Strings.isNullOrEmpty(endpoint)) {
             logger.debug("no repository level endpoint has been defined. Trying to guess from repository region [{}]", region);
             if (!region.isEmpty()) {
+                deprecationLogger.deprecated("Specifying region for an s3 repository is deprecated. Use endpoint " +
+                                             " to specify the region endpoint if the default behavior is not sufficient.");
                 endpoint = getEndpoint(region);
                 logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
             } else {

@@ -371,6 +371,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings,
             "s3-eu-west-1.amazonaws.com");
+        assertWarnings("Specifying region for an s3 repository is deprecated");
     }
 
     public void testRegionSettingBackcompat() {
@@ -385,7 +386,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             settings, "repository.endpoint");
         assertWarnings("[" + InternalAwsS3Service.REGION_SETTING.getKey() + "] setting was deprecated",
                        "[" + S3Repository.Repository.REGION_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repository.ENDPOINT_SETTING.getKey() + "] setting was deprecated");
+                       "[" + S3Repository.Repository.ENDPOINT_SETTING.getKey() + "] setting was deprecated",
+                        "Specifying region for an s3 repository is deprecated");
     }
 
     public void testRegionAndEndpointSettingBackcompatPrecedence() {
@@ -402,7 +404,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertWarnings("[" + InternalAwsS3Service.REGION_SETTING.getKey() + "] setting was deprecated",
                        "[" + S3Repository.Repository.REGION_SETTING.getKey() + "] setting was deprecated",
                        "[" + InternalAwsS3Service.CLOUD_S3.REGION_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repository.ENDPOINT_SETTING.getKey() + "] setting was deprecated");
+                       "[" + S3Repository.Repository.ENDPOINT_SETTING.getKey() + "] setting was deprecated",
+                       "Specifying region for an s3 repository is deprecated");
     }
 
     public void testInvalidRegion() {
@@ -413,12 +416,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings, null);
         });
         assertThat(e.getMessage(), containsString("No automatic endpoint could be derived from region"));
+        assertWarnings("Specifying region for an s3 repository is deprecated");
     }
 
     private void assertEndpoint(Settings repositorySettings, Settings settings,
                                   String expectedEndpoint) {
         String configName = InternalAwsS3Service.CLIENT_NAME.get(repositorySettings);
-        String foundEndpoint = InternalAwsS3Service.findEndpoint(logger, repositorySettings, settings, configName);
+        String foundEndpoint = InternalAwsS3Service.findEndpoint(logger, deprecationLogger, repositorySettings, settings, configName);
         assertThat(foundEndpoint, is(expectedEndpoint));
     }
 

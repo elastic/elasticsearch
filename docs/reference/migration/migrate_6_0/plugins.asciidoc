@@ -8,6 +8,9 @@ You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.
 
 ==== S3 Repository plugin
 
+* The bucket an s3 repository is configured with will no longer be created automatically.
+It must exist before the s3 repository is created.
+
 * Support for specifying s3 credentials through environment variables and
 system properties has been removed. Use the `elasticsearch-keystore` tool
 to securely store the credentials.

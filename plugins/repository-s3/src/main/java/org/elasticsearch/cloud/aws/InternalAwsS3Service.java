@@ -162,7 +162,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     // pkg private for tests
     /** Returns the endpoint the client should use, based on the available endpoint settings found. */
     static String findEndpoint(Logger logger, Settings repositorySettings, Settings settings, String clientName) {
-        String region = getRegion(repositorySettings, settings);
+        String region = getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
+                                       S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
         String endpoint = getConfigValue(repositorySettings, settings, clientName, S3Repository.ENDPOINT_SETTING,
                                          S3Repository.Repository.ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING);
         if (Strings.isNullOrEmpty(endpoint)) {
@@ -186,14 +187,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return endpoint;
-    }
-
-    /**
-     * Return the region configured, or empty string.
-     * TODO: remove after https://github.com/elastic/elasticsearch/issues/22761 */
-    public static String getRegion(Settings repositorySettings, Settings settings) {
-        return getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
-                              S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
     }
 
     private static String getEndpoint(String region) {

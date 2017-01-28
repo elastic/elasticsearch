@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +31,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -77,8 +77,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
+import static org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -103,7 +103,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ParentTaskAssigningClient client;
-    private final ActionListener<BulkIndexByScrollResponse> listener;
+    private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
 
@@ -116,7 +116,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-            ActionListener<BulkIndexByScrollResponse> listener) {
+            ActionListener<BulkByScrollResponse> listener) {
         this.task = task;
         this.logger = logger;
         this.client = client;
@@ -143,8 +143,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     /**
      * Build the {@link BiFunction} to apply to all {@link RequestWrapper}.
+     *
+     * Public for testings....
      */
-    protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+    public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
@@ -215,9 +217,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Build the response for reindex actions.
      */
-    protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
+    protected BulkByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
                                                       List<SearchFailure> searchFailures, boolean timedOut) {
-        return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
     }
 
     /**
@@ -452,7 +454,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      *
      * @param failure if non null then the request failed catastrophically with this exception
      */
-    void finishHim(Exception failure) {
+    protected void finishHim(Exception failure) {
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
@@ -463,7 +465,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+    protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         scrollSource.close();
         if (failure == null) {
             listener.onResponse(
@@ -498,7 +500,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Wrapper for the {@link DocWriteRequest} that are used in this action class.
      */
-    interface RequestWrapper<Self extends DocWriteRequest<Self>> {
+    public interface RequestWrapper<Self extends DocWriteRequest<Self>> {
 
         void setIndex(String index);
 
@@ -628,7 +630,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Wraps a {@link IndexRequest} in a {@link RequestWrapper}
      */
-    static RequestWrapper<IndexRequest> wrap(IndexRequest request) {
+    public static RequestWrapper<IndexRequest> wrap(IndexRequest request) {
         return new IndexRequestWrapper(request);
     }
 

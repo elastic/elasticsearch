@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,17 +41,17 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 /**
  * Response used for actions that index many documents using a scroll request.
  */
-public class BulkIndexByScrollResponse extends ActionResponse implements ToXContent {
+public class BulkByScrollResponse extends ActionResponse implements ToXContent {
     private TimeValue took;
     private BulkByScrollTask.Status status;
     private List<Failure> bulkFailures;
     private List<SearchFailure> searchFailures;
     private boolean timedOut;
 
-    public BulkIndexByScrollResponse() {
+    public BulkByScrollResponse() {
     }
 
-    public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
+    public BulkByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
                                      List<SearchFailure> searchFailures, boolean timedOut) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
@@ -60,12 +60,12 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         this.timedOut = timedOut;
     }
 
-    public BulkIndexByScrollResponse(Iterable<BulkIndexByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
         long mergedTook = 0;
         List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();
-        for (BulkIndexByScrollResponse response : toMerge) {
+        for (BulkByScrollResponse response : toMerge) {
             mergedTook = max(mergedTook, response.getTook().nanos());
             statuses.add(new BulkByScrollTask.StatusOrException(response.status));
             bulkFailures.addAll(response.getBulkFailures());
@@ -80,7 +80,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         return took;
     }
 
-    protected BulkByScrollTask.Status getStatus() {
+    public BulkByScrollTask.Status getStatus() {
         return status;
     }
 

@@ -17,19 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
-
-import com.amazonaws.auth.AWSCredentialsProvider;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-
-public class SyspropCredentialsTests extends ESTestCase {
-    public void test() {
-        AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
-        // NOTE: sys props are setup by the test runner in gradle
-        assertEquals("sysprop_access", provider.getCredentials().getAWSAccessKeyId());
-        assertEquals("sysprop_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through system properties is deprecated");
-    }
-}
+/**
+ * Infrastructure for actions that modify documents based on the results of a scrolling query.
+ */
+package org.elasticsearch.action.bulk.byscroll;

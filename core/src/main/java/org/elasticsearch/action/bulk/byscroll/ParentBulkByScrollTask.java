@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,12 +35,12 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Task for parent bulk by scroll requests that have sub-workers.
  */
-class ParentBulkByScrollTask extends BulkByScrollTask {
+public class ParentBulkByScrollTask extends BulkByScrollTask {
     /**
      * Holds the responses as they come back. This uses {@link Tuple} as an "Either" style holder where only the response or the exception
      * is set.
      */
-    private final AtomicArray<Tuple<BulkIndexByScrollResponse, Exception>> results;
+    private final AtomicArray<Tuple<BulkByScrollResponse, Exception>> results;
     private final AtomicInteger counter;
 
     public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, int slices) {
@@ -50,7 +50,7 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
     }
 
     @Override
-    void rethrottle(float newRequestsPerSecond) {
+    public void rethrottle(float newRequestsPerSecond) {
         // Nothing to do because all rethrottling is done on slice sub tasks.
     }
 
@@ -63,7 +63,7 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
     }
 
     @Override
-    int runningSliceSubTasks() {
+    public int runningSliceSubTasks() {
         return counter.get();
     }
 
@@ -82,7 +82,7 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
     }
 
     private void addResultsToList(List<StatusOrException> sliceStatuses) {
-        for (AtomicArray.Entry<Tuple<BulkIndexByScrollResponse, Exception>> t : results.asList()) {
+        for (AtomicArray.Entry<Tuple<BulkByScrollResponse, Exception>> t : results.asList()) {
             if (t.value != null) {
                 if (t.value.v1() != null) {
                     sliceStatuses.set(t.index, new StatusOrException(t.value.v1().getStatus()));
@@ -96,7 +96,7 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
     /**
      * Record a response from a slice and respond to the listener if the request is finished.
      */
-    void onSliceResponse(ActionListener<BulkIndexByScrollResponse> listener, int sliceId, BulkIndexByScrollResponse response) {
+    public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
         results.setOnce(sliceId, new Tuple<>(response, null));
         /* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
          * were fairly sure they had a while left to go. */
@@ -106,19 +106,19 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
     /**
      * Record a failure from a slice and respond to the listener if the request is finished.
      */
-    void onSliceFailure(ActionListener<BulkIndexByScrollResponse> listener, int sliceId, Exception e) {
+    void onSliceFailure(ActionListener<BulkByScrollResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Tuple<>(null, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
         // TODO cancel when a slice fails?
     }
 
-    private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkIndexByScrollResponse> listener) {
+    private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
         if (counter.decrementAndGet() != 0) {
             return;
         }
-        List<BulkIndexByScrollResponse> responses = new ArrayList<>(results.length());
+        List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
-        for (AtomicArray.Entry<Tuple<BulkIndexByScrollResponse, Exception>> t : results.asList()) {
+        for (AtomicArray.Entry<Tuple<BulkByScrollResponse, Exception>> t : results.asList()) {
             if (t.value.v1() == null) {
                 assert t.value.v2() != null : "exception shouldn't be null if value is null";
                 if (exception == null) {
@@ -132,7 +132,7 @@ class ParentBulkByScrollTask extends BulkByScrollTask {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkIndexByScrollResponse(responses, getReasonCancelled()));
+            listener.onResponse(new BulkByScrollResponse(responses, getReasonCancelled()));
         } else {
             listener.onFailure(exception);
         }

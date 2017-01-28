@@ -199,10 +199,10 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
                 Supplier<Long> currentClusterStateVersionSupplier = () -> clusterService.state().getVersion();
                 if (shard.indexSettings().isOnSharedFilesystem()) {
                     handler = new SharedFSRecoverySourceHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
-                        this::delayNewRecoveries, logger);
+                        this::delayNewRecoveries, settings);
                 } else {
                     handler = new RecoverySourceHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
-                        this::delayNewRecoveries, recoverySettings.getChunkSize().bytesAsInt(), logger);
+                        this::delayNewRecoveries, recoverySettings.getChunkSize().bytesAsInt(), settings);
                 }
                 return handler;
             }

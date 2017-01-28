@@ -366,8 +366,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
-            if (seqNoStats.getMaxSeqNo() < seqNoStats.getGlobalCheckpoint()) {
-                return Math.min(seqNoStats.getLocalCheckpoint(), seqNoStats.getGlobalCheckpoint()) + 1;
+            if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
+                assert seqNoStats.getLocalCheckpoint() <= seqNoStats.getGlobalCheckpoint() :
+                    "local checkpoint is above global checkpoint " + seqNoStats;
+                return seqNoStats.getLocalCheckpoint() + 1;
             } else {
                 return SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }

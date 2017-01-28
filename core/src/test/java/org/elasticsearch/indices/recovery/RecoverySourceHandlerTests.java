@@ -94,7 +94,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
-            recoverySettings.getChunkSize().bytesAsInt(), logger);
+            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -153,7 +153,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
-            recoverySettings.getChunkSize().bytesAsInt(), logger) {
+            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -222,7 +222,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
-            recoverySettings.getChunkSize().bytesAsInt(), logger) {
+            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -298,10 +298,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             mock(RecoveryTargetHandler.class),
             request,
             () -> 0L,
-            e -> () -> {
-            },
+            e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(),
-            logger) {
+            Settings.EMPTY) {
 
             @Override
             boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
@@ -319,7 +318,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void phase2(Translog.Snapshot snapshot) {
+            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
             }
 
@@ -391,7 +390,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             currentClusterStateVersionSupplier,
             delayNewRecoveries,
             recoverySettings.getChunkSize().bytesAsInt(),
-            logger) {
+            Settings.EMPTY) {
 
             @Override
             boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
@@ -409,7 +408,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void phase2(final Translog.Snapshot snapshot) {
+            void phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
             }
 

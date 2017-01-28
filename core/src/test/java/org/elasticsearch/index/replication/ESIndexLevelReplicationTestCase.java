@@ -20,7 +20,6 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -101,9 +100,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
-        private final IndexShard primary;
+        private IndexShard primary;
+        private IndexMetaData indexMetaData;
         private final List<IndexShard> replicas;
-        private final IndexMetaData indexMetaData;
         private final AtomicInteger replicaId = new AtomicInteger();
         private final AtomicInteger docId = new AtomicInteger();
         boolean closed = false;
@@ -174,13 +173,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             updateAllocationIDsOnPrimary();
         }
 
-        private final Runnable replicaGlobalCheckpointSyncer = () -> {
-            throw new AssertionError("replicas can not sync global checkpoint");
-        };
-
         public synchronized IndexShard addReplica() throws IOException {
             final IndexShard replica =
-                newShard(shardId, false, "s" + replicaId.incrementAndGet(), indexMetaData, replicaGlobalCheckpointSyncer, null);
+                newShard(shardId, false, "s" + replicaId.incrementAndGet(), indexMetaData, this::syncGlobalCheckpoint, null);
             replicas.add(replica);
             updateAllocationIDsOnPrimary();
             return replica;
@@ -193,7 +188,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 false, ShardRoutingState.INITIALIZING,
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
-            final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null, replicaGlobalCheckpointSyncer);
+            final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null, this::syncGlobalCheckpoint);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -201,6 +196,24 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public synchronized List<IndexShard> getReplicas() {
             return Collections.unmodifiableList(replicas);
+        }
+
+        /**
+         * promotes the specific replica as the new primary
+         */
+        public synchronized void promoteReplicaToPrimary(IndexShard replica) throws IOException {
+            final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
+            IndexMetaData.Builder newMetaData =
+                IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
+            indexMetaData = newMetaData.build();
+            for (IndexShard shard: replicas) {
+                shard.updatePrimaryTerm(newTerm);
+            }
+            boolean found = replicas.remove(replica);
+            assert found;
+            primary = replica;
+            replica.updateRoutingEntry(ShardRoutingHelper.promoteToPrimary(replica.routingEntry()));
+            updateAllocationIDsOnPrimary();
         }
 
         synchronized boolean removeReplica(IndexShard replica) {
@@ -462,34 +475,49 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
-            final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
-                    null);
-            if (indexResult.hasFailure() == false) {
-                // update the version on request so it will happen on the replicas
-                final long version = indexResult.getVersion();
-                request.version(version);
-                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-                request.setSeqNo(indexResult.getSeqNo());
-                assert request.versionType().validateVersionForWrites(request.version());
-            }
-            request.primaryTerm(primary.getPrimaryTerm());
-            TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
-            IndexResponse response = new IndexResponse(
-                primary.shardId(),
-                request.type(),
-                request.id(),
-                indexResult.getSeqNo(),
-                indexResult.getVersion(),
-                indexResult.isCreated());
+            IndexResponse response = indexOnPrimary(request, primary);
             return new PrimaryResult(request, response);
         }
 
         @Override
         protected void performOnReplica(IndexRequest request, IndexShard replica) throws IOException {
-            final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
-            TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
+            indexOnReplica(request, replica);
         }
     }
+
+    /**
+     * indexes the given requests on the supplied primary, modifying it for replicas
+     */
+    protected IndexResponse indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
+        final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
+                null);
+        if (indexResult.hasFailure() == false) {
+            // update the version on request so it will happen on the replicas
+            final long version = indexResult.getVersion();
+            request.version(version);
+            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+            request.setSeqNo(indexResult.getSeqNo());
+            assert request.versionType().validateVersionForWrites(request.version());
+        }
+        request.primaryTerm(primary.getPrimaryTerm());
+        TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
+        return new IndexResponse(
+            primary.shardId(),
+            request.type(),
+            request.id(),
+            indexResult.getSeqNo(),
+            indexResult.getVersion(),
+            indexResult.isCreated());
+    }
+
+    /**
+     * indexes the given requests on the supplied replica shard
+     */
+    protected void indexOnReplica(IndexRequest request, IndexShard replica) throws IOException {
+        final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
+        TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
+    }
+
 
     class GlobalCheckpointSync extends
         ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest, GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {

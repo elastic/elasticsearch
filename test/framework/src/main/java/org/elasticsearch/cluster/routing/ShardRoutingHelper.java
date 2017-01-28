@@ -50,6 +50,12 @@ public class ShardRoutingHelper {
         return routing.reinitializePrimaryShard();
     }
 
+    public static ShardRouting promoteToPrimary(ShardRouting routing) {
+        return new ShardRouting(routing.shardId(), routing.currentNodeId(), routing.relocatingNodeId(), true, routing.state(),
+            routing.recoverySource(), routing.unassignedInfo(), routing.allocationId(), routing.getExpectedShardSize());
+    }
+
+
     public static ShardRouting reinitPrimary(ShardRouting routing, UnassignedInfo.Reason reason, RecoverySource recoverySource) {
         return routing.reinitializePrimaryShard().updateUnassigned(new UnassignedInfo(reason, "test_reinit"), recoverySource);
     }

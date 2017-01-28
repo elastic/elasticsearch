@@ -125,7 +125,8 @@ public class EvilPeerRecoveryIT extends ESIntegTestCase {
      * Sequence-number-based recovery on this replica has to wait until these in-flight operations complete to proceed. We verify at the end
      * of recovery that a file-based recovery was not completed, and that the expected number of operations was replayed via the translog.
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE," +
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+        "org.elasticsearch.discovery:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
     @AwaitsFix(bugUrl =

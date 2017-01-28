@@ -849,9 +849,17 @@ public final class Settings implements ToXContent {
                     break;
                 }
             }
-            for (int i = 0; i < values.size(); i++) {
-                put(setting + "." + i, values.get(i));
+
+            if(values.size() <= 0)
+            {
+                put(setting, "[]");
             }
+            else{
+                for (int i = 0; i < values.size(); i++) {
+                    put(setting + "." + i, values.get(i));
+                }
+            }
+
             return this;
         }
 

@@ -118,7 +118,7 @@ public class RecoverySourceHandler {
         this.delayNewRecoveries = delayNewRecoveries;
         this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
-        this.logger = Loggers.getLogger(getClass(), nodeSettings,  request.shardId(),"to " + request.targetNode().getName());
+        this.logger = Loggers.getLogger(getClass(), nodeSettings,  request.shardId(),"recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
     }

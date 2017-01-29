@@ -31,7 +31,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PeerRecoveryTargetServiceTest extends IndexShardTestCase {
+public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);

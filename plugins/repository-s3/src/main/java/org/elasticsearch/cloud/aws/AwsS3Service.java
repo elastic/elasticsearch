@@ -78,11 +78,6 @@ public interface AwsS3Service extends LifecycleComponent {
     Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer",
         Property.NodeScope, Property.Deprecated, Property.Shared);
     /**
-     * cloud.aws.region: Region. Shared with discovery-ec2 plugin
-     */
-    Setting<String> REGION_SETTING = new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT),
-        Property.NodeScope, Property.Deprecated, Property.Shared);
-    /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with discovery-ec2 plugin
      */
     Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
@@ -153,14 +148,7 @@ public interface AwsS3Service extends LifecycleComponent {
             new Setting<>("cloud.aws.s3.signer", AwsS3Service.SIGNER_SETTING, Function.identity(),
                 Property.NodeScope, Property.Deprecated);
         /**
-         * cloud.aws.s3.region: Region specific for S3 API calls. Defaults to cloud.aws.region.
-         * @see AwsS3Service#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING =
-            new Setting<>("cloud.aws.s3.region", AwsS3Service.REGION_SETTING, s -> s.toLowerCase(Locale.ROOT),
-                Property.NodeScope, Property.Deprecated);
-        /**
-         * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
+         * cloud.aws.s3.endpoint: Endpoint.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
         /**

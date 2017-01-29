@@ -53,7 +53,6 @@ import java.util.Locale;
  * Shared file system repository supports the following settings
  * <dl>
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
- * <dt>{@code region}</dt><dd>S3 region. Defaults to us-east</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
@@ -74,10 +73,6 @@ public class S3Repository extends BlobStoreRepository {
     /** The secret key (ie password) for connecting to s3. */
     public static final AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
         key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING, false));
-
-    /** The region the s3 repository bucket should exist in. */
-    public static final AffixSetting<String> REGION_SETTING = Setting.affixKeySetting(PREFIX, "region",
-        key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));
 
     /** An override for the s3 endpoint to connect to. */
     public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
@@ -126,12 +121,6 @@ public class S3Repository extends BlobStoreRepository {
         Setting<SecureString> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, SecureString::new,
             Property.NodeScope, Property.Filtered, Property.Deprecated);
 
-        /**
-         * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
-         * @see CLOUD_S3#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING = new Setting<>("repositories.s3.region", CLOUD_S3.REGION_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.endpoint: Endpoint specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.endpoint.
          * @see CLOUD_S3#ENDPOINT_SETTING
@@ -245,11 +234,6 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
             Property.Deprecated);
-        /**
-         * region
-         * @see  Repositories#REGION_SETTING
-         */
-        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), Property.Deprecated);
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING

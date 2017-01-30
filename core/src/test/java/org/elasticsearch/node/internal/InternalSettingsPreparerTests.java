@@ -35,25 +35,32 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
 
+    Path homeDir;
     Settings baseEnvSettings;
 
     @Before
     public void createBaseEnvSettings() {
+        homeDir = createTempDir();
         baseEnvSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
             .build();
     }
 
     @After
     public void clearBaseEnvSettings() {
+        homeDir = null;
         baseEnvSettings = null;
     }
 
@@ -173,5 +180,20 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Environment env = InternalSettingsPreparer.prepareEnvironment(input, null);
         Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null, false);
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
+    }
+
+    public void testDefaultProperties() throws Exception {
+        Map<String, String> props = Collections.singletonMap("default.setting", "foo");
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
+        assertEquals("foo", env.settings().get("setting"));
+    }
+
+    public void testDefaultPropertiesOverride() throws Exception {
+        Path configDir = homeDir.resolve("config");
+        Files.createDirectories(configDir);
+        Files.write(configDir.resolve("elasticsearch.yml"), Collections.singletonList("setting: bar"), StandardCharsets.UTF_8);
+        Map<String, String> props = Collections.singletonMap("default.setting", "foo");
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
+        assertEquals("bar", env.settings().get("setting"));
     }
 }

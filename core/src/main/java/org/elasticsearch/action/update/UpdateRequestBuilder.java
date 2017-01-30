@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -279,9 +278,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
-     * @deprecated use {@link #setDoc(XContentType, Object...)} to be specific about content type
      */
-    @Deprecated
     public UpdateRequestBuilder setDoc(Object... source) {
         request.doc(source);
         return this;
@@ -386,11 +383,9 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists. The doc
      * includes field and value pairs.
-     * @deprecated use {@link #setUpsert(XContentType, Object...)} to be specific about the desired content type
      */
-    @Deprecated
     public UpdateRequestBuilder setUpsert(Object... source) {
-        request.upsert(Requests.INDEX_CONTENT_TYPE, source);
+        request.upsert(source);
         return this;
     }
 

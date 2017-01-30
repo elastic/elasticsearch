@@ -339,7 +339,7 @@ public abstract class RestRequest implements ToXContent.Params {
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
         } else if (xContentType.get() == null) {
-            throw new IllegalStateException("no content-type has been set so we cannot create a parser");
+            throw new IllegalStateException("unknown content type");
         }
         return xContentType.get().xContent().createParser(xContentRegistry, content);
     }
@@ -402,7 +402,7 @@ public abstract class RestRequest implements ToXContent.Params {
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
         if (hasContent()) {
             if (xContentType.get() == null) {
-                throw new IllegalStateException("Content-Type must be provided");
+                throw new IllegalStateException("unknown content type");
             }
             return new Tuple<>(xContentType.get(), content());
         }

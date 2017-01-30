@@ -177,7 +177,9 @@ public class RestController extends AbstractComponent {
             assert contentLength >= 0 : "content length was negative, how is that possible?";
             final RestHandler handler = getHandler(request);
 
-            if (contentLength == 0 || checkForContentType(request, handler)) {
+            if (contentLength > 0 && hasContentTypeOrCanAutoDetect(request, handler) == false) {
+                sendContentTypeErrorMessage(request, responseChannel);
+            } else {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
@@ -186,8 +188,6 @@ public class RestController extends AbstractComponent {
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
                 dispatchRequest(request, responseChannel, client, threadContext, handler);
-            } else {
-                sendContentTypeErrorMessage(request, responseChannel);
             }
         } catch (Exception e) {
             try {
@@ -204,26 +204,28 @@ public class RestController extends AbstractComponent {
                          final RestHandler handler) throws Exception {
         if (checkRequestParameters(request, channel) == false) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
-        }
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            for (String key : headersToCopy) {
-                String httpHeader = request.header(key);
-                if (httpHeader != null) {
-                    threadContext.putHeader(key, httpHeader);
+        } else {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                for (String key : headersToCopy) {
+                    String httpHeader = request.header(key);
+                    if (httpHeader != null) {
+                        threadContext.putHeader(key, httpHeader);
+                    }
                 }
-            }
 
-            if (handler == null) {
-                if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                if (handler == null) {
+                    if (request.method() == RestRequest.Method.OPTIONS) {
+                        // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+
+                        channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                    } else {
+                        final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
+                        channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                    }
                 } else {
-                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                    final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                    wrappedHandler.handleRequest(request, channel, client);
                 }
-            } else {
-                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
-                wrappedHandler.handleRequest(request, channel, client);
             }
         }
     }
@@ -233,7 +235,7 @@ public class RestController extends AbstractComponent {
      * {@link XContentType} or the request is plain text, and content type is required. If content type is not required then this method
      * returns true unless a content type could not be inferred from the body and the rest handler does not support plain text
      */
-    boolean checkForContentType(final RestRequest restRequest, final RestHandler restHandler) {
+    private boolean hasContentTypeOrCanAutoDetect(final RestRequest restRequest, final RestHandler restHandler) {
         if (restRequest.getXContentType() == null) {
             if (restHandler != null && restHandler.supportsPlainText()) {
                 // content type of null with a handler that supports plain text gets through for now. Once we remove plain text this can
@@ -243,18 +245,11 @@ public class RestController extends AbstractComponent {
             } else if (isContentTypeRequired) {
                 return false;
             } else {
-                deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using" +
+                deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using " +
                     "the [Content-Type] header.");
                 XContentType xContentType = XContentFactory.xContentType(restRequest.content());
                 if (xContentType == null) {
-                    if (restHandler != null) {
-                        if (restHandler.supportsPlainText()) {
-                            deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
-                                "in a supported format.");
-                        } else {
-                            return false;
-                        }
-                    }
+                    return false;
                 } else {
                     restRequest.setXContentType(xContentType);
                 }

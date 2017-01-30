@@ -100,7 +100,7 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     /**
      * Writes a raw field with the given bytes as the value
-     * @deprecated use {@link #writeRawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     * @deprecated use {@link #writeRawField(String, BytesReference, XContentType)} to avoid content type auto-detection
      */
     @Deprecated
     void writeRawField(String name, BytesReference value) throws IOException;

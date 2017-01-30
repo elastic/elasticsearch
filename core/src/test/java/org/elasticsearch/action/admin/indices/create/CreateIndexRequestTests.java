@@ -34,8 +34,8 @@ public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
-        request.mapping("my_type", bytesReference, XContentType.JSON);
+        String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
+        request.mapping("my_type", mapping, XContentType.JSON);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
@@ -44,7 +44,7 @@ public class CreateIndexRequestTests extends ESTestCase {
                 CreateIndexRequest serialized = new CreateIndexRequest();
                 serialized.readFrom(in);
                 assertEquals(request.index(), serialized.index());
-                assertEquals(bytesReference.utf8ToString(), serialized.mappings().get("my_type"));
+                assertEquals(mapping, serialized.mappings().get("my_type"));
             }
         }
     }

@@ -115,9 +115,23 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated use {@link #addMapping(String, String, XContentType)} to avoid content type auto-detection
      */
+    @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, String source) {
         request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType The content type of the source
+     */
+    public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
+        request.mapping(type, source, xContentType);
         return this;
     }
 

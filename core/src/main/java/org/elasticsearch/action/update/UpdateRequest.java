@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -611,11 +610,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
-     * @deprecated use {@link #doc(XContentType, Object...)} to be explicit about content type
      */
-    @Deprecated
     public UpdateRequest doc(Object... source) {
-        safeDoc().source(Requests.INDEX_CONTENT_TYPE, source);
+        safeDoc().source(source);
         return this;
     }
 
@@ -729,11 +726,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists. The doc
      * includes field and value pairs.
-     * @deprecated use {@link #upsert(XContentType, Object...)} to be explicit about content type
      */
-    @Deprecated
     public UpdateRequest upsert(Object... source) {
-        safeUpsertRequest().source(Requests.INDEX_CONTENT_TYPE, source);
+        safeUpsertRequest().source(source);
         return this;
     }
 

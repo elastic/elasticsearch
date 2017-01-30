@@ -23,7 +23,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -205,11 +204,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * number. Also the first argument in each pair (the field name) must have a
      * valid String representation.</b>
      * </p>
-     * @deprecated use {@link #setSource(XContentType, Object...)} instead to be explicit about the content type
      */
-    @Deprecated
     public IndexRequestBuilder setSource(Object... source) {
-        request.source(Requests.INDEX_CONTENT_TYPE, source);
+        request.source(source);
         return this;
     }
 

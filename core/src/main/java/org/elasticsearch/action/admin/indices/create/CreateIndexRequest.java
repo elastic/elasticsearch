@@ -220,7 +220,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
-     * @deprecated use {@link #mapping(String, BytesReference, XContentType)} to avoid content type detection
+     * @deprecated use {@link #mapping(String, String, XContentType)} to avoid content type detection
      */
     @Deprecated
     public CreateIndexRequest mapping(String type, String source) {
@@ -232,9 +232,20 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The content type of the source
+     */
+    public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
+        return mapping(type, new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
      * @param xContentType the content type of the mapping source
      */
-    public CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
+    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }

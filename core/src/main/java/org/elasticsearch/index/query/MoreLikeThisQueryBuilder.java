@@ -337,7 +337,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return this;
         }
 
-        public XContentType xContentType() {
+        XContentType xContentType() {
             return xContentType;
         }
 

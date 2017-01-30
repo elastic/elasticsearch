@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -277,7 +276,7 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchWorksWithPlainText() {
         String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content.getBytes(StandardCharsets.UTF_8)), null).withPath("/foo")
+            .withContent(new BytesArray(content), null).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
@@ -296,6 +295,18 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.sendResponseCalled.get());
         assertWarnings("Plain text request bodies are deprecated. Use request parameters or body in a supported format.");
+    }
+
+    public void testDispatchWorksWithAutoDetection() {
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray("{}"), null).withPath("/")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("application/x-www-form-urlencoded"))).build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        assertFalse(channel.sendResponseCalled.get());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.sendResponseCalled.get());
+        assertWarnings("Content type detection for rest requests is deprecated. Specify the content type using the [Content-Type] header.");
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

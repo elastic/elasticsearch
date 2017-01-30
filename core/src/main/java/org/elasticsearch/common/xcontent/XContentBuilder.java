@@ -964,34 +964,55 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
     // Raw fields
     //////////////////////////////////
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     * @deprecated use {@link #rawField(String, InputStream, XContentType)} to avoid content type auto-detection
+     */
     @Deprecated
     public XContentBuilder rawField(String name, InputStream value) throws IOException {
         generator.writeRawField(name, value);
         return this;
     }
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
     public XContentBuilder rawField(String name, InputStream value, XContentType contentType) throws IOException {
         generator.writeRawField(name, value, contentType);
         return this;
     }
 
+    /**
+     * Writes a raw field with the given bytes as the value
+     * @deprecated use {@link #rawField(String name, BytesReference, XContentType)} to avoid content type auto-detection
+     */
     @Deprecated
     public XContentBuilder rawField(String name, BytesReference value) throws IOException {
         generator.writeRawField(name, value);
         return this;
     }
 
+    /**
+     * Writes a raw field with the given bytes as the value
+     */
     public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
         generator.writeRawField(name, value, contentType);
         return this;
     }
 
+    /**
+     * Writes a value with the source coming directly from the bytes
+     * @deprecated use {@link #rawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     */
     @Deprecated
     public XContentBuilder rawValue(BytesReference value) throws IOException {
         generator.writeRawValue(value);
         return this;
     }
 
+    /**
+     * Writes a value with the source coming directly from the bytes
+     */
     public XContentBuilder rawValue(BytesReference value, XContentType contentType) throws IOException {
         generator.writeRawValue(value, contentType);
         return this;

@@ -130,17 +130,16 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             if (STATUS.equals(currentFieldName)) {
                 // ignoring status field
                 continue;
-            } else {
-                itemParser.accept(parser);
             }
 
-            if (token == XContentParser.Token.START_OBJECT) {
-                if (ERROR.equals(currentFieldName)) {
+            if (ERROR.equals(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
                     exception = ElasticsearchException.fromXContent(parser);
-                } else {
-                    itemParser.accept(parser);
                 }
+                continue;
             }
+
+            itemParser.accept(parser);
         }
 
         ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);

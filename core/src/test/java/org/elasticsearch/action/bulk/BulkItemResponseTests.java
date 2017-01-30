@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -31,6 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.action.delete.DeleteResponseTests.assertDeleteResponse;
 import static org.elasticsearch.action.delete.DeleteResponseTests.randomDeleteResponse;
 import static org.elasticsearch.action.index.IndexResponseTests.assertIndexResponse;
@@ -115,5 +118,47 @@ public class BulkItemResponseTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testFailureToAndFromXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final Throwable cause = exceptions.v1();
+        final ElasticsearchException expectedCause = exceptions.v2();
+
+        String index = randomAsciiOfLength(5);
+        String type = randomAsciiOfLength(5);
+        String id = randomAsciiOfLength(5);
+        DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(randomInt(), opType, new Failure(index, type, id, (Exception) cause));
+        BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
+
+        // Shuffle the XContent fields
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
+
+        BulkItemResponse parsedBulkItemResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsedBulkItemResponse);
+        assertEquals(index, parsedBulkItemResponse.getIndex());
+        assertEquals(type, parsedBulkItemResponse.getType());
+        assertEquals(id, parsedBulkItemResponse.getId());
+        assertEquals(opType, parsedBulkItemResponse.getOpType());
+
+        Failure parsedFailure = parsedBulkItemResponse.getFailure();
+        assertEquals(index, parsedFailure.getIndex());
+        assertEquals(type, parsedFailure.getType());
+        assertEquals(id, parsedFailure.getId());
+
+        assertDeepEquals(expectedCause, (ElasticsearchException) parsedFailure.getCause());
     }
 }

@@ -51,7 +51,7 @@ have any effect in previous versions.
 ==== Query normalization
 
 Query normalization has been removed. This means that the TF-IDF similarity no
-longer tries to make scores comparable across queries and that boost are now
+longer tries to make scores comparable across queries and that boosts are now
 integrated into scores as simple multiplicative factors.
 
 Other similarities are not affected as they did not normalize scores and

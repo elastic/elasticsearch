@@ -21,7 +21,9 @@ package org.elasticsearch.index.fielddata;
 
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -29,9 +31,10 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
 
-import java.util.AbstractList;
 import java.util.Collections;
 import java.util.List;
+
+import static java.lang.Math.max;
 
 
 /**
@@ -50,7 +53,7 @@ public interface ScriptDocValues<T> extends List<T> {
      */
     List<T> getValues();
 
-    public static final class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    public static final class Strings extends AbstractScriptDocValues<String> implements ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -101,10 +104,15 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
+    public static class Longs extends AbstractScriptDocValues<Long> implements ScriptDocValues<Long> {
 
         private final SortedNumericDocValues values;
-        private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
+        /**
+         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so there is no cost if not used. We keep
+         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         */
+        private MutableDateTime[] dates;
+        private AbstractScriptDocValues<ReadableDateTime> dateList;
 
         public Longs(SortedNumericDocValues values) {
             this.values = values;
@@ -129,12 +137,31 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<Long> getValues() {
-            return Collections.unmodifiableList(this);
+            return this;
         }
 
         public ReadableDateTime getDate() {
-            date.setMillis(getValue());
-            return date;
+            if (values.count() == 0) {
+                return dateAt(0, 0L);
+            }
+            return dateAt(0, values.valueAt(0));
+        }
+
+        public List<ReadableDateTime> getDates() {
+            if (dateList == null) {
+                dateList = new AbstractScriptDocValues<ReadableDateTime>() {
+                    @Override
+                    public ReadableDateTime get(int index) {
+                        return dateAt(index, values.valueAt(index));
+                    }
+
+                    @Override
+                    public int size() {
+                        return values.count();
+                    }
+                };
+            }
+            return dateList;
         }
 
         @Override
@@ -147,9 +174,29 @@ public interface ScriptDocValues<T> extends List<T> {
             return values.count();
         }
 
+        /**
+         * Fetch the value at an index wrapped in a {@link ReadableDateTime}. We take care not to allocate a new {@link MutableDateTime}
+         * if possible.
+         */
+        private ReadableDateTime dateAt(int index, long value) {
+            if (dates == null) {
+                dates = new MutableDateTime[ArrayUtil.oversize(max(1, values.count()), RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                dates[index] = new MutableDateTime(value, DateTimeZone.UTC);
+            } else {
+                if (index >= dates.length) {
+                    dates = ArrayUtil.grow(dates, max(1, values.count()));
+                }
+                if (dates[index] == null) {
+                    dates[index] = new MutableDateTime(value, DateTimeZone.UTC);
+                } else {
+                    dates[index].setMillis(value);
+                }
+            }
+            return dates[index];
+        }
     }
 
-    public static class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
+    public static class Doubles extends AbstractScriptDocValues<Double> implements ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues values;
 
@@ -176,7 +223,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<Double> getValues() {
-            return Collections.unmodifiableList(this);
+            return this;
         }
 
         @Override
@@ -190,7 +237,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    class GeoPoints extends AbstractList<GeoPoint> implements ScriptDocValues<GeoPoint> {
+    class GeoPoints extends AbstractScriptDocValues<GeoPoint> implements ScriptDocValues<GeoPoint> {
 
         private final MultiGeoPointValues values;
 
@@ -239,7 +286,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<GeoPoint> getValues() {
-            return Collections.unmodifiableList(this);
+            return this;
         }
 
         @Override
@@ -291,7 +338,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    final class Booleans extends AbstractList<Boolean> implements ScriptDocValues<Boolean> {
+    final class Booleans extends AbstractScriptDocValues<Boolean> implements ScriptDocValues<Boolean> {
 
         private final SortedNumericDocValues values;
 
@@ -325,7 +372,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class BytesRefs extends AbstractList<BytesRef> implements ScriptDocValues<BytesRef> {
+    public static class BytesRefs extends AbstractScriptDocValues<BytesRef> implements ScriptDocValues<BytesRef> {
 
         private final SortedBinaryDocValues values;
 
@@ -352,7 +399,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<BytesRef> getValues() {
-            return Collections.unmodifiableList(this);
+            return this;
         }
 
         @Override
@@ -365,5 +412,4 @@ public interface ScriptDocValues<T> extends List<T> {
             return values.count();
         }
     }
-
 }

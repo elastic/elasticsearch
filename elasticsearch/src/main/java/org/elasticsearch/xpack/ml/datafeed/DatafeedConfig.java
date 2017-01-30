@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,7 +40,10 @@ import java.util.Objects;
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends ToXContentToBytes implements Writeable {
+public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContent {
+
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
 
     /**
      * The field name used to specify aggregation fields in Elasticsearch
@@ -307,6 +311,11 @@ public class DatafeedConfig extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, aggregations, scriptFields, source);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static class Builder {

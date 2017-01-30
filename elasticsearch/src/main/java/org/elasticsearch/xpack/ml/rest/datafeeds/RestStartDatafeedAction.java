@@ -8,17 +8,21 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 
 import java.io.IOException;
 
@@ -49,12 +53,19 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             }
             jobDatafeedRequest = new StartDatafeedAction.Request(datafeedId, startTimeMillis);
             jobDatafeedRequest.setEndTime(endTimeMillis);
-            TimeValue startTimeout = restRequest.paramAsTime(StartDatafeedAction.START_TIMEOUT.getPreferredName(),
-                    TimeValue.timeValueSeconds(30));
-            jobDatafeedRequest.setStartTimeout(startTimeout);
         }
         return channel -> {
-            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest, new RestToXContentListener<>(channel));
+            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
+                    new RestBuilderListener<PersistentActionResponse>(channel) {
+
+                        @Override
+                        public RestResponse buildResponse(PersistentActionResponse r, XContentBuilder builder) throws Exception {
+                            builder.startObject();
+                            builder.field("started", true);
+                            builder.endObject();
+                            return new BytesRestResponse(RestStatus.OK, builder);
+                        }
+                    });
         };
     }
 

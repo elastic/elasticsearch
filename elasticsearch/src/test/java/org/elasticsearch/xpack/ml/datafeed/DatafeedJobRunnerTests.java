@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,20 +18,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
-import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -45,9 +42,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction.INSTANCE;
-import static org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction.Request;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.same;
@@ -77,12 +71,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         clusterService = mock(ClusterService.class);
-        doAnswer(invocation -> {
-            @SuppressWarnings("rawtypes")
-            ActionListener<Object> actionListener = (ActionListener) invocation.getArguments()[2];
-            actionListener.onResponse(new UpdateDatafeedStatusAction.Response());
-            return null;
-        }).when(client).execute(same(UpdateDatafeedStatusAction.INSTANCE), any(), any());
 
         JobProvider jobProvider = mock(JobProvider.class);
         Mockito.doAnswer(invocationOnMock -> {
@@ -141,15 +129,13 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenReturn(Optional.of(in));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        InternalStartDatafeedAction.DatafeedTask task = mock(InternalStartDatafeedAction.DatafeedTask.class);
+        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
         datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("datafeed1", DatafeedStatus.STARTED)), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("datafeed1", DatafeedStatus.STOPPED)), any());
     }
 
     private static PostDataAction.Request createExpectedPostDataRequest(Job job) {
@@ -181,15 +167,13 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        InternalStartDatafeedAction.DatafeedTask task = mock(InternalStartDatafeedAction.DatafeedTask.class);
+        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
         datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("datafeed1", DatafeedStatus.STARTED)), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("datafeed1", DatafeedStatus.STOPPED)), any());
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
@@ -214,14 +198,13 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
-        InternalStartDatafeedAction.DatafeedTask task =
-                new InternalStartDatafeedAction.DatafeedTask(1, "type", "action", null, "datafeed1");
+        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(1, "type", "action", null, "datafeed1");
         datafeedJobRunner.run("datafeed1", 0L, null, task, handler);
 
         verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop();
-            verify(client).execute(same(INSTANCE), eq(new Request("datafeed1", DatafeedStatus.STOPPED)), any());
+            verify(handler).accept(null);
         } else {
             verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
@@ -244,32 +227,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         Job.Builder builder = new Job.Builder("foo");
         builder.setAnalysisConfig(acBuilder);
         return builder;
-    }
-
-    public void testValidate() {
-        Job job1 = createDatafeedJob().build();
-        MlMetadata mlMetadata1 = new MlMetadata.Builder()
-                .putJob(job1, false)
-                .build();
-        Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> DatafeedJobRunner.validate("some-datafeed", mlMetadata1));
-        assertThat(e.getMessage(), equalTo("No datafeed with id [some-datafeed] exists"));
-
-        DatafeedConfig datafeedConfig1 = createDatafeedConfig("foo-datafeed", "foo").build();
-        MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1)
-                .build();
-        e = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobRunner.validate("foo-datafeed", mlMetadata2));
-        assertThat(e.getMessage(), equalTo("cannot start datafeed, expected job status [OPENED], but got [CLOSED]"));
-
-        MlMetadata mlMetadata3 = new MlMetadata.Builder(mlMetadata2)
-                .updateStatus("foo", JobStatus.OPENED, null)
-                .updateDatafeedStatus("foo-datafeed", DatafeedStatus.STARTED)
-                .build();
-        e = expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobRunner.validate("foo-datafeed", mlMetadata3));
-        assertThat(e.getMessage(), equalTo("datafeed already started, expected datafeed status [STOPPED], but got [STARTED]"));
     }
 
     @SuppressWarnings("unchecked")

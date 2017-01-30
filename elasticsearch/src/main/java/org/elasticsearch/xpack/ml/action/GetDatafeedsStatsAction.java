@@ -31,17 +31,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response,
         GetDatafeedsStatsAction.RequestBuilder> {
@@ -240,7 +244,8 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                               ThreadPool threadPool, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
         }
@@ -259,22 +264,34 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
+            Map<String, DatafeedStatus> statuses = new HashMap<>();
+            PersistentTasksInProgress tasksInProgress = state.custom(PersistentTasksInProgress.TYPE);
+            if (tasksInProgress != null) {
+                Predicate<PersistentTaskInProgress<?>> predicate = ALL.equals(request.getDatafeedId()) ? p -> true :
+                        p -> request.getDatafeedId().equals(((StartDatafeedAction.Request) p.getRequest()).getDatafeedId());
+                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findEntries(StartDatafeedAction.NAME, predicate)) {
+                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
+                    statuses.put(storedRequest.getDatafeedId(), DatafeedStatus.STARTED);
+                }
+            }
+
             List<Response.DatafeedStats> stats = new ArrayList<>();
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             if (ALL.equals(request.getDatafeedId())) {
-                Collection<Datafeed> datafeeds = mlMetadata.getDatafeeds().values();
-                for (Datafeed datafeed : datafeeds) {
-                    stats.add(new Response.DatafeedStats(datafeed.getId(), datafeed.getStatus()));
+                Collection<DatafeedConfig> datafeeds = mlMetadata.getDatafeeds().values();
+                for (DatafeedConfig datafeed : datafeeds) {
+                    DatafeedStatus status = statuses.getOrDefault(datafeed.getId(), DatafeedStatus.STOPPED);
+                    stats.add(new Response.DatafeedStats(datafeed.getId(), status));
                 }
             } else {
-                Datafeed datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
+                DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
                 if (datafeed == null) {
                     throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
                 }
-                stats.add(new Response.DatafeedStats(datafeed.getId(), datafeed.getStatus()));
+                DatafeedStatus status = statuses.getOrDefault(datafeed.getId(), DatafeedStatus.STOPPED);
+                stats.add(new Response.DatafeedStats(datafeed.getId(), status));
             }
-
-            QueryPage<Response.DatafeedStats> statsPage = new QueryPage<>(stats, stats.size(), Datafeed.RESULTS_FIELD);
+            QueryPage<Response.DatafeedStats> statsPage = new QueryPage<>(stats, stats.size(), DatafeedConfig.RESULTS_FIELD);
             listener.onResponse(new Response(statsPage));
         }
 

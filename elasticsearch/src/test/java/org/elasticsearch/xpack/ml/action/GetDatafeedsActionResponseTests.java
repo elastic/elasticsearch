@@ -12,7 +12,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
@@ -61,7 +60,7 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
             datafeedList.add(datafeedConfig.build());
         }
 
-        result = new Response(new QueryPage<>(datafeedList, datafeedList.size(), Datafeed.RESULTS_FIELD));
+        result = new Response(new QueryPage<>(datafeedList, datafeedList.size(), DatafeedConfig.RESULTS_FIELD));
 
         return result;
     }

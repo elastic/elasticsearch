@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -33,6 +32,8 @@ import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.persistent.PersistentActionResponse;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.After;
 
 import java.io.IOException;
@@ -99,17 +100,16 @@ public class DatafeedJobsIT extends ESIntegTestCase {
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
         startDatafeedRequest.setEndTime(now);
-        StartDatafeedAction.Response  startDatafeedResponse =
+        PersistentActionResponse startDatafeedResponse =
                 client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
-        assertTrue(startDatafeedResponse.isStarted());
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
-            MlMetadata mlMetadata = client().admin().cluster().prepareState().all().get()
-                    .getState().metaData().custom(MlMetadata.TYPE);
-            assertThat(mlMetadata.getDatafeed(datafeedConfig.getId()).get().getStatus(), equalTo(DatafeedStatus.STOPPED));
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedStatus(), equalTo(DatafeedStatus.STOPPED));
         });
     }
 
@@ -139,9 +139,8 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         assertTrue(putDatafeedResponse.isAcknowledged());
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
-        StartDatafeedAction.Response  startDatafeedResponse =
+        PersistentActionResponse startDatafeedResponse =
                 client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
-        assertTrue(startDatafeedResponse.isStarted());
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));
@@ -159,7 +158,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
 
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedConfig.getId());
         try {
-            StopDatafeedAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
+            RemovePersistentTaskAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
             assertTrue(stopJobResponse.isAcknowledged());
         } catch (Exception e) {
             NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
@@ -170,9 +169,9 @@ public class DatafeedJobsIT extends ESIntegTestCase {
             throw e;
         }
         assertBusy(() -> {
-            MlMetadata mlMetadata = client().admin().cluster().prepareState().all().get()
-                    .getState().metaData().custom(MlMetadata.TYPE);
-            assertThat(mlMetadata.getDatafeed(datafeedConfig.getId()).get().getStatus(), equalTo(DatafeedStatus.STOPPED));
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedStatus(), equalTo(DatafeedStatus.STOPPED));
         });
     }
 
@@ -240,10 +239,10 @@ public class DatafeedJobsIT extends ESIntegTestCase {
     private static void deleteAllDatafeeds(Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
-        for (Datafeed datafeed : mlMetadata.getDatafeeds().values()) {
+        for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
             String datafeedId = datafeed.getId();
             try {
-                StopDatafeedAction.Response stopResponse =
+                RemovePersistentTaskAction.Response stopResponse =
                         client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
                 assertTrue(stopResponse.isAcknowledged());
             } catch (ExecutionException e) {

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
@@ -30,7 +30,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
             datafeedStatsList.add(datafeedStats);
         }
 
-        result = new Response(new QueryPage<>(datafeedStatsList, datafeedStatsList.size(), Datafeed.RESULTS_FIELD));
+        result = new Response(new QueryPage<>(datafeedStatsList, datafeedStatsList.size(), DatafeedConfig.RESULTS_FIELD));
 
         return result;
     }

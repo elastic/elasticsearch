@@ -17,8 +17,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * A cluster state record that contains a list of all running persistent tasks
@@ -38,6 +41,19 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
 
     public List<PersistentTaskInProgress<?>> entries() {
         return this.entries;
+    }
+
+    public Collection<PersistentTaskInProgress<?>> findEntries(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+        return this.entries().stream()
+                .filter(p -> actionName.equals(p.getAction()))
+                .filter(predicate)
+                .collect(Collectors.toList());
+    }
+
+    public boolean entriesExist(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+        return this.entries().stream()
+                .filter(p -> actionName.equals(p.getAction()))
+                .anyMatch(predicate);
     }
 
     @Override

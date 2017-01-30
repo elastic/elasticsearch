@@ -15,20 +15,22 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.io.IOException;
+import java.util.Collections;
 
-import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
+import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -53,9 +55,6 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 }
                 builder.putJob(job, false);
                 builder.putDatafeed(datafeedConfig);
-                if (randomBoolean()) {
-                    builder.updateDatafeedStatus(datafeedConfig.getId(), DatafeedStatus.STARTED);
-                }
             } else {
                 builder.putJob(job, false);
             }
@@ -74,7 +73,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     @Override
     protected Writeable.Reader<MlMetadata> instanceReader() {
-        return in -> new MlMetadata(in);
+        return MlMetadata::new;
     }
 
     @Override
@@ -194,11 +193,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getDatafeeds().get("datafeed1").getConfig(), sameInstance(datafeedConfig1));
-        assertThat(result.getDatafeeds().get("datafeed1").getStatus(), equalTo(DatafeedStatus.STOPPED));
+        assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         builder = new MlMetadata.Builder(result);
-        builder.removeDatafeed("datafeed1");
+        builder.removeDatafeed("datafeed1", new PersistentTasksInProgress(0, Collections.emptyList()));
         result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
@@ -255,16 +253,20 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putDatafeed(datafeedConfig1);
         builder.updateStatus("foo", JobStatus.OPENING, null);
         builder.updateStatus("foo", JobStatus.OPENED, null);
-        builder.updateDatafeedStatus("datafeed1", DatafeedStatus.STARTED);
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.OPENED));
-        assertThat(result.getDatafeeds().get("datafeed1").getConfig(), sameInstance(datafeedConfig1));
-        assertThat(result.getDatafeeds().get("datafeed1").getStatus(), equalTo(DatafeedStatus.STARTED));
+        assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
+
+        StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
+        PersistentTasksInProgress.PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
+                new PersistentTasksInProgress.PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, null);
+        PersistentTasksInProgress tasksInProgress = new PersistentTasksInProgress(1, Collections.singletonList(taskInProgress));
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeDatafeed("datafeed1"));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> builder2.removeDatafeed("datafeed1", tasksInProgress));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 

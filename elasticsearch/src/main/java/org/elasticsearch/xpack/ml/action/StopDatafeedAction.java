@@ -9,43 +9,38 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
-import org.elasticsearch.xpack.ml.utils.DatafeedStatusObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class StopDatafeedAction
-        extends Action<StopDatafeedAction.Request, StopDatafeedAction.Response, StopDatafeedAction.RequestBuilder> {
+        extends Action<StopDatafeedAction.Request, RemovePersistentTaskAction.Response, StopDatafeedAction.RequestBuilder> {
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/ml/datafeeds/stop";
@@ -60,14 +55,13 @@ public class StopDatafeedAction
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public RemovePersistentTaskAction.Response newResponse() {
+        return new RemovePersistentTaskAction.Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeRequest<Request> {
 
         private String datafeedId;
-        private TimeValue stopTimeout = TimeValue.timeValueSeconds(20);
 
         public Request(String jobId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(jobId, DatafeedConfig.ID.getPreferredName());
@@ -80,10 +74,6 @@ public class StopDatafeedAction
             return datafeedId;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
-            this.stopTimeout = stopTimeout;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -93,19 +83,17 @@ public class StopDatafeedAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
-            stopTimeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            out.writeVLong(stopTimeout.millis());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout);
+            return Objects.hash(datafeedId);
         }
 
         @Override
@@ -117,114 +105,74 @@ public class StopDatafeedAction
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(stopTimeout, other.stopTimeout);
+            return Objects.equals(datafeedId, other.datafeedId);
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, RemovePersistentTaskAction.Response, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, StopDatafeedAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class TransportAction extends TransportMasterNodeAction<Request, RemovePersistentTaskAction.Response> {
 
-        private Response() {
-            super(true);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-    }
-
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
-
-        private final ClusterService clusterService;
-        private final TransportListTasksAction listTasksAction;
-        private final TransportCancelTasksAction cancelTasksAction;
-        private final DatafeedStatusObserver datafeedStatusObserver;
+        private final RemovePersistentTaskAction.TransportAction removePersistentTaskAction;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, TransportCancelTasksAction cancelTasksAction,
-                               TransportListTasksAction listTasksAction) {
-            super(settings, StopDatafeedAction.NAME, threadPool, transportService, actionFilters,
+                               ClusterService clusterService, RemovePersistentTaskAction.TransportAction removePersistentTaskAction) {
+            super(settings, StopDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.clusterService = clusterService;
-            this.listTasksAction = listTasksAction;
-            this.cancelTasksAction = cancelTasksAction;
-            this.datafeedStatusObserver = new DatafeedStatusObserver(threadPool, clusterService);
+            this.removePersistentTaskAction = removePersistentTaskAction;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
-            String datafeedId = request.getDatafeedId();
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-            validate(datafeedId, mlMetadata);
-
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setActions(InternalStartDatafeedAction.NAME);
-            listTasksRequest.setDetailed(true);
-            listTasksAction.execute(listTasksRequest, new ActionListener<ListTasksResponse>() {
-                @Override
-                public void onResponse(ListTasksResponse listTasksResponse) {
-                    String expectedJobDescription = "datafeed-" + datafeedId;
-                    for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                        if (expectedJobDescription.equals(taskInfo.getDescription())) {
-                            CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                            cancelTasksRequest.setTaskId(taskInfo.getTaskId());
-                            cancelTasksAction.execute(cancelTasksRequest, new ActionListener<CancelTasksResponse>() {
-                                @Override
-                                public void onResponse(CancelTasksResponse cancelTasksResponse) {
-                                    datafeedStatusObserver.waitForStatus(datafeedId, request.stopTimeout, DatafeedStatus.STOPPED, e -> {
-                                        if (e != null) {
-                                            listener.onFailure(e);
-                                        } else {
-                                            listener.onResponse(new Response());
-                                        }
-                                    });
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-                            });
-                            return;
-                        }
-                    }
-                    listener.onFailure(new ResourceNotFoundException("No datafeed [" + datafeedId + "] running"));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        protected String executor() {
+            return ThreadPool.Names.SAME;
         }
 
+        @Override
+        protected RemovePersistentTaskAction.Response newResponse() {
+            return new RemovePersistentTaskAction.Response();
+        }
+
+        @Override
+        protected void masterOperation(Request request, ClusterState state,
+                                       ActionListener<RemovePersistentTaskAction.Response> listener) throws Exception {
+            String datafeedId = request.getDatafeedId();
+            MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+            validate(datafeedId, mlMetadata);
+
+            PersistentTasksInProgress tasksInProgress = state.custom(PersistentTasksInProgress.TYPE);
+            if (tasksInProgress != null) {
+                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findEntries(StartDatafeedAction.NAME, p -> true)) {
+                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
+                    if (storedRequest.getDatafeedId().equals(datafeedId)) {
+                        RemovePersistentTaskAction.Request cancelTasksRequest = new RemovePersistentTaskAction.Request();
+                        cancelTasksRequest.setTaskId(taskInProgress.getId());
+                        removePersistentTaskAction.execute(cancelTasksRequest, listener);
+                        return;
+                    }
+                }
+            }
+            listener.onFailure(new ElasticsearchStatusException("datafeed already stopped, expected datafeed status [{}], but got [{}]",
+                    RestStatus.CONFLICT, DatafeedStatus.STARTED, DatafeedStatus.STOPPED));
+        }
+
+        @Override
+        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        }
 
     }
 
     static void validate(String datafeedId, MlMetadata mlMetadata) {
-        Datafeed datafeed = mlMetadata.getDatafeed(datafeedId);
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
-        }
-
-        if (datafeed.getStatus() == DatafeedStatus.STOPPED) {
-            throw new ElasticsearchStatusException("datafeed already stopped, expected datafeed status [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedStatus.STARTED, datafeed.getStatus());
         }
     }
 }

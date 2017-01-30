@@ -40,8 +40,7 @@ public class MlRestTestStateCleaner {
         }
 
         for (Map<String, Object> datafeed : datafeeds) {
-            Map<String, Object> datafeedMap = (Map<String, Object>) datafeed.get("config");
-            String datafeedId = (String) datafeedMap.get("datafeed_id");
+            String datafeedId = (String) datafeed.get("datafeed_id");
             try {
                 client.performRequest("POST", "/_xpack/ml/datafeeds/" + datafeedId + "/_stop");
             } catch (Exception e) {

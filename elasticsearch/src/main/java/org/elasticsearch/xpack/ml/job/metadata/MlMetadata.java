@@ -15,22 +15,24 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,6 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 
 public class MlMetadata implements MetaData.Custom {
 
@@ -59,15 +62,15 @@ public class MlMetadata implements MetaData.Custom {
     static {
         ML_METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.PARSER.apply(p, c).build(), JOBS_FIELD);
         ML_METADATA_PARSER.declareObjectArray(Builder::putAllocations, Allocation.PARSER, ALLOCATIONS_FIELD);
-        ML_METADATA_PARSER.declareObjectArray(Builder::putDatafeeds, Datafeed.PARSER, DATAFEEDS_FIELD);
+        ML_METADATA_PARSER.declareObjectArray(Builder::putDatafeeds, (p, c) -> DatafeedConfig.PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, Allocation> allocations;
-    private final SortedMap<String, Datafeed> datafeeds;
+    private final SortedMap<String, DatafeedConfig> datafeeds;
 
     private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, Allocation> allocations,
-                            SortedMap<String, Datafeed> datafeeds) {
+                            SortedMap<String, DatafeedConfig> datafeeds) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.allocations = Collections.unmodifiableSortedMap(allocations);
         this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
@@ -81,11 +84,11 @@ public class MlMetadata implements MetaData.Custom {
         return allocations;
     }
 
-    public SortedMap<String, Datafeed> getDatafeeds() {
+    public SortedMap<String, DatafeedConfig> getDatafeeds() {
         return datafeeds;
     }
 
-    public Datafeed getDatafeed(String datafeedId) {
+    public DatafeedConfig getDatafeed(String datafeedId) {
         return datafeeds.get(datafeedId);
     }
 
@@ -120,9 +123,9 @@ public class MlMetadata implements MetaData.Custom {
         }
         this.allocations = allocations;
         size = in.readVInt();
-        TreeMap<String, Datafeed> datafeeds = new TreeMap<>();
+        TreeMap<String, DatafeedConfig> datafeeds = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            datafeeds.put(in.readString(), new Datafeed(in));
+            datafeeds.put(in.readString(), new DatafeedConfig(in));
         }
         this.datafeeds = datafeeds;
     }
@@ -163,7 +166,7 @@ public class MlMetadata implements MetaData.Custom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, Allocation>> allocations;
-        final Diff<Map<String, Datafeed>> datafeeds;
+        final Diff<Map<String, DatafeedConfig>> datafeeds;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
@@ -176,7 +179,7 @@ public class MlMetadata implements MetaData.Custom {
                     MlMetadataDiff::readJobDiffFrom);
             this.allocations =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Allocation::new,
                     MlMetadataDiff::readAllocationDiffFrom);
-            this.datafeeds =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Datafeed::new,
+            this.datafeeds =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readSchedulerDiffFrom);
         }
 
@@ -184,7 +187,7 @@ public class MlMetadata implements MetaData.Custom {
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, Allocation> newAllocations = new TreeMap<>(allocations.apply(((MlMetadata) part).allocations));
-            TreeMap<String, Datafeed> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
+            TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
             return new MlMetadata(newJobs, newAllocations, newDatafeeds);
         }
 
@@ -208,8 +211,8 @@ public class MlMetadata implements MetaData.Custom {
             return AbstractDiffable.readDiffFrom(Allocation::new, in);
         }
 
-        static Diff<Datafeed> readSchedulerDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(Datafeed::new, in);
+        static Diff<DatafeedConfig> readSchedulerDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }
 
@@ -227,17 +230,7 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (Exception e) {
-            // So we have a stack trace logged somewhere
-            return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
+        return Strings.toString(this);
     }
 
     @Override
@@ -249,7 +242,7 @@ public class MlMetadata implements MetaData.Custom {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, Allocation> allocations;
-        private TreeMap<String, Datafeed> datafeeds;
+        private TreeMap<String, DatafeedConfig> datafeeds;
 
         public Builder() {
             this.jobs = new TreeMap<>();
@@ -285,7 +278,7 @@ public class MlMetadata implements MetaData.Custom {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
 
-            Optional<Datafeed> datafeed = getDatafeedByJobId(jobId);
+            Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
             if (datafeed.isPresent()) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
                         + datafeed.get().getId() + "] refers to it");
@@ -313,35 +306,38 @@ public class MlMetadata implements MetaData.Custom {
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
-            Optional<Datafeed> existingDatafeed = getDatafeedByJobId(jobId);
+            Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);
             if (existingDatafeed.isPresent()) {
                 throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
                         + "] already exists for job [" + jobId + "]");
             }
             DatafeedJobValidator.validate(datafeedConfig, job);
 
-            return putDatafeed(new Datafeed(datafeedConfig, DatafeedStatus.STOPPED));
-        }
-
-        private Builder putDatafeed(Datafeed datafeed) {
-            datafeeds.put(datafeed.getId(), datafeed);
+            datafeeds.put(datafeedConfig.getId(), datafeedConfig);
             return this;
         }
 
-        public Builder removeDatafeed(String datafeedId) {
-            Datafeed datafeed = datafeeds.get(datafeedId);
+        public Builder removeDatafeed(String datafeedId, PersistentTasksInProgress persistentTasksInProgress) {
+            DatafeedConfig datafeed = datafeeds.get(datafeedId);
             if (datafeed == null) {
                 throw ExceptionsHelper.missingDatafeedException(datafeedId);
             }
-            if (datafeed.getStatus() != DatafeedStatus.STOPPED) {
-                String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId, datafeed.getStatus());
-                throw ExceptionsHelper.conflictStatusException(msg);
+            if (persistentTasksInProgress != null) {
+                Predicate<PersistentTaskInProgress<?>> predicate = t -> {
+                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
+                    return storedRequest.getDatafeedId().equals(datafeedId);
+                };
+                if (persistentTasksInProgress.entriesExist(StartDatafeedAction.NAME, predicate)) {
+                    String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
+                            DatafeedStatus.STARTED);
+                    throw ExceptionsHelper.conflictStatusException(msg);
+                }
             }
             datafeeds.remove(datafeedId);
             return this;
         }
 
-        private Optional<Datafeed> getDatafeedByJobId(String jobId) {
+        private Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
             return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
         }
 
@@ -361,9 +357,9 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        private Builder putDatafeeds(Collection<Datafeed> datafeeds) {
-            for (Datafeed datafeed : datafeeds) {
-                putDatafeed(datafeed);
+        private Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
+            for (DatafeedConfig datafeed : datafeeds) {
+                this.datafeeds.put(datafeed.getId(), datafeed);
             }
             return this;
         }
@@ -395,7 +391,7 @@ public class MlMetadata implements MetaData.Custom {
 
             // Cannot update the status to DELETING if there are datafeeds attached
             if (jobStatus.equals(JobStatus.DELETING)) {
-                Optional<Datafeed> datafeed = getDatafeedByJobId(jobId);
+                Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
                 if (datafeed.isPresent()) {
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
                             + datafeed.get().getId() + "] refers to it");
@@ -438,33 +434,6 @@ public class MlMetadata implements MetaData.Custom {
             Allocation.Builder builder = new Allocation.Builder(allocation);
             builder.setIgnoreDowntime(true);
             allocations.put(jobId, builder.build());
-            return this;
-        }
-
-        public Builder updateDatafeedStatus(String datafeedId, DatafeedStatus newStatus) {
-            Datafeed datafeed = datafeeds.get(datafeedId);
-            if (datafeed == null) {
-                throw ExceptionsHelper.missingDatafeedException(datafeedId);
-            }
-
-            DatafeedStatus currentStatus = datafeed.getStatus();
-            switch (newStatus) {
-                case STARTED:
-                    if (currentStatus != DatafeedStatus.STOPPED) {
-                        String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_START, datafeedId, newStatus);
-                        throw ExceptionsHelper.conflictStatusException(msg);
-                    }
-                    break;
-                case STOPPED:
-                    if (currentStatus != DatafeedStatus.STARTED) {
-                        String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_STOP_IN_CURRENT_STATE, datafeedId, newStatus);
-                        throw ExceptionsHelper.conflictStatusException(msg);
-                    }
-                    break;
-                default:
-                    throw new IllegalArgumentException("[" + datafeedId + "] requested invalid datafeed status [" + newStatus + "]");
-            }
-            datafeeds.put(datafeedId, new Datafeed(datafeed.getConfig(), newStatus));
             return this;
         }
     }

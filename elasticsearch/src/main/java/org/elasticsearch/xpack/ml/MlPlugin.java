@@ -25,16 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
-import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
-import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
-import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -61,7 +51,6 @@ import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.InternalOpenJobAction;
-import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
@@ -70,17 +59,16 @@ import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
+import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
@@ -120,7 +108,17 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
+import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
+import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
+import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
+import org.elasticsearch.xpack.persistent.PersistentActionRequest;
+import org.elasticsearch.xpack.persistent.PersistentActionService;
+import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -180,7 +178,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new NamedWriteableRegistry.Entry(PersistentActionCoordinator.Status.class,
                         PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
                 new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom)
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new)
                 );
     }
 
@@ -299,7 +298,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
                 new ActionHandler<>(InternalOpenJobAction.INSTANCE, InternalOpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
-                new ActionHandler<>(UpdateDatafeedStatusAction.INSTANCE, UpdateDatafeedStatusAction.TransportAction.class),
                 new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),
@@ -320,7 +318,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(PutDatafeedAction.INSTANCE, PutDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteDatafeedAction.INSTANCE, DeleteDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
-                new ActionHandler<>(InternalStartDatafeedAction.INSTANCE, InternalStartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),

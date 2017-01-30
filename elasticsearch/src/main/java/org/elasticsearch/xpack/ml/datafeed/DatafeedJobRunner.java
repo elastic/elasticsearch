@@ -5,20 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.InternalStartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
@@ -26,15 +22,12 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorF
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -62,12 +55,10 @@ public class DatafeedJobRunner extends AbstractComponent {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
-    public void run(String datafeedId, long startTime, Long endTime, InternalStartDatafeedAction.DatafeedTask task,
+    public void run(String datafeedId, long startTime, Long endTime, StartDatafeedAction.DatafeedTask task,
                     Consumer<Exception> handler) {
         MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-        validate(datafeedId, mlMetadata);
-
-        Datafeed datafeed = mlMetadata.getDatafeed(datafeedId);
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
         gatherInformation(job.getId(), (buckets, dataCounts) -> {
             long latestFinalBucketEndMs = -1L;
@@ -88,43 +79,36 @@ public class DatafeedJobRunner extends AbstractComponent {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        setJobDatafeedStatus(holder.datafeed.getId(), DatafeedStatus.STARTED, error -> {
-            if (error != null) {
-                holder.stop("unable_to_set_datafeed_status", error);
+        logger.info("Starting datafeed [{}] for job [{}]", holder.datafeed.getId(), holder.datafeed.getJobId());
+        holder.future = threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
+            Long next = null;
+            try {
+                next = holder.datafeedJob.runLookBack(startTime, endTime);
+            } catch (DatafeedJob.ExtractionProblemException e) {
+                if (endTime == null) {
+                    next = e.nextDelayInMsSinceEpoch;
+                }
+                holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+            } catch (DatafeedJob.AnalysisProblemException e) {
+                if (endTime == null) {
+                    next = e.nextDelayInMsSinceEpoch;
+                }
+                holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+            } catch (DatafeedJob.EmptyDataCountException e) {
+                if (endTime == null && holder.problemTracker.updateEmptyDataCount(true) == false) {
+                    next = e.nextDelayInMsSinceEpoch;
+                }
+            } catch (Exception e) {
+                logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
+                holder.stop("general_lookback_failure", e);
                 return;
             }
-
-            logger.info("Starting datafeed [{}] for job [{}]", holder.datafeed.getId(), holder.datafeed.getJobId());
-            holder.future = threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
-                Long next = null;
-                try {
-                    next = holder.datafeedJob.runLookBack(startTime, endTime);
-                } catch (DatafeedJob.ExtractionProblemException e) {
-                    if (endTime == null) {
-                        next = e.nextDelayInMsSinceEpoch;
-                    }
-                    holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
-                } catch (DatafeedJob.AnalysisProblemException e) {
-                    if (endTime == null) {
-                        next = e.nextDelayInMsSinceEpoch;
-                    }
-                    holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
-                } catch (DatafeedJob.EmptyDataCountException e) {
-                    if (endTime == null && holder.problemTracker.updateEmptyDataCount(true) == false) {
-                        next = e.nextDelayInMsSinceEpoch;
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
-                    holder.stop("general_lookback_failure", e);
-                    return;
-                }
-                if (next != null) {
-                    doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
-                } else {
-                    holder.stop("no_realtime", null);
-                    holder.problemTracker.finishReport();
-                }
-            });
+            if (next != null) {
+                doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
+            } else {
+                holder.stop("no_realtime", null);
+                holder.problemTracker.finishReport();
+            }
         });
     }
 
@@ -160,37 +144,12 @@ public class DatafeedJobRunner extends AbstractComponent {
         }
     }
 
-    public static void validate(String datafeedId, MlMetadata mlMetadata) {
-        Datafeed datafeed = mlMetadata.getDatafeed(datafeedId);
-        if (datafeed == null) {
-            throw ExceptionsHelper.missingDatafeedException(datafeedId);
-        }
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-        if (job == null) {
-            throw ExceptionsHelper.missingJobException(datafeed.getJobId());
-        }
-
-        Allocation allocation = mlMetadata.getAllocations().get(datafeed.getJobId());
-        if (allocation.getStatus() != JobStatus.OPENED) {
-            throw new ElasticsearchStatusException("cannot start datafeed, expected job status [{}], but got [{}]",
-                    RestStatus.CONFLICT, JobStatus.OPENED, allocation.getStatus());
-        }
-
-        DatafeedStatus status = datafeed.getStatus();
-        if (status != DatafeedStatus.STOPPED) {
-            throw new ElasticsearchStatusException("datafeed already started, expected datafeed status [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedStatus.STOPPED, status);
-        }
-
-        DatafeedJobValidator.validate(datafeed.getConfig(), job);
-    }
-
-    private Holder createJobDatafeed(Datafeed datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
-                                      Consumer<Exception> handler, InternalStartDatafeedAction.DatafeedTask task) {
+    private Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
+                                      Consumer<Exception> handler, StartDatafeedAction.DatafeedTask task) {
         Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(datafeed, job);
-        Duration queryDelay = Duration.ofSeconds(datafeed.getConfig().getQueryDelay());
-        DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed.getConfig(), job);
+        Duration queryDelay = Duration.ofSeconds(datafeed.getQueryDelay());
+        DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
         Holder holder = new Holder(datafeed, datafeedJob, new ProblemTracker(() -> auditor), handler);
@@ -231,8 +190,8 @@ public class DatafeedJobRunner extends AbstractComponent {
         });
     }
 
-    private static Duration getFrequencyOrDefault(Datafeed datafeed, Job job) {
-        Long frequency = datafeed.getConfig().getFrequency();
+    private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
+        Long frequency = datafeed.getFrequency();
         Long bucketSpan = job.getAnalysisConfig().getBucketSpan();
         return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan) : Duration.ofSeconds(frequency);
     }
@@ -241,36 +200,15 @@ public class DatafeedJobRunner extends AbstractComponent {
         return new TimeValue(Math.max(1, next - currentTimeSupplier.get()));
     }
 
-    private void setJobDatafeedStatus(String datafeedId, DatafeedStatus status, Consumer<Exception> handler) {
-        UpdateDatafeedStatusAction.Request request = new UpdateDatafeedStatusAction.Request(datafeedId, status);
-        client.execute(UpdateDatafeedStatusAction.INSTANCE, request, new ActionListener<UpdateDatafeedStatusAction.Response>() {
-            @Override
-            public void onResponse(UpdateDatafeedStatusAction.Response response) {
-                if (response.isAcknowledged()) {
-                    logger.debug("successfully set datafeed [{}] status to [{}]", datafeedId, status);
-                } else {
-                    logger.info("set datafeed [{}] status to [{}], but was not acknowledged", datafeedId, status);
-                }
-                handler.accept(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("could not set datafeed [" + datafeedId + "] status to [" + status + "]", e);
-                handler.accept(e);
-            }
-        });
-    }
-
     public class Holder {
 
-        private final Datafeed datafeed;
+        private final DatafeedConfig datafeed;
         private final DatafeedJob datafeedJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        private Holder(Datafeed datafeed, DatafeedJob datafeedJob, ProblemTracker problemTracker, Consumer<Exception> handler) {
+        private Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, ProblemTracker problemTracker, Consumer<Exception> handler) {
             this.datafeed = datafeed;
             this.datafeedJob = datafeedJob;
             this.problemTracker = problemTracker;
@@ -285,7 +223,7 @@ public class DatafeedJobRunner extends AbstractComponent {
             logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
             if (datafeedJob.stop()) {
                 FutureUtils.cancel(future);
-                setJobDatafeedStatus(datafeed.getId(), DatafeedStatus.STOPPED, error -> handler.accept(e));
+                handler.accept(e);
                 logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
             } else {
                 logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());

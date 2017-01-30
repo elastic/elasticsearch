@@ -22,21 +22,19 @@ import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
-import org.elasticsearch.xpack.ml.action.UpdateDatafeedStatusAction;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.util.Collections;
@@ -293,27 +291,6 @@ public class JobManager extends AbstractComponent {
         MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
         builder.deleteJob(jobId);
         return buildNewClusterState(currentState, builder);
-    }
-
-    public void updateDatafeedStatus(UpdateDatafeedStatusAction.Request request,
-                                      ActionListener<UpdateDatafeedStatusAction.Response> actionListener) {
-        String datafeedId = request.getDatafeedId();
-        DatafeedStatus newStatus = request.getDatafeedStatus();
-        clusterService.submitStateUpdateTask("update-datafeed-status-" + datafeedId,
-                new AckedClusterStateUpdateTask<UpdateDatafeedStatusAction.Response>(request, actionListener) {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                builder.updateDatafeedStatus(datafeedId, newStatus);
-                return buildNewClusterState(currentState, builder);
-            }
-
-            @Override
-            protected UpdateDatafeedStatusAction.Response newResponse(boolean acknowledged) {
-                return new UpdateDatafeedStatusAction.Response(acknowledged);
-            }
-        });
     }
 
     private Allocation getAllocation(ClusterState state, String jobId) {

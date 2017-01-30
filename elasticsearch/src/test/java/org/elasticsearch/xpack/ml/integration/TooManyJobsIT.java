@@ -12,19 +12,23 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.action.DatafeedJobsIT;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
-import org.elasticsearch.xpack.ml.action.DatafeedJobsIT;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.persistent.PersistentActionRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.junit.After;
 
 import java.io.IOException;
@@ -127,7 +131,13 @@ public class TooManyJobsIT extends ESIntegTestCase {
     public static void ensureClusterStateConsistencyWorkAround() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>(ClusterModule.getNamedWriteables());
+            SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+            namedWritables.addAll(searchModule.getNamedWriteables());
             namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new));
+            namedWritables.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE,
+                    PersistentTasksInProgress::new));
+            namedWritables.add(new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME,
+                    StartDatafeedAction.Request::new));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWritables);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);

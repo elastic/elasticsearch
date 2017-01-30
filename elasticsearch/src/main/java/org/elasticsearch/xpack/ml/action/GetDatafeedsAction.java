@@ -29,16 +29,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.Datafeed;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDatafeedsAction.Response,
         GetDatafeedsAction.RequestBuilder> {
@@ -198,18 +197,17 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-            QueryPage<DatafeedConfig> response = null;
+            QueryPage<DatafeedConfig> response;
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             if (ALL.equals(request.getDatafeedId())) {
-                List<DatafeedConfig> datafeedConfigs = mlMetadata.getDatafeeds().values().stream().map(
-                        s -> s.getConfig()).collect(Collectors.toList());
-                response = new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), Datafeed.RESULTS_FIELD);
+                List<DatafeedConfig> datafeedConfigs = new ArrayList<>(mlMetadata.getDatafeeds().values());
+                response = new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), DatafeedConfig.RESULTS_FIELD);
             } else {
-                Datafeed datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
+                DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
                 if (datafeed == null) {
                     throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
                 }
-                response = new QueryPage<>(Collections.singletonList(datafeed.getConfig()), 1, Datafeed.RESULTS_FIELD);
+                response = new QueryPage<>(Collections.singletonList(datafeed), 1, DatafeedConfig.RESULTS_FIELD);
             }
 
             listener.onResponse(new Response(response));

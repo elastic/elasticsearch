@@ -228,8 +228,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      * Return the region configured, or empty string.
      * TODO: remove after https://github.com/elastic/elasticsearch/issues/22761 */
     public static String getRegion(Settings repositorySettings, Settings settings) {
-        return getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
-                              S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
+        return S3Repository.getValue(repositorySettings, settings,
+            S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
     }
 
     private static String getEndpoint(String region) {

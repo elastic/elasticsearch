@@ -75,10 +75,6 @@ public class S3Repository extends BlobStoreRepository {
     public static final AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
         key -> SecureSetting.secureString(key, Repositories.SECRET_SETTING, false));
 
-    /** The region the s3 repository bucket should exist in. */
-    public static final AffixSetting<String> REGION_SETTING = Setting.affixKeySetting(PREFIX, "region",
-        key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));
-
     /** An override for the s3 endpoint to connect to. */
     public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
         key -> new Setting<>(key, Repositories.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));

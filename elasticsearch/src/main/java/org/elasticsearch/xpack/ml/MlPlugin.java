@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
@@ -271,6 +273,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
             new RestCloseJobAction(settings, restController),
             new RestFlushJobAction(settings, restController),
             new RestValidateDetectorAction(settings, restController),
+            new RestValidateJobConfigAction(settings, restController),
             new RestGetCategoriesAction(settings, restController),
             new RestGetModelSnapshotsAction(settings, restController),
             new RestRevertModelSnapshotAction(settings, restController),
@@ -309,6 +312,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
                 new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
+                new ActionHandler<>(ValidateJobConfigAction.INSTANCE, ValidateJobConfigAction.TransportAction.class),
                 new ActionHandler<>(GetCategoriesAction.INSTANCE, GetCategoriesAction.TransportAction.class),
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),

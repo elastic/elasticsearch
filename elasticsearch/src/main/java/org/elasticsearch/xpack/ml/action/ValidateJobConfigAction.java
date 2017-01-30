@@ -25,18 +25,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ValidateDetectorAction
-extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, ValidateDetectorAction.RequestBuilder> {
+public class ValidateJobConfigAction
+extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response, ValidateJobConfigAction.RequestBuilder> {
 
-    public static final ValidateDetectorAction INSTANCE = new ValidateDetectorAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/validate/detector";
+    public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/validate";
 
-    protected ValidateDetectorAction() {
+    protected ValidateJobConfigAction() {
         super(NAME);
     }
 
@@ -52,7 +52,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, ValidateDetectorAction action) {
+        protected RequestBuilder(ElasticsearchClient client, ValidateJobConfigAction action) {
             super(client, action, new Request());
         }
 
@@ -60,25 +60,25 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
 
     public static class Request extends ActionRequest implements ToXContent {
 
-        private Detector detector;
+        private Job job;
 
-        // NORELEASE this needs to change so the body is not directly the
-        // detector but and object that contains a field for the detector
         public static Request parseRequest(XContentParser parser) {
-            Detector detector = Detector.PARSER.apply(parser, null).build();
-            return new Request(detector);
+            Job.Builder job = Job.PARSER.apply(parser, null);
+            // When jobs are PUT their ID must be supplied in the URL - assume this will
+            // be valid unless an invalid job ID is specified in the JSON to be validated
+            return new Request(job.build(true, (job.getId() != null) ? job.getId() : "ok"));
         }
 
         Request() {
-            this.detector = null;
+            this.job = null;
         }
 
-        public Request(Detector detector) {
-            this.detector = detector;
+        public Request(Job job) {
+            this.job = job;
         }
 
-        public Detector getDetector() {
-            return detector;
+        public Job getJob() {
+            return job;
         }
 
         @Override
@@ -89,24 +89,24 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            detector.writeTo(out);
+            job.writeTo(out);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            detector = new Detector(in);
+            job = new Job(in);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            detector.toXContent(builder, params);
+            job.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(detector);
+            return Objects.hash(job);
         }
 
         @Override
@@ -118,7 +118,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(detector, other.detector);
+            return Objects.equals(job, other.job);
         }
 
     }
@@ -151,7 +151,7 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, ValidateDetectorAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            super(settings, ValidateJobConfigAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                     Request::new);
         }
 

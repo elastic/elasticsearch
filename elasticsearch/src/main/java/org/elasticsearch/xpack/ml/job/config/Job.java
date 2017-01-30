@@ -71,6 +71,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", Builder::new);
 
+    public static final int MAX_JOB_ID_LENGTH = 64;
+    public static final long MIN_BACKGROUND_PERSIST_INTERVAL = 3600;
+
     static {
         PARSER.declareString(Builder::setId, ID);
         PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
@@ -140,6 +143,30 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
                Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
                Map<String, Object> customSettings, String modelSnapshotId, String indexName) {
+
+        if (analysisConfig == null) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
+        }
+
+        checkValueNotLessThan(0, "timeout", timeout);
+        checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
+        checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
+        checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
+        checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
+
+        if (!MlStrings.isValidId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
+        }
+        if (jobId.length() > MAX_JOB_ID_LENGTH) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
+        }
+
+        if (Strings.isNullOrEmpty(indexName)) {
+            indexName = jobId;
+        } else if (!MlStrings.isValidId(indexName)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, INDEX_NAME.getPreferredName()));
+        }
+
         this.jobId = jobId;
         this.description = description;
         this.createTime = createTime;
@@ -496,10 +523,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
     }
 
+    private static void checkValueNotLessThan(long minVal, String name, Long value) {
+        if (value != null && value < minVal) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, name, minVal, value));
+        }
+    }
+
     public static class Builder {
 
-        public static final int MAX_JOB_ID_LENGTH = 64;
-        public static final long MIN_BACKGROUND_PERSIST_INTERVAL = 3600;
         public static final long DEFAULT_TIMEOUT = 600;
 
         private String id;
@@ -641,15 +672,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         public Job build(boolean fromApi, String urlJobId) {
-            if (analysisConfig == null) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
-            }
-
-            checkValueNotLessThan(0, "timeout", timeout);
-            checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
-            checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
-            checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
-            checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
 
             Date createTime;
             Date finishedTime;
@@ -672,31 +694,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 modelSnapshotId = this.modelSnapshotId;
             }
 
-            if (!MlStrings.isValidId(id)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
-            }
-            if (id.length() > MAX_JOB_ID_LENGTH) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
-            }
-
-            if (Strings.isNullOrEmpty(indexName)) {
-                indexName = id;
-            } else if (!MlStrings.isValidId(indexName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, INDEX_NAME.getPreferredName()));
-            }
-
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
                     dataDescription, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     indexName
             );
-        }
-
-        private static void checkValueNotLessThan(long minVal, String name, Long value) {
-            if (value != null && value < minVal) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, name, minVal, value));
-            }
         }
     }
 }

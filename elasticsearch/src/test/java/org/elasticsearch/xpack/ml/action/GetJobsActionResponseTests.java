@@ -31,8 +31,8 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
         int listSize = randomInt(10);
         List<Job> jobList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            String jobId = randomAsciiOfLength(10);
-            String description = randomBoolean() ? randomAsciiOfLength(10) : null;
+            String jobId = "job" + j;
+            String description = randomBoolean() ? randomAsciiOfLength(100) : null;
             Date createTime = new Date(randomNonNegativeLong());
             Date finishedTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
             Date lastDataTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
@@ -43,14 +43,14 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
             ModelDebugConfig modelDebugConfig = randomBoolean() ? new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)) : null;
             IgnoreDowntime ignoreDowntime = randomFrom(IgnoreDowntime.values());
-            Long normalizationWindowDays = randomBoolean() ? randomLong() : null;
-            Long backgroundPersistInterval = randomBoolean() ? randomLong() : null;
-            Long modelSnapshotRetentionDays = randomBoolean() ? randomLong() : null;
-            Long resultsRetentionDays = randomBoolean() ? randomLong() : null;
+            Long normalizationWindowDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
+            Long backgroundPersistInterval = randomBoolean() ? Long.valueOf(randomIntBetween(3600, 86400)) : null;
+            Long modelSnapshotRetentionDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
+            Long resultsRetentionDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
             Map<String, Object> customConfig = randomBoolean() ? Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10))
                     : null;
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
-            String indexName = randomAsciiOfLength(10);
+            String indexName = randomBoolean() ? "index" + j : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
                     timeout, analysisConfig, analysisLimits, dataDescription,
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,

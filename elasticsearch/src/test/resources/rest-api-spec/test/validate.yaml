@@ -1,0 +1,77 @@
+---
+"Test valid job config":
+  - do:
+      xpack.ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": 3600,
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "delimited",
+              "field_delimiter": ",",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { acknowledged: true }
+
+---
+"Test invalid job config":
+  - do:
+      catch: /.data_description. failed to parse field .format./
+      xpack.ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": 3600,
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "wrong",
+              "field_delimiter": ",",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test valid job config with job ID":
+  - do:
+      xpack.ml.validate:
+        body:  >
+          {
+            "job_id": "farequote",
+            "analysis_config": {
+              "bucket_span": 3600,
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "delimited",
+              "field_delimiter": ",",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { acknowledged: true }
+
+---
+"Test job config that's invalid only because of the job ID":
+  - do:
+      catch: /Invalid job_id; '_' must be lowercase alphanumeric, may contain hyphens or underscores, may not start with underscore/
+      xpack.ml.validate:
+        body:  >
+          {
+            "job_id": "_",
+            "analysis_config": {
+              "bucket_span": 3600,
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "delimited",
+              "field_delimiter": ",",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }

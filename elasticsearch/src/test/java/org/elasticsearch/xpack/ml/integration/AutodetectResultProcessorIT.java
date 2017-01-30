@@ -29,13 +29,11 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.noop.NoOpRenormalizer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecordTests;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.InfluencerTests;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutputTests;
 import org.junit.Before;
@@ -121,7 +119,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         bucket.setRecords(Collections.emptyList());
         assertEquals(bucket, persistedBucket.results().get(0));
 
-        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().build());
         assertResultsAreSame(records, persistedRecords);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
@@ -282,9 +280,12 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     private void createJob() {
-        Detector detector = new Detector.Builder("avg", "metric_field").build();
+        Detector.Builder detectorBuilder = new Detector.Builder("avg", "metric_field");
+        detectorBuilder.setByFieldName("by_instance");
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);
-        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector)));
+        AnalysisConfig.Builder analysisConfBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        analysisConfBuilder.setInfluencers(Collections.singletonList("influence_field"));
+        jobBuilder.setAnalysisConfig(analysisConfBuilder);
 
         jobProvider.createJobResultIndex(jobBuilder.build(), new ActionListener<Boolean>() {
             @Override
@@ -307,9 +308,11 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         List<AnomalyRecord> records = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
-        AnomalyRecordTests anomalyRecordGenerator = new AnomalyRecordTests();
+        Date now = new Date(randomNonNegativeLong());
         for (int i=0; i<count; i++) {
-            AnomalyRecord r = anomalyRecordGenerator.createTestInstance(JOB_ID, i);
+            AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L, i);
+            r.setByFieldName("by_instance");
+            r.setByFieldValue(randomAsciiOfLength(8));
             r.setInterim(isInterim);
             records.add(r);
         }
@@ -320,9 +323,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         List<Influencer> influencers = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
-        InfluencerTests influencerGenerator = new InfluencerTests();
+        Date now = new Date();
         for (int i=0; i<count; i++) {
-            Influencer influencer = influencerGenerator.createTestInstance(JOB_ID);
+            Influencer influencer = new Influencer(JOB_ID, "influence_field", randomAsciiOfLength(10), now, 3600L, i);
             influencer.setInterim(isInterim);
             influencers.add(influencer);
         }

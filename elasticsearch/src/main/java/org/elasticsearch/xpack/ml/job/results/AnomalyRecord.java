@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,8 +22,12 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Anomaly Record POJO.
@@ -78,7 +83,8 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField INITIAL_NORMALIZED_PROBABILITY = new ParseField("initial_normalized_probability");
 
     public static final ConstructingObjectParser<AnomalyRecord, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
+                    a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -144,7 +150,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     private final Date timestamp;
     private final long bucketSpan;
 
-    private List<Influence> influencers;
+    private List<Influence> influences;
 
     public AnomalyRecord(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
         this.jobId = jobId;
@@ -185,7 +191,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         if (in.readBoolean()) {
-            influencers = in.readList(Influence::new);
+            influences = in.readList(Influence::new);
         }
     }
 
@@ -226,10 +232,10 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         out.writeDouble(initialNormalizedProbability);
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
-        boolean hasInfluencers = influencers != null;
+        boolean hasInfluencers = influences != null;
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
-            out.writeList(influencers);
+            out.writeList(influences);
         }
     }
 
@@ -286,11 +292,43 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         if (causes != null) {
             builder.field(CAUSES.getPreferredName(), causes);
         }
-        if (influencers != null) {
-            builder.field(INFLUENCERS.getPreferredName(), influencers);
+        if (influences != null) {
+            builder.field(INFLUENCERS.getPreferredName(), influences);
         }
+
+        Map<String, Set<String>> inputFields = inputFieldMap();
+        for (String fieldName : inputFields.keySet()) {
+            builder.field(fieldName, inputFields.get(fieldName));
+        }
+
         builder.endObject();
         return builder;
+    }
+
+    private Map<String, Set<String>> inputFieldMap() {
+        Map<String, Set<String>> result = new HashMap<>();
+
+        addInputFieldsToMap(result, byFieldName, byFieldValue);
+        addInputFieldsToMap(result, overFieldName, overFieldValue);
+        addInputFieldsToMap(result, partitionFieldName, partitionFieldValue);
+
+        if (influences != null) {
+            for (Influence inf : influences) {
+                String fieldName = inf.getInfluencerFieldName();
+                for (String fieldValue : inf.getInfluencerFieldValues()) {
+                    addInputFieldsToMap(result, fieldName, fieldValue);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void addInputFieldsToMap(Map<String, Set<String>> inputFields, String fieldName, String fieldValue) {
+        if (!Strings.isNullOrEmpty(fieldName) && fieldValue != null) {
+            if (ReservedFieldNames.isValidFieldName(fieldName)) {
+                inputFields.computeIfAbsent(fieldName, k -> new HashSet<String>()).add(fieldValue);
+            }
+        }
     }
 
     public String getJobId() {
@@ -475,11 +513,11 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     }
 
     public List<Influence> getInfluencers() {
-        return influencers;
+        return influences;
     }
 
     public void setInfluencers(List<Influence> influencers) {
-        this.influencers = influencers;
+        this.influences = influencers;
     }
 
 
@@ -489,7 +527,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
                 normalizedProbability, initialNormalizedProbability, typical, actual,
                 function, functionDescription, fieldName, byFieldName, byFieldValue, correlatedByFieldValue,
                 partitionFieldName, partitionFieldValue, overFieldName, overFieldValue,
-                timestamp, isInterim, causes, influencers, jobId);
+                timestamp, isInterim, causes, influences, jobId);
     }
 
 
@@ -528,6 +566,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.causes, that.causes)
-                && Objects.equals(this.influencers, that.influencers);
+                && Objects.equals(this.influences, that.influences);
     }
 }

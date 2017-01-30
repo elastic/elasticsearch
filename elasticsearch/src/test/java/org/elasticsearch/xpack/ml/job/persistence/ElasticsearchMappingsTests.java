@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.notifications.AuditActivity;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
@@ -32,8 +34,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 
@@ -167,6 +171,28 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             String reserved = ReservedFieldNames.RESERVED_FIELD_NAMES.contains(s) ? s : null;
             assertEquals(s, reserved);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testResultMapping() throws IOException {
+
+        XContentBuilder builder = ElasticsearchMappings.resultsMapping(
+                Arrays.asList("instance", AnomalyRecord.ANOMALY_SCORE.getPreferredName()));
+        XContentParser parser = createParser(builder);
+        Map<String, Object> type = (Map<String, Object>) parser.map().get(Result.TYPE.getPreferredName());
+        Map<String, Object> properties = (Map<String, Object>) type.get(ElasticsearchMappings.PROPERTIES);
+
+        // check a keyword mapping for the 'instance' field was created
+        Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("instance");
+        assertNotNull(instanceMapping);
+        String dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
+        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
+
+        // check anomaly score wasn't overwritten
+        Map<String, Object> anomalyScoreMapping = (Map<String, Object>) properties.get(AnomalyRecord.ANOMALY_SCORE.getPreferredName());
+        assertNotNull(anomalyScoreMapping);
+        dataType = (String)anomalyScoreMapping.get(ElasticsearchMappings.TYPE);
+        assertEquals(ElasticsearchMappings.DOUBLE, dataType);
     }
 
 }

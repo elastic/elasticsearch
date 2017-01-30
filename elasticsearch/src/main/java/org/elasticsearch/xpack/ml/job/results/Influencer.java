@@ -45,7 +45,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
 
     public static final ConstructingObjectParser<Influencer, Void> PARSER = new ConstructingObjectParser<>(
-            RESULT_TYPE_FIELD.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2],
+            RESULT_TYPE_FIELD.getPreferredName(), true, a -> new Influencer((String) a[0], (String) a[1], (String) a[2],
             (Date) a[3], (long) a[4], (int) a[5]));
 
     static {
@@ -123,6 +123,9 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(INFLUENCER_FIELD_NAME.getPreferredName(), influenceField);
         builder.field(INFLUENCER_FIELD_VALUE.getPreferredName(), influenceValue);
+        if (ReservedFieldNames.isValidFieldName(influenceField)) {
+            builder.field(influenceField, influenceValue);
+        }
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
         builder.field(PROBABILITY.getPreferredName(), probability);

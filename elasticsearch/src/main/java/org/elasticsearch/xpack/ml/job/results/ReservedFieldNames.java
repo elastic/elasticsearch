@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 
 /**
@@ -25,15 +26,7 @@ import java.util.Set;
  * contains raw data and in others it contains some aspect of our output.
  */
 public final class ReservedFieldNames {
-    /**
-     * jobId isn't in this package, so redefine.
-     */
-    private static final String JOB_ID_NAME = Job.ID.getPreferredName();
-
-    /**
-     * @timestamp isn't in this package, so redefine.
-     */
-    private static final String ES_TIMESTAMP = "timestamp";
+    private static final Pattern DOT_PATTERN = Pattern.compile("\\.");
 
     /**
      * This array should be updated to contain all the field names that appear
@@ -44,6 +37,8 @@ public final class ReservedFieldNames {
      */
     private static final String[] RESERVED_FIELD_NAME_ARRAY = {
             ElasticsearchMappings.ALL_FIELD_VALUES,
+
+            Job.ID.getPreferredName(),
 
             AnomalyCause.PROBABILITY.getPreferredName(),
             AnomalyCause.OVER_FIELD_NAME.getPreferredName(),
@@ -93,6 +88,7 @@ public final class ReservedFieldNames {
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
             Bucket.PROCESSING_TIME_MS.getPreferredName(),
             Bucket.PARTITION_SCORES.getPreferredName(),
+            Bucket.TIMESTAMP.getPreferredName(),
 
             BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.ANOMALY_SCORE.getPreferredName(),
             BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName(), BucketInfluencer.PROBABILITY.getPreferredName(),
@@ -151,11 +147,23 @@ public final class ReservedFieldNames {
 
             Quantiles.QUANTILE_STATE.getPreferredName(),
 
-            Result.RESULT_TYPE.getPreferredName(),
-
-            JOB_ID_NAME,
-            ES_TIMESTAMP
+            Result.RESULT_TYPE.getPreferredName()
     };
+
+    /**
+     * Test if fieldName is one of the reserved names or if it contains dots then
+     * that the segment before the first dot is not a reserved name. A fieldName
+     * containing dots represents nested fields in which case we only care about
+     * the top level.
+     *
+     * @param fieldName Document field name. This may contain dots '.'
+     * @return True if fieldName is not a reserved name or the top level segment
+     * is not a reserved name.
+     */
+    public static boolean isValidFieldName(String fieldName) {
+        String[] segments = DOT_PATTERN.split(fieldName);
+        return !RESERVED_FIELD_NAMES.contains(segments[0]);
+    }
 
     /**
      * A set of all reserved field names in our results.  Fields from the raw

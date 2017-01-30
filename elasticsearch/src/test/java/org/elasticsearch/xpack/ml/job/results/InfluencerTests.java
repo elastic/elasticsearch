@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Date;
 
 public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
@@ -35,6 +38,24 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     @Override
     protected Influencer parseInstance(XContentParser parser) {
         return Influencer.PARSER.apply(parser, null);
+    }
+
+    public void testToXContentIncludesNameValueField() throws IOException {
+        Influencer influencer = createTestInstance("foo");
+        XContentBuilder builder = toXContent(influencer, XContentType.JSON);
+        XContentParser parser = createParser(builder);
+        String serialisedFieldName = (String) parser.map().get(influencer.getInfluencerFieldName());
+        assertNotNull(serialisedFieldName);
+        assertEquals(influencer.getInfluencerFieldValue(), serialisedFieldName);
+    }
+
+    public void testToXContentDoesNotIncludeNameValueFieldWhenReservedWord() throws IOException {
+        Influencer influencer = new Influencer("foo", AnomalyRecord.ANOMALY_SCORE.getPreferredName(), "bar", new Date(), 300L, 0);
+        XContentBuilder builder = toXContent(influencer, XContentType.JSON);
+        XContentParser parser = createParser(builder);
+        Object serialisedFieldValue = parser.map().get(AnomalyRecord.ANOMALY_SCORE.getPreferredName());
+        assertNotEquals("bar", serialisedFieldValue);
+        assertEquals(0.0, (Double)serialisedFieldValue, 0.0001);
     }
 
 }

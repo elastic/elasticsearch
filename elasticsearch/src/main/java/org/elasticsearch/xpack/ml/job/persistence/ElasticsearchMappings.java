@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.notifications.AuditActivity;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
@@ -226,13 +227,9 @@ public class ElasticsearchMappings {
         addInfluencerFieldsToMapping(builder);
         addModelSizeStatsFieldsToMapping(builder);
 
-        if (termFieldNames != null) {
-            ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
-            for (String fieldName : termFieldNames) {
-                reverser.add(fieldName, "");
-            }
-            for (Map.Entry<String, Object> entry : reverser.getMappingsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
+        for (String fieldName : termFieldNames) {
+            if (ReservedFieldNames.isValidFieldName(fieldName)) {
+                builder.startObject(fieldName).field(TYPE, KEYWORD).endObject();
             }
         }
 

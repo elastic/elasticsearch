@@ -53,43 +53,27 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
 
-    @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        // nodeSettings is called before `wipeBefore()` so we need to define basePath here
-        globalBasePath = "repo-" + randomInt();
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(S3Repository.Repositories.BASE_PATH_SETTING.getKey(), globalBasePath)
-                .build();
-    }
-
     private String basePath;
-    private String globalBasePath;
 
     @Before
     public final void wipeBefore() {
         wipeRepositories();
         basePath = "repo-" + randomInt();
         cleanRepositoryFiles(basePath);
-        cleanRepositoryFiles(globalBasePath);
     }
 
     @After
     public final void wipeAfter() {
         wipeRepositories();
         cleanRepositoryFiles(basePath);
-        cleanRepositoryFiles(globalBasePath);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-aws/issues/211")
     public void testSimpleWorkflow() {
         Client client = client();
         Settings.Builder settings = Settings.builder()
-                .put(S3Repository.Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000));
-
-        // We sometime test getting the base_path from node settings using repositories.s3.base_path
-        if (usually()) {
-            settings.put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath);
-        }
+                .put(S3Repository.Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000))
+                .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath);
 
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -282,8 +266,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -299,9 +281,6 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(Settings.builder()
                     .put(S3Repository.Repository.BUCKET_SETTING.getKey(), bucketSettings.get("bucket"))
-                    .put(S3Repository.Repository.ENDPOINT_SETTING.getKey(), bucketSettings.get("endpoint"))
-                    .put(S3Repository.Repository.KEY_SETTING.getKey(), bucketSettings.get("access_key"))
-                    .put(S3Repository.Repository.SECRET_SETTING.getKey(), bucketSettings.get("secret_key"))
                     .put(S3Repository.Repository.BASE_PATH_SETTING.getKey(), basePath)
                     ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

@@ -97,20 +97,14 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
-        Protocol protocol = getConfigValue(repositorySettings, settings, clientName, S3Repository.PROTOCOL_SETTING,
-                                           S3Repository.Repository.PROTOCOL_SETTING, S3Repository.Repositories.PROTOCOL_SETTING);
+        Protocol protocol = getConfigValue(settings, clientName, S3Repository.PROTOCOL_SETTING);
         clientConfiguration.setProtocol(protocol);
 
-        String proxyHost = getConfigValue(null, settings, clientName,
-                                          S3Repository.PROXY_HOST_SETTING, null, CLOUD_S3.PROXY_HOST_SETTING);
+        String proxyHost = getConfigValue(settings, clientName, S3Repository.PROXY_HOST_SETTING);
         if (Strings.hasText(proxyHost)) {
-            Integer proxyPort = getConfigValue(null, settings, clientName,
-                                               S3Repository.PROXY_PORT_SETTING, null, CLOUD_S3.PROXY_PORT_SETTING);
-            try (SecureString proxyUsername = getConfigValue(null, settings, clientName,
-                                                             S3Repository.PROXY_USERNAME_SETTING, null, CLOUD_S3.PROXY_USERNAME_SETTING);
-                 SecureString proxyPassword = getConfigValue(null, settings, clientName,
-                                                             S3Repository.PROXY_PASSWORD_SETTING, null, CLOUD_S3.PROXY_PASSWORD_SETTING)) {
-
+            Integer proxyPort = getConfigValue(settings, clientName, S3Repository.PROXY_PORT_SETTING);
+            try (SecureString proxyUsername = getConfigValue(settings, clientName, S3Repository.PROXY_USERNAME_SETTING);
+                 SecureString proxyPassword = getConfigValue(settings, clientName, S3Repository.PROXY_PASSWORD_SETTING)) {
                 clientConfiguration
                     .withProxyHost(proxyHost)
                     .withProxyPort(proxyPort)
@@ -125,15 +119,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
 
-        // #155: we might have 3rd party users using older S3 API version
-        String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);
-        if (Strings.hasText(awsSigner)) {
-            logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
-        }
-
-        TimeValue readTimeout = getConfigValue(null, settings, clientName,
-                                               S3Repository.READ_TIMEOUT_SETTING, null, CLOUD_S3.READ_TIMEOUT);
+        TimeValue readTimeout = getConfigValue(settings, clientName, S3Repository.READ_TIMEOUT_SETTING);
         clientConfiguration.setSocketTimeout((int)readTimeout.millis());
 
         return clientConfiguration;
@@ -142,11 +128,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     public static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
                                                           Settings settings, Settings repositorySettings, String clientName) {
         AWSCredentialsProvider credentials;
-        try (SecureString key = getConfigValue(repositorySettings, settings, clientName, S3Repository.ACCESS_KEY_SETTING,
-                                               S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-             SecureString secret = getConfigValue(repositorySettings, settings, clientName, S3Repository.SECRET_KEY_SETTING,
-                                                  S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
-
+        try (SecureString key = getConfigValue(settings, clientName, S3Repository.ACCESS_KEY_SETTING);
+             SecureString secret = getConfigValue(settings, clientName, S3Repository.SECRET_KEY_SETTING)) {
             if (key.length() == 0 && secret.length() == 0) {
                 logger.debug("Using instance profile credentials");
                 credentials = new InstanceProfileCredentialsProvider();
@@ -160,20 +143,10 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     }
 
     // pkg private for tests
-    /** Returns the endpoint the client should use, based on the available endpoint settings found. */
+    /** Returns the endpoint the client should use. */
     static String findEndpoint(Logger logger, Settings repositorySettings, Settings settings, String clientName) {
-        String endpoint = getConfigValue(repositorySettings, settings, clientName, S3Repository.ENDPOINT_SETTING,
-                                         S3Repository.Repository.ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING);
-        if (Strings.isNullOrEmpty(endpoint)) {
-            // No region has been set so we will use the default endpoint
-            if (CLOUD_S3.ENDPOINT_SETTING.exists(settings)) {
-                endpoint = CLOUD_S3.ENDPOINT_SETTING.get(settings);
-                logger.debug("using explicit s3 endpoint [{}]", endpoint);
-            }
-        } else {
-            logger.debug("using repository level endpoint [{}]", endpoint);
-        }
-
+        String endpoint = getConfigValue(settings, clientName, S3Repository.ENDPOINT_SETTING);
+        logger.debug("using repository level endpoint [{}]", endpoint);
         return endpoint;
     }
 
@@ -181,17 +154,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      * Find the setting value, trying first with named configs,
      * then falling back to repository and global repositories settings.
      */
-    private static <T> T getConfigValue(Settings repositorySettings, Settings globalSettings, String clientName,
-                                        Setting.AffixSetting<T> configSetting, Setting<T> repositorySetting, Setting<T> globalSetting) {
-        Setting<T> concreteSetting = configSetting.getConcreteSettingForNamespace(clientName);
-        if (concreteSetting.exists(globalSettings)) {
-            return concreteSetting.get(globalSettings);
-        } else if (repositorySetting == null) {
-            // no repository setting, just use global setting
-            return globalSetting.get(globalSettings);
-        } else {
-            return S3Repository.getValue(repositorySettings, globalSettings, repositorySetting, globalSetting);
-        }
+    private static <T> T getConfigValue(Settings globalSettings, String clientName, Setting.AffixSetting<T> configSetting) {
+        return configSetting.getConcreteSettingForNamespace(clientName).get(globalSettings);
     }
 
     @Override

@@ -21,6 +21,30 @@ region inside the repository settings. Instead, specify the full endpoint if a c
 s3 location is needed, or rely on the default behavior which automatically locates
 the region of the configured bucket.
 
+* Global repositories settings you were able to set in elasticsearch config file under `repositories.s3`
+name space have been removed. This includes `repositories.s3.bucket`, `repositories.s3.server_side_encryption`,
+`repositories.s3.buffer_size`, `repositories.s3.max_retries`, `repositories.s3.use_throttle_retries`,
+`repositories.s3.chunk_size`, `repositories.s3.compress`, `repositories.s3.storage_class`, `repositories.s3.canned_acl`,
+`repositories.s3.base_path` and `repositories.s3.path_style_access`.
+You must set those settings per repository instead. Respectively `bucket`, `server_side_encryption`, `buffer_size`,
+`max_retries`, `use_throttle_retries`, `chunk_size`, `compress`, `storage_class`, `canned_acl`, `base_path` and
+`path_style_access`.
+See {plugins}/repository-s3-repository.html[S3 Repository settings].
+
+* S3 plugin used now named configurations. You will basically define all the S3 clients you want to use by naming
+them under `s3.client.xxx` prefix where `xxx` is your named configuration (use `default` as the name if you want to have
+one applied by default).
+
+As a consequence, the following settings have been removed: `cloud.aws.access_key`, `cloud.aws.secret_key`,
+`cloud.aws.protocol`, `cloud.aws.proxy.host`, `cloud.aws.proxy.port`, `cloud.aws.proxy.username`,
+`cloud.aws.proxy.password`, `cloud.aws.signer`, `cloud.aws.read_timeout`.
+Also their S3 specific equivalent have been removed: `cloud.aws.s3.access_key`, `cloud.aws.s3.secret_key`,
+`cloud.aws.s3.protocol`, `cloud.aws.s3.proxy.host`, `cloud.aws.s3.proxy.port`, `cloud.aws.s3.proxy.username`,
+`cloud.aws.s3.proxy.password`, `cloud.aws.s3.signer`, `cloud.aws.s3.read_timeout`.
+Also `repositories.s3.access_key`, `repositories.s3.secret_key`, `repositories.s3.endpoint` and
+`repositories.s3.protocol`.
+
+
 ==== Azure Repository plugin
 
 * The container an azure repository is configured with will no longer be created automatically.

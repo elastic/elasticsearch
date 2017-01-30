@@ -29,17 +29,21 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 
 public class BytesRestResponse extends RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+
+    private static final String STATUS = "status";
 
     private final RestStatus status;
     private final BytesReference content;
@@ -135,9 +139,27 @@ public class BytesRestResponse extends RestResponse {
         }
 
         XContentBuilder builder = channel.newErrorBuilder().startObject();
+        builder.field(STATUS, status.getStatus());
         ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
-        builder.field("status", status.getStatus());
         builder.endObject();
         return builder;
+    }
+
+    public static ElasticsearchException errorFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        ElasticsearchException exception = null;
+
+        String currentFieldName = parser.currentName();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+            if (STATUS.equals(currentFieldName) == false) {
+                exception = ElasticsearchException.failureFromXContent(parser);
+            }
+        }
+        return exception;
     }
 }

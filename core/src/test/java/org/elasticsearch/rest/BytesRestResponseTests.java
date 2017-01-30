@@ -26,6 +26,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -208,6 +210,35 @@ public class BytesRestResponseTests extends ESTestCase {
         assertThat(content, containsString("\"type\":\"exception\""));
         assertThat(content, containsString("\"reason\":\"simulated\""));
         assertThat(content, containsString("\"status\":" + 500));
+    }
+
+    public void testErrorToAndFromXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        Map<String, String> params = Collections.singletonMap("format", xContentType.mediaType());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+
+        final boolean detailed = randomBoolean();
+        RestChannel channel = detailed ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
+
+        Exception exception = new ElasticsearchException("Something wrong happened", new IllegalArgumentException("Bad"));
+        BytesRestResponse response = new BytesRestResponse(channel, exception);
+
+        ElasticsearchException parsedError;
+        try (XContentParser parser = createParser(xContentType.xContent(), response.content())) {
+            parsedError = BytesRestResponse.errorFromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        if (detailed) {
+            assertEquals("Elasticsearch exception [type=exception, reason=Something wrong happened]",
+                    parsedError.getMessage());
+            assertEquals("Elasticsearch exception [type=illegal_argument_exception, reason=Bad]",
+                    parsedError.getCause().getMessage());
+        } else {
+            assertEquals("Elasticsearch exception [type=exception, reason=ElasticsearchException[Something wrong happened]]",
+                    parsedError.getMessage());
+        }
     }
 
     public static class WithHeadersException extends ElasticsearchException {

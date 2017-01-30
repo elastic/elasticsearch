@@ -604,6 +604,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedFailure = ElasticsearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -629,6 +630,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedFailure = ElasticsearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());

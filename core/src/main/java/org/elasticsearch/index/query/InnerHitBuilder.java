@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -266,8 +267,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
             out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
+            Iterator<ScriptField> iterator = scriptFields.stream()
+                    .sorted((a, b) -> a.fieldName().compareTo(b.fieldName())).iterator();
+            while (iterator.hasNext()) {
+                iterator.next().writeTo(out);
             }
         }
         out.writeOptionalWriteable(fetchSourceContext);
@@ -285,7 +288,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(hasChildInnerHits);
         if (hasChildInnerHits) {
             out.writeVInt(childInnerHits.size());
-            for (Map.Entry<String, InnerHitBuilder> entry : childInnerHits.entrySet()) {
+            Iterator<Map.Entry<String, InnerHitBuilder>> iterator = childInnerHits.entrySet().stream()
+                    .sorted((a, b) -> a.getKey().compareTo(b.getKey())).iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, InnerHitBuilder> entry = iterator.next();
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }

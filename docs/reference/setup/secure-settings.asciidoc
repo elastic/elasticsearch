@@ -2,7 +2,7 @@
 == Secure Settings
 
 Some settings are sensitive, and relying on filesystem permissions to protect
-their values are not sufficient. For this use case, elasticsearch provides a
+their values is not sufficient. For this use case, elasticsearch provides a
 keystore, which may be password protected, and the `elasticsearch-keystore`
 tool to manage the settings in the keystore.
 

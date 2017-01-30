@@ -157,6 +157,8 @@ public class AzureRepository extends BlobStoreRepository {
         try {
             if (!blobStore.doesContainerExist(blobStore.container())) {
                 logger.debug("container [{}] does not exist. Creating...", blobStore.container());
+                deprecationLogger.deprecated("Auto creation of the container for an azure backed repository is deprecated" +
+                    " and will be removed in 6.0.");
                 blobStore.createContainer(blobStore.container());
             }
             super.initializeSnapshot(snapshotId, indices, clusterMetadata);
@@ -172,6 +174,8 @@ public class AzureRepository extends BlobStoreRepository {
             try {
                 if (!blobStore.doesContainerExist(blobStore.container())) {
                     logger.debug("container [{}] does not exist. Creating...", blobStore.container());
+                    deprecationLogger.deprecated("Auto creation of the container for an azure backed repository is deprecated" +
+                        " and will be removed in 6.0.");
                     blobStore.createContainer(blobStore.container());
                 }
             } catch (StorageException | URISyntaxException e) {

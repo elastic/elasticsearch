@@ -53,13 +53,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(AzureStorageService.Storage.STORAGE_ACCOUNTS,
-                AzureStorageService.Storage.ACCOUNT_SETTING,
-                AzureStorageService.Storage.COMPRESS_SETTING,
-                AzureStorageService.Storage.CONTAINER_SETTING,
-                AzureStorageService.Storage.BASE_PATH_SETTING,
-                AzureStorageService.Storage.CHUNK_SIZE_SETTING,
-                AzureStorageService.Storage.LOCATION_MODE_SETTING);
+        return Collections.singletonList(AzureStorageService.Storage.STORAGE_ACCOUNTS);
     }
 
     @Override

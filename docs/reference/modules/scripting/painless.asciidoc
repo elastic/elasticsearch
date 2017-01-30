@@ -221,7 +221,7 @@ a normal field you have to call `doc.born.date` to get a
 <<painless-api-reference-org-joda-time-ReadableDateTime, `ReadableDateTime`>>.
 From there you can call methods like
 <<painless-api-reference-org-joda-time-ReadableDateTime-getYear-0, `getYear`>>,
-and <<painless-api-reference-org-joda-time-ReadableDateTime-getDayOfWeek-0 `getDayOfWeek`>>.
+and <<painless-api-reference-org-joda-time-ReadableDateTime-getDayOfWeek-0, `getDayOfWeek`>>.
 In the example above `year` is a shortcut to `getYear()`.
 
 If the date field is a list then `date` will always return the first date. To

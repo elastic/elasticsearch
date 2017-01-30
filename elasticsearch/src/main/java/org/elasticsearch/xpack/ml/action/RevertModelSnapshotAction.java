@@ -35,16 +35,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class RevertModelSnapshotAction
 extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response, RevertModelSnapshotAction.RequestBuilder> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
-    public static final String NAME = "indices:admin/ml/model_snapshots/revert";
+    public static final String NAME = "cluster:admin/ml/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
         super(NAME);

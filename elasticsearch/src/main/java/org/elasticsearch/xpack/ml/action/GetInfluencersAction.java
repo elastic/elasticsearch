@@ -28,12 +28,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class GetInfluencersAction
 extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetInfluencersAction.RequestBuilder> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
-    public static final String NAME = "indices:admin/ml/results/influencers/get";
+    public static final String NAME = "cluster:admin/ml/results/influencers/get";
 
     private GetInfluencersAction() {
         super(NAME);

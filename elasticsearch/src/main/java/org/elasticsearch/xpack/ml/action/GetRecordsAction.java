@@ -28,13 +28,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.Objects;
 public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response, GetRecordsAction.RequestBuilder> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
-    public static final String NAME = "indices:admin/ml/results/records/get";
+    public static final String NAME = "cluster:admin/ml/results/records/get";
 
     private GetRecordsAction() {
         super(NAME);

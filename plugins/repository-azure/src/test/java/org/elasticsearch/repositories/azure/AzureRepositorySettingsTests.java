@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+import org.apache.logging.log4j.core.net.Protocol;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -124,4 +125,24 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             azureRepository(Settings.builder().put("chunk_size", "65mb").build()));
         assertEquals("Failed to parse value [65mb] for setting [chunk_size] must be <= 64mb", e.getMessage());
     }
+
+    public void testDeprecatedRepositoriesSettings() throws StorageException, IOException, URISyntaxException {
+        Settings settings = Settings.builder()
+            .put(AzureStorageService.Storage.ACCOUNT_SETTING.getKey(), "account")
+            .put(AzureStorageService.Storage.BASE_PATH_SETTING.getKey(), "path")
+            .put(AzureStorageService.Storage.CHUNK_SIZE_SETTING.getKey(), AzureStorageService.MAX_CHUNK_SIZE)
+            .put(AzureStorageService.Storage.COMPRESS_SETTING.getKey(), false)
+            .put(AzureStorageService.Storage.CONTAINER_SETTING.getKey(), "container")
+            .put(AzureStorageService.Storage.LOCATION_MODE_SETTING.getKey(), "primary_only")
+            .build();
+        azureRepository(settings);
+        assertWarnings("[" + AzureStorageService.Storage.ACCOUNT_SETTING.getKey() + "] setting was deprecated",
+            "[" + AzureStorageService.Storage.BASE_PATH_SETTING.getKey() + "] setting was deprecated",
+            "[" + AzureStorageService.Storage.CHUNK_SIZE_SETTING.getKey() + "] setting was deprecated",
+            "[" + AzureStorageService.Storage.COMPRESS_SETTING.getKey() + "] setting was deprecated",
+            "[" + AzureStorageService.Storage.CONTAINER_SETTING.getKey() + "] setting was deprecated",
+            "[" + AzureStorageService.Storage.LOCATION_MODE_SETTING.getKey() + "] setting was deprecated");
+    }
+
+
 }

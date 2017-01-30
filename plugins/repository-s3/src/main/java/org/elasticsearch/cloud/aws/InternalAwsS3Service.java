@@ -25,12 +25,9 @@ import java.util.function.Function;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -151,21 +148,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                                                   S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
 
             if (key.length() == 0 && secret.length() == 0) {
-                // create a "manual" chain of providers here, so we can log deprecation of unsupported methods
-                AWSCredentials envCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                    new EnvironmentVariableCredentialsProvider(), "environment variables");
-                if (envCredentials != null) {
-                    credentials = new StaticCredentialsProvider(envCredentials);
-                } else {
-                    AWSCredentials syspropCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                        new SystemPropertiesCredentialsProvider(), "system properties");
-                    if (syspropCredentials != null) {
-                        credentials = new StaticCredentialsProvider(syspropCredentials);
-                    } else {
-                        logger.debug("Using instance profile credentials");
-                        credentials = new InstanceProfileCredentialsProvider();
-                    }
-                }
+                logger.debug("Using instance profile credentials");
+                credentials = new InstanceProfileCredentialsProvider();
             } else {
                 logger.debug("Using basic key/secret credentials");
                 credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
@@ -175,27 +159,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return credentials;
     }
 
-    /** Return credentials from the given provider, or null if full credentials are not available */
-    private static AWSCredentials getDeprecatedCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                           AWSCredentialsProvider provider, String description) {
-        try {
-            AWSCredentials credentials = provider.getCredentials();
-            if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
-                logger.debug("Using " + description + " credentials");
-                deprecationLogger.deprecated("Supplying S3 credentials through " + description + " is deprecated. " +
-                    "See the breaking changes lists in the documentation for details.");
-                return credentials;
-            }
-        } catch (Exception e) {
-            logger.debug("Failed to get aws credentials from " + description, e);
-        }
-        return null;
-    }
-
     // pkg private for tests
     /** Returns the endpoint the client should use, based on the available endpoint settings found. */
     static String findEndpoint(Logger logger, Settings repositorySettings, Settings settings, String clientName) {
-        String region = getRegion(repositorySettings, settings);
+        String region = getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
+                                       S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
         String endpoint = getConfigValue(repositorySettings, settings, clientName, S3Repository.ENDPOINT_SETTING,
                                          S3Repository.Repository.ENDPOINT_SETTING, S3Repository.Repositories.ENDPOINT_SETTING);
         if (Strings.isNullOrEmpty(endpoint)) {
@@ -219,14 +187,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return endpoint;
-    }
-
-    /**
-     * Return the region configured, or empty string.
-     * TODO: remove after https://github.com/elastic/elasticsearch/issues/22761 */
-    public static String getRegion(Settings repositorySettings, Settings settings) {
-        return getConfigValue(repositorySettings, settings, CLIENT_NAME.get(repositorySettings), S3Repository.REGION_SETTING,
-                              S3Repository.Repository.REGION_SETTING, S3Repository.Repositories.REGION_SETTING);
     }
 
     private static String getEndpoint(String region) {

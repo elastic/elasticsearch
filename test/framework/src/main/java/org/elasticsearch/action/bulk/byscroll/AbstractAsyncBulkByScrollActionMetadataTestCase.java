@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkByScrollResponse>
         extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScrollableHitSource.BasicHit doc() {

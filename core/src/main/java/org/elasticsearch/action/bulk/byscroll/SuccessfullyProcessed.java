@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 /**
  * Implemented by {@link BulkByScrollTask} and {@link BulkByScrollTask.Status} to consistently implement

@@ -32,28 +32,25 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
 public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     @Override
     protected BlobStore newBlobStore() throws IOException {
-        return AccessController.doPrivileged(
-                new PrivilegedAction<HdfsBlobStore>() {
-                    @Override
-                    public HdfsBlobStore run() {
-                        try {
-                            FileContext fileContext = createContext(new URI("hdfs:///"));
-                            return new HdfsBlobStore(fileContext, "temp", 1024);
-                        } catch (IOException | URISyntaxException e) {
-                            throw new RuntimeException(e);
-                        }
-            }
-        });
+        FileContext fileContext;
+        try {
+            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>)
+                () -> createContext(new URI("hdfs:///")));
+        } catch (PrivilegedActionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+        return new HdfsBlobStore(fileContext, "temp", 1024);
     }
 
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
@@ -90,15 +87,12 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         cfg.set("fs.AbstractFileSystem." + uri.getScheme() + ".impl", TestingFs.class.getName());
 
         // create the FileContext with our user
-        return Subject.doAs(subject, new PrivilegedAction<FileContext>() {
-            @Override
-            public FileContext run() {
-                try {
-                    TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
-                    return FileContext.getFileContext(fs, cfg);
-                } catch (UnsupportedFileSystemException e) {
-                    throw new RuntimeException(e);
-                }
+        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
+            try {
+                TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
+                return FileContext.getFileContext(fs, cfg);
+            } catch (UnsupportedFileSystemException e) {
+                throw new RuntimeException(e);
             }
         });
     }

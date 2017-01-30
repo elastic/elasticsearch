@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.bulk.byscroll;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
@@ -355,7 +355,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Build a new request for a slice of the parent request.
      */
-    abstract Self forSlice(TaskId slicingTask, SearchRequest slice);
+    protected abstract Self forSlice(TaskId slicingTask, SearchRequest slice);
 
     /**
      * Setup a clone of this request with the information needed to process a slice of it.

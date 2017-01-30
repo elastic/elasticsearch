@@ -1,5 +1,5 @@
 [[search-request-collapse]]
-== Collapse
+=== Field Collapsing
 
 Allows to collapse search results based on field values.
 The collapsing is done by selecting only the top sorted document per collapse key.
@@ -35,7 +35,7 @@ The field used for collapsing must be a single valued <<keyword, `keyword`> or <
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
 
-=== Expand collapse results
+==== Expand collapse results
 
 It is also possible to expand each collapsed top hits with the `inner_hits` option.
 

@@ -126,18 +126,6 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     }
 
     @Override
-    protected XContentBuilder toXContent(ScriptMetaData instance, XContentType contentType) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        builder.startObject();
-        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
     protected ScriptMetaData doParseInstance(XContentParser parser) {
         try {
             return ScriptMetaData.fromXContent(parser);

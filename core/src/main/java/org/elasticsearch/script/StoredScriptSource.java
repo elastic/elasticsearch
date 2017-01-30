@@ -432,6 +432,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         return builder;
     }
 
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
     /**
      * @return The language used for compiling this script.
      */

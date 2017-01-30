@@ -227,9 +227,20 @@ parameters which means that unless the `;` was escaped, the secondary
 preference was never observed. The separator has been changed to `|` and
 does not need to be escaped.
 
-==== Default similarity
+
+==== Scoring changes
+
+===== Default similarity
 
 The default similarity has been changed to `BM25`.
+
+===== DF formula
+
+Document frequency (which is for instance used to compute inverse document
+frequency - IDF) is now based on the number of documents that have a value
+for the considered field rather than the total number of documents in the
+index. This change affects most similarities. See
+https://issues.apache.org/jira/browse/LUCENE-6711[`LUCENE-6711`] for more information.
 
 ==== explain API
 

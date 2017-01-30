@@ -35,7 +35,7 @@ POST /stackoverflow/_search?size=0
                 "keywords": {
                     "significant_terms": {
                         "field": "tags",
-                        "exclude":["kibana", "javascript"]
+                        "exclude": ["kibana", "javascript"]
                     }
                 }
             }
@@ -54,7 +54,7 @@ Response:
     ...
     "aggregations": {
         "sample": {
-            "doc_count": 1000<1>,
+            "doc_count": 1000,<1>
             "keywords": {
                 "doc_count": 1000,
                 "buckets": [

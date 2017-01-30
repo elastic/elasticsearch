@@ -16,7 +16,7 @@ system properties has been removed. Use the `elasticsearch-keystore` tool
 to securely store the credentials.
 
 * Specifying region has been removed. This includes the settings `cloud.aws.region`,
-`cloud.aws.s3.region`, `repositories.s3.region`, `s3.client.*.region` and specifying
+`cloud.aws.s3.region`, `repositories.s3.region`, and specifying
 region inside the repository settings. Instead, specify the full endpoint if a custom
 s3 location is needed, or rely on the default behavior which automatically locates
 the region of the configured bucket.

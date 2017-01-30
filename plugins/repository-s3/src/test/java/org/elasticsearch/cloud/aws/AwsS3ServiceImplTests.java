@@ -365,15 +365,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertWarnings("[" + S3Repository.Repositories.ENDPOINT_SETTING.getKey() + "] setting was deprecated");
     }
 
-    public void testRegionSetting() {
-        Settings settings = Settings.builder()
-            .put("s3.client.default.region", randomFrom("eu-west", "eu-west-1"))
-            .build();
-        assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings,
-            "s3-eu-west-1.amazonaws.com");
-        assertWarnings("Specifying region for an s3 repository is deprecated");
-    }
-
     public void testRegionSettingBackcompat() {
         Settings settings = Settings.builder()
             .put(InternalAwsS3Service.REGION_SETTING.getKey(), randomFrom("eu-west", "eu-west-1"))
@@ -410,13 +401,15 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testInvalidRegion() {
         Settings settings = Settings.builder()
-            .put("s3.client.default.region", "does-not-exist")
+            .put(S3Repository.Repositories.REGION_SETTING.getKey(), "does-not-exist")
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings, null);
-        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            InternalAwsS3Service.findEndpoint(logger, deprecationLogger,
+                generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings, "does-not-matter")
+        );
         assertThat(e.getMessage(), containsString("No automatic endpoint could be derived from region"));
-        assertWarnings("Specifying region for an s3 repository is deprecated");
+        assertWarnings("Specifying region for an s3 repository is deprecated",
+                       "[" + S3Repository.Repositories.REGION_SETTING.getKey() + "] setting was deprecated");
     }
 
     private void assertEndpoint(Settings repositorySettings, Settings settings,

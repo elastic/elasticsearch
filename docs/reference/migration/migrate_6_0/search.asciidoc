@@ -35,8 +35,15 @@
   a regex as `max_determinized_states` instead of the typo
   `max_determined_states`.
 
-* For `geo_distance` queries, sorting, and aggregations the `sloppy_arc` and `factor` options
-  have been removed from the `distance_type` parameter.
+* For `geo_distance` queries, sorting, and aggregations the `sloppy_arc` option
+  has been removed from the `distance_type` parameter.
+
+* The `geo_distance_range` query, which was deprecated in 5.0, has been removed.
+
+* The `optimize_bbox` parameter has been removed from `geo_distance` queries.
+
+* The `ignore_malformed` and `coerce` parameters have been removed from
+  `geo_bounding_box`, `geo_polygon`, and `geo_distance` queries.
 
 ==== Search shards API
 

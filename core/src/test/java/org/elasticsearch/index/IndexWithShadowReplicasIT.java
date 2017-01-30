@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;

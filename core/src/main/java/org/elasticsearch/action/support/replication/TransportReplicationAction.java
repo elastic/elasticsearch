@@ -172,7 +172,8 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
-    protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception;
+    protected abstract PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
+            Request shardRequest, IndexShard primary) throws Exception;
 
     /**
      * Synchronous replica operation on nodes with replica copies. This is done under the lock form
@@ -363,8 +364,8 @@ public abstract class TransportReplicationAction<
             };
         }
 
-        protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult> createReplicatedOperation(
-            Request request, ActionListener<PrimaryResult> listener,
+        protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
+            Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                 executeOnReplicas, replicasProxy, clusterService::state, logger, actionName
@@ -372,10 +373,12 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
+    protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            Response extends ReplicationResponse>
+            implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
         final ReplicaRequest replicaRequest;
-        final Response finalResponseIfSuccessful;
-        final Exception finalFailure;
+        public final Response finalResponseIfSuccessful;
+        public final Exception finalFailure;
 
         /**
          * Result of executing a primary operation
@@ -415,7 +418,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected class ReplicaResult {
+    protected static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {
@@ -902,7 +905,8 @@ public abstract class TransportReplicationAction<
         return IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false;
     }
 
-    class PrimaryShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult>, Releasable {
+    class PrimaryShardReference implements
+            ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>>, Releasable {
 
         private final IndexShard indexShard;
         private final Releasable operationLock;

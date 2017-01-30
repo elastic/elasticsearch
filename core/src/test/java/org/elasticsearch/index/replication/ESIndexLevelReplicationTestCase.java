@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -64,8 +65,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnPrimary;
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnReplica;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnReplica;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -280,7 +281,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         public IndexingResult perform(IndexRequest request) throws Exception {
-            Engine.IndexResult indexResult = TransportIndexAction.executeIndexRequestOnPrimary(request, primary,
+            Engine.IndexResult indexResult = TransportShardBulkAction.executeIndexRequestOnPrimary(request, primary,
                     null);
             if (indexResult.hasFailure() == false) {
                 // update the version on request so it will happen on the replicas
@@ -314,7 +315,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             try {
                 IndexShard replica = replicationGroup.replicas.stream()
                     .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
-                TransportIndexAction.executeIndexRequestOnReplica(request, replica);
+                TransportShardBulkAction.executeIndexRequestOnReplica(request, replica);
                 listener.onResponse(TransportResponse.Empty.INSTANCE);
             } catch (Exception t) {
                 listener.onFailure(t);

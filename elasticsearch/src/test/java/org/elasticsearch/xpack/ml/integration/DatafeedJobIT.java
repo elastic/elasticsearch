@@ -173,6 +173,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         new LookbackOnlyTestHelper("lookback-5", "airline-data-disabled-source").execute();
     }
 
+    @AwaitsFix(bugUrl = "This test uses painless which is not available in the integTest phase")
     public void testLookbackOnlyWithScriptFields() throws Exception {
         new LookbackOnlyTestHelper("lookback-6", "airline-data-disabled-source").setAddScriptedFields(true).execute();
     }

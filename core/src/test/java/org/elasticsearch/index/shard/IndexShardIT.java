@@ -103,7 +103,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
-                                              ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+                                              ParseContext.Document document, BytesReference source, XContentType xContentType,
+                                              Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
@@ -113,7 +114,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         return new ParsedDocument(versionField, seqID, id, type, routing,
-                Collections.singletonList(document), source, mappingUpdate);
+                Collections.singletonList(document), source, xContentType, mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -333,7 +334,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             null,
             SequenceNumbersService.UNASSIGNED_SEQ_NO,
             new ParseContext.Document(),
-            new BytesArray(new byte[]{1}), null);
+            new BytesArray(new byte[]{1}), XContentType.JSON, null);
         Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
         shard.index(index);
         assertTrue(shard.shouldFlush());

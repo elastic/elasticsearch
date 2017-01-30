@@ -45,7 +45,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.index.reindex.remote.RemoteResponseParsers.ResponseContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -143,7 +142,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     private <T> void execute(String method, String uri, Map<String, String> params, HttpEntity entity,
-                             BiFunction<XContentParser, ResponseContext, T> parser, Consumer<? super T> listener) {
+                             BiFunction<XContentParser, XContentType, T> parser, Consumer<? super T> listener) {
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         class RetryHelper extends AbstractRunnable {
@@ -179,7 +178,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 // EMPTY is safe here because we don't call namedObject
                                 try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                                     content)) {
-                                    parsedResponse = parser.apply(xContentParser, new ResponseContext(xContentType));
+                                    parsedResponse = parser.apply(xContentParser, xContentType);
                                 } catch (ParsingException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */

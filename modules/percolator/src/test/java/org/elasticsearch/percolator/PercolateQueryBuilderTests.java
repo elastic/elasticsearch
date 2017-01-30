@@ -234,7 +234,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         }
 
         Analyzer analyzer = new WhitespaceAnalyzer();
-        ParsedDocument parsedDocument = new ParsedDocument(null, null, "_id", "_type", null, docs, null, null);
+        ParsedDocument parsedDocument = new ParsedDocument(null, null, "_id", "_type", null, docs, null, null, null);
         IndexSearcher indexSearcher = PercolateQueryBuilder.createMultiDocumentSearcher(analyzer, parsedDocument);
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(numDocs));
 

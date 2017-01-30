@@ -41,6 +41,11 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
+    /**
+     * Creates a parser based on the bytes provided
+     * @deprecated use {@link #createParser(NamedXContentRegistry, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
@@ -48,10 +53,28 @@ public class XContentHelper {
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
-            XContentType contentType = XContentFactory.xContentType(compressedInput);
+            final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(xContentRegistry, compressedInput);
         } else {
             return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
+        }
+    }
+
+    /**
+     * Creates a parser for the bytes using the supplied content-type
+     */
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes,
+                                              XContentType xContentType) throws IOException {
+        Objects.requireNonNull(xContentType);
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            if (compressedInput.markSupported() == false) {
+                compressedInput = new BufferedInputStream(compressedInput);
+            }
+            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, compressedInput);
+        } else {
+            return xContentType.xContent().createParser(xContentRegistry, bytes.streamInput());
         }
     }
 
@@ -390,7 +413,10 @@ public class XContentHelper {
     /**
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
      * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference)}.
+     * @deprecated use {@link #writeRawField(String, BytesReference, XContentType, XContentBuilder, Params)} to avoid content type
+     * auto-detection
      */
+    @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
@@ -398,6 +424,22 @@ public class XContentHelper {
             builder.rawField(field, compressedStreamInput);
         } else {
             builder.rawField(field, source);
+        }
+    }
+
+    /**
+     * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
+     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference, XContentType)}.
+     */
+    public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
+                                     ToXContent.Params params) throws IOException {
+        Objects.requireNonNull(xContentType);
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            InputStream compressedStreamInput = compressor.streamInput(source.streamInput());
+            builder.rawField(field, compressedStreamInput, xContentType);
+        } else {
+            builder.rawField(field, source, xContentType);
         }
     }
 

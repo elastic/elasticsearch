@@ -48,7 +48,7 @@ import java.util.Objects;
 public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response, DeleteFilterAction.RequestBuilder> {
 
     public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
-    public static final String NAME = "cluster:admin/ml/filter/delete";
+    public static final String NAME = "cluster:admin/ml/filters/delete";
 
     private DeleteFilterAction() {
         super(NAME);

@@ -38,7 +38,7 @@ public class UpdateJobStatusAction
         extends Action<UpdateJobStatusAction.Request, UpdateJobStatusAction.Response, UpdateJobStatusAction.RequestBuilder> {
 
     public static final UpdateJobStatusAction INSTANCE = new UpdateJobStatusAction();
-    public static final String NAME = "cluster:admin/ml/job/status/update";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/status/update";
 
     private UpdateJobStatusAction() {
         super(NAME);

@@ -26,7 +26,7 @@ public class InternalStartDatafeedAction extends
         Action<InternalStartDatafeedAction.Request, InternalStartDatafeedAction.Response, InternalStartDatafeedAction.RequestBuilder> {
 
     public static final InternalStartDatafeedAction INSTANCE = new InternalStartDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeed/internal_start";
+    public static final String NAME = "cluster:admin/ml/datafeeds/internal_start";
 
     private InternalStartDatafeedAction() {
         super(NAME);

@@ -40,7 +40,7 @@ import java.util.Objects;
 public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response, FlushJobAction.RequestBuilder> {
 
     public static final FlushJobAction INSTANCE = new FlushJobAction();
-    public static final String NAME = "cluster:admin/ml/job/flush";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/flush";
 
     private FlushJobAction() {
         super(NAME);

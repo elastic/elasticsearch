@@ -43,7 +43,7 @@ public class GetCategoriesAction extends
 Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesAction.RequestBuilder> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
-    private static final String NAME = "cluster:admin/ml/categories/get";
+    private static final String NAME = "cluster:admin/ml/anomaly_detectors/results/categories/get";
 
     private GetCategoriesAction() {
         super(NAME);

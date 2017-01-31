@@ -48,7 +48,7 @@ public class StopDatafeedAction
         extends Action<StopDatafeedAction.Request, StopDatafeedAction.Response, StopDatafeedAction.RequestBuilder> {
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeed/stop";
+    public static final String NAME = "cluster:admin/ml/datafeeds/stop";
 
     private StopDatafeedAction() {
         super(NAME);

@@ -37,7 +37,7 @@ public class UpdateDatafeedStatusAction extends Action<UpdateDatafeedStatusActio
         UpdateDatafeedStatusAction.Response, UpdateDatafeedStatusAction.RequestBuilder> {
 
     public static final UpdateDatafeedStatusAction INSTANCE = new UpdateDatafeedStatusAction();
-    public static final String NAME = "cluster:admin/ml/datafeed/status/update";
+    public static final String NAME = "cluster:admin/ml/datafeeds/status/update";
 
     private UpdateDatafeedStatusAction() {
         super(NAME);

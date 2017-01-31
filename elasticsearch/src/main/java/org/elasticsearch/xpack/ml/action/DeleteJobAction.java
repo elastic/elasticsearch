@@ -38,7 +38,7 @@ import java.util.Objects;
 public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response, DeleteJobAction.RequestBuilder> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
-    public static final String NAME = "cluster:admin/ml/job/delete";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/delete";
 
     private DeleteJobAction() {
         super(NAME);

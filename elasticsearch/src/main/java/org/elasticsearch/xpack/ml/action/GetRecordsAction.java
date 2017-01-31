@@ -43,7 +43,7 @@ import java.util.Objects;
 public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response, GetRecordsAction.RequestBuilder> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
-    public static final String NAME = "cluster:admin/ml/results/records/get";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/results/records/get";
 
     private GetRecordsAction() {
         super(NAME);

@@ -38,7 +38,7 @@ import java.util.Objects;
 public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
-    public static final String NAME = "cluster:admin/ml/job/open";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/open";
 
     private OpenJobAction() {
         super(NAME);

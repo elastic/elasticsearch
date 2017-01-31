@@ -42,7 +42,7 @@ import java.util.Objects;
 public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
-    public static final String NAME = "cluster:admin/ml/results/buckets/get";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/results/buckets/get";
 
     private GetBucketsAction() {
         super(NAME);

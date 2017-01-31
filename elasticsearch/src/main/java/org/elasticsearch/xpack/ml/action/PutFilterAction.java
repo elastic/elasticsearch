@@ -44,7 +44,7 @@ import java.util.Objects;
 public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
-    public static final String NAME = "cluster:admin/ml/filter/put";
+    public static final String NAME = "cluster:admin/ml/filters/put";
 
     private PutFilterAction() {
         super(NAME);

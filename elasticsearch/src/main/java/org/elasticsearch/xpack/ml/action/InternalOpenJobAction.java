@@ -27,7 +27,7 @@ public class InternalOpenJobAction extends Action<InternalOpenJobAction.Request,
         InternalOpenJobAction.RequestBuilder> {
 
     public static final InternalOpenJobAction INSTANCE = new InternalOpenJobAction();
-    public static final String NAME = "cluster:admin/ml/job/internal_open";
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/internal_open";
 
     private InternalOpenJobAction() {
         super(NAME);

@@ -415,7 +415,8 @@ public class InnerHitBuilderTests extends ESTestCase {
                 randomMap.put(String.valueOf(i), randomAsciiOfLength(16));
             }
         }
-        Script script = new Script(randomScriptType, randomAsciiOfLengthBetween(1, 4), randomAsciiOfLength(128), randomMap);
+        Script script = new Script(randomScriptType, randomScriptType == ScriptType.STORED ? null : randomAsciiOfLengthBetween(1, 4),
+            randomAsciiOfLength(128), randomMap);
         return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), script, randomBoolean());
     }
 

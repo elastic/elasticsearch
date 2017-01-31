@@ -33,50 +33,40 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> {
 
     private String id;
-    private String scriptLang;
-    private BytesReference script;
+    private String lang;
+    private BytesReference content;
 
     public PutStoredScriptRequest() {
         super();
     }
 
-    public PutStoredScriptRequest(String scriptLang) {
+    public PutStoredScriptRequest(String id, String lang, BytesReference content) {
         super();
-        this.scriptLang = scriptLang;
-    }
 
-    public PutStoredScriptRequest(String scriptLang, String id) {
-        super();
-        this.scriptLang = scriptLang;
         this.id = id;
+        this.lang = lang;
+        this.content = content;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
+
+        if (id == null || id.isEmpty()) {
+            validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
-            validationException = addValidationError("id can't contain: '#'", validationException);
+            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
-        if (scriptLang == null) {
-            validationException = addValidationError("lang is missing", validationException);
-        } else if (scriptLang.contains("#")) {
-            validationException = addValidationError("lang can't contain: '#'", validationException);
+
+        if (lang != null && lang.contains("#")) {
+            validationException = addValidationError("lang cannot contain '#' for stored script", validationException);
         }
-        if (script == null) {
-            validationException = addValidationError("script is missing", validationException);
+
+        if (content == null) {
+            validationException = addValidationError("must specify code for stored script", validationException);
         }
+
         return validationException;
-    }
-
-    public String scriptLang() {
-        return scriptLang;
-    }
-
-    public PutStoredScriptRequest scriptLang(String scriptLang) {
-        this.scriptLang = scriptLang;
-        return this;
     }
 
     public String id() {
@@ -85,42 +75,63 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     public PutStoredScriptRequest id(String id) {
         this.id = id;
+
         return this;
     }
 
-    public BytesReference script() {
-        return script;
+    public String lang() {
+        return lang;
     }
 
-    public PutStoredScriptRequest script(BytesReference source) {
-        this.script = source;
+    public PutStoredScriptRequest lang(String lang) {
+        this.lang = lang;
+
+        return this;
+    }
+
+    public BytesReference content() {
+        return content;
+    }
+
+    public PutStoredScriptRequest content(BytesReference content) {
+        this.content = content;
+
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readString();
+
+        lang = in.readString();
+
+        if (lang.isEmpty()) {
+            lang = null;
+        }
+
         id = in.readOptionalString();
-        script = in.readBytesReference();
+        content = in.readBytesReference();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(scriptLang);
+
+        out.writeString(lang == null ? "" : lang);
         out.writeOptionalString(id);
-        out.writeBytesReference(script);
+        out.writeBytesReference(content);
     }
 
     @Override
     public String toString() {
-        String sSource = "_na_";
+        String source = "_na_";
+
         try {
-            sSource = XContentHelper.convertToJson(script, false);
-        } catch (Exception e) {
+            source = XContentHelper.convertToJson(content, false);
+        } catch (Exception exception) {
             // ignore
         }
-        return "put script {[" + id + "][" + scriptLang + "], script[" + sSource + "]}";
+
+        return "put stored script {id [" + id + "]" + (lang != null ? ", lang [" + lang + "]" : "") + ", content [" + source + "]}";
     }
 }

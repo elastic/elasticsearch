@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -30,20 +31,27 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.attachment.AttachmentProcessor.Factory.DEFAULT_PROPERTIES;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -58,10 +66,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         // We test the default behavior which is extracting all metadata but the raw_metadata
-        EnumSet<AttachmentProcessor.Property> properties = EnumSet.allOf(AttachmentProcessor.Property.class);
-        properties.remove(AttachmentProcessor.Property.RAW_METADATA);
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", properties, 10000, false);
+            "target_field", DEFAULT_PROPERTIES, Collections.emptySet(), 10000, false);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -75,30 +81,26 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testHtmlDocumentWithRandomFields() throws Exception {
-        //date is not present in the html doc
-        ArrayList<AttachmentProcessor.Property> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
-            (AttachmentProcessor.Property.DATE)));
-        Set<AttachmentProcessor.Property> selectedProperties = new HashSet<>();
+        // date is not present in the html doc
+        Set<AttachmentProcessor.ReservedProperty> selectedProperties =
+            randomReservedProperties(new ArrayList<>(EnumSet.complementOf(EnumSet.of(AttachmentProcessor.ReservedProperty.DATE))));
 
-        int numFields = randomIntBetween(1, fieldsList.size());
-        String[] selectedFieldNames = new String[numFields];
-        for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Property property;
-            do {
-                property = randomFrom(fieldsList);
-            } while (selectedProperties.add(property) == false);
+        int expectedFields = selectedProperties.size();
 
-            selectedFieldNames[i] = property.toLowerCase();
-        }
         if (randomBoolean()) {
-            selectedProperties.add(AttachmentProcessor.Property.DATE);
+            selectedProperties.add(AttachmentProcessor.ReservedProperty.DATE);
         }
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", selectedProperties, 10000, false);
+            "target_field", selectedProperties, Collections.emptySet(),10000, false);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
-        assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
-        assertThat(attachmentData.keySet(), containsInAnyOrder(selectedFieldNames));
+        assertThat(attachmentData.keySet(), hasSize(expectedFields));
+
+        // Check that we have all fields but date
+        selectedProperties.stream()
+            .filter(reservedProperty -> reservedProperty.equals(AttachmentProcessor.ReservedProperty.DATE) == false)
+            .map(AttachmentProcessor.ReservedProperty::toLowerCase)
+            .forEach(fieldName -> assertThat(attachmentData, hasKey(fieldName)));
     }
 
     public void testFrenchTextDocument() throws Exception {
@@ -212,7 +214,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, true);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+            Collections.emptySet(), 10, true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -220,7 +223,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, true);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+            Collections.emptySet(), 10, true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -229,7 +233,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, false);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+            Collections.emptySet(), 10, false);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
     }
@@ -237,135 +242,199 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, false);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+            Collections.emptySet(), 10, false);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
     public void testRawMetadataFromWordDocument() throws Exception {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.of(AttachmentProcessor.Property.RAW_METADATA), 10000, false);
+            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false);
 
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
-        assertThat(attachmentData.keySet(), contains("raw_metadata"));
-        assertThat(attachmentData.get("raw_metadata"), is(instanceOf(Map.class)));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> rawMetadata = (Map<String, Object>) attachmentData.get("raw_metadata");
-        assertThat(rawMetadata.keySet(), containsInAnyOrder("date", "cp:revision", "Total-Time", "extended-properties:AppVersion",
-            "meta:paragraph-count", "meta:word-count", "dc:creator", "extended-properties:Company", "Word-Count", "dcterms:created",
-            "meta:line-count", "Last-Modified", "dcterms:modified", "Last-Save-Date", "meta:character-count", "Template",
-            "Line-Count", "Paragraph-Count", "meta:save-date", "meta:character-count-with-spaces", "Application-Name",
-            "extended-properties:TotalTime", "modified", "Content-Type", "X-Parsed-By", "creator", "meta:author",
-            "meta:creation-date", "extended-properties:Application", "meta:last-author", "Creation-Date", "xmpTPg:NPages",
-            "Character-Count-With-Spaces", "Last-Author", "Character Count", "Page-Count", "Revision-Number",
-            "Application-Version", "extended-properties:Template", "Author", "publisher", "meta:page-count", "dc:publisher"));
-
         // An easy way to generate all metadata assertions is by running
-        /*for (Map.Entry<String, Object> entry : rawMetadata.entrySet()) {
-            logger.info("assertThat(rawMetadata, hasEntry(\"{}\", \"{}\"));", entry.getKey(), entry.getValue());
+        /*for (Map.Entry<String, Object> entry : attachmentData.entrySet()) {
+            logger.info("assertThat(attachmentData, hasEntry(\"{}\", \"{}\"));", entry.getKey(), entry.getValue());
         }*/
 
-        assertThat(rawMetadata, hasEntry("date", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("cp:revision", "22"));
-        assertThat(rawMetadata, hasEntry("Total-Time", "6"));
-        assertThat(rawMetadata, hasEntry("extended-properties:AppVersion", "15.0000"));
-        assertThat(rawMetadata, hasEntry("meta:paragraph-count", "1"));
-        assertThat(rawMetadata, hasEntry("meta:word-count", "15"));
-        assertThat(rawMetadata, hasEntry("dc:creator", "Windows User"));
-        assertThat(rawMetadata, hasEntry("extended-properties:Company", "JDI"));
-        assertThat(rawMetadata, hasEntry("Word-Count", "15"));
-        assertThat(rawMetadata, hasEntry("dcterms:created", "2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata, hasEntry("meta:line-count", "1"));
-        assertThat(rawMetadata, hasEntry("Last-Modified", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("dcterms:modified", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("Last-Save-Date", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("meta:character-count", "92"));
-        assertThat(rawMetadata, hasEntry("Template", "Normal.dotm"));
-        assertThat(rawMetadata, hasEntry("Line-Count", "1"));
-        assertThat(rawMetadata, hasEntry("Paragraph-Count", "1"));
-        assertThat(rawMetadata, hasEntry("meta:save-date", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("meta:character-count-with-spaces", "106"));
-        assertThat(rawMetadata, hasEntry("Application-Name", "Microsoft Office Word"));
-        assertThat(rawMetadata, hasEntry("extended-properties:TotalTime", "6"));
-        assertThat(rawMetadata, hasEntry("modified", "2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata, hasEntry("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
-        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.microsoft.ooxml.OOXMLParser"));
-        assertThat(rawMetadata, hasEntry("creator", "Windows User"));
-        assertThat(rawMetadata, hasEntry("meta:author", "Windows User"));
-        assertThat(rawMetadata, hasEntry("meta:creation-date", "2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata, hasEntry("extended-properties:Application", "Microsoft Office Word"));
-        assertThat(rawMetadata, hasEntry("meta:last-author", "Luka Lampret"));
-        assertThat(rawMetadata, hasEntry("Creation-Date", "2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata, hasEntry("xmpTPg:NPages", "1"));
-        assertThat(rawMetadata, hasEntry("Character-Count-With-Spaces", "106"));
-        assertThat(rawMetadata, hasEntry("Last-Author", "Luka Lampret"));
-        assertThat(rawMetadata, hasEntry("Character Count", "92"));
-        assertThat(rawMetadata, hasEntry("Page-Count", "1"));
-        assertThat(rawMetadata, hasEntry("Revision-Number", "22"));
-        assertThat(rawMetadata, hasEntry("Application-Version", "15.0000"));
-        assertThat(rawMetadata, hasEntry("extended-properties:Template", "Normal.dotm"));
-        assertThat(rawMetadata, hasEntry("Author", "Windows User"));
-        assertThat(rawMetadata, hasEntry("publisher", "JDI"));
-        assertThat(rawMetadata, hasEntry("meta:page-count", "1"));
-        assertThat(rawMetadata, hasEntry("dc:publisher", "JDI"));
+        assertThat(attachmentData, hasEntry("date", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("cp:revision", "22"));
+        assertThat(attachmentData, hasEntry("Total-Time", "6"));
+        assertThat(attachmentData, hasEntry("extended-properties:AppVersion", "15.0000"));
+        assertThat(attachmentData, hasEntry("meta:paragraph-count", "1"));
+        assertThat(attachmentData, hasEntry("meta:word-count", "15"));
+        assertThat(attachmentData, hasEntry("dc:creator", "Windows User"));
+        assertThat(attachmentData, hasEntry("extended-properties:Company", "JDI"));
+        assertThat(attachmentData, hasEntry("Word-Count", "15"));
+        assertThat(attachmentData, hasEntry("dcterms:created", "2012-10-12T11:17:00Z"));
+        assertThat(attachmentData, hasEntry("meta:line-count", "1"));
+        assertThat(attachmentData, hasEntry("Last-Modified", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("dcterms:modified", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("Last-Save-Date", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("meta:character-count", "92"));
+        assertThat(attachmentData, hasEntry("Template", "Normal.dotm"));
+        assertThat(attachmentData, hasEntry("Line-Count", "1"));
+        assertThat(attachmentData, hasEntry("Paragraph-Count", "1"));
+        assertThat(attachmentData, hasEntry("meta:save-date", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("meta:character-count-with-spaces", "106"));
+        assertThat(attachmentData, hasEntry("Application-Name", "Microsoft Office Word"));
+        assertThat(attachmentData, hasEntry("extended-properties:TotalTime", "6"));
+        assertThat(attachmentData, hasEntry("modified", "2015-02-20T11:36:00Z"));
+        assertThat(attachmentData, hasEntry("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+        assertThat(attachmentData, hasEntry("X-Parsed-By", "org.apache.tika.parser.microsoft.ooxml.OOXMLParser"));
+        assertThat(attachmentData, hasEntry("creator", "Windows User"));
+        assertThat(attachmentData, hasEntry("meta:author", "Windows User"));
+        assertThat(attachmentData, hasEntry("meta:creation-date", "2012-10-12T11:17:00Z"));
+        assertThat(attachmentData, hasEntry("extended-properties:Application", "Microsoft Office Word"));
+        assertThat(attachmentData, hasEntry("meta:last-author", "Luka Lampret"));
+        assertThat(attachmentData, hasEntry("Creation-Date", "2012-10-12T11:17:00Z"));
+        assertThat(attachmentData, hasEntry("xmpTPg:NPages", "1"));
+        assertThat(attachmentData, hasEntry("Character-Count-With-Spaces", "106"));
+        assertThat(attachmentData, hasEntry("Last-Author", "Luka Lampret"));
+        assertThat(attachmentData, hasEntry("Character Count", "92"));
+        assertThat(attachmentData, hasEntry("Page-Count", "1"));
+        assertThat(attachmentData, hasEntry("Revision-Number", "22"));
+        assertThat(attachmentData, hasEntry("Application-Version", "15.0000"));
+        assertThat(attachmentData, hasEntry("extended-properties:Template", "Normal.dotm"));
+        assertThat(attachmentData, hasEntry("Author", "Windows User"));
+        assertThat(attachmentData, hasEntry("publisher", "JDI"));
+        assertThat(attachmentData, hasEntry("meta:page-count", "1"));
+        assertThat(attachmentData, hasEntry("dc:publisher", "JDI"));
     }
 
     public void testRawMetadataFromPdf() throws Exception {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.of(AttachmentProcessor.Property.RAW_METADATA), 10000, false);
+            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false);
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
-        assertThat(attachmentData.keySet(), contains("raw_metadata"));
-        assertThat(attachmentData.get("raw_metadata"), is(instanceOf(Map.class)));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> rawMetadata = (Map<String, Object>) attachmentData.get("raw_metadata");
-
-        assertThat(rawMetadata.keySet(), containsInAnyOrder("pdf:PDFVersion", "X-Parsed-By", "xmp:CreatorTool",
-            "access_permission:modify_annotations", "access_permission:can_print_degraded", "meta:creation-date", "created",
-            "access_permission:extract_for_accessibility", "access_permission:assemble_document", "xmpTPg:NPages", "Creation-Date",
-            "dcterms:created", "dc:format", "access_permission:extract_content", "access_permission:can_print",
-            "pdf:docinfo:creator_tool", "access_permission:fill_in_form", "pdf:encrypted", "producer", "access_permission:can_modify",
-            "pdf:docinfo:producer", "pdf:docinfo:created", "Content-Type"));
 
         // "created" is different depending on the JVM Locale. We skip testing its content
-        assertThat(rawMetadata, hasEntry("pdf:PDFVersion", "1.4"));
-        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.pdf.PDFParser"));
-        assertThat(rawMetadata, hasEntry("xmp:CreatorTool", "Writer"));
-        assertThat(rawMetadata, hasEntry("access_permission:modify_annotations", "true"));
-        assertThat(rawMetadata, hasEntry("access_permission:can_print_degraded", "true"));
-        assertThat(rawMetadata, hasEntry("meta:creation-date", "2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata, hasEntry("access_permission:extract_for_accessibility", "true"));
-        assertThat(rawMetadata, hasEntry("access_permission:assemble_document", "true"));
-        assertThat(rawMetadata, hasEntry("xmpTPg:NPages", "1"));
-        assertThat(rawMetadata, hasEntry("Creation-Date", "2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata, hasEntry("dcterms:created", "2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata, hasEntry("dc:format", "application/pdf; version=1.4"));
-        assertThat(rawMetadata, hasEntry("access_permission:extract_content", "true"));
-        assertThat(rawMetadata, hasEntry("access_permission:can_print", "true"));
-        assertThat(rawMetadata, hasEntry("pdf:docinfo:creator_tool", "Writer"));
-        assertThat(rawMetadata, hasEntry("access_permission:fill_in_form", "true"));
-        assertThat(rawMetadata, hasEntry("pdf:encrypted", "false"));
-        assertThat(rawMetadata, hasEntry("producer", "LibreOffice 5.2"));
-        assertThat(rawMetadata, hasEntry("access_permission:can_modify", "true"));
-        assertThat(rawMetadata, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
-        assertThat(rawMetadata, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata, hasEntry("Content-Type", "application/pdf"));
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(attachmentData, hasEntry("X-Parsed-By", "org.apache.tika.parser.pdf.PDFParser"));
+        assertThat(attachmentData, hasEntry("xmp:CreatorTool", "Writer"));
+        assertThat(attachmentData, hasEntry("access_permission:modify_annotations", "true"));
+        assertThat(attachmentData, hasEntry("access_permission:can_print_degraded", "true"));
+        assertThat(attachmentData, hasEntry("meta:creation-date", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData, hasEntry("access_permission:extract_for_accessibility", "true"));
+        assertThat(attachmentData, hasEntry("access_permission:assemble_document", "true"));
+        assertThat(attachmentData, hasEntry("xmpTPg:NPages", "1"));
+        assertThat(attachmentData, hasEntry("Creation-Date", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData, hasEntry("dcterms:created", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData, hasEntry("dc:format", "application/pdf; version=1.4"));
+        assertThat(attachmentData, hasEntry("access_permission:extract_content", "true"));
+        assertThat(attachmentData, hasEntry("access_permission:can_print", "true"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
+        assertThat(attachmentData, hasEntry("access_permission:fill_in_form", "true"));
+        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
+        assertThat(attachmentData, hasEntry("producer", "LibreOffice 5.2"));
+        assertThat(attachmentData, hasEntry("access_permission:can_modify", "true"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData, hasEntry("Content-Type", "application/pdf"));
+    }
+
+    public void testWildcardFilteredRawMetadataFromPdf() throws Exception {
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
+            "target_field", Collections.emptySet(), Collections.singleton("pdf:*"), 10000, false);
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+
+        // We check that we have all expected field starting with "pdf:"
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
+        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+
+        // We check that we did not extract any other field
+        assertThat(attachmentData, not(hasKey("X-Parsed-By")));
+    }
+
+    public void testFilteredRawMetadataFromPdf() throws Exception {
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
+            "target_field", Collections.emptySet(), Collections.singleton("pdf:PDFVersion"), 10000, false);
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+
+        // We check that we have only the expected field
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+
+        // We check that we did not extract any other field
+        assertThat(attachmentData, not(hasKey("pdf:encrypted")));
+    }
+
+    public void testRawMetadataWith2FiltersFromPdf() throws Exception {
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
+            "target_field", Collections.emptySet(), Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted"), 10000, false);
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+
+        // We check that we have only expected fields
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
+
+        // We check that we did not extract any other field
+        assertThat(attachmentData, not(hasKey("pdf:docinfo:creator_tool")));
+    }
+
+    public void testWildcardAndFiltersRawMetadataFromPdf() throws Exception {
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
+            "target_field", Collections.emptySet(), Sets.newHashSet("pdf:PDFVersion", "pdf:*"), 10000, false);
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+
+        // We check that we have all expected field starting with "pdf:"
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
+        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+
+        // We check that we did not extract any other field
+        assertThat(attachmentData, not(hasKey("X-Parsed-By")));
+    }
+
+    public void testFilteredRawMetadataPlusSomeReservedFieldsFromPdf() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> selectedProperties = randomReservedProperties();
+
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
+            "target_field", selectedProperties, Collections.singleton("pdf:*"), 10000, false);
+        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
+
+        // We check that we have all expected field starting with "pdf:"
+        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
+        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
+        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+
+        // We check that we did not extract any other field
+        assertThat(attachmentData, not(hasKey("X-Parsed-By")));
+    }
+
+    private Set<AttachmentProcessor.ReservedProperty> randomReservedProperties() {
+        return randomReservedProperties(new ArrayList<>(EnumSet.allOf(AttachmentProcessor.ReservedProperty.class)));
+    }
+
+    private Set<AttachmentProcessor.ReservedProperty> randomReservedProperties(List<AttachmentProcessor.ReservedProperty> fieldsList) {
+        Set<AttachmentProcessor.ReservedProperty> selectedProperties = new HashSet<>();
+
+        int numFields = randomIntBetween(1, fieldsList.size());
+        for (int i = 0; i < numFields; i++) {
+            AttachmentProcessor.ReservedProperty reservedProperty;
+            do {
+                reservedProperty = randomFrom(fieldsList);
+            } while (selectedProperties.add(reservedProperty) == false);
+        }
+
+        return selectedProperties;
     }
 
     public void testRawMetadataFromRtf() throws Exception {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.of(AttachmentProcessor.Property.RAW_METADATA), 10000, false);
+            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false);
         Map<String, Object> attachmentData =
             parseBase64Document("e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=", processor);
-        assertThat(attachmentData.keySet(), contains("raw_metadata"));
-        assertThat(attachmentData.get("raw_metadata"), is(instanceOf(Map.class)));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> rawMetadata = (Map<String, Object>) attachmentData.get("raw_metadata");
 
-        assertThat(rawMetadata.keySet(), containsInAnyOrder("X-Parsed-By", "Content-Type"));
-
-        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.rtf.RTFParser"));
-        assertThat(rawMetadata, hasEntry("Content-Type", "application/rtf"));
+        assertThat(attachmentData, hasEntry("X-Parsed-By", "org.apache.tika.parser.rtf.RTFParser"));
+        assertThat(attachmentData, hasEntry("Content-Type", "application/rtf"));
     }
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {

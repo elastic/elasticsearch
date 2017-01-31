@@ -48,12 +48,12 @@ The node must be stopped before removing the plugin.
 .Attachment options
 [options="header"]
 |======
-| Name                   | Required  | Default                           | Description
-| `field`                | yes       | -                                 | The field to get the base64 encoded field from
-| `target_field`         | no        | attachment                        | The field that will hold the attachment information
-| `indexed_chars`        | no        | 100000                            | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
-| `properties`           | no        | all properties but `raw_metadata` | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`, `raw_metadata`
-| `ignore_missing`       | no        | `false`                           | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| Name                   | Required  | Default          | Description
+| `field`                | yes       | -                | The field to get the base64 encoded field from
+| `target_field`         | no        | attachment       | The field that will hold the attachment information
+| `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `_content_`, `_title_`, `_author_`, `_keywords_`, `_date_`, `_content_type_`, `_content_length_`, `_language_` or any specific name you want to extract.
+| `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 For example, this:
@@ -114,7 +114,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "content", "title" ]
+        "properties": [ "_content_", "_title_" ]
       }
     }
   ]
@@ -240,12 +240,24 @@ first attachment only. However, by specifying the
 associate the properties with the correct attachment.
 
 [[ingest-attachment-raw-metadata]]
-==== Extracting all raw metadata from documents
+==== Extracting all properties from documents
 
-By default, the `ingest-attachment` plugin only extracts a subset of the most common metadata.
+By default, the `ingest-attachment` plugin only extracts a subset of the most common properties:
 
-If you want to get back all the raw metadata, you can set `properties` to `raw_metadata`.
-It will populate a subfield `raw_metadata` with all key/value pairs found as metadata in the document.
+* `content`: the extracted text
+* `content_type`: content type
+* `title`: document title if defined as a document metadata
+* `author`: author name if defined as a document metadata
+* `keywords`: keywords if defined as document metadata
+* `date`: creation date if defined as a document metadata
+* `content_length`: document length if defined or length of extracted content
+* `language`: language if defined as a document metadata
+
+If you want to get back more raw metadata or all of them, you can provide the metadata name you want to extract within
+`properties` field. Note that you can use wildcards. If you want to extract all raw metadata but not any of the
+fixed ones, you can simply set `"properties": [ "*" ]`.
+
+If you also want to combine that with the fixed ones, add the ones you want to use:
 
 For example:
 
@@ -258,7 +270,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "raw_metadata" ]
+        "properties": [ "*", "_content_" ]
       }
     }
   ]
@@ -284,10 +296,9 @@ Returns this:
   "_source": {
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
-      "raw_metadata": {
-        "X-Parsed-By": "org.apache.tika.parser.rtf.RTFParser",
-        "Content-Type": "application/rtf"
-      }
+      "content": "Lorem ipsum dolor sit amet",
+      "X-Parsed-By": "org.apache.tika.parser.rtf.RTFParser",
+      "Content-Type": "application/rtf"
     }
   }
 }

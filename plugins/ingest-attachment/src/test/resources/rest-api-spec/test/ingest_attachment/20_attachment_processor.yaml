@@ -52,7 +52,7 @@
               {
                 "attachment" : {
                   "field" : "field1",
-                  "properties" : ["language"]
+                  "properties" : ["_language_"]
                 }
               }
             ]

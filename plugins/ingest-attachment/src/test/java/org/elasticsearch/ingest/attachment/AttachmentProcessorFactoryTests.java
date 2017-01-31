@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -33,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
@@ -51,7 +51,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
-        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getReservedProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -78,40 +79,50 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertFalse(processor.isIgnoreMissing());
     }
 
-    public void testBuildFields() throws Exception {
-        Set<AttachmentProcessor.Property> properties = EnumSet.noneOf(AttachmentProcessor.Property.class);
+    public void testBuildReservedProperties() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> properties = EnumSet.noneOf(AttachmentProcessor.ReservedProperty.class);
         List<String> fieldNames = new ArrayList<>();
-        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.Property.values().length);
+        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.ReservedProperty.values().length);
         for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Property property = AttachmentProcessor.Property.values()[i];
-            properties.add(property);
-            fieldNames.add(property.name().toLowerCase(Locale.ROOT));
+            AttachmentProcessor.ReservedProperty reservedProperty = AttachmentProcessor.ReservedProperty.values()[i];
+            properties.add(reservedProperty);
+            fieldNames.add(reservedProperty.key);
         }
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), equalTo(properties));
+        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getReservedProperties(), equalTo(properties));
+        assertFalse(processor.isIgnoreMissing());
+    }
+
+    public void testBuildDeprecatedReservedProperties() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> properties = EnumSet.noneOf(AttachmentProcessor.ReservedProperty.class);
+        List<String> fieldNames = new ArrayList<>();
+        List<String> expectedWarnings = new ArrayList<>();
+        int numFields = scaledRandomIntBetween(1, AttachmentProcessor.ReservedProperty.values().length);
+        for (int i = 0; i < numFields; i++) {
+            AttachmentProcessor.ReservedProperty reservedProperty = AttachmentProcessor.ReservedProperty.values()[i];
+            properties.add(reservedProperty);
+            String deprecatedName = reservedProperty.name().toLowerCase(Locale.ROOT);
+            fieldNames.add(deprecatedName);
+            expectedWarnings.add("[" + deprecatedName + "] should be replaced with [" + reservedProperty.key + "]");
+        }
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("properties", fieldNames);
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getReservedProperties(), equalTo(properties));
+        assertWarnings(expectedWarnings.toArray(new String[]{}));
         assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
-        config.put("properties", Collections.singletonList("invalid"));
-        try {
-            factory.create(null, null, config);
-            fail("exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("[properties] illegal field option [invalid]"));
-            // ensure allowed fields are mentioned
-            for (AttachmentProcessor.Property property : AttachmentProcessor.Property.values()) {
-                assertThat(e.getMessage(), containsString(property.name()));
-            }
-        }
-
-        config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", "invalid");
         try {
@@ -133,7 +144,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
-        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getReservedProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
     }
 }

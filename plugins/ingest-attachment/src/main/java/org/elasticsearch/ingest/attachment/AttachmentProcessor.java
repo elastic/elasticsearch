@@ -19,31 +19,39 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.common.regex.Regex.simpleMatchToAutomaton;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.attachment.AttachmentProcessor.ReservedProperty.findDeprecatedProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
+
+    private static final Logger logger = ESLoggerFactory.getLogger(AttachmentProcessor.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String TYPE = "attachment";
 
@@ -51,18 +59,28 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
-    private final Set<Property> properties;
+    private final Set<ReservedProperty> reservedProperties;
+    private final Set<String> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final CharacterRunAutomaton runAutomaton;
 
-    AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing) throws IOException {
+    AttachmentProcessor(String tag, String field, String targetField, Set<ReservedProperty> reservedProperties,
+                        Set<String> properties, int indexedChars, boolean ignoreMissing) throws IOException {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
+        this.reservedProperties = reservedProperties;
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
+
+        // We build the regex automaton we will use to extract raw metadata
+        if (properties.isEmpty()) {
+            this.runAutomaton = null;
+        } else {
+            this.runAutomaton = new CharacterRunAutomaton(simpleMatchToAutomaton(properties.toArray(new String[]{})));
+        }
     }
 
     boolean isIgnoreMissing() {
@@ -85,53 +103,53 @@ public final class AttachmentProcessor extends AbstractProcessor {
             Metadata metadata = new Metadata();
             String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
 
-            if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
+            if (reservedProperties.contains(ReservedProperty.CONTENT) && Strings.hasLength(parsedContent)) {
                 // somehow tika seems to append a newline at the end automatically, lets remove that again
-                additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
+                additionalFields.put(ReservedProperty.CONTENT.toLowerCase(), parsedContent.trim());
             }
 
-            if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            if (reservedProperties.contains(ReservedProperty.LANGUAGE) && Strings.hasLength(parsedContent)) {
                 LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
                 String language = identifier.getLanguage();
-                additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+                additionalFields.put(ReservedProperty.LANGUAGE.toLowerCase(), language);
             }
 
-            if (properties.contains(Property.DATE)) {
+            if (reservedProperties.contains(ReservedProperty.DATE)) {
                 String createdDate = metadata.get(TikaCoreProperties.CREATED);
                 if (createdDate != null) {
-                    additionalFields.put(Property.DATE.toLowerCase(), createdDate);
+                    additionalFields.put(ReservedProperty.DATE.toLowerCase(), createdDate);
                 }
             }
 
-            if (properties.contains(Property.TITLE)) {
+            if (reservedProperties.contains(ReservedProperty.TITLE)) {
                 String title = metadata.get(TikaCoreProperties.TITLE);
                 if (Strings.hasLength(title)) {
-                    additionalFields.put(Property.TITLE.toLowerCase(), title);
+                    additionalFields.put(ReservedProperty.TITLE.toLowerCase(), title);
                 }
             }
 
-            if (properties.contains(Property.AUTHOR)) {
+            if (reservedProperties.contains(ReservedProperty.AUTHOR)) {
                 String author = metadata.get("Author");
                 if (Strings.hasLength(author)) {
-                    additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+                    additionalFields.put(ReservedProperty.AUTHOR.toLowerCase(), author);
                 }
             }
 
-            if (properties.contains(Property.KEYWORDS)) {
+            if (reservedProperties.contains(ReservedProperty.KEYWORDS)) {
                 String keywords = metadata.get("Keywords");
                 if (Strings.hasLength(keywords)) {
-                    additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+                    additionalFields.put(ReservedProperty.KEYWORDS.toLowerCase(), keywords);
                 }
             }
 
-            if (properties.contains(Property.CONTENT_TYPE)) {
+            if (reservedProperties.contains(ReservedProperty.CONTENT_TYPE)) {
                 String contentType = metadata.get(Metadata.CONTENT_TYPE);
                 if (Strings.hasLength(contentType)) {
-                    additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
+                    additionalFields.put(ReservedProperty.CONTENT_TYPE.toLowerCase(), contentType);
                 }
             }
 
-            if (properties.contains(Property.CONTENT_LENGTH)) {
+            if (reservedProperties.contains(ReservedProperty.CONTENT_LENGTH)) {
                 String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
                 long length;
                 if (Strings.hasLength(contentLength)) {
@@ -139,19 +157,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 } else {
                     length = parsedContent.length();
                 }
-                additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
+                additionalFields.put(ReservedProperty.CONTENT_LENGTH.toLowerCase(), length);
             }
 
-            // If we asked for all metadata extraction
-            if (properties.contains(Property.RAW_METADATA)) {
-                Map<String, Object> rawMetadata = new HashMap<>();
-
+            // If we asked for other raw metadata
+            if (runAutomaton != null) {
                 for (String metadataName : metadata.names()) {
                     String value = metadata.get(metadataName);
-                    rawMetadata.put(metadataName, value);
+                    logger.trace("found metadata [{}:{}]", metadataName, value);
+                    if (runAutomaton.run(metadataName)) {
+                        logger.trace("metadata [{}] matched one of the properties", metadataName);
+                        additionalFields.put(metadataName, value);
+                    }
                 }
-
-                additionalFields.put(Property.RAW_METADATA.toLowerCase(), rawMetadata);
             }
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
@@ -173,8 +191,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    Set<Property> getProperties() {
+    Set<String> getProperties() {
         return properties;
+    }
+
+    public Set<ReservedProperty> getReservedProperties() {
+        return reservedProperties;
     }
 
     int getIndexedChars() {
@@ -183,55 +205,84 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        static final Set<Property> DEFAULT_PROPERTIES;
-
-        static {
-            DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
-            DEFAULT_PROPERTIES.remove(Property.RAW_METADATA);
-        }
+        static final Set<ReservedProperty> DEFAULT_PROPERTIES = EnumSet.allOf(ReservedProperty.class);
 
         @Override
         public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                           Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
-            List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
-            final Set<Property> properties;
-            if (properyNames != null) {
-                properties = EnumSet.noneOf(Property.class);
-                for (String fieldName : properyNames) {
+            final Set<ReservedProperty> reservedProperties;
+            final Set<String> properties = new HashSet<>();
+            if (propertyNames != null) {
+                reservedProperties = EnumSet.noneOf(ReservedProperty.class);
+                for (String fieldName : propertyNames) {
                     try {
-                        properties.add(Property.parse(fieldName));
+                        reservedProperties.add(ReservedProperty.parse(fieldName));
+                        logger.trace("found a reserved property: [{}]", fieldName);
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" +
-                            fieldName + "]. valid values are " + Arrays.toString(Property.values()));
+                        // This is expected when the user does not define a reserved property, so let's just ignore this
+                        // Let's try to see if the user defined a deprecated property name (like xxx instead of _xxx_)
+                        ReservedProperty reservedProperty = findDeprecatedProperty(fieldName);
+                        if (reservedProperty != null) {
+                            deprecationLogger.deprecated("[{}] should be replaced with [{}]", reservedProperty.toLowerCase(),
+                                reservedProperty.key);
+                            reservedProperties.add(reservedProperty);
+                        } else {
+                            // It's not a reserved property, so let's add it as a user provided property
+                            logger.trace("found a user provided property: [{}]", fieldName);
+                            properties.add(fieldName);
+                        }
                     }
                 }
             } else {
-                properties = DEFAULT_PROPERTIES;
+                reservedProperties = DEFAULT_PROPERTIES;
+                logger.trace("no properties provided, falling back to default reserved properties: [{}]", reservedProperties);
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing);
+            return new AttachmentProcessor(processorTag, field, targetField, reservedProperties, properties, indexedChars, ignoreMissing);
         }
     }
 
-    enum Property {
+    enum ReservedProperty {
 
-        CONTENT,
-        TITLE,
-        AUTHOR,
-        KEYWORDS,
-        DATE,
-        CONTENT_TYPE,
-        CONTENT_LENGTH,
-        LANGUAGE,
-        RAW_METADATA;
+        CONTENT("_content_"),
+        TITLE("_title_"),
+        AUTHOR("_author_"),
+        KEYWORDS("_keywords_"),
+        DATE("_date_"),
+        CONTENT_TYPE("_content_type_"),
+        CONTENT_LENGTH("_content_length_"),
+        LANGUAGE("_language_");
 
-        public static Property parse(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+        String key;
+
+        ReservedProperty(String key) {
+            this.key = key;
+        }
+
+        public static ReservedProperty parse(String value) {
+            EnumSet<ReservedProperty> reservedProperties = EnumSet.allOf(ReservedProperty.class);
+            for (ReservedProperty reservedProperty : reservedProperties) {
+                if (reservedProperty.key.equals(value)) {
+                    return reservedProperty;
+                }
+            }
+            throw new IllegalArgumentException(value + " is not one of the known keys");
+        }
+
+        public static ReservedProperty findDeprecatedProperty(String value) {
+            EnumSet<ReservedProperty> reservedProperties = EnumSet.allOf(ReservedProperty.class);
+            for (ReservedProperty reservedProperty : reservedProperties) {
+                if (reservedProperty.toLowerCase().equals(value)) {
+                    return reservedProperty;
+                }
+            }
+            return null;
         }
 
         public String toLowerCase() {

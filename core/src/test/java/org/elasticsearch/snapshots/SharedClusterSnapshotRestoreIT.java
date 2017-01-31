@@ -1906,7 +1906,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Settings initialSettings = initialSettingsBuilder.build();
             logger.info("--> using initial block settings {}", initialSettings.getAsMap());
 
-            if (!initialSettings.getAsMap().isEmpty()) {
+            if (!initialSettings.isEmpty()) {
                 logger.info("--> apply initial blocks to index");
                 client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
             }

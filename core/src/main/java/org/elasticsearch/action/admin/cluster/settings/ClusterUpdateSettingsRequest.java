@@ -51,7 +51,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()) {
+        if (transientSettings.isEmpty() && persistentSettings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;

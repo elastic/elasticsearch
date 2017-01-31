@@ -1069,7 +1069,7 @@ public class JobProvider {
         get(jobId, indexName, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
                 handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
                 () -> {
-                    LOGGER.warn("No memory usage details for job with id {}", jobId);
+                    LOGGER.trace("No memory usage details for job with id {}", jobId);
                     return null;
                 });
     }

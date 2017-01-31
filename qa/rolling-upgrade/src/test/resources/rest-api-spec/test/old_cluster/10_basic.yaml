@@ -61,39 +61,27 @@
       features: warnings
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 1
-          body: {
-            "value": "value1",
-            "num": 1.0
-          }
+     indices.create:
+        index: stored_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 2
-          body: {
-            "value": "value2",
-            "num": 2.0
-          }
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value1", "num": 1.0}'
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value2", "num": 2.0}'
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value3", "num": 3.0}'
 
   - do:
-      index:
-          index: test
-          type: test
-          id: 3
-          body: {
-            "value": "value3",
-            "num": 3.0
-          }
-
-  - do:
-      indices.refresh: {
-
-      }
+     indices.flush:
+        index: stored_index
 
   - do:
       put_script:
@@ -151,7 +139,7 @@
 
   - do:
       search:
-        index: test
+        index: stored_index
         body: {
           "query": {
             "script": {

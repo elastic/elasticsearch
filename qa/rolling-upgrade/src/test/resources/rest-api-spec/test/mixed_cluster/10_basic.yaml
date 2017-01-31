@@ -77,6 +77,22 @@
       features: warnings
 
   - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+
+  - do:
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "match_all": {
+            }
+          }
+        }
+  - match: { hits.total: 3 }
+
+  - do:
       warnings:
         - 'specifying lang [painless] as part of the url path is deprecated'
       get_script:
@@ -113,7 +129,7 @@
       warnings:
         - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
       search:
-        index: test
+        index: stored_index
         body: {
           "query": {
             "script": {

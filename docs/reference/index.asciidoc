@@ -4,19 +4,19 @@
 :version:        5.2.0
 :major-version:  5.x
 :docker-image: docker.elastic.co/elasticsearch/elasticsearch:{version}
-:x-pack-baseurl: https://www.elastic.co/guide/en/x-pack/5.0
+:x-pack-baseurl: https://www.elastic.co/guide/en/x-pack/5.2
 
 //////////
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:  unreleased
+:release-state:  released
 :lucene_version: 6.4.0
 :branch:         master
 :jdk:            1.8.0_73
 :defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master
-:plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/5.x
-:javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.x/
+:plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/5.2
+:javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.2/
 :issue:          https://github.com/elastic/elasticsearch/issues/
 :pull:           https://github.com/elastic/elasticsearch/pull/
 

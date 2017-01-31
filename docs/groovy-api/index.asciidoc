@@ -1,6 +1,6 @@
 = Groovy API
-:ref:  http://www.elastic.co/guide/en/elasticsearch/reference/current
-:java: http://www.elastic.co/guide/en/elasticsearch/client/java-api/current
+:ref:  http://www.elastic.co/guide/en/elasticsearch/reference/5.2
+:java: http://www.elastic.co/guide/en/elasticsearch/client/java-api/5.2
 :version: 5.2.0
 
 [preface]

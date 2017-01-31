@@ -1,6 +1,6 @@
 [[java-api]]
 = Java API
-:ref: http://www.elastic.co/guide/en/elasticsearch/reference/5.x
+:ref: http://www.elastic.co/guide/en/elasticsearch/reference/5.2
 :version: 5.2.0
 
 [preface]

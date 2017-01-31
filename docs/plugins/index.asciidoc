@@ -1,6 +1,6 @@
 = Elasticsearch Plugins and Integrations
 
-:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/5.x
+:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/5.2
 :guide:          https://www.elastic.co/guide
 :version:        5.2.0
 :lucene_version: 6.4.0

@@ -68,13 +68,13 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testOne() throws Exception {
         createKeystore("", "foo", "bar");
         execute("foo");
-        assertFalse(loadKeystore("").getSettings().contains("foo"));
+        assertFalse(loadKeystore("").getSettingNames().contains("foo"));
     }
 
     public void testMany() throws Exception {
         createKeystore("", "foo", "1", "bar", "2", "baz", "3");
         execute("foo", "baz");
-        Set<String> settings = loadKeystore("").getSettings();
+        Set<String> settings = loadKeystore("").getSettingNames();
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));

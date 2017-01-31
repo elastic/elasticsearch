@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IllegalFormatCodePointException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -402,40 +404,39 @@ public class ScopedSettingsTests extends ESTestCase {
             " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true)));
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build()));
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build()));
+        assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
-        try {
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build()));
+        assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
-        try {
-            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("secure.setting", Settings.builder().put("index.similarity.classic.type", "mine").build()));
+        assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
+    }
+
+    public void testValidateSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.secure.setting", "secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.emptySet());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings));
+        assertThat(e.getMessage(), startsWith("unknown setting [some.secure.setting]"));
+
+        ClusterSettings clusterSettings2 = new ClusterSettings(settings,
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+        clusterSettings2.validate(settings);
     }
 
 

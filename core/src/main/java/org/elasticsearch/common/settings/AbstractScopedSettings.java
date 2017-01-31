@@ -57,7 +57,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-\\w]+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-.\\w]+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -252,7 +252,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        for (String key : settings.getAsMap().keySet()) { // settings iterate in deterministic fashion
+        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
             try {
                 validate(key, settings);
             } catch (RuntimeException ex) {
@@ -278,7 +278,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             }
             CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
-            String msg = "unknown setting [" + key + "]";
+            String msgPrefix = "unknown setting";
+            if (settings.getSecureSettings().getSettingNames().contains(key)) {
+                msgPrefix = "unknown secure setting";
+            }
+            String msg = msgPrefix + " [" + key + "]";
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";

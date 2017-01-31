@@ -2,17 +2,22 @@
 # See https://github.com/elastic/x-plugins/issues/4237
 ---
 "Test transform scripts are updated on execution":
+  - skip:
+      features: warnings
+
   - do:
     cluster.health:
       wait_for_status: yellow
 
   - do:
     put_script:
-      id: transform-script
-      lang: painless
+      lang: transform-script
       body: >
         {
-          "script":"return [ 'email': 'foo@bar.org' ]"
+          "script":{
+            "lang": "painless",
+            "code":"return [ 'email': 'foo@bar.org' ]"
+          }
         }
 
   - do:
@@ -53,11 +58,14 @@
 
   - do:
     put_script:
-      id: transform-script
-      lang: painless
+      lang: transform-script
       body: >
         {
-          "script":"return [ 'email': 'foo@example.org' ]"
+          "script":
+          {
+            "lang": "painless",
+            "code":"return [ 'email': 'foo@example.org' ]"
+          }
         }
 
   - do:
@@ -69,17 +77,23 @@
 
 ---
 "Test condition scripts are updated on execution":
+  - skip:
+      features: warnings
+
   - do:
     cluster.health:
       wait_for_status: yellow
 
   - do:
     put_script:
-      id: condition-script
-      lang: painless
+      lang: condition-script
       body: >
         {
-          "script":"return false"
+          "script":
+          {
+            "lang": "painless",
+            "code": "return false"
+          }
         }
 
   - do:
@@ -120,11 +134,13 @@
 
   - do:
     put_script:
-      id: condition-script
-      lang: painless
+      lang: condition-script
       body: >
         {
-          "script":"return true"
+          "script": {
+            "lang": "painless",
+            "code": "return true"
+          }
         }
 
   - do:

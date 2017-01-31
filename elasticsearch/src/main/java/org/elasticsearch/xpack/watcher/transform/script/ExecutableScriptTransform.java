@@ -34,7 +34,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         this.scriptService = scriptService;
         Script script = transform.getScript();
         // try to compile so we catch syntax errors early
-        scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
             model.putAll(script.getParams());
         }
         model.putAll(createCtxModel(ctx, payload));
-        CompiledScript compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        CompiledScript compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
         ExecutableScript executable = scriptService.executable(compiledScript, model);
         Object value = executable.run();
         if (value instanceof Map) {

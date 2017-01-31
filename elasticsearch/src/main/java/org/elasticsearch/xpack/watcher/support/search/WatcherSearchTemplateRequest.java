@@ -247,6 +247,13 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                             DEFAULT_INDICES_OPTIONS);
                 } else if (TEMPLATE_FIELD.match(currentFieldName)) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
+
+                    // for deprecation of stored script namespaces the default lang is ignored,
+                    // so the template lang must be set for a stored script
+                    if (template.getType() == ScriptType.STORED) {
+                        template = new Script(
+                                ScriptType.STORED, Script.DEFAULT_TEMPLATE_LANG, template.getIdOrCode(), template.getParams());
+                    }
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");

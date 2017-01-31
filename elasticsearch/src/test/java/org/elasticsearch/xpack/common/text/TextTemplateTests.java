@@ -58,8 +58,9 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(type, lang, templateText, merged), Watcher.SCRIPT_CONTEXT,
-            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.compile(new Script(type, lang, templateText,
+                type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
+                merged), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
@@ -71,15 +72,16 @@ public class TextTemplateTests extends ESTestCase {
         String templateText = "_template";
         Map<String, Object> params = singletonMap("key", "param_val");
         Map<String, Object> model = singletonMap("key", "model_val");
-        ScriptType scriptType = randomFrom(ScriptType.values());
+        ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(scriptType, lang, templateText, model), Watcher.SCRIPT_CONTEXT,
-            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.compile(new Script(type, lang, templateText,
+                type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
+                model), Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        TextTemplate template = templateBuilder(scriptType, templateText, params);
+        TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -88,8 +90,9 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(ScriptType.INLINE, lang, templateText, model), Watcher.SCRIPT_CONTEXT,
-            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.compile(new Script(ScriptType.INLINE, lang, templateText,
+                Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_CONTEXT))
+                .thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 

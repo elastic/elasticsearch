@@ -45,7 +45,7 @@ public final class ScriptCondition extends Condition {
         super(TYPE);
         this.scriptService = scriptService;
         this.script = script;
-        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT);
     }
 
     public Script getScript() {

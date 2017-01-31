@@ -13,6 +13,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collections;
@@ -34,8 +35,7 @@ public class TextTemplateEngine extends AbstractComponent {
         }
 
         String template = textTemplate.getTemplate();
-        XContentType contentType = detectContentType(template);
-        Map<String, String> compileParams = compileParams(contentType);
+        String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
         Map<String, Object> mergedModel = new HashMap<>();
@@ -44,12 +44,18 @@ public class TextTemplateEngine extends AbstractComponent {
         }
         mergedModel.putAll(model);
 
-        Map<String, String> options = new HashMap<>();
-        if (textTemplate.getContentType() != null) {
-            options.put(Script.CONTENT_TYPE_OPTION, textTemplate.getContentType().mediaType());
+        Map<String, String> options = null;
+        if (textTemplate.getType() == ScriptType.INLINE) {
+            options = new HashMap<>();
+
+            if (textTemplate.getScript() != null && textTemplate.getScript().getOptions() != null) {
+                options.putAll(textTemplate.getScript().getOptions());
+            }
+
+            options.put(Script.CONTENT_TYPE_OPTION, mediaType);
         }
         Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
-        CompiledScript compiledScript = service.compile(script, Watcher.SCRIPT_CONTEXT, compileParams);
+        CompiledScript compiledScript = service.compile(script, Watcher.SCRIPT_CONTEXT);
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();
         if (result instanceof BytesReference) {
@@ -88,11 +94,11 @@ public class TextTemplateEngine extends AbstractComponent {
         return null;
     }
 
-    private Map<String, String> compileParams(XContentType contentType) {
+    private String compileParams(XContentType contentType) {
         if (contentType == XContentType.JSON) {
-            return Collections.singletonMap("content_type", "application/json");
+            return "application/json";
         } else {
-            return Collections.singletonMap("content_type", "text/plain");
+            return "text/plain";
         }
     }
 }

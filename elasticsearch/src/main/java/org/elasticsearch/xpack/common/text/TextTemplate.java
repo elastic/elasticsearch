@@ -37,9 +37,12 @@ public class TextTemplate implements ToXContent {
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
                         @Nullable Map<String, Object> params) {
-        Map<String, String> options = new HashMap<>();
-        if (contentType != null) {
-            options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+        Map<String, String> options = null;
+        if (type == ScriptType.INLINE) {
+            options = new HashMap<>();
+            if (contentType != null) {
+                options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+            }
         }
         if (params == null) {
             params = new HashMap<>();
@@ -62,7 +65,7 @@ public class TextTemplate implements ToXContent {
     }
 
     public XContentType getContentType() {
-        if (script == null) {
+        if (script == null || script.getOptions() == null) {
             return null;
         }
 
@@ -112,7 +115,15 @@ public class TextTemplate implements ToXContent {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new TextTemplate(parser.text());
         } else {
-            return new TextTemplate(Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG));
+            Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
+
+            // for deprecation of stored script namespaces the default lang is ignored,
+            // so the template lang must be set for a stored script
+            if (template.getType() == ScriptType.STORED) {
+                template = new Script(ScriptType.STORED, Script.DEFAULT_TEMPLATE_LANG, template.getIdOrCode(), template.getParams());
+            }
+
+            return new TextTemplate(template);
         }
     }
 }

@@ -61,7 +61,7 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, "_lang", "_script", params);
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap())).thenReturn(compiledScript);
+        when(service.compile(script, Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -89,7 +89,7 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, "_lang", "_script", params);
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap())).thenReturn(compiledScript);
+        when(service.compile(script, Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -115,7 +115,7 @@ public class ScriptTransformTests extends ESTestCase {
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script(type, "_lang", "_script", params);
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap())).thenReturn(compiledScript);
+        when(service.compile(script, Watcher.SCRIPT_CONTEXT)).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -141,14 +141,16 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field(scriptTypeField(type), "_script");
-        builder.field("lang", "_lang");
+        if (type != ScriptType.STORED) {
+            builder.field("lang", "_lang");
+        }
         builder.startObject("params").field("key", "value").endObject();
         builder.endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
-        Script script = new Script(type, "_lang", "_script", singletonMap("key", "value"));
+        Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", singletonMap("key", "value"));
         assertThat(transform.transform().getScript(), equalTo(script));
     }
 
@@ -167,7 +169,7 @@ public class ScriptTransformTests extends ESTestCase {
         String errorMessage = "expected error message";
         ScriptException scriptException = new ScriptException(errorMessage, new RuntimeException("foo"),
                 Collections.emptyList(), "whatever", "whatever");
-        when(scriptService.compile(anyObject(), eq(Watcher.SCRIPT_CONTEXT), anyObject())).thenThrow(scriptException);
+        when(scriptService.compile(anyObject(), eq(Watcher.SCRIPT_CONTEXT))).thenThrow(scriptException);
 
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), scriptService);
 
@@ -198,7 +200,13 @@ public class ScriptTransformTests extends ESTestCase {
         parser.nextToken();
         ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser);
         Exception e = expectThrows(IllegalArgumentException.class, () -> transformFactory.createExecutable(scriptCondition));
-        assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
+        if (scriptType == ScriptType.STORED) {
+            assertThat(e.getMessage(), containsString("unable to get stored script with unsupported lang [not_a_valid_lang]"));
+            assertWarnings("specifying the field [lang] for executing stored scripts is deprecated;" +
+                    " use only the field [stored] to specify an <id>");
+        } else {
+            assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
+        }
     }
 
     static String scriptTypeField(ScriptType type) {

@@ -261,9 +261,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang("mustache")
+                .setLang("mustache")
                 .setId("my-template")
-                .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
+                .setContent(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get());
 
         Script template = new Script(ScriptType.STORED, "mustache", "my-template", Collections.emptyMap());

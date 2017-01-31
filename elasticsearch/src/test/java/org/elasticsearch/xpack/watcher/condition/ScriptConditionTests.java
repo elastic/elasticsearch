@@ -240,7 +240,7 @@ public class ScriptConditionTests extends ESTestCase {
             default:
                 throw illegalArgument("unsupported script type [{}]", scriptType);
         }
-        if (scriptLang != null) {
+        if (scriptLang != null && scriptType != ScriptType.STORED) {
             builder.field("lang", scriptLang);
         }
         return builder.endObject();

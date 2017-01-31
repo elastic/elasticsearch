@@ -110,7 +110,9 @@ public class Version {
     public static final Version V_5_1_3_UNRELEASED = new Version(V_5_1_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final int V_5_2_0_ID_UNRELEASED = 5020099;
     public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
-    public static final Version CURRENT = V_5_2_0_UNRELEASED;
+    public static final int V_5_2_1_ID_UNRELEASED = 5020199;
+    public static final Version V_5_2_1_UNRELEASED = new Version(V_5_2_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
+    public static final Version CURRENT = V_5_2_1_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -125,6 +127,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_5_2_1_ID_UNRELEASED:
+                return V_5_2_1_UNRELEASED;
             case V_5_2_0_ID_UNRELEASED:
                 return V_5_2_0_UNRELEASED;
             case V_5_1_3_ID_UNRELEASED:

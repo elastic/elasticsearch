@@ -60,7 +60,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             replica.updateGlobalCheckpointOnReplica(maxSeqNo - 1);
             replica.getTranslog().sync();
 
-            // commit is enough, global checkpoint is bellow max *committed* which is NO_OPS_PERFORMED
+            // commit is enough, global checkpoint is below max *committed* which is NO_OPS_PERFORMED
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
 
             replica.flush(new FlushRequest());
@@ -70,7 +70,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             replica.updateGlobalCheckpointOnReplica(maxSeqNo);
             replica.getTranslog().sync();
-            // commit is enough, global checkpoint is bellow max
+            // commit is enough, global checkpoint is below max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
         } finally {
             closeShards(replica);

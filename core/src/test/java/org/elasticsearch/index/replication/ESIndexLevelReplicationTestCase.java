@@ -212,7 +212,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             boolean found = replicas.remove(replica);
             assert found;
             primary = replica;
-            replica.updateRoutingEntry(ShardRoutingHelper.promoteToPrimary(replica.routingEntry()));
+            replica.updateRoutingEntry(replica.routingEntry().moveActiveReplicaToPrimary());
             updateAllocationIDsOnPrimary();
         }
 

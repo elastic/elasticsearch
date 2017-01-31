@@ -152,7 +152,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
-                for (int i = 0; i< rollbackDocs; i++) {
+                for (int i = 0; i < rollbackDocs; i++) {
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i).source("{}");
                     indexOnPrimary(indexRequest, oldPrimary);
                     indexOnReplica(indexRequest, replica);

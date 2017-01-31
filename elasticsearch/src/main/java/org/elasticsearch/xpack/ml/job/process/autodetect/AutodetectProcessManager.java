@@ -34,11 +34,11 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsPa
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -201,9 +201,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     void gatherRequiredInformation(String jobId, TriConsumer handler, Consumer<Exception> errorHandler) {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.modelSnapshots(jobId, 0, 1, page -> {
-            ModelSnapshot modelSnapshot = page.results().isEmpty() ? null : page.results().get(1);
+            ModelSnapshot modelSnapshot = page.results().isEmpty() ? null : page.results().get(0);
             jobProvider.getQuantiles(jobId, quantiles -> {
-                String[] ids = job.getAnalysisConfig().extractReferencedFilters().toArray(new String[0]);
+                Set<String> ids = job.getAnalysisConfig().extractReferencedFilters();
                 jobProvider.getFilters(filterDocument -> handler.accept(modelSnapshot, quantiles, filterDocument), errorHandler, ids);
             }, errorHandler);
         }, errorHandler);

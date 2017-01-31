@@ -49,18 +49,15 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder.BucketsQuery;
+import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
-import org.elasticsearch.xpack.ml.notifications.AuditMessage;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder.BucketsQuery;
-import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
@@ -69,6 +66,9 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.notifications.AuditActivity;
+import org.elasticsearch.xpack.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -338,9 +338,9 @@ public class JobProvider {
                 }));
     }
 
-    private <T, U> void mget(String indexName, String type, String[] ids, Consumer<Set<T>> handler, Consumer<Exception> errorHandler,
+    private <T, U> void mget(String indexName, String type, Set<String> ids, Consumer<Set<T>> handler, Consumer<Exception> errorHandler,
                              BiFunction<XContentParser, U, T> objectParser) {
-        if (ids.length == 0) {
+        if (ids.isEmpty()) {
             handler.accept(Collections.emptySet());
             return;
         }
@@ -1079,7 +1079,7 @@ public class JobProvider {
      *
      * @param ids the id of the requested filter
      */
-    public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, String... ids) {
+    public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, Set<String> ids) {
         mget(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
     }
 

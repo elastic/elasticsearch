@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -31,8 +32,8 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsPa
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -60,6 +61,7 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -78,6 +80,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobDataCountsPersister jobDataCountsPersister;
     private NormalizerFactory normalizerFactory;
 
+    private ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
+    private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
+    private Set<MlFilter> filters = new HashSet<>();
+
     @Before
     public void initMocks() {
         jobManager = mock(JobManager.class);
@@ -86,6 +92,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
         givenAllocationWithStatus(JobStatus.OPENED);
+
+        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Consumer<QueryPage<ModelSnapshot>> handler = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[3];
+            handler.accept(new QueryPage<>(Collections.singletonList(modelSnapshot), 1, ModelSnapshot.RESULTS_FIELD));
+            return null;
+        }).when(jobProvider).modelSnapshots(any(), anyInt(), anyInt(), any(), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Consumer<Quantiles> handler = (Consumer<Quantiles>) invocationOnMock.getArguments()[1];
+            handler.accept(quantiles);
+            return null;
+        }).when(jobProvider).getQuantiles(any(), any(), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Consumer<Set<MlFilter>> handler = (Consumer<Set<MlFilter>>) invocationOnMock.getArguments()[0];
+            handler.accept(filters);
+            return null;
+        }).when(jobProvider).getFilters(any(), any(), any());
     }
 
     public void testOpenJob() {
@@ -191,7 +217,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testCloseJob() {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         AutodetectProcessManager manager = createManager(communicator);
         assertEquals(0, manager.numberOfOpenJobs());
 
@@ -218,7 +243,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     public void testFlush() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManager(communicator);
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
 
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", false, e -> {});
@@ -267,7 +291,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         Job job = createJobDetails("foo");
 
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(job);
         givenAllocationWithStatus(JobStatus.OPENED);
 
         InputStream inputStream = createInputStream("");
@@ -295,16 +318,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
-        AutodetectProcessManager manager = spy(new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory));
-        ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
-        Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-        Set<MlFilter> filters = new HashSet<>();
-        doAnswer(invocationOnMock -> {
-            AutodetectProcessManager.TriConsumer consumer = (AutodetectProcessManager.TriConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(modelSnapshot, quantiles, filters);
-            return null;
-        }).when(manager).gatherRequiredInformation(any(), any(), any());
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory);
 
         expectThrows(EsRejectedExecutionException.class, () -> manager.create("my_id", modelSnapshot, quantiles, filters, false, e -> {}));
         verify(autodetectProcess, times(1)).close();
@@ -328,14 +343,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory);
         manager = spy(manager);
-        ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
-        Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-        Set<MlFilter> filters = new HashSet<>();
-        doAnswer(invocationOnMock -> {
-            AutodetectProcessManager.TriConsumer consumer = (AutodetectProcessManager.TriConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(modelSnapshot, quantiles, filters);
-            return null;
-        }).when(manager).gatherRequiredInformation(any(), any(), any());
         doReturn(communicator).when(manager).create(any(), eq(modelSnapshot), eq(quantiles), eq(filters), anyBoolean(), any());
         return manager;
     }

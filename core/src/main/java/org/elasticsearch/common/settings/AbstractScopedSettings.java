@@ -279,7 +279,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
             CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
             String msgPrefix = "unknown setting";
-            if (settings.getSecureSettings().getSettingNames().contains(key)) {
+            SecureSettings secureSettings = settings.getSecureSettings();
+            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
                 msgPrefix = "unknown secure setting";
             }
             String msg = msgPrefix + " [" + key + "]";

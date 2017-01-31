@@ -421,7 +421,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("secure.setting", Settings.builder().put("index.similarity.classic.type", "mine").build()));
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build()));
         assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
     }
 
@@ -432,7 +432,7 @@ public class ScopedSettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.emptySet());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings));
-        assertThat(e.getMessage(), startsWith("unknown setting [some.secure.setting]"));
+        assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
 
         ClusterSettings clusterSettings2 = new ClusterSettings(settings,
             Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));

@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -48,12 +50,15 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -76,10 +81,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -377,30 +385,45 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Recovers a replica from the give primary, allow the user to supply a custom recovery target.
-     * A typical usage of a custome recovery target is to assert things in the various stages of recovery
-     *
-     * @param markAsRecovering set to false if you have already marked the replica as recovering
+     * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
+     * target is to assert things in the various stages of recovery.
+     * @param replica                the recovery target shard
+     * @param primary                the recovery source shard
+     * @param targetSupplier         supplies an instance of {@link RecoveryTarget}
+     * @param markAsRecovering       set to {@code false} if the replica is marked as recovering
      */
-    protected void recoverReplica(IndexShard replica, IndexShard primary,
-                                  BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-                                  boolean markAsRecovering)
-        throws IOException {
+    protected final void recoverReplica(final IndexShard replica,
+                                        final IndexShard primary,
+                                        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                        final boolean markAsRecovering) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
-            replica.markAsRecovering("remote",
-                new RecoveryState(replica.routingEntry(), pNode, rNode));
+            replica.markAsRecovering("remote", new RecoveryState(replica.routingEntry(), pNode, rNode));
         } else {
             assertEquals(replica.state(), IndexShardState.RECOVERING);
         }
         replica.prepareForIndexRecovery();
-        RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-            getMetadataSnapshotOrEmpty(replica), false, 0);
-        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {
-        },
-            (int) ByteSizeUnit.MB.toKB(1), logger);
+        final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
+
+        final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
+        final long startingSeqNo;
+        if (snapshot.size() > 0) {
+            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, startingSeqNo);
+        final RecoverySourceHandler recovery = new RecoverySourceHandler(
+            primary,
+            recoveryTarget,
+            request,
+            () -> 0L,
+            e -> () -> {},
+            (int) ByteSizeUnit.MB.toBytes(1),
+            logger);
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
@@ -449,11 +472,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");
     }
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
         final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
@@ -471,7 +494,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return index;
     }
 
-    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) {
+    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) throws IOException {
         final Engine.Delete delete;
         if (shard.routingEntry().primary()) {
             delete = shard.prepareDeleteOnPrimary(type, id, Versions.MATCH_ANY, VersionType.INTERNAL);

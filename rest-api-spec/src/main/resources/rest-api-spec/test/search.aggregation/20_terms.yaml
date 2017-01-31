@@ -18,8 +18,25 @@ setup:
                     type: long
                   double:
                     type: double
+                  number:
+                    type: long
+                  scaled_float:
+                    type: scaled_float
+                    scaling_factor: 100
                   date:
                     type: date
+
+  - do:
+      indices.create:
+          index: test_2
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              test:
+                properties:
+                  number:
+                    type: double
 
   - do:
       cluster.health:
@@ -140,6 +157,7 @@ setup:
   - do:
       catch: request
       search:
+        index: test_1
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
 
 
@@ -283,6 +301,56 @@ setup:
   - match: { aggregations.double_terms.buckets.1.doc_count: 1 }
 
 ---
+"Scaled float test":
+  - skip:
+      version: " - 5.2.0"
+      reason:  scaled_float were considered as longs in aggregations, this was fixed in 5.2.0
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "scaled_float": 9.99 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "scaled_float": 9.994 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "scaled_float": 8.99 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "scaled_float_terms" : { "terms" : { "field" : "scaled_float" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.scaled_float_terms.buckets: 2 }
+
+  - match: { aggregations.scaled_float_terms.buckets.0.key: 9.99 }
+
+  - is_false: aggregations.scaled_float_terms.buckets.0.key_as_string
+
+  - match: { aggregations.scaled_float_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.scaled_float_terms.buckets.1.key: 8.99 }
+
+  - is_false: aggregations.scaled_float_terms.buckets.1.key_as_string
+
+  - match: { aggregations.scaled_float_terms.buckets.1.doc_count: 1 }
+
+---
 "Date test":
   - do:
       index:
@@ -356,9 +424,9 @@ setup:
 "Partitioned string test":
 
   - skip:
-    version: " - 5.1.99"
-    reason:  Partitioning is a 5.2.0 feature
-    
+      version: " - 5.1.99"
+      reason:  Partitioning is a 5.2.0 feature
+
   - do:
       index:
         index: test_1
@@ -415,8 +483,8 @@ setup:
 "Partitioned integer test":
 
   - skip:
-    version: " - 5.1.99"
-    reason:  Partitioning is a 5.2.0 feature
+      version: " - 5.1.99"
+      reason:  Partitioning is a 5.2.0 feature
 
   - do:
       index:
@@ -597,7 +665,7 @@ setup:
       index:
         index: test_1
         type: test
-        id: 1 
+        id: 1
         body: {}
 
   - do:
@@ -614,3 +682,68 @@ setup:
   - match: { aggregations.double_terms.buckets.0.key: 3.5 }
 
   - match: { aggregations.double_terms.buckets.0.doc_count: 1 }
+
+---
+"Mixing longs and doubles":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  in 6.0 longs and doubles are compatible within a terms agg (longs are promoted to doubles)
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: {"number": 100}
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: {"number": 10}
+
+  - do:
+      index:
+        index: test_2
+        type: test
+        id: 3
+        body: {"number": 100.0}
+
+  - do:
+      index:
+        index: test_2
+        type: test
+        id: 1
+        body: {"number": 10.0}
+
+  - do:
+      index:
+        index: test_2
+        type: test
+        id: 2
+        body: {"number": 14.6}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "number_terms" : { "terms" : { "field" : "number" } } } }
+
+  - match: { hits.total: 5 }
+
+  - length: { aggregations.number_terms.buckets: 3 }
+
+  - match: { aggregations.number_terms.buckets.0.key: 10.0 }
+
+  - match: { aggregations.number_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.1.key: 100.0 }
+
+  - match: { aggregations.number_terms.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.2.key: 14.6 }
+
+  - match: { aggregations.number_terms.buckets.2.doc_count: 1 }

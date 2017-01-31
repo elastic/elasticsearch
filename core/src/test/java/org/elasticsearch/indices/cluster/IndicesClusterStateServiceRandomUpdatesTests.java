@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,7 +75,30 @@ import static org.mockito.Mockito.when;
 
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
-    private final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry());
+    private ThreadPool threadPool;
+    private ClusterStateChanges cluster;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getClass().getName());
+        cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(threadPool);
+    }
+
+    /**
+     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
+     * shadow replicas are removed.
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
 
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
@@ -368,7 +392,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null);

@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
@@ -41,7 +40,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -72,11 +70,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
-    public SignificantTermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
             String executionHint, QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
             SignificanceHeuristic significanceHeuristic, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
@@ -196,7 +194,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, context.parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint);
             }
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;
@@ -289,9 +287,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
         };
 
-        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
+        public static ExecutionMode fromString(String value) {
             for (ExecutionMode mode : values()) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
+                if (mode.parseField.match(value)) {
                     return mode;
                 }
             }

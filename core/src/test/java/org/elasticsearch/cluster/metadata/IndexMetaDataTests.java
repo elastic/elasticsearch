@@ -53,7 +53,7 @@ public class IndexMetaDataTests extends ESTestCase {
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
-        final IndexMetaData fromXContentMeta = IndexMetaData.PROTO.fromXContent(parser, null);
+        final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
         assertEquals(metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 
@@ -67,7 +67,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
-        IndexMetaData deserialized = IndexMetaData.PROTO.readFrom(out.bytes().streamInput());
+        IndexMetaData deserialized = IndexMetaData.readFrom(out.bytes().streamInput());
         assertEquals(metaData, deserialized);
         assertEquals(metaData.hashCode(), deserialized.hashCode());
 

@@ -240,27 +240,27 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     iqb = parseContext.parseInnerQueryBuilder();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                } else if (INNER_HITS_FIELD.match(currentFieldName)) {
                     innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                if (TYPE_FIELD.match(currentFieldName)) {
                     childType = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
                     scoreMode = parseScoreMode(parser.text());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MIN_CHILDREN_FIELD)) {
+                } else if (MIN_CHILDREN_FIELD.match(currentFieldName)) {
                     minChildren = parser.intValue(true);
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_CHILDREN_FIELD)) {
+                } else if (MAX_CHILDREN_FIELD.match(currentFieldName)) {
                     maxChildren = parser.intValue(true);
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
@@ -473,7 +473,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
             InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
-            return new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, rewrittenInnerHit);
+            HasChildQueryBuilder hasChildQueryBuilder =
+                new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, rewrittenInnerHit);
+            hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+            return hasChildQueryBuilder;
         }
         return this;
     }

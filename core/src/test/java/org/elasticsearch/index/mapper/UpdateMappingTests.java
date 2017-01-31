@@ -42,38 +42,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    public void testAllEnabledAfterDisabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllDisabledAfterEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllDisabledAfterDefaultEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("some_text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllEnabledAfterEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
-        testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-    }
-
-    public void testAllDisabledAfterDisabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
-        testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-    }
-
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
@@ -85,13 +53,29 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
 
     public void testConflictFieldsMapping(String fieldName) throws Exception {
         //test store, ... all the parameters that are not to be changed just like in other fields
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "no").endObject()
-                .endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "yes").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
-                .endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                            .field("store", false)
+                        .endObject()
+                    .endObject()
+            .endObject();
+        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                        .field("store", true)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
     }
 

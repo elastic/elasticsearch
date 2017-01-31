@@ -644,6 +644,59 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
+    public void testDateDetectionInheritsFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy-MM-dd")
+                .endArray()
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("dates")
+                            .field("match_mapping_type", "date")
+                            .field("match", "*2")
+                            .startObject("mapping")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                        .startObject("dates")
+                            .field("match_mapping_type", "date")
+                            .field("match", "*3")
+                            .startObject("mapping")
+                                .field("format", "yyyy-MM-dd||epoch_millis")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("date1", "2016-11-20")
+                    .field("date2", "2016-11-20")
+                    .field("date3", "2016-11-20")
+                .endObject()
+                .bytes());
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
+
+        defaultMapper = index.mapperService().documentMapper("type");
+
+        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date3");
+        // inherited from dynamic date format
+        assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().format());
+        // inherited from dynamic date format since the mapping in the template did not specify a format
+        assertEquals("yyyy-MM-dd", dateMapper2.fieldType().dateTimeFormatter().format());
+        // not inherited from the dynamic date format since the template defined an explicit format
+        assertEquals("yyyy-MM-dd||epoch_millis", dateMapper3.fieldType().dateTimeFormatter().format());
+    }
+
     public void testDynamicTemplateOrder() throws IOException {
         // https://github.com/elastic/elasticsearch/issues/18625
         // elasticsearch used to apply templates that do not have a match_mapping_type first

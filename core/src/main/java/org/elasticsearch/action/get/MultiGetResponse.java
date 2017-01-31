@@ -24,14 +24,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContent {
+public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
 
     /**
      * Represents a failure.
@@ -128,6 +128,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.DOCS);
         for (MultiGetItemResponse response : responses) {
             if (response.isFailed()) {
@@ -136,7 +137,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.renderException(builder, params, failure.getFailure());
+                ElasticsearchException.generateFailureXContent(builder, params, failure.getFailure(), true);
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();
@@ -144,6 +145,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             }
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

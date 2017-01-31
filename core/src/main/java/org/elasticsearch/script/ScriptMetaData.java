@@ -22,6 +22,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -45,7 +46,6 @@ import java.util.Map;
 public final class ScriptMetaData implements MetaData.Custom {
 
     public static final String TYPE = "stored_scripts";
-    public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
 
     private final Map<String, ScriptAsBytes> scripts;
 
@@ -108,12 +108,11 @@ public final class ScriptMetaData implements MetaData.Custom {
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    @Override
-    public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
+    public static ScriptMetaData fromXContent(XContentParser parser) throws IOException {
         Map<String, ScriptAsBytes> scripts = new HashMap<>();
         String key = null;
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
@@ -136,16 +135,14 @@ public final class ScriptMetaData implements MetaData.Custom {
         return MetaData.ALL_CONTEXTS;
     }
 
-    @Override
-    public ScriptMetaData readFrom(StreamInput in) throws IOException {
+    public ScriptMetaData(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Map<String, ScriptAsBytes> scripts = new HashMap<>();
+        this.scripts = new HashMap<>();
         for (int i = 0; i < size; i++) {
             String languageAndId = in.readString();
             BytesReference script = in.readBytesReference();
             scripts.put(languageAndId, new ScriptAsBytes(script));
         }
-        return new ScriptMetaData(scripts);
     }
 
     @Override
@@ -170,8 +167,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         return new ScriptMetadataDiff((ScriptMetaData) before, this);
     }
 
-    @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -237,7 +233,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, ScriptAsBytes>> pipelines;
 
@@ -246,7 +242,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         public ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new ScriptAsBytes(null));
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ScriptAsBytes::new,
+                ScriptAsBytes::readDiffFrom);
         }
 
         @Override
@@ -257,6 +254,11 @@ public final class ScriptMetaData implements MetaData.Custom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             pipelines.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
         }
     }
 
@@ -273,9 +275,12 @@ public final class ScriptMetaData implements MetaData.Custom {
             out.writeBytesReference(script);
         }
 
-        @Override
-        public ScriptAsBytes readFrom(StreamInput in) throws IOException {
-            return new ScriptAsBytes(in.readBytesReference());
+        public ScriptAsBytes(StreamInput in) throws IOException {
+            this(in.readBytesReference());
+        }
+
+        public static Diff<ScriptAsBytes> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(ScriptAsBytes::new, in);
         }
 
         @Override

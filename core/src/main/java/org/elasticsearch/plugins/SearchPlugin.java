@@ -20,18 +20,21 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -46,10 +49,13 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -85,7 +91,7 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
-     * The new {@link SearchExtParser}s defined by this plugin.
+     * The new {@link SearchExtBuilder}s defined by this plugin.
      */
     default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
@@ -99,8 +105,8 @@ public interface SearchPlugin {
     /**
      * The new {@link Suggester}s defined by this plugin.
      */
-    default Map<String, Suggester<?>> getSuggesters() {
-        return emptyMap();
+    default List<SuggesterSpec<?>> getSuggesters() {
+        return emptyList();
     }
     /**
      * The new {@link Query}s defined by this plugin.
@@ -120,6 +126,15 @@ public interface SearchPlugin {
     default List<PipelineAggregationSpec> getPipelineAggregations() {
         return emptyList();
     }
+    /**
+     * The new search response listeners in the form of {@link BiConsumer}s added by this plugin.
+     * The listeners are invoked on the coordinating node, at the very end of the search request.
+     * This provides a convenient location if you wish to inspect/modify the final response (took time, etc).
+     * The BiConsumers are passed the original {@link SearchRequest} and the final {@link SearchResponse}
+     */
+    default List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
+        return emptyList();
+    }
 
     /**
      * Specification of custom {@link ScoreFunction}.
@@ -130,6 +145,38 @@ public interface SearchPlugin {
         }
 
         public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification for a {@link Suggester}.
+     */
+    class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+        /**
+         * Specification of custom {@link Suggester}.
+         *
+         * @param name holds the names by which this suggester might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the query should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query suggester from xcontent
+         */
+        public SuggesterSpec(ParseField name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link Suggester}.
+         *
+         * @param name the name by which this suggester might be parsed or deserialized. Make sure that the query builder returns this name
+         *        for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the suggester builder from xcontent
+         */
+        public SuggesterSpec(String name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }
@@ -302,12 +349,13 @@ public interface SearchPlugin {
      * Specification for a {@link SearchExtBuilder} which represents an additional section that can be
      * parsed in a search request (within the ext element).
      */
-    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, SearchExtParser<T>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader,
+                CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 
-        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -60,14 +61,14 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
             assertThat("same instance's hashcode returns different values if called multiple times", firstInstance.hashCode(),
                     equalTo(firstInstance.hashCode()));
 
-            T secondInstance = copyInstance(firstInstance);
+            T secondInstance = copyInstance(firstInstance, Version.CURRENT);
             assertEquals("instance is not equal to self", secondInstance, secondInstance);
             assertEquals("instance is not equal to its copy", firstInstance, secondInstance);
             assertEquals("equals is not symmetric", secondInstance, firstInstance);
             assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
                     equalTo(firstInstance.hashCode()));
 
-            T thirdInstance = copyInstance(secondInstance);
+            T thirdInstance = copyInstance(secondInstance, Version.CURRENT);
             assertEquals("instance is not equal to self", thirdInstance, thirdInstance);
             assertEquals("instance is not equal to its copy", secondInstance, thirdInstance);
             assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
@@ -94,18 +95,23 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
      * Serialize the given instance and asserts that both are equal
      */
     protected T assertSerialization(T testInstance) throws IOException {
-        T deserializedInstance = copyInstance(testInstance);
+        T deserializedInstance = copyInstance(testInstance, Version.CURRENT);
         assertEquals(testInstance, deserializedInstance);
         assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
         assertNotSame(testInstance, deserializedInstance);
         return deserializedInstance;
     }
 
-    private T copyInstance(T instance) throws IOException {
+    /**
+     * Round trip {@code instance} through binary serialization, setting the wire compatibility version to {@code version}.
+     */
+    protected T copyInstance(T instance, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
             instance.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                     getNamedWriteableRegistry())) {
+                in.setVersion(version);
                 T newInstance = createBlankInstance();
                 newInstance.readFrom(in);
                 return newInstance;

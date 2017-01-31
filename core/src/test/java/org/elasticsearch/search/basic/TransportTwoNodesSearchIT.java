@@ -48,7 +48,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -319,58 +318,6 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
-    public void testDfsQueryAndFetch() throws Exception {
-        prepareData(3);
-
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
-                .from(0).size(20).explain(true);
-
-        Set<String> expectedIds = new HashSet<>();
-        for (int i = 0; i < 100; i++) {
-            expectedIds.add(Integer.toString(i));
-        }
-
-
-        //SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_AND_FETCH).setScroll("10m").setSource(source).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-//            System.out.println(hit.shard() + ": " +  hit.explanation());
-            assertThat(hit.explanation(), notNullValue());
-            assertThat(hit.explanation().getDetails().length, equalTo(1));
-            assertThat(hit.explanation().getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getDescription(),
-                equalTo("docFreq"));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(),
-                equalTo(100.0f));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getDescription(),
-                equalTo("docCount"));
-            assertThat(hit.explanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(),
-                equalTo(100.0f));
-//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
-            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-        }
-
-        do {
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
-
-            assertThat(searchResponse.getHits().totalHits(), equalTo(100L));
-            assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
-            for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
-                SearchHit hit = searchResponse.getHits().hits()[i];
-                // we don't do perfect sorting when it comes to scroll with Query+Fetch
-                assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-            }
-        } while (searchResponse.getHits().hits().length > 0);
-        clearScroll(searchResponse.getScrollId());
-        assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
-    }
-
     public void testSimpleFacets() throws Exception {
         prepareData();
 
@@ -421,7 +368,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(1000).size(20).explain(true);
-        SearchResponse response = client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        SearchResponse response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(response.getHits().hits().length, equalTo(0));
         assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
         assertThat(response.getSuccessfulShards(), equalTo(test.numPrimaries));
@@ -431,7 +378,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().hits().length, equalTo(0));
 
-        response = client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertNoFailures(response);
         assertThat(response.getHits().hits().length, equalTo(0));
 

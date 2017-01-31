@@ -98,7 +98,13 @@ public final class KeyValueProcessor extends AbstractProcessor {
 
         String fieldPathPrefix = (targetField == null) ? "" : targetField + ".";
         Arrays.stream(oldVal.split(fieldSplit))
-            .map((f) -> f.split(valueSplit, 2))
+            .map((f) -> {
+                String[] kv = f.split(valueSplit, 2);
+                if (kv.length != 2) {
+                    throw new IllegalArgumentException("field [" + field + "] does not contain value_split [" + valueSplit + "]");
+                }
+                return kv;
+            })
             .filter((p) -> includeKeys == null || includeKeys.contains(p[0]))
             .forEach((p) -> append(document, fieldPathPrefix + p[0], p[1]));
     }

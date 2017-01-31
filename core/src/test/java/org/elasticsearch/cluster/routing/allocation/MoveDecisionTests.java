@@ -72,7 +72,6 @@ public class MoveDecisionTests extends ESTestCase {
         assertFalse(stay.forceMove());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
-        assertNotNull(stay.getExplanation());
         assertEquals(AllocationDecision.NO_ATTEMPT, stay.getAllocationDecision());
 
         stay = MoveDecision.stay(Decision.YES);
@@ -80,7 +79,6 @@ public class MoveDecisionTests extends ESTestCase {
         assertFalse(stay.forceMove());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
-        assertEquals("shard can remain on its current node", stay.getExplanation());
         assertEquals(AllocationDecision.NO_ATTEMPT, stay.getAllocationDecision());
     }
 

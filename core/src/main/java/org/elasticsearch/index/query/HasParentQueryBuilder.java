@@ -238,17 +238,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     iqb = parseContext.parseInnerQueryBuilder();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                } else if (INNER_HITS_FIELD.match(currentFieldName)) {
                     innerHits = InnerHitBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                if (TYPE_FIELD.match(currentFieldName)) {
                     parentType = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
                     String scoreModeValue = parser.text();
                     if ("score".equals(scoreModeValue)) {
                         score = true;
@@ -258,13 +258,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                         throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" +
                                 scoreModeValue + "] as an option for score_mode");
                     }
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
+                } else if (SCORE_FIELD.match(currentFieldName)) {
                     score = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
@@ -305,7 +305,9 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
         if (rewrittenQuery != query) {
             InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHit, rewrittenQuery);
-            return new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
+            hasParentQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+            return hasParentQueryBuilder;
         }
         return this;
     }

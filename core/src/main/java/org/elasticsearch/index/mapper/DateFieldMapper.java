@@ -70,6 +70,7 @@ public class DateFieldMapper extends FieldMapper {
 
         private Boolean ignoreMalformed;
         private Locale locale;
+        private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
@@ -97,8 +98,14 @@ public class DateFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
+        /** Whether an explicit format for this date field has been set already. */
+        public boolean isDateTimeFormatterSet() {
+            return dateTimeFormatterSet;
+        }
+
         public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             fieldType().setDateTimeFormatter(dateTimeFormatter);
+            dateTimeFormatterSet = true;
             return this;
         }
 
@@ -144,7 +151,7 @@ public class DateFieldMapper extends FieldMapper {
                     builder.nullValue(propNode.toString());
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));

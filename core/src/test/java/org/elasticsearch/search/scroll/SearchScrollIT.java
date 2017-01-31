@@ -520,12 +520,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
         Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false).v2();
-
         assertThat(map.get("succeeded"), is(succeed));
         assertThat(map.get("num_freed"), equalTo(numFreed));
     }

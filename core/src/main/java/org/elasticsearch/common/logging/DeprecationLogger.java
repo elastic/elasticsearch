@@ -25,6 +25,7 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -63,7 +64,7 @@ public class DeprecationLogger {
      * @throws IllegalStateException if this {@code threadContext} has already been set
      */
     public static void setThreadContext(ThreadContext threadContext) {
-        assert threadContext != null;
+        Objects.requireNonNull(threadContext, "Cannot register a null ThreadContext");
 
         // add returning false means it _did_ have it already
         if (THREAD_CONTEXT.add(threadContext) == false) {

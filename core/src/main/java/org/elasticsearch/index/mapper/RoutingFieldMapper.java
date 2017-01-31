@@ -32,8 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
@@ -86,7 +84,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    builder.required(lenientNodeBooleanValue(fieldNode));
+                    builder.required(TypeParsers.nodeBooleanValue(name, "required", fieldNode, parserContext));
                     iterator.remove();
                 }
             }

@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,21 +35,20 @@ import java.util.Objects;
 
 public class SamplerAggregationBuilder extends AbstractAggregationBuilder<SamplerAggregationBuilder> {
     public static final String NAME = "sampler";
-    private static final Type TYPE = new Type(NAME);
 
     public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
     private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;
 
     public SamplerAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public SamplerAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         shardSize = in.readVInt();
     }
 
@@ -77,7 +75,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     @Override
     protected SamplerAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new SamplerAggregatorFactory(name, type, shardSize, context, parent, subFactoriesBuilder, metaData);
+        return new SamplerAggregatorFactory(name, shardSize, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -98,7 +96,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (context.getParseFieldMatcher().match(currentFieldName, SamplerAggregator.SHARD_SIZE_FIELD)) {
+                if (SamplerAggregator.SHARD_SIZE_FIELD.match(currentFieldName)) {
                     shardSize = parser.intValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -129,7 +127,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

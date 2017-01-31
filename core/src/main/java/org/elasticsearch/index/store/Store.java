@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -75,6 +76,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -205,6 +208,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
         }
 
+    }
+
+    /**
+     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
+     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * externally as it is not stored in the commit point.
+     *
+     * @param globalCheckpoint the provided global checkpoint
+     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
+     */
+    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
     }
 
     final void ensureOpen() {

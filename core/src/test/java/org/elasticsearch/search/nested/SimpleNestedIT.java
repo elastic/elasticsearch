@@ -56,11 +56,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends ESIntegTestCase {
     public void testSimpleNested() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested").addMapping("type2", "nested1", "type=nested"));
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "nested1", "type=nested")
+                .addMapping("type2", "nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
         searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
@@ -89,9 +91,6 @@ public class SimpleNestedIT extends ESIntegTestCase {
         // check the numDocs
         assertDocumentCount("test", 3);
 
-        // check that _all is working on nested docs
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0L));
 

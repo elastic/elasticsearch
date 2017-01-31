@@ -43,12 +43,10 @@ import java.util.ListIterator;
 import java.util.Map;
 
 /**
- * Imelementation of {@link Histogram}.
+ * Implementation of {@link Histogram}.
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
         implements Histogram, HistogramFactory {
-
-    static final Type TYPE = new Type("date_histogram");
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
 

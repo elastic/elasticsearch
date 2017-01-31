@@ -30,11 +30,16 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -63,17 +68,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class SearchPhaseController extends AbstractComponent {
 
     private static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
-        int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
+        int i = o1.value.shardTarget().getIndex().compareTo(o2.value.shardTarget().getIndex());
         if (i == 0) {
-            i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
+            i = o1.value.shardTarget().getShardId().id() - o2.value.shardTarget().getShardId().id();
         }
         return i;
     };
@@ -82,11 +89,25 @@ public class SearchPhaseController extends AbstractComponent {
 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener;
 
     public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+        this(settings, bigArrays, scriptService, Collections.emptyList());
+    }
+
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService,
+                                 List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.searchResponseListener = searchResponseListener;
+    }
+
+    /**
+     * Returns the search response listeners registry
+     */
+    public List<BiConsumer<SearchRequest, SearchResponse> > getSearchResponseListener() {
+        return searchResponseListener;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -236,7 +257,26 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         final TopDocs mergedTopDocs;
-        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
+        int numShards = resultsArr.length();
+        if (firstResult.queryResult().topDocs() instanceof CollapseTopFieldDocs) {
+            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) firstResult.queryResult().topDocs();
+            final Sort sort = new Sort(firstTopDocs.fields);
+
+            final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = (CollapseTopFieldDocs) topDocs;
+            }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
+                        sort.getSort(), new Object[0], Float.NaN);
+                }
+            }
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
+        } else if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
 
@@ -316,6 +356,8 @@ public class SearchPhaseController extends AbstractComponent {
             }
             // from is always zero as when we use scroll, we ignore from
             long size = Math.min(fetchHits, topN(queryResults));
+            // with collapsing we can have more hits than sorted docs
+            size = Math.min(sortedScoreDocs.length, size);
             for (int sortedDocsIndex = 0; sortedDocsIndex < size; sortedDocsIndex++) {
                 ScoreDoc scoreDoc = sortedScoreDocs[sortedDocsIndex];
                 lastEmittedDocPerShard[scoreDoc.shardIndex] = scoreDoc;
@@ -328,15 +370,16 @@ public class SearchPhaseController extends AbstractComponent {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public void fillDocIdsToLoad(AtomicArray<IntArrayList> docIdsToLoad, ScoreDoc[] shardDocs) {
+    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad.get(shardDoc.shardIndex);
+            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = new IntArrayList(); // can't be shared!, uses unsafe on it later on
-                docIdsToLoad.set(shardDoc.shardIndex, shardDocIdsToLoad);
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }
+        return docIdsToLoad;
     }
 
     /**
@@ -362,11 +405,16 @@ public class SearchPhaseController extends AbstractComponent {
         boolean sorted = false;
         int sortScoreIndex = -1;
         if (firstResult.topDocs() instanceof TopFieldDocs) {
-            sorted = true;
             TopFieldDocs fieldDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
-            for (int i = 0; i < fieldDocs.fields.length; i++) {
-                if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
-                    sortScoreIndex = i;
+            if (fieldDocs instanceof CollapseTopFieldDocs &&
+                fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) {
+                sorted = false;
+            } else {
+                sorted = true;
+                for (int i = 0; i < fieldDocs.fields.length; i++) {
+                    if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
+                        sortScoreIndex = i;
+                    }
                 }
             }
         }
@@ -405,6 +453,8 @@ public class SearchPhaseController extends AbstractComponent {
         }
         int from = ignoreFrom ? 0 : firstResult.queryResult().from();
         int numSearchHits = (int) Math.min(fetchHits - from, topN(queryResults));
+        // with collapsing we can have more fetch hits than sorted docs
+        numSearchHits = Math.min(sortedDocs.length, numSearchHits);
         // merge hits
         List<InternalSearchHit> hits = new ArrayList<>();
         if (!fetchResults.isEmpty()) {

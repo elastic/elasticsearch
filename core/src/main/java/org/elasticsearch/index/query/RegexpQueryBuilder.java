@@ -200,20 +200,20 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        if (VALUE_FIELD.match(currentFieldName)) {
                             value = parser.textOrNull();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName)) {
                             rewrite = parser.textOrNull();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
+                        } else if (FLAGS_FIELD.match(currentFieldName)) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_DETERMINIZED_STATES_FIELD)) {
+                        } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
                             maxDeterminizedStates = parser.intValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FLAGS_VALUE_FIELD)) {
+                        } else if (FLAGS_VALUE_FIELD.match(currentFieldName)) {
                             flagsValue = parser.intValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -222,7 +222,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     }
                 }
             } else {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
+                if (NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
@@ -247,7 +247,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);

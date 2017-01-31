@@ -183,7 +183,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // this shard will be picked up when the node joins and we do another allocation reroute
                 logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]",
                              unassignedShard.index(), unassignedShard.id(), nodeShardsResult.allocationsFound);
-                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, null);
+                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, explain ? new ArrayList<>() : null);
             }
         }
 
@@ -476,8 +476,12 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * recovered on any node
      */
     private boolean recoverOnAnyNode(IndexMetaData metaData) {
-        return (IndexMetaData.isOnSharedFilesystem(metaData.getSettings()) || IndexMetaData.isOnSharedFilesystem(this.settings))
-            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(metaData.getSettings(), this.settings);
+        // don't use the setting directly, not to trigger verbose deprecation logging
+        return (metaData.isOnSharedFilesystem(metaData.getSettings()) || metaData.isOnSharedFilesystem(this.settings))
+            && (metaData.getSettings().getAsBooleanLenientForPreEs6Indices(
+                metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger) ||
+                this.settings.getAsBooleanLenientForPreEs6Indices
+                    (metaData.getCreationVersion(), IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, deprecationLogger));
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

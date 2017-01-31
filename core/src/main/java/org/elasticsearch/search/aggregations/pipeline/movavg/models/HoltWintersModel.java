@@ -23,7 +23,6 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,17 +58,16 @@ public class HoltWintersModel extends MovAvgModel {
          * Parse a string SeasonalityType into the byte enum
          *
          * @param text                SeasonalityType in string format (e.g. "add")
-         * @param parseFieldMatcher   Matcher for field names
          * @return                    SeasonalityType enum
          */
         @Nullable
-        public static SeasonalityType parse(String text, ParseFieldMatcher parseFieldMatcher) {
+        public static SeasonalityType parse(String text) {
             if (text == null) {
                 return null;
             }
             SeasonalityType result = null;
             for (SeasonalityType policy : values()) {
-                if (parseFieldMatcher.match(text, policy.parseField)) {
+                if (policy.parseField.match(text)) {
                     result = policy;
                     break;
                 }
@@ -379,8 +377,7 @@ public class HoltWintersModel extends MovAvgModel {
 
     public static final AbstractModelParser PARSER = new AbstractModelParser() {
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
-                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException {
 
             double alpha = parseDoubleParam(settings, "alpha", DEFAULT_ALPHA);
             double beta = parseDoubleParam(settings, "beta", DEFAULT_BETA);
@@ -399,7 +396,7 @@ public class HoltWintersModel extends MovAvgModel {
                 Object value = settings.get("type");
                 if (value != null) {
                     if (value instanceof String) {
-                        seasonalityType = SeasonalityType.parse((String)value, parseFieldMatcher);
+                        seasonalityType = SeasonalityType.parse((String)value);
                         settings.remove("type");
                     } else {
                         throw new ParseException("Parameter [type] must be a String, type `"

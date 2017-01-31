@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -218,13 +219,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type(), null));
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
 
                 }
                 stream.end();
@@ -381,6 +384,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
@@ -388,7 +392,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         lastPosition = lastPosition + increment;
                     }
                     tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
-                        lastOffset + offset.endOffset(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
 
                 }
                 stream.end();

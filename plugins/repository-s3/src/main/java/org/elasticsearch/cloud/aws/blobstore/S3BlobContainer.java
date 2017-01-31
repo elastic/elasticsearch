@@ -20,13 +20,14 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -42,8 +43,7 @@ import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
+import java.security.PrivilegedAction;
 import java.util.Map;
 
 public class S3BlobContainer extends AbstractBlobContainer {
@@ -61,13 +61,9 @@ public class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return doPrivileged(() -> {
-                try {
-                    blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
-                    return true;
-                } catch (AmazonS3Exception e) {
-                    return false;
-                }
+            return SocketAccess.doPrivileged(() -> {
+                blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
+                return true;
             });
         } catch (AmazonS3Exception e) {
             return false;
@@ -81,7 +77,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
         int retry = 0;
         while (retry <= blobStore.numberOfRetries()) {
             try {
-                S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
+                S3Object s3Object = SocketAccess.doPrivileged(() -> blobStore.client().getObject(blobStore.bucket(), buildKey(blobName)));
                 return s3Object.getObjectContent();
             } catch (AmazonClientException e) {
                 if (blobStore.shouldRetry(e) && (retry < blobStore.numberOfRetries())) {
@@ -96,7 +92,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
                 }
             }
         }
-        throw new BlobStoreException("retries exhausted while attempting to access blob object [name:" + blobName + ", bucket:" + blobStore.bucket() +"]");
+        throw new BlobStoreException("retries exhausted while attempting to access blob object [name:" + blobName + ", bucket:" + blobStore.bucket() + "]");
     }
 
     @Override
@@ -105,7 +101,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
         try (OutputStream stream = createOutput(blobName)) {
-            Streams.copy(inputStream, stream);
+            SocketAccess.doPrivilegedIOException(() -> Streams.copy(inputStream, stream));
         }
     }
 
@@ -116,7 +112,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
         }
 
         try {
-            blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
+            SocketAccess.doPrivilegedVoid(() -> blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName)));
         } catch (AmazonClientException e) {
             throw new IOException("Exception when deleting blob [" + blobName + "]", e);
         }
@@ -125,51 +121,60 @@ public class S3BlobContainer extends AbstractBlobContainer {
     private OutputStream createOutput(final String blobName) throws IOException {
         // UploadS3OutputStream does buffering & retry logic internally
         return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName),
-                blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
+            blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
     }
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
-        ObjectListing prevListing = null;
-        while (true) {
-            ObjectListing list;
-            if (prevListing != null) {
-                list = blobStore.client().listNextBatchOfObjects(prevListing);
-            } else {
-                if (blobNamePrefix != null) {
-                    list = blobStore.client().listObjects(blobStore.bucket(), buildKey(blobNamePrefix));
-                } else {
-                    list = blobStore.client().listObjects(blobStore.bucket(), keyPath);
+        return AccessController.doPrivileged((PrivilegedAction<Map<String, BlobMetaData>>) () -> {
+            MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+            AmazonS3 client = blobStore.client();
+            SocketAccess.doPrivilegedVoid(() -> {
+                ObjectListing prevListing = null;
+                while (true) {
+                    ObjectListing list;
+                    if (prevListing != null) {
+                        list = client.listNextBatchOfObjects(prevListing);
+                    } else {
+                        if (blobNamePrefix != null) {
+                            list = client.listObjects(blobStore.bucket(), buildKey(blobNamePrefix));
+                        } else {
+                            list = client.listObjects(blobStore.bucket(), keyPath);
+                        }
+                    }
+                    for (S3ObjectSummary summary : list.getObjectSummaries()) {
+                        String name = summary.getKey().substring(keyPath.length());
+                        blobsBuilder.put(name, new PlainBlobMetaData(name, summary.getSize()));
+                    }
+                    if (list.isTruncated()) {
+                        prevListing = list;
+                    } else {
+                        break;
+                    }
                 }
-            }
-            for (S3ObjectSummary summary : list.getObjectSummaries()) {
-                String name = summary.getKey().substring(keyPath.length());
-                blobsBuilder.put(name, new PlainBlobMetaData(name, summary.getSize()));
-            }
-            if (list.isTruncated()) {
-                prevListing = list;
-            } else {
-                break;
-            }
-        }
-        return blobsBuilder.immutableMap();
+            });
+            return blobsBuilder.immutableMap();
+        });
     }
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
         try {
             CopyObjectRequest request = new CopyObjectRequest(blobStore.bucket(), buildKey(sourceBlobName),
-                    blobStore.bucket(), buildKey(targetBlobName));
+                blobStore.bucket(), buildKey(targetBlobName));
 
             if (blobStore.serverSideEncryption()) {
                 ObjectMetadata objectMetadata = new ObjectMetadata();
                 objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
                 request.setNewObjectMetadata(objectMetadata);
             }
-            blobStore.client().copyObject(request);
-            blobStore.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
-        } catch (AmazonS3Exception e){
+
+            SocketAccess.doPrivilegedVoid(() -> {
+                blobStore.client().copyObject(request);
+                blobStore.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
+            });
+
+        } catch (AmazonS3Exception e) {
             throw new IOException(e);
         }
     }
@@ -181,21 +186,5 @@ public class S3BlobContainer extends AbstractBlobContainer {
 
     protected String buildKey(String blobName) {
         return keyPath + blobName;
-    }
-
-    /**
-     * +     * Executes a {@link PrivilegedExceptionAction} with privileges enabled.
-     * +
-     */
-    <T> T doPrivileged(PrivilegedExceptionAction<T> operation) throws IOException {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        try {
-            return AccessController.doPrivileged(operation);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getException();
-        }
     }
 }

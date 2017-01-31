@@ -63,7 +63,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
      * Instead of having to check them in every single test, we do it after each test is run
      */
     @After
-    public void checkWarning() throws IOException {
+    public void checkWarning() {
         assertWarnings("[template] query is deprecated, use search template api instead");
     }
 

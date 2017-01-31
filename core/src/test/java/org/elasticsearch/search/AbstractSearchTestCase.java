@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +33,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
@@ -52,7 +54,6 @@ import java.util.function.Supplier;
 public abstract class AbstractSearchTestCase extends ESTestCase {
 
     protected NamedWriteableRegistry namedWriteableRegistry;
-    protected SearchRequestParsers searchRequestParsers;
     private TestSearchExtPlugin searchExtPlugin;
     private NamedXContentRegistry xContentRegistry;
 
@@ -66,7 +67,6 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-        searchRequestParsers = searchModule.getSearchRequestParsers();
     }
 
     @Override
@@ -91,7 +91,8 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 HighlightBuilderTests::randomHighlighterBuilder,
                 SuggestBuilderTests::randomSuggestBuilder,
                 QueryRescoreBuilderTests::randomRescoreBuilder,
-                randomExtBuilders);
+                randomExtBuilders,
+                CollapseBuilderTests::randomCollapseBuilder);
     }
 
     protected SearchRequest createSearchRequest() throws IOException {
@@ -142,7 +143,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         }
     }
 
-    private static class TestSearchExtParser<T extends SearchExtBuilder> implements SearchExtParser<T> {
+    private static class TestSearchExtParser<T extends SearchExtBuilder> implements CheckedFunction<XContentParser, T, IOException> {
         private final Function<String, T> searchExtBuilderFunction;
 
         TestSearchExtParser(Function<String, T> searchExtBuilderFunction) {
@@ -150,7 +151,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         }
 
         @Override
-        public T fromXContent(XContentParser parser) throws IOException {
+        public T apply(XContentParser parser) throws IOException {
             return searchExtBuilderFunction.apply(parseField(parser));
         }
 

@@ -45,7 +45,7 @@ public class FsProbeTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(Settings.EMPTY, env);
 
-            FsInfo stats = probe.stats(null);
+            FsInfo stats = probe.stats(null, null);
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
 

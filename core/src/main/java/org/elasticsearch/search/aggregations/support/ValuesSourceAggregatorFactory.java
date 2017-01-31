@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
@@ -36,9 +35,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
 
     protected ValuesSourceConfig<VS> config;
 
-    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config, SearchContext context,
+    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig<VS> config, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, context, parent, subFactoriesBuilder, metaData);
+        super(name, context, parent, subFactoriesBuilder, metaData);
         this.config = config;
     }
 

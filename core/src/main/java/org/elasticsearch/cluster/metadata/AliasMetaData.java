@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -40,8 +41,6 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 
 public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
-
-    public static final AliasMetaData PROTO = new AliasMetaData("", null, null, null);
 
     private final String alias;
 
@@ -173,22 +172,29 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     }
 
-    @Override
-    public AliasMetaData readFrom(StreamInput in) throws IOException {
-        String alias = in.readString();
-        CompressedXContent filter = null;
+    public AliasMetaData(StreamInput in) throws IOException {
+        alias = in.readString();
         if (in.readBoolean()) {
             filter = CompressedXContent.readCompressedString(in);
+        } else {
+            filter = null;
         }
-        String indexRouting = null;
         if (in.readBoolean()) {
             indexRouting = in.readString();
+        } else {
+            indexRouting = null;
         }
-        String searchRouting = null;
         if (in.readBoolean()) {
             searchRouting = in.readString();
+            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+        } else {
+            searchRouting = null;
+            searchRoutingValues = emptySet();
         }
-        return new AliasMetaData(alias, filter, indexRouting, searchRouting);
+    }
+
+    public static Diff<AliasMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(AliasMetaData::new, in);
     }
 
     public static class Builder {
@@ -326,14 +332,6 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 }
             }
             return builder.build();
-        }
-
-        public void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
-            aliasMetaData.writeTo(out);
-        }
-
-        public static AliasMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

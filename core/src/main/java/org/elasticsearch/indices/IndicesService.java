@@ -42,8 +42,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,6 +88,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -602,7 +603,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                     "the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
             }
         }
@@ -764,14 +765,14 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
             try {
                 deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete index on disk", metaData.getIndex()), e);
@@ -1133,17 +1134,28 @@ public class IndicesService extends AbstractLifecycleComponent
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
+
             } catch (IOException e) {
                 throw new AssertionError("Could not serialize response", e);
             }
             loadedFromCache[0] = false;
         });
+
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
             result.readFromWithId(context.id(), in);
             result.shardTarget(context.shardTarget());
+        } else if (context.queryResult().searchTimedOut()) {
+            // we have to invalidate the cache entry if we cached a query result form a request that timed out.
+            // we can't really throw exceptions in the loading part to signal a timed out search to the outside world since if there are
+            // multiple requests that wait for the cache entry to be calculated they'd fail all with the same exception.
+            // instead we all caching such a result for the time being, return the timed out result for all other searches with that cache
+            // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
+            // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
+            // cache. One other option is to not cache requests with a timeout at all...
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
         }
     }
 
@@ -1252,9 +1264,9 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        ShardSearchRequest.FilterParser filterParser = bytes -> {
+        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
-                return new QueryParseContext(parser, new ParseFieldMatcher(settings)).parseInnerQueryBuilder();
+                return new QueryParseContext(parser).parseInnerQueryBuilder();
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);

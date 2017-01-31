@@ -20,11 +20,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -55,40 +58,39 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
-    private static ThreadPool THREAD_POOL;
+    private static ThreadPool threadPool;
     private ClusterService clusterService;
-    private Transport transport;
     private TransportService transportService;
-    private IndicesService indicesService;
-    private ShardStateAction shardStateAction;
-    private ActionFilters actionFilters;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
-    private AutoCreateIndex autoCreateIndex;
-    private Settings settings;
+    private TransportBulkAction transportBulkAction;
 
     @BeforeClass
     public static void createThreadPool() {
-        THREAD_POOL = new TestThreadPool("DynamicMappingDisabledTests");
+        threadPool = new TestThreadPool("DynamicMappingDisabledTests");
     }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder()
+        Settings settings = Settings.builder()
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
                 .build();
-        clusterService = createClusterService(THREAD_POOL);
-        transport = new MockTcpTransport(settings, THREAD_POOL, BigArrays.NON_RECYCLING_INSTANCE,
-                    new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(settings, Collections.emptyList()));
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
-        indicesService = getInstanceFromNode(IndicesService.class);
-        shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
-        actionFilters = new ActionFilters(Collections.emptySet());
-        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-        autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                indexNameExpressionResolver);
+        clusterService = createClusterService(threadPool);
+        Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+                new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()),
+                new NetworkService(settings, Collections.emptyList()));
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        ShardStateAction shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, threadPool);
+        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings,
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), indexNameExpressionResolver);
+        UpdateHelper updateHelper = new UpdateHelper(settings, null);
+        TransportShardBulkAction shardBulkAction = new TransportShardBulkAction(settings, transportService, clusterService,
+                indicesService, threadPool, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
+        transportBulkAction = new TransportBulkAction(settings, threadPool, transportService, clusterService,
+                null, shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
     }
 
     @After
@@ -101,31 +103,29 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     @AfterClass
     public static void destroyThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         // since static must set to null to be eligible for collection
-        THREAD_POOL = null;
+        threadPool = null;
     }
 
     public void testDynamicDisabled() {
-        TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
-                indicesService, null, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
-                autoCreateIndex);
-
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
         final AtomicBoolean onFailureCalled = new AtomicBoolean();
 
-        action.execute(request, new ActionListener<IndexResponse>() {
+        transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
-                fail("Indexing request should have failed");
+            public void onResponse(BulkResponse bulkResponse) {
+                fail("onResponse shouldn't be called");
             }
 
             @Override
             public void onFailure(Exception e) {
                 onFailureCalled.set(true);
                 assertThat(e, instanceOf(IndexNotFoundException.class));
-                assertEquals(e.getMessage(), "no such index");
+                assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
             }
         });
 

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -32,7 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearMo
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel.SeasonalityType;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 
 public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 
@@ -102,26 +99,11 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         String json = "{" +
             "    \"commits_moving_avg\": {" +
             "        \"moving_avg\": {" +
-                "            \"buckets_path\": \"commits\"" +
+            "            \"buckets_path\": \"commits\"" +
             "        }" +
             "    }" +
             "}";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
-        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(expected.getName(), parser.currentName());
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(expected.type(), parser.currentName());
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregationBuilder newAgg = aggParsers.pipelineParser(expected.getWriteableName(), ParseFieldMatcher.STRICT)
-                .parse(expected.getName(), parseContext);
-        assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
-        assertNotNull(newAgg);
+        PipelineAggregationBuilder newAgg = parse(createParser(JsonXContent.jsonXContent, json));
         assertNotSame(newAgg, expected);
         assertEquals(expected, newAgg);
         assertEquals(expected.hashCode(), newAgg.hashCode());

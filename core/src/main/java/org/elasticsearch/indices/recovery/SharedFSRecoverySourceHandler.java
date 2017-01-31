@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -29,17 +30,16 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
- * as relocated an closed to ensure that the engine is closed and the target can acquire the IW write lock.
+ * A recovery handler that skips phase one as well as sending the translog snapshot.
  */
 public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
-                                         Supplier<Long> currentClusterStateVersionSupplier,
-                                         Function<String, Releasable> delayNewRecoveries, Logger logger) {
+    SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
+                                  Supplier<Long> currentClusterStateVersionSupplier,
+                                  Function<String, Releasable> delayNewRecoveries, Logger logger) {
         super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
         this.shard = shard;
         this.request = request;
@@ -49,7 +49,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     public RecoveryResponse recoverToTarget() throws IOException {
         boolean engineClosed = false;
         try {
-            logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
+            logger.trace("{} recovery [phase1] to {}: skipping phase1 for shared filesystem", request.shardId(), request.targetNode());
+            final long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
             if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
@@ -62,7 +63,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(0);
+            prepareTargetForTranslog(0, maxUnsafeAutoIdTimestamp);
             finalizeRecovery();
             return response;
         } catch (Exception e) {
@@ -82,9 +83,9 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    protected int sendSnapshot(Translog.Snapshot snapshot) {
-        logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}",
-                shard.shardId(), request.targetNode());
+    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) {
+        logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}", shard.shardId(), request.targetNode());
         return 0;
     }
+
 }

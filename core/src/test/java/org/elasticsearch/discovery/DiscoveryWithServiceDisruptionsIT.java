@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -477,8 +478,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.index:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE,org.elasticsearch.cluster.service:TRACE,"
-        + "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.indices.cluster:TRACE")
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -585,17 +587,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 ensureGreen("test");
 
                 logger.info("validating successful docs");
-                for (String node : nodes) {
-                    try {
-                        logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
-                        for (String id : ackedDocs.keySet()) {
-                            assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                assertBusy(() -> {
+                    for (String node : nodes) {
+                        try {
+                            logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
+                            for (String id : ackedDocs.keySet()) {
+                                assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
+                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                            }
+                        } catch (AssertionError | NoShardAvailableActionException e) {
+                            throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                         }
-                    } catch (AssertionError e) {
-                        throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                     }
-                }
+                }, 30, TimeUnit.SECONDS);
 
                 logger.info("done validating (iteration [{}])", iter);
             }

@@ -93,11 +93,11 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                } else if (VALUE_FIELD.match(currentFieldName)) {
                     type = parser.utf8Bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

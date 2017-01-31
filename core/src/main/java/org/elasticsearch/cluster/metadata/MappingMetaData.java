@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,14 +34,12 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
  */
 public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
-
-    public static final MappingMetaData PROTO = new MappingMetaData();
 
     public static class Routing {
 
@@ -96,10 +95,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetaData(Map<String, Object> mapping) throws IOException {
-        this(mapping.keySet().iterator().next(), mapping);
-    }
-
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
@@ -128,7 +123,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = lenientNodeBooleanValue(fieldNode);
+                    try {
+                        required = nodeBooleanValue(fieldNode);
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
+                            "Illegal value in field [_routing.required].", ex);
+                    }
                 }
             }
             this.routing = new Routing(required);
@@ -228,11 +228,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return result;
     }
 
-    public MappingMetaData readFrom(StreamInput in) throws IOException {
-        String type = in.readString();
-        CompressedXContent source = CompressedXContent.readCompressedString(in);
+    public MappingMetaData(StreamInput in) throws IOException {
+        type = in.readString();
+        source = CompressedXContent.readCompressedString(in);
         // routing
-        Routing routing = new Routing(in.readBoolean());
+        routing = new Routing(in.readBoolean());
         if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             // timestamp
             boolean enabled = in.readBoolean();
@@ -243,9 +243,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
+        hasParentField = in.readBoolean();
+    }
 
-        final boolean hasParentField = in.readBoolean();
-        return new MappingMetaData(type, source, routing, hasParentField);
+    public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(MappingMetaData::new, in);
     }
 
 }

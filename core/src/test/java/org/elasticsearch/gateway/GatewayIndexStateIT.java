@@ -435,7 +435,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
+        assertEquals(ex.getCause().getMessage(), "Unknown filter type [icu_collation] for [myCollator]");
     }
 
     /**

@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
@@ -398,7 +397,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      */
     public static GeoDistanceSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -422,7 +420,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseFieldMatcher.match(currentName, NESTED_FILTER_FIELD)) {
+                if (NESTED_FILTER_FIELD.match(currentName)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -439,27 +437,27 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentName, ORDER_FIELD)) {
+                if (ORDER_FIELD.match(currentName)) {
                     order = SortOrder.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, UNIT_FIELD)) {
+                } else if (UNIT_FIELD.match(currentName)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, DISTANCE_TYPE_FIELD)) {
+                } else if (DISTANCE_TYPE_FIELD.match(currentName)) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, COERCE_FIELD)) {
+                } else if (COERCE_FIELD.match(currentName)) {
                     coerce = parser.booleanValue();
                     if (coerce) {
                         ignoreMalformed = true;
                     }
-                } else if (parseFieldMatcher.match(currentName, IGNORE_MALFORMED_FIELD)) {
+                } else if (IGNORE_MALFORMED_FIELD.match(currentName)) {
                     boolean ignore_malformed_value = parser.booleanValue();
                     if (coerce == false) {
                         ignoreMalformed = ignore_malformed_value;
                     }
-                } else if (parseFieldMatcher.match(currentName, VALIDATION_METHOD_FIELD)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
                     validation = GeoValidationMethod.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, SORTMODE_FIELD)) {
+                } else if (SORTMODE_FIELD.match(currentName)) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
+                } else if (NESTED_PATH_FIELD.match(currentName)) {
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){
                     if (fieldName != null && fieldName.equals(currentName) == false) {

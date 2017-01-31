@@ -160,7 +160,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
-    public void testUnmappedFieldType() throws IOException {
+    public void testUnmappedFieldType() {
         MapperService mapperService = createIndex("index").mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
@@ -229,16 +229,42 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", false)
                 .endObject().endObject().bytes());
 
-        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertFalse(indexService.mapperService().allEnabled()); // _default_ does not count
+        Exception e = expectThrows(MapperParsingException.class,
+                () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
+                        MergeReason.MAPPING_UPDATE, random().nextBoolean()));
+        assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
+    }
 
-        indexService.mapperService().merge("some_type", enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled());
+     public void testPartitionedConstraints() {
+        // partitioned index must have routing
+         IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("type", "{\"type\":{}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
 
-        indexService.mapperService().merge("other_type", disabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
+        // partitioned index cannot have parent/child relationships
+        IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}")
+                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(parentException.getMessage(), parentException.getMessage().contains("cannot have a _parent field"));
+
+        // valid partitioned index
+        assertTrue(client().admin().indices().prepareCreate("test-index")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 4)
+                .put("index.routing_partition_size", 2))
+            .execute().actionGet().isAcknowledged());
     }
 }

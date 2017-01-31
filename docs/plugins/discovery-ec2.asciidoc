@@ -124,6 +124,7 @@ The available values are:
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[discovery-ec2-usage-signer]]
 ===== EC2 Signer API
@@ -171,9 +172,20 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
 `host_type`::
 
-    The type of host type to use to communicate with other instances. Can be
-    one of `private_ip`, `public_ip`, `private_dns`, `public_dns`. Defaults to
-    `private_ip`.
++
+--
+The type of host type to use to communicate with other instances. Can be
+one of `private_ip`, `public_ip`, `private_dns`, `public_dns` or `tag:TAGNAME` where
+`TAGNAME` refers to a name of a tag configured for all EC2 instances. Instances which don't
+have this tag set will be ignored by the discovery process.
+
+For example if you defined a tag `my-elasticsearch-host` in ec2 and set it to `myhostname1.mydomain.com`, then
+setting `host_type: tag:my-elasticsearch-host` will tell Discovery Ec2 plugin to read the host name from the
+`my-elasticsearch-host` tag. In this case, it will be resolved to `myhostname1.mydomain.com`.
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more about EC2 Tags].
+
+Defaults to `private_ip`.
+--
 
 `availability_zones`::
 

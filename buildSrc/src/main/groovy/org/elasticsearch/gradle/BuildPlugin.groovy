@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.gradle
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -54,6 +56,11 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
+              throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'are mutually exclusive')
+        }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
@@ -412,8 +419,10 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    project.sourceCompatibility = null
-                    project.targetCompatibility = null
+                    doFirst{
+                        sourceCompatibility = null
+                        targetCompatibility = null
+                    }
                 }
             }
         }
@@ -509,11 +518,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            // System assertions (-esa) are disabled for now because of what looks like a
-            // JDK bug triggered by Groovy on JDK7. We should look at re-enabling system
-            // assertions when we upgrade to a new version of Groovy (currently 2.4.4) or
-            // require JDK8. See https://issues.apache.org/jira/browse/GROOVY-7528.
-            enableSystemAssertions false
+            boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
+            enableSystemAssertions assertionsEnabled
+            enableAssertions assertionsEnabled
 
             testLogging {
                 showNumFailuresAtEnd 25
@@ -554,11 +561,22 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        Task test = project.tasks.getByName('test')
+        RandomizedTestingTask test = project.tasks.getByName('test')
         test.configure(commonTestConfig(project))
         test.configure {
             include '**/*Tests.class'
         }
+
+        // Add a method to create additional unit tests for a project, which will share the same
+        // randomized testing setup, but by default run no tests.
+        project.extensions.add('additionalTest', { String name, Closure config ->
+            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
+            additionalTest.classpath = test.classpath
+            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.configure(commonTestConfig(project))
+            additionalTest.configure(config)
+            test.dependsOn(additionalTest)
+        });
         return test
     }
 

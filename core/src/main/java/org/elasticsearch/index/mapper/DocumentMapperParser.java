@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -52,7 +51,6 @@ public class DocumentMapperParser {
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
     private final Version indexVersionCreated;
-    private final ParseFieldMatcher parseFieldMatcher;
 
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
@@ -60,7 +58,6 @@ public class DocumentMapperParser {
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, IndexAnalyzers indexAnalyzers,
                                 NamedXContentRegistry xContentRegistry, SimilarityService similarityService, MapperRegistry mapperRegistry,
                                 Supplier<QueryShardContext> queryShardContextSupplier) {
-        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings.getSettings());
         this.mapperService = mapperService;
         this.indexAnalyzers = indexAnalyzers;
         this.xContentRegistry = xContentRegistry;
@@ -72,7 +69,8 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier);
+        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService,
+                typeParsers::get, indexVersionCreated, queryShardContextSupplier);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -109,7 +107,8 @@ public class DocumentMapperParser {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder((RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
+                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {
@@ -143,7 +142,8 @@ public class DocumentMapperParser {
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
-        checkNoRemainingFields(fieldNodeMap, indexVersionCreated, "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
+        checkNoRemainingFields(fieldNodeMap, indexVersionCreated,
+                "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
     }
 
     public static void checkNoRemainingFields(Map<?, ?> fieldNodeMap, Version indexVersionCreated, String message) {

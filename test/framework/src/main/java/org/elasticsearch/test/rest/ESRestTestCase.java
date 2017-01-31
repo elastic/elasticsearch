@@ -174,6 +174,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve the repositories on completion of this test.
+     */
+    protected boolean preserveReposUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -217,8 +224,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
                 }
             }
-            logger.debug("wiping snapshot repository [{}]", repoName);
-            adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            if (preserveReposUponCompletion() == false) {
+                logger.debug("wiping snapshot repository [{}]", repoName);
+                adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            }
         }
     }
 

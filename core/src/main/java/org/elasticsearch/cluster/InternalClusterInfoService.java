@@ -377,14 +377,13 @@ public class InternalClusterInfoService extends AbstractComponent
         MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
             IndexMetaData indexMeta = meta.index(s.getShardRouting().index());
-            Settings indexSettings = indexMeta == null ? null : indexMeta.getSettings();
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
             String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
             }
-            if (indexSettings != null && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
+            if (indexMeta != null && indexMeta.isIndexUsingShadowReplicas()) {
                 // Shards on a shared filesystem should be considered of size 0
                 if (logger.isTraceEnabled()) {
                     logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);

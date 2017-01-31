@@ -21,16 +21,17 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
@@ -40,18 +41,13 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends GenericAction<Request, BulkIndexByScrollResponse>
+                A extends GenericAction<Request, BulkByScrollResponse>
             > extends BaseRestHandler {
 
-    protected final SearchRequestParsers searchRequestParsers;
-    private final ClusterService clusterService;
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
-            A action) {
+    protected AbstractBaseReindexRestHandler(Settings settings, A action) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
-        this.clusterService = clusterService;
         this.action = action;
     }
 
@@ -80,7 +76,7 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        return sendTask(client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        return sendTask(client.getLocalNodeId(), client.executeLocally(action, internal, LoggingTaskListener.instance()));
     }
 
     /**
@@ -111,11 +107,11 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private RestChannelConsumer sendTask(Task task) throws IOException {
+    private RestChannelConsumer sendTask(String localNodeId, Task task) throws IOException {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
-                builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
+                builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }

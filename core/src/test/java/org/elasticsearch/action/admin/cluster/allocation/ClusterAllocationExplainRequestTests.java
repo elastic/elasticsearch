@@ -26,7 +26,8 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         ClusterAllocationExplainRequest request =
-                new ClusterAllocationExplainRequest(randomAsciiOfLength(4), randomIntBetween(0, Integer.MAX_VALUE), randomBoolean());
+                new ClusterAllocationExplainRequest(randomAsciiOfLength(4), randomIntBetween(0, Integer.MAX_VALUE), randomBoolean(),
+                                                       randomBoolean() ? randomAsciiOfLength(5) : null);
         request.includeYesDecisions(randomBoolean());
         request.includeDiskInfo(randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();
@@ -39,6 +40,7 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         assertEquals(request.isPrimary(), actual.isPrimary());
         assertEquals(request.includeYesDecisions(), actual.includeYesDecisions());
         assertEquals(request.includeDiskInfo(), actual.includeDiskInfo());
+        assertEquals(request.getCurrentNode(), actual.getCurrentNode());
     }
 
 }

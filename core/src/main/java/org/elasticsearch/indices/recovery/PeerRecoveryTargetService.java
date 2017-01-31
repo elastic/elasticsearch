@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -48,6 +49,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -58,6 +61,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -123,11 +127,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     /**
-     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     * Cancel all ongoing recoveries for the given shard.
      *
-     * @param reason       reason for cancellation
-     * @param shardId      shardId for which to cancel recoveries
-     * @return true if a recovery was cancelled
+     * @param reason  reason for cancellation
+     * @param shardId shard ID for which to cancel recoveries
+     * @return {@code true} if a recovery was cancelled
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
@@ -139,65 +143,56 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final Throwable reason, TimeValue retryAfter, final
-    StartRecoveryRequest currentRequest) {
+    protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
         logger.trace(
             (Supplier<?>) () -> new ParameterizedMessage(
-                "will retry recovery with id [{}] in [{}]", recoveryTarget.recoveryId(), retryAfter), reason);
-        retryRecovery(recoveryTarget, retryAfter, currentRequest);
+                "will retry recovery with id [{}] in [{}]", recoveryId, retryAfter), reason);
+        retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final String reason, TimeValue retryAfter, final
-    StartRecoveryRequest currentRequest) {
-        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryTarget.recoveryId(), retryAfter, reason);
-        retryRecovery(recoveryTarget, retryAfter, currentRequest);
+    protected void retryRecovery(final long recoveryId, final String reason, TimeValue retryAfter, TimeValue activityTimeout) {
+        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
+        retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
-    private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
-        try {
-            onGoingRecoveries.resetRecovery(recoveryTarget.recoveryId(), recoveryTarget.shardId());
-        } catch (Exception e) {
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
+    private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
+        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
+        if (newTarget != null) {
+            threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
         }
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
     }
 
-    private void doRecovery(final RecoveryTarget recoveryTarget) {
-        assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
+    private void doRecovery(final long recoveryId) {
+        final StartRecoveryRequest request;
+        final CancellableThreads cancellableThreads;
+        final RecoveryState.Timer timer;
 
-        logger.trace("collecting local files for {}", recoveryTarget);
-        Store.MetadataSnapshot metadataSnapshot = null;
-        try {
-            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
-                // we are not going to copy any files, so don't bother listing files, potentially running
-                // into concurrency issues with the primary changing files underneath us.
-                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-            } else {
-                metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+        try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
+            if (recoveryRef == null) {
+                logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
+                return;
             }
-        } catch (org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-        } catch (IOException e) {
-            logger.warn("error while listing local files, recover as if there are none", e);
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-        } catch (Exception e) {
-            // this will be logged as warning later on...
-            logger.trace("unexpected error while listing local files, failing recovery", e);
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
-                    new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
-            return;
+            final RecoveryTarget recoveryTarget = recoveryRef.target();
+            cancellableThreads = recoveryTarget.cancellableThreads();
+            timer = recoveryTarget.state().getTimer();
+            try {
+                assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
+                request = getStartRecoveryRequest(recoveryTarget);
+                logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                recoveryTarget.indexShard().prepareForIndexRecovery();
+            } catch (final Exception e) {
+                // this will be logged as warning later on...
+                logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+                onGoingRecoveries.failRecovery(recoveryId,
+                    new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e), true);
+                return;
+            }
         }
-        logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
-        final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
-                clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
 
-        final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
-            logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request
-                    .sourceNode());
-            recoveryTarget.indexShard().prepareForIndexRecovery();
-            recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
+            logger.trace("{} starting recovery from {}", request.shardId(), request.sourceNode());
+            final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
+            cancellableThreads.execute(() -> responseHolder.set(
                     transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
@@ -206,10 +201,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                                 }
                             }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();
-            assert responseHolder != null;
-            final TimeValue recoveryTime = new TimeValue(recoveryTarget.state().getTimer().time());
+            final TimeValue recoveryTime = new TimeValue(timer.time());
             // do this through ongoing recoveries to remove it from the collection
-            onGoingRecoveries.markRecoveryAsDone(recoveryTarget.recoveryId());
+            onGoingRecoveries.markRecoveryAsDone(recoveryId);
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id())
@@ -229,7 +223,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                         .append("\n");
                 logger.trace("{}", sb);
             } else {
-                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryTarget.sourceNode(), recoveryTime);
+                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), request.sourceNode(), recoveryTime);
             }
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
@@ -245,8 +239,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source has canceled the" +
-                        " recovery", cause), false);
+                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,
+                    "source has canceled the recovery", cause), false);
                 return;
             }
             if (cause instanceof RecoveryEngineException) {
@@ -262,31 +256,121 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
             // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
 
-            if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException || cause instanceof
-                    ShardNotFoundException) {
+            if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException ||
+                cause instanceof ShardNotFoundException) {
                 // if the target is not ready yet, retry
-                retryRecovery(recoveryTarget, "remote shard not ready", recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(
+                    recoveryId,
+                    "remote shard not ready",
+                    recoverySettings.retryDelayStateSync(),
+                    recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryTarget, cause, recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(), recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof ConnectTransportException) {
-                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryTarget.shardId(), recoverySettings
-                        .retryDelayNetwork(), cause.getMessage());
-                retryRecovery(recoveryTarget, cause.getMessage(), recoverySettings.retryDelayNetwork(), request);
+                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
+                    recoverySettings.retryDelayNetwork(), cause.getMessage());
+                retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(), recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
-                        "closed", cause), false);
+                onGoingRecoveries.failRecovery(recoveryId,
+                    new RecoveryFailedException(request, "source shard is closed", cause), false);
                 return;
             }
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, e), true);
+
+            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
+        }
+    }
+
+    /**
+     * Obtains a snapshot of the store metadata for the recovery target.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return a snapshot of the store metdata
+     */
+    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+        try {
+            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
+                // we are not going to copy any files, so don't bother listing files, potentially running into concurrency issues with the
+                // primary changing files underneath us
+                return Store.MetadataSnapshot.EMPTY;
+            } else {
+                return recoveryTarget.indexShard().snapshotStoreMetadata();
+            }
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            return Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            logger.warn("error while listing local files, recovering as if there are none", e);
+            return Store.MetadataSnapshot.EMPTY;
+        }
+    }
+
+    /**
+     * Prepare the start recovery request.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return a start recovery request
+     */
+    private StartRecoveryRequest getStartRecoveryRequest(final RecoveryTarget recoveryTarget) {
+        final StartRecoveryRequest request;
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+
+        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+
+        final long startingSeqNo;
+        if (metadataSnapshot.size() > 0) {
+            startingSeqNo = getStartingSeqNo(recoveryTarget);
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        } else {
+            logger.trace(
+                "{} preparing for sequence-number-based recovery starting at local checkpoint [{}] from [{}]",
+                recoveryTarget.shardId(),
+                startingSeqNo,
+                recoveryTarget.sourceNode());
+        }
+
+        request = new StartRecoveryRequest(
+            recoveryTarget.shardId(),
+            recoveryTarget.sourceNode(),
+            clusterService.localNode(),
+            metadataSnapshot,
+            recoveryTarget.state().getPrimary(),
+            recoveryTarget.recoveryId(),
+            startingSeqNo);
+        return request;
+    }
+
+    /**
+     * Get the starting sequence number for a sequence-number-based request.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
+     * failed
+     */
+    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+        try {
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
+            return recoveryTarget.store().loadSeqNoStats(globalCheckpoint).getLocalCheckpoint() + 1;
+        } catch (final IOException e) {
+            // this can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
+            // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
+            // proceeds to attempt a sequence-number-based recovery
+            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
     }
 
@@ -300,9 +384,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -312,9 +396,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef =
+            try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.status().finalizeRecovery(request.globalCheckpoint());
+                recoveryRef.target().finalizeRecovery(request.globalCheckpoint());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -324,9 +408,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryWaitForClusterStateRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().ensureClusterStateVersion(request.clusterStateVersion());
+                recoveryRef.target().ensureClusterStateVersion(request.clusterStateVersion());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -336,10 +420,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws IOException {
-            try (RecoveriesCollection.RecoveryRef recoveryRef =
+            try (RecoveryRef recoveryRef =
                          onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-                final RecoveryTarget recoveryTarget = recoveryRef.status();
+                final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -443,9 +527,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames,
+                recoveryRef.target().receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames,
                         request.phase1ExistingFileSizes, request.totalTranslogOps);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
@@ -456,9 +540,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
+                recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }
@@ -471,10 +555,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                final RecoveryTarget status = recoveryRef.status();
-                final RecoveryState.Index indexState = status.state().getIndex();
+                final RecoveryTarget recoveryTarget = recoveryRef.target();
+                final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
                 if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
                 }
@@ -487,11 +571,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                         bytesSinceLastPause.addAndGet(-bytes);
                         long throttleTimeInNanos = rateLimiter.pause(bytes);
                         indexState.addTargetThrottling(throttleTimeInNanos);
-                        status.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+                        recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
 
-                status.writeFileChunk(request.metadata(), request.position(), request.content(),
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(),
                         request.lastChunk(), request.totalTranslogOps()
                 );
             }
@@ -509,13 +593,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void onFailure(Exception e) {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
                     logger.error(
                         (Supplier<?>) () -> new ParameterizedMessage(
                             "unexpected error during recovery [{}], failing shard", recoveryId), e);
                     onGoingRecoveries.failRecovery(recoveryId,
-                            new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", e),
+                            new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
@@ -528,16 +612,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void doRun() {
-            RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId);
-            if (recoveryRef == null) {
-                logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
-                return;
-            }
-            try {
-                doRecovery(recoveryRef.status());
-            } finally {
-                recoveryRef.close();
-            }
+            doRecovery(recoveryId);
         }
     }
 

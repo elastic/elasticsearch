@@ -145,11 +145,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    // just to ensure we can iterate over this single analzyer
-                    return Collections.singletonMap(fakeDefault.name(), fakeDefault).entrySet();
+                    return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap)) {
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, false);

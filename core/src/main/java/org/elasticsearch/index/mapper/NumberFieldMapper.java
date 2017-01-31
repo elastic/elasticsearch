@@ -150,10 +150,10 @@ public class NumberFieldMapper extends FieldMapper {
                     builder.nullValue(type.parse(propNode, false));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name,"ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 }
             }
@@ -188,30 +188,6 @@ public class NumberFieldMapper extends FieldMapper {
                 return HalfFloatPoint.newSetQuery(field, v);
             }
 
-            private float nextDown(float f) {
-                // HalfFloatPoint.nextDown considers that -0 is the same as +0
-                // while point ranges are consistent with Float.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextDown(+0) returns -0
-                if (Float.floatToIntBits(f) == Float.floatToIntBits(0f)) {
-                    return -0f;
-                } else {
-                    return HalfFloatPoint.nextDown(f);
-                }
-            }
-
-            private float nextUp(float f) {
-                // HalfFloatPoint.nextUp considers that -0 is the same as +0
-                // while point ranges are consistent with Float.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextUp(-0) returns +0
-                if (Float.floatToIntBits(f) == Float.floatToIntBits(-0f)) {
-                    return +0f;
-                } else {
-                    return HalfFloatPoint.nextUp(f);
-                }
-            }
-
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -220,16 +196,16 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
                     if (includeLower) {
-                        l = nextDown(l);
+                        l = HalfFloatPoint.nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
                     if (includeUpper) {
-                        u = nextUp(u);
+                        u = HalfFloatPoint.nextUp(u);
                     }
-                    u = nextDown(u);
+                    u = HalfFloatPoint.nextDown(u);
                 }
                 return HalfFloatPoint.newRangeQuery(field, l, u);
             }
@@ -302,30 +278,6 @@ public class NumberFieldMapper extends FieldMapper {
                 return FloatPoint.newSetQuery(field, v);
             }
 
-            private float nextDown(float f) {
-                // Math.nextDown considers that -0 is the same as +0
-                // while point ranges are consistent with Float.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextDown(+0) returns -0
-                if (Float.floatToIntBits(f) == Float.floatToIntBits(0f)) {
-                    return -0f;
-                } else {
-                    return Math.nextDown(f);
-                }
-            }
-
-            private float nextUp(float f) {
-                // Math.nextUp considers that -0 is the same as +0
-                // while point ranges are consistent with Float.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextUp(-0) returns +0
-                if (Float.floatToIntBits(f) == Float.floatToIntBits(-0f)) {
-                    return +0f;
-                } else {
-                    return Math.nextUp(f);
-                }
-            }
-
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -334,13 +286,13 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
                     if (includeLower == false) {
-                        l = nextUp(l);
+                        l = FloatPoint.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
                     if (includeUpper == false) {
-                        u = nextDown(u);
+                        u = FloatPoint.nextDown(u);
                     }
                 }
                 return FloatPoint.newRangeQuery(field, l, u);
@@ -414,30 +366,6 @@ public class NumberFieldMapper extends FieldMapper {
                 return DoublePoint.newSetQuery(field, v);
             }
 
-            private double nextDown(double d) {
-                // Math.nextDown considers that -0 is the same as +0
-                // while point ranges are consistent with Double.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextDown(+0) returns -0
-                if (Double.doubleToLongBits(d) == Double.doubleToLongBits(0d)) {
-                    return -0d;
-                } else {
-                    return Math.nextDown(d);
-                }
-            }
-
-            private double nextUp(double d) {
-                // Math.nextUp considers that -0 is the same as +0
-                // while point ranges are consistent with Double.compare, so
-                // they consider that -0 < +0, so we explicitly make sure
-                // that nextUp(-0) returns +0
-                if (Double.doubleToLongBits(d) == Double.doubleToLongBits(-0d)) {
-                    return +0d;
-                } else {
-                    return Math.nextUp(d);
-                }
-            }
-
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -446,13 +374,13 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
                     if (includeLower == false) {
-                        l = nextUp(l);
+                        l = DoublePoint.nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
                     if (includeUpper == false) {
-                        u = nextDown(u);
+                        u = DoublePoint.nextDown(u);
                     }
                 }
                 return DoublePoint.newRangeQuery(field, l, u);

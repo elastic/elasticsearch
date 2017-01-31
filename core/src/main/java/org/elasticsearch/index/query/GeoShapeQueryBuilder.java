@@ -489,31 +489,31 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, SHAPE_FIELD)) {
+                        if (SHAPE_FIELD.match(currentFieldName)) {
                             shape = ShapeBuilder.parse(parser);
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, STRATEGY_FIELD)) {
+                        } else if (STRATEGY_FIELD.match(currentFieldName)) {
                             String strategyName = parser.text();
                             strategy = SpatialStrategy.fromString(strategyName);
                             if (strategy == null) {
                                 throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
                             }
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, RELATION_FIELD)) {
+                        } else if (RELATION_FIELD.match(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
                                 throw new ParsingException(parser.getTokenLocation(), "Unknown shape operation [" + parser.text() + " ]");
                             }
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_SHAPE_FIELD)) {
+                        } else if (INDEXED_SHAPE_FIELD.match(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
-                                    if (parseContext.getParseFieldMatcher().match(currentFieldName, SHAPE_ID_FIELD)) {
+                                    if (SHAPE_ID_FIELD.match(currentFieldName)) {
                                         id = parser.text();
-                                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SHAPE_TYPE_FIELD)) {
+                                    } else if (SHAPE_TYPE_FIELD.match(currentFieldName)) {
                                         type = parser.text();
-                                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SHAPE_INDEX_FIELD)) {
+                                    } else if (SHAPE_INDEX_FIELD.match(currentFieldName)) {
                                         index = parser.text();
-                                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SHAPE_PATH_FIELD)) {
+                                    } else if (SHAPE_PATH_FIELD.match(currentFieldName)) {
                                         shapePath = parser.text();
                                     }
                                 } else {
@@ -528,11 +528,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +

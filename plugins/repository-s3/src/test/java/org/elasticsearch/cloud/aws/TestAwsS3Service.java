@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.cloud.aws;
 
-import com.amazonaws.Protocol;
+import java.util.IdentityHashMap;
+
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
-
-import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends S3RepositoryPlugin {
@@ -42,9 +42,9 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
-                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
-        return cachedWrapper(super.client(repositorySettings, endpoint, protocol, region, maxRetries, useThrottleRetries, pathStyleAccess));
+    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
+                                              boolean useThrottleRetries, Boolean pathStyleAccess) {
+        return cachedWrapper(super.client(repositorySettings, maxRetries, useThrottleRetries, pathStyleAccess));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

@@ -25,7 +25,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,8 +41,6 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
-    private final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.STRICT;
-
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
@@ -234,7 +231,7 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals(field.getPreferredName(), parser.currentName());
         token = parser.nextToken();
 
-        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         if (field.getPreferredName().equalsIgnoreCase("include")) {
             return IncludeExclude.parseInclude(parser, parseContext);
         } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
@@ -274,7 +271,7 @@ public class IncludeExcludeTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
 
@@ -282,10 +279,10 @@ public class IncludeExcludeTests extends ESTestCase {
         IncludeExclude exc = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             assertEquals(XContentParser.Token.FIELD_NAME, token);
-            if (parseFieldMatcher.match(parser.currentName(), IncludeExclude.INCLUDE_FIELD)) {
+            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
                 inc = IncludeExclude.parseInclude(parser, parseContext);
-            } else if (parseFieldMatcher.match(parser.currentName(), IncludeExclude.EXCLUDE_FIELD)) {
+            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
                 exc = IncludeExclude.parseExclude(parser, parseContext);
             } else {

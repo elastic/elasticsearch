@@ -30,7 +30,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -53,6 +52,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -114,6 +114,7 @@ final class DefaultSearchContext extends SearchContext {
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
+    private CollapseContext collapse;
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
@@ -152,9 +153,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
                          IndexService indexService, IndexShard indexShard,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
-                         FetchPhase fetchPhase) {
-        super(parseFieldMatcher);
+                         BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout, FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -582,6 +581,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public FieldDoc searchAfter() {
         return searchAfter;
+    }
+
+    @Override
+    public SearchContext collapse(CollapseContext collapse) {
+        this.collapse = collapse;
+        return this;
+    }
+
+    @Override
+    public CollapseContext collapse() {
+        return collapse;
     }
 
     public SearchContext sliceBuilder(SliceBuilder sliceBuilder) {

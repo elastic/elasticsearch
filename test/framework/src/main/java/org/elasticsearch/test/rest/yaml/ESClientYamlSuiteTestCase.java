@@ -112,11 +112,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-            blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
-            }
             String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             ClientYamlSuiteRestSpec restSpec = null;
             FileSystem fileSystem = getFileSystem();
@@ -149,6 +144,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             ClientYamlTestClient clientYamlTestClient = new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            blacklistPathMatchers = new ArrayList<>();
+            for (String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;

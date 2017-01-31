@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms.support;
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
@@ -39,7 +38,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -103,7 +101,6 @@ public class IncludeExclude implements Writeable, ToXContent {
         } else if (token == XContentParser.Token.START_ARRAY) {
             return new IncludeExclude(new TreeSet<>(parseArrayToSet(parser)), null);
         } else if (token == XContentParser.Token.START_OBJECT) {
-            ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
             String currentFieldName = null;
             Integer partition = null, numPartitions = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -112,11 +109,11 @@ public class IncludeExclude implements Writeable, ToXContent {
                 } else
                 // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
                 // Regexes should be "include":"foo.*"
-                if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
+                if (PATTERN_FIELD.match(currentFieldName)) {
                     return new IncludeExclude(parser.text(), null);
-                } else if (parseFieldMatcher.match(currentFieldName, NUM_PARTITIONS_FIELD)) {
+                } else if (NUM_PARTITIONS_FIELD.match(currentFieldName)) {
                     numPartitions = parser.intValue();
-                } else if (parseFieldMatcher.match(currentFieldName, PARTITION_FIELD)) {
+                } else if (PARTITION_FIELD.match(currentFieldName)) {
                     partition = parser.intValue();
                 } else {
                     throw new ElasticsearchParseException(

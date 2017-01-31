@@ -19,7 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -96,6 +97,30 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Test that if we serialize and deserialize an object, further
+     * serialization leads to identical bytes representation.
+     *
+     * This is necessary to ensure because we use the serialized BytesReference
+     * of this builder as part of the cacheKey in
+     * {@link ShardSearchLocalRequest} (via
+     * {@link SearchSourceBuilder#collapse(org.elasticsearch.search.collapse.CollapseBuilder)})
+     */
+    public void testSerializationOrder() throws Exception {
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            InnerHitBuilder original = randomInnerHits();
+            InnerHitBuilder deserialized = serializedCopy(original);
+            assertEquals(deserialized, original);
+            assertEquals(deserialized.hashCode(), original.hashCode());
+            assertNotSame(deserialized, original);
+            BytesStreamOutput out1 = new BytesStreamOutput();
+            BytesStreamOutput out2 = new BytesStreamOutput();
+            original.writeTo(out1);
+            deserialized.writeTo(out2);
+            assertEquals(out1.bytes(), out2.bytes());
+        }
+    }
+
     public void testFromAndToXContent() throws Exception {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
@@ -107,7 +132,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             }
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+            QueryParseContext context = new QueryParseContext(parser);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
             assertThat(innerHit, equalTo(secondInnerHits));
@@ -115,7 +140,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             checkEqualsAndHashCode(randomInnerHits(), InnerHitBuilderTests::serializedCopy, InnerHitBuilderTests::mutate);
         }

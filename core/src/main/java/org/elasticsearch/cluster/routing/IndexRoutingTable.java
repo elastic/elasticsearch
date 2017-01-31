@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -62,8 +63,6 @@ import java.util.Set;
  * </p>
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
-
-    public static final IndexRoutingTable PROTO = builder(new Index("", "_na_")).build();
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -141,7 +140,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
 
                 if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
-                    IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false && // see #20650
+                    indexMetaData.isIndexUsingShadowReplicas() == false && // see #20650
                     shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
                     RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
@@ -319,8 +318,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return result;
     }
 
-    @Override
-    public IndexRoutingTable readFrom(StreamInput in) throws IOException {
+    public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
         Index index = new Index(in);
         Builder builder = new Builder(index);
 
@@ -330,6 +328,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         return builder.build();
+    }
+
+    public static Diff<IndexRoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexRoutingTable::readFrom, in);
     }
 
     @Override
@@ -352,17 +354,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         public Builder(Index index) {
             this.index = index;
-        }
-
-        /**
-         * Reads an {@link IndexRoutingTable} from an {@link StreamInput}
-         *
-         * @param in {@link StreamInput} to read the {@link IndexRoutingTable} from
-         * @return {@link IndexRoutingTable} read
-         * @throws IOException if something happens during read
-         */
-        public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
 
         /**

@@ -36,7 +36,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.LocalCheckpointService;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -69,6 +69,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
+        IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
         IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING,
         IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
@@ -107,13 +108,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
         IndexSettings.ALLOW_UNMAPPED,
         IndexSettings.INDEX_CHECK_ON_STARTUP,
         IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL,
-        LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE,
+        LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE,
         IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,

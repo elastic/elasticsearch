@@ -83,6 +83,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             super(id, type, action, description, parentTaskId);
         }
 
+        @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            return false;
+        }
+
         public boolean isBlocked() {
             return blocked;
         }
@@ -242,7 +247,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return true;
+                }
+            };
         }
     }
 

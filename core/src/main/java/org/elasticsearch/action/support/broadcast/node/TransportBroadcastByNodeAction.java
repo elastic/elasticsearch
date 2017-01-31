@@ -318,7 +318,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                    taskManager.registerChildTask(task, node.getId());
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
@@ -439,7 +438,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             } catch (Exception e) {
                 BroadcastShardOperationFailedException failure =
                     new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
-                failure.setIndex(shardRouting.getIndexName());
                 failure.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {

@@ -445,10 +445,25 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
-        assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-            .startObject("field1").field("type", "text").field("store", "yes").endObject()
-            .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
-            .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+        assertThat(client.admin().indices()
+            .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+            .get().isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices().setWaitForCompletion(true).get();
@@ -486,10 +501,25 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if(testTemplate) {
             logger.info("-->  creating test template");
-            assertThat(client.admin().indices().preparePutTemplate("test-template").setPatterns(Collections.singletonList("te*")).addMapping("test-mapping", XContentFactory.jsonBuilder().startObject().startObject("test-mapping").startObject("properties")
-                .startObject("field1").field("type", "text").field("store", "yes").endObject()
-                .startObject("field2").field("type", "keyword").field("store", "yes").endObject()
-                .endObject().endObject().endObject()).get().isAcknowledged(), equalTo(true));
+            assertThat(client.admin().indices()
+                .preparePutTemplate("test-template")
+                .setPatterns(Collections.singletonList("te*"))
+                .addMapping("test-mapping", XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("test-mapping")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "text")
+                                    .field("store", true)
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "keyword")
+                                    .field("store", true)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+                .get().isAcknowledged(), equalTo(true));
         }
 
         if(testPipeline) {
@@ -1412,63 +1442,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
     }
 
-    public void testUrlRepository() throws Exception {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        Path repositoryLocation = randomRepoPath();
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder()
-                        .put("location", repositoryLocation)
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        createIndex("test-idx");
-        ensureGreen();
-
-        logger.info("--> indexing some data");
-        for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
-        }
-        refresh();
-        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
-
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> delete index");
-        cluster().wipeIndices("test-idx");
-
-        logger.info("--> create read-only URL repository");
-        assertAcked(client.admin().cluster().preparePutRepository("url-repo")
-                .setType("url").setSettings(Settings.builder()
-                        .put("url", repositoryLocation.toUri().toURL())
-                        .put("list_directories", randomBoolean())));
-        logger.info("--> restore index after deletion");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("url-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
-
-        logger.info("--> list available shapshots");
-        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
-        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
-
-        logger.info("--> delete snapshot");
-        DeleteSnapshotResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
-        assertAcked(deleteSnapshotResponse);
-
-        logger.info("--> list available shapshot again, no snapshots should be returned");
-        getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
-        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
-    }
-
     @TestLogging("_root:DEBUG")  // this fails every now and then: https://github.com/elastic/elasticsearch/issues/18121 but without
     // more logs we cannot find out why
     public void testReadonlyRepository() throws Exception {
@@ -2277,6 +2250,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                                    State.ABORTED,
                                                    Collections.singletonList(indexId),
                                                    System.currentTimeMillis(),
+                                                   repositoryData.getGenId(),
                                                    shards.build()));
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries))).build();
             }
@@ -2707,6 +2681,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 Settings.builder()
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
+                    // test that we can take a snapshot after a failed one, even if a partial index-N was written
+                    .put("atomic_move", false)
                     .put("random", randomAsciiOfLength(10))));
 
         logger.info("--> indexing some data");

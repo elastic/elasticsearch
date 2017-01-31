@@ -35,30 +35,30 @@ public final class ValuesSourceParserHelper {
     public static void declareAnyFields(
             ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, QueryParseContext> objectParser,
             boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.ANY, null);
+        declareFields(objectParser, scriptable, formattable, false, null);
     }
 
     public static void declareNumericFields(
             ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, QueryParseContext> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware) {
-        declareFields(objectParser, scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
     }
 
     public static void declareBytesFields(
             ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, QueryParseContext> objectParser,
             boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.BYTES, ValueType.STRING);
+        declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
     }
 
     public static void declareGeoFields(
             ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, QueryParseContext> objectParser,
             boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
     }
 
     private static <VS extends ValuesSource> void declareFields(
             ObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, QueryParseContext> objectParser,
-            boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+            boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -84,7 +84,8 @@ public final class ValuesSourceParserHelper {
         }
 
         if (scriptable) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::script, org.elasticsearch.script.Script::parse,
+            objectParser.declareField(ValuesSourceAggregationBuilder::script,
+                    (parser, context) -> Script.parse(parser, context.getDefaultScriptLanguage()),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         }
 

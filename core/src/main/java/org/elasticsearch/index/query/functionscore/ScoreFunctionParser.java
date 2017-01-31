@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -29,5 +28,5 @@ import java.io.IOException;
  */
 @FunctionalInterface
 public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {
-    FB fromXContent(QueryParseContext context) throws IOException, ParsingException;
+    FB fromXContent(QueryParseContext context) throws IOException;
 }

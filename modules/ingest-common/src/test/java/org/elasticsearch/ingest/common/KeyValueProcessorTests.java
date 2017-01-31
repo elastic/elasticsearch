@@ -93,4 +93,20 @@ public class KeyValueProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
+
+    public void testFailFieldSplitMatch() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello|second=world|second=universe");
+        Processor processor = new KeyValueProcessor(randomAsciiOfLength(10), fieldName, "&", "=", null, "target", false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello|second=world|second=universe"));
+        assertFalse(ingestDocument.hasField("target.second"));
+    }
+
+    public void testFailValueSplitMatch() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("foo", "bar"));
+        Processor processor = new KeyValueProcessor(randomAsciiOfLength(10), "foo", "&", "=", null, "target", false);
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [foo] does not contain value_split [=]"));
+    }
 }

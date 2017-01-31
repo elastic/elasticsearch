@@ -112,8 +112,6 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
 
     public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
-    public static final String TRANSPORT_SERVER_BOSS_THREAD_NAME_PREFIX = "transport_server_boss";
-    public static final String TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX = "transport_client_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
 
     // the scheduled internal ping interval setting, defaults to disabled (-1)
@@ -137,10 +135,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         boolSetting("transport.tcp.keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TCP_BLOCKING_CLIENT =
-        boolSetting("transport.tcp.blocking_client", NetworkService.TcpSettings.TCP_BLOCKING_CLIENT, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TCP_BLOCKING_SERVER =
-        boolSetting("transport.tcp.blocking_server", NetworkService.TcpSettings.TCP_BLOCKING_SERVER, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
             Setting.Property.NodeScope);
@@ -150,7 +144,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
-    protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
     protected final ScheduledPing scheduledPing;
@@ -194,7 +187,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-        this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
         defaultConnectionProfile = buildDefaultConnectionProfile(settings);
     }
 
@@ -432,19 +424,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
         connectionProfile = connectionProfile == null ? defaultConnectionProfile : connectionProfile;
-        if (!lifecycle.started()) {
-            throw new IllegalStateException("can't add nodes to a stopped transport");
-        }
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
-        globalLock.readLock().lock();
+        globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
-
+            ensureOpen();
             try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                if (!lifecycle.started()) {
-                    throw new IllegalStateException("can't add nodes to a stopped transport");
-                }
                 NodeChannels nodeChannels = connectedNodes.get(node);
                 if (nodeChannels != null) {
                     return;
@@ -458,13 +444,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
                         throw e;
                     }
-                    Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
-                    final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
-                        defaultConnectionProfile.getConnectTimeout() :
-                        connectionProfile.getConnectTimeout();
-                    final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                        connectTimeout : connectionProfile.getHandshakeTimeout();
-                    Version version = executeHandshake(node, channel, handshakeTimeout);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
@@ -483,17 +462,41 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+        if (node == null) {
+            throw new ConnectTransportException(null, "can't open connection to a null node");
+        }
+        boolean success = false;
+        NodeChannels nodeChannels = null;
+        globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
-            NodeChannels nodeChannels = connectToChannels(node, profile);
-            transportServiceAdapter.onConnectionOpened(node);
-            return nodeChannels;
-        } catch (ConnectTransportException e) {
-            throw e;
-        } catch (Exception e) {
-            // ConnectTransportExceptions are handled specifically on the caller end - we wrap the actual exception to ensure
-            // only relevant exceptions are logged on the caller end.. this is the same as in connectToNode
-            throw new ConnectTransportException(node, "general node connection failure", e);
+            ensureOpen();
+            try {
+                nodeChannels = connectToChannels(node, connectionProfile);
+                final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
+                final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
+                    defaultConnectionProfile.getConnectTimeout() :
+                    connectionProfile.getConnectTimeout();
+                final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
+                    connectTimeout : connectionProfile.getHandshakeTimeout();
+                final Version version = executeHandshake(node, channel, handshakeTimeout);
+                transportServiceAdapter.onConnectionOpened(node);
+                nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
+                success = true;
+                return nodeChannels;
+            } catch (ConnectTransportException e) {
+                throw e;
+            } catch (Exception e) {
+                // ConnectTransportExceptions are handled specifically on the caller end - we wrap the actual exception to ensure
+                // only relevant exceptions are logged on the caller end.. this is the same as in connectToNode
+                throw new ConnectTransportException(node, "general node connection failure", e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(nodeChannels);
+                }
+            }
+        } finally {
+            globalLock.readLock().unlock();
         }
     }
 
@@ -853,7 +856,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                 }
 
-                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
+                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
                     NodeChannels nodeChannels = it.next();
                     it.remove();
                     IOUtils.closeWhileHandlingException(nodeChannels);
@@ -875,7 +878,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     protected void onException(Channel channel, Exception e) throws IOException {
         if (!lifecycle.started()) {
-            // ignore
+            // just close and ignore - we are already stopped and just need to make sure we release all resources
+            disconnectFromNodeChannel(channel, e);
             return;
         }
         if (isCloseConnectionException(e)) {
@@ -1567,6 +1571,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // the channel is closed ie. due to connection reset or broken pipes
                 handler.handleException(new TransportException("connection reset"));
             }
+        }
+    }
+
+    /**
+     * Ensures this transport is still started / open
+     * @throws IllegalStateException if the transport is not started / open
+     */
+    protected final void ensureOpen() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("transport has been stopped");
         }
     }
 }

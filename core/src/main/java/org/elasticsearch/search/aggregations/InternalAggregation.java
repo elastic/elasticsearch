@@ -38,33 +38,6 @@ import java.util.Objects;
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-    /**
-     * The aggregation type that holds all the string types that are associated with an aggregation:
-     * <ul>
-     *     <li>name - used as the parser type</li>
-     * </ul>
-     */
-    public static class Type {
-        private final String name;
-
-        public Type(String name) {
-            this.name = name;
-        }
-
-        /**
-         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
-         * aggregation's builder when serialized.
-         */
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
-
     public static class ReduceContext {
 
         private final BigArrays bigArrays;

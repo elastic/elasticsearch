@@ -44,7 +44,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -72,10 +71,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
-
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os) {
-        this(jsonGenerator, os, Collections.emptySet(), Collections.emptySet());
-    }
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
         Objects.requireNonNull(includes, "Including filters must not be null");

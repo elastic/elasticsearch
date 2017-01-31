@@ -24,7 +24,6 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.get.GetResult;
@@ -49,7 +48,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    @Inject
     public RestExplainAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
@@ -65,7 +63,7 @@ public class RestExplainAction extends BaseRestHandler {
         String queryString = request.param("q");
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                explainRequest.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                explainRequest.query(RestActions.getQueryContent(parser));
             } else if (queryString != null) {
                 QueryBuilder query = RestActions.urlParamsToQueryBuilder(request);
                 explainRequest.query(query);

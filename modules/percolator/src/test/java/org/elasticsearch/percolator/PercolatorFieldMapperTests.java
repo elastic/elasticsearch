@@ -442,6 +442,53 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 }
         );
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/22355
+    public void testVerifyRangeQueryWithNullBounds() throws Exception {
+        addQueryMapping();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now").to(null))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from(null).to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+
+        // No validation failures:
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from("2016-01-01").to(null))
+                .endObject().bytes());
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from(null).to("2016-01-01"))
+                .endObject().bytes());
     }
 
     public void testUnsupportedQueries() {

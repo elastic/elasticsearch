@@ -141,6 +141,12 @@ public abstract class Decision implements ToXContent, Writeable {
     public abstract String label();
 
     /**
+     * Get the explanation for this decision.
+     */
+    @Nullable
+    public abstract String getExplanation();
+
+    /**
      * Return the list of all decisions that make up this decision
      */
     public abstract List<Decision> getDecisions();
@@ -200,6 +206,7 @@ public abstract class Decision implements ToXContent, Writeable {
         /**
          * Returns the explanation string, fully formatted.  Only formats the string once.
          */
+        @Override
         @Nullable
         public String getExplanation() {
             if (explanationString == null && explanation != null) {
@@ -299,6 +306,12 @@ public abstract class Decision implements ToXContent, Writeable {
         public String label() {
             // Multi decisions have no labels
             return null;
+        }
+
+        @Override
+        @Nullable
+        public String getExplanation() {
+            throw new UnsupportedOperationException("multi-level decisions do not have an explanation");
         }
 
         @Override

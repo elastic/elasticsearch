@@ -188,7 +188,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                         (request, channel, context) -> {})) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
@@ -218,7 +219,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                     (request, channel, context) -> {})) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest;
             final boolean close = randomBoolean();
@@ -253,7 +255,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     private FullHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                         (request, channel, context) -> {})) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             if (originValue != null) {

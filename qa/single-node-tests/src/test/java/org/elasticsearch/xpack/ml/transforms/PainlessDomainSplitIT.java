@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.transforms;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -263,13 +263,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "shishi.xn--fiqs8s","shishi.xn--fiqs8s"));
     }
 
-    private void ensureGreen() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
-    }
-
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
@@ -286,7 +279,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        ensureGreen();
         client().performRequest("PUT", "painless/test/1", Collections.emptyMap(), new StringEntity("{\"test\": \"test\"}"));
         client().performRequest("POST", "painless/_refresh");
 

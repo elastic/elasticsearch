@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.job.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobStatus;
 
@@ -127,18 +127,9 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
-    @SuppressWarnings("deprecation")
     @Override
     public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            // So we have a stack trace logged somewhere
-            return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
+        return Strings.toString(this);
     }
 
     public static class Builder {

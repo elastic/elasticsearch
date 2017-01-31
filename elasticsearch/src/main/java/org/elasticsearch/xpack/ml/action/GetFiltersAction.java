@@ -41,8 +41,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
@@ -212,18 +212,9 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
             return Objects.equals(filters, other.filters);
         }
 
-        @SuppressWarnings("deprecation")
         @Override
         public final String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.prettyPrint();
-                toXContent(builder, EMPTY_PARAMS);
-                return builder.string();
-            } catch (Exception e) {
-                // So we have a stack trace logged somewhere
-                return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
-            }
+            return Strings.toString(this);
         }
     }
 

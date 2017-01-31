@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
@@ -509,18 +508,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     }
 
     // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
-    @SuppressWarnings("deprecation")
     @Override
     public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            // So we have a stack trace logged somewhere
-            return "{ \"error\" : \"" + org.elasticsearch.ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
+        return Strings.toString(this);
     }
 
     private static void checkValueNotLessThan(long minVal, String name, Long value) {

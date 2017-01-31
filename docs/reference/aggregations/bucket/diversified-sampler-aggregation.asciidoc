@@ -136,8 +136,8 @@ Response:
     ...
     "aggregations": {
         "my_unbiased_sample": {
-            "doc_count": 1000,<1>
-            "keywords": {<2>
+            "doc_count": 1000,
+            "keywords": {
                 "doc_count": 1000,
                 "buckets": [
                     {

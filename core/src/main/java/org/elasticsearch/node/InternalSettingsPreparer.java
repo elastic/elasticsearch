@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -44,8 +45,9 @@ import static org.elasticsearch.common.Strings.cleanPath;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
-    static final String PROPERTY_DEFAULTS_PREFIX = "default.";
-    static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
+    private static final String PROPERTY_DEFAULTS_PREFIX = "default.";
+    private static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
+    private static final UnaryOperator<String> STRIP_PROPERTY_DEFAULTS_PREFIX = key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length());
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
@@ -55,7 +57,7 @@ public class InternalSettingsPreparer {
      */
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, true, Collections.emptyMap());
+        initializeSettings(output, input, Collections.emptyMap());
         finalizeSettings(output, null);
         return output.build();
     }
@@ -86,9 +88,10 @@ public class InternalSettingsPreparer {
     public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, true, properties);
+        initializeSettings(output, input, properties);
         Environment environment = new Environment(output.build());
 
+        output = Settings.builder(); // start with a fresh output
         boolean settingsFileFound = false;
         Set<String> foundSuffixes = new HashSet<>();
         for (String allowedSuffix : ALLOWED_SUFFIXES) {
@@ -111,8 +114,7 @@ public class InternalSettingsPreparer {
         }
 
         // re-initialize settings now that the config file has been loaded
-        // TODO: only re-initialize if a config file was actually loaded
-        initializeSettings(output, input, false, properties);
+        initializeSettings(output, input, properties);
         finalizeSettings(output, terminal);
 
         environment = new Environment(output.build());
@@ -126,11 +128,11 @@ public class InternalSettingsPreparer {
      * Initializes the builder with the given input settings, and loads system properties settings if allowed.
      * If loadDefaults is true, system property default settings are loaded.
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults, Map<String, String> esSettings) {
+    private static void initializeSettings(Settings.Builder output, Settings input, Map<String, String> esSettings) {
         output.put(input);
-        if (loadDefaults) {
-            output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE, key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length()));
-        }
+        output.putProperties(esSettings,
+            PROPERTY_DEFAULTS_PREDICATE.and(key -> output.get(STRIP_PROPERTY_DEFAULTS_PREFIX.apply(key)) == null),
+            STRIP_PROPERTY_DEFAULTS_PREFIX);
         output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
         output.replacePropertyPlaceholders();
     }

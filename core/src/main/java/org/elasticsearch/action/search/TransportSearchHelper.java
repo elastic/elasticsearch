@@ -37,7 +37,7 @@ final class TransportSearchHelper {
     static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults);
-        } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
+        } else if (searchType == SearchType.QUERY_AND_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults);
         } else {
             throw new IllegalStateException("search_type [" + searchType + "] not supported");

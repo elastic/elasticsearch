@@ -262,8 +262,7 @@ public class QueryPhase implements SearchPhase {
                             }
                             switch (searchType) {
                             case QUERY_AND_FETCH:
-                            case DFS_QUERY_AND_FETCH:
-                                // for (DFS_)QUERY_AND_FETCH, we already know the last emitted doc
+                                // for QUERY_AND_FETCH, we already know the last emitted doc
                                 if (topDocs.scoreDocs.length > 0) {
                                     // set the last emitted doc
                                     scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];

@@ -49,6 +49,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -97,17 +98,19 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     /**
-     * creates a new recovery target object that represents a recovery to the provided indexShard
+     * Creates a new recovery target object that represents a recovery to the provided shard.
      *
-     * @param indexShard local shard where we want to recover to
-     * @param sourceNode source node of the recovery where we recover from
-     * @param listener called when recovery is completed / failed
+     * @param indexShard                        local shard where we want to recover to
+     * @param sourceNode                        source node of the recovery where we recover from
+     * @param listener                          called when recovery is completed/failed
      * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
-     *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
-     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
+     *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
+     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveryTarget(final IndexShard indexShard,
+                   final DiscoveryNode sourceNode,
+                   final PeerRecoveryTargetService.RecoveryListener listener,
+                   final Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -125,10 +128,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     /**
-     * returns a fresh RecoveryTarget to retry recovery from the same source node onto the same IndexShard and using the same listener
+     * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener.
+     *
+     * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(this.indexShard, this.sourceNode, this.listener, this.ensureClusterStateVersionCallback);
+        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
     }
 
     public long recoveryId() {
@@ -152,7 +157,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return indexShard.recoveryState();
     }
 
-    public CancellableThreads CancellableThreads() {
+    public CancellableThreads cancellableThreads() {
         return cancellableThreads;
     }
 
@@ -220,7 +225,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
      * <p>
-     * if {@link #CancellableThreads()} was used, the threads will be interrupted.
+     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
      */
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {

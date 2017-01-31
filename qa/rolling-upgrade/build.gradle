@@ -29,6 +29,7 @@ task oldClusterTest(type: RestIntegTestTask) {
     numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'logger.org.elasticsearch.action.search', 'TRACE'
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
@@ -41,6 +42,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
     dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting'logger.org.elasticsearch.action.search', 'TRACE'
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
@@ -54,6 +56,7 @@ task upgradedClusterTest(type: RestIntegTestTask) {
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
     dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'logger.org.elasticsearch.action.search', 'TRACE'
   }
   systemProperty 'tests.rest.suite', 'upgraded_cluster'

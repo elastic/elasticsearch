@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
@@ -111,7 +112,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         private <T extends MetaData.Custom> void registerMetaDataCustom(String name, Writeable.Reader<T> reader,
                                                                         Writeable.Reader<NamedDiff> diffReader,
-                                                                        NamedXContentRegistry.FromXContent<T> parser) {
+                                                                        CheckedFunction<XContentParser, T, IOException> parser) {
             namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
             namedXContents.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(name), parser));

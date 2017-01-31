@@ -20,9 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ReindexAction extends Action<ReindexRequest, BulkIndexByScrollResponse, ReindexRequestBuilder> {
+public class ReindexAction extends Action<ReindexRequest, BulkByScrollResponse, ReindexRequestBuilder> {
     public static final ReindexAction INSTANCE = new ReindexAction();
     public static final String NAME = "indices:data/write/reindex";
 
@@ -36,7 +37,7 @@ public class ReindexAction extends Action<ReindexRequest, BulkIndexByScrollRespo
     }
 
     @Override
-    public BulkIndexByScrollResponse newResponse() {
-        return new BulkIndexByScrollResponse();
+    public BulkByScrollResponse newResponse() {
+        return new BulkByScrollResponse();
     }
 }

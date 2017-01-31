@@ -27,8 +27,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,11 +56,17 @@ import org.hamcrest.Matcher;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -517,6 +525,134 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     /**
+     * Test that some values like arrays of numbers are ignored when parsing back
+     * an exception.
+     */
+    public void testFromXContentWithIgnoredMetadataAndHeaders() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        // The exception content to parse is built using a XContentBuilder
+        // because the current Java API does not allow to add metadata/headers
+        // of other types than list of strings.
+        BytesReference originalBytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+            builder.startObject();
+            builder.field("metadata_int", 1);
+            builder.array("metadata_array_of_ints", new int[]{8, 13, 21});
+            builder.field("reason", "Custom reason");
+            builder.array("metadata_array_of_boolean", new boolean[]{false, false});
+            builder.field("type", "custom_exception");
+            builder.field("metadata_long", 1L);
+            builder.array("metadata_array_of_longs", new long[]{2L, 3L, 5L});
+            builder.field("metadata_other", "some metadata");
+            builder.startObject("header");
+            builder.field("header_string", "some header");
+            builder.array("header_array_of_strings", new String[]{"foo", "bar", "baz"});
+            builder.endObject();
+            builder.endObject();
+
+            originalBytes = builder.bytes();
+        }
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsedException);
+        assertEquals("Elasticsearch exception [type=custom_exception, reason=Custom reason]", parsedException.getMessage());
+        assertEquals(2, parsedException.getHeaderKeys().size());
+        assertThat(parsedException.getHeader("header_string"), hasItem("some header"));
+        assertThat(parsedException.getHeader("header_array_of_strings"), hasItems("foo", "bar", "baz"));
+        assertEquals(1, parsedException.getMetadataKeys().size());
+        assertThat(parsedException.getMetadata("es.metadata_other"), hasItem("some metadata"));
+    }
+
+    public void testThrowableToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final Throwable throwable = exceptions.v1();
+
+        BytesReference throwableBytes = XContentHelper.toXContent((builder, params) -> {
+            ElasticsearchException.generateThrowableXContent(builder, params, throwable);
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedException;
+        try (XContentParser parser = createParser(xContent, throwableBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedException = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertDeepEquals(exceptions.v2(), parsedException);
+    }
+
+    public void testUnknownFailureToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+            // Prints a null failure using generateFailureXContent()
+            ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean());
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        // Failure was null, expecting a "unknown" reason
+        assertEquals("Elasticsearch exception [type=exception, reason=unknown]", parsedFailure.getMessage());
+        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getMetadata().size());
+    }
+
+    public void testFailureToAndFromXContent() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final boolean detailed = randomBoolean();
+
+        Exception failure = (Exception) exceptions.v1();
+        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+            ElasticsearchException.generateFailureXContent(builder, params, failure, detailed);
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertNotNull(parsedFailure);
+
+        ElasticsearchException expected = exceptions.v2();
+        if (detailed) {
+            assertDeepEquals(expected, parsedFailure);
+        } else {
+            String reason;
+            if (failure instanceof ElasticsearchException) {
+                reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
+            } else {
+                reason = "No ElasticsearchException found";
+            }
+            assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
+            assertEquals(0, parsedFailure.getHeaders().size());
+            assertEquals(0, parsedFailure.getMetadata().size());
+            assertNull(parsedFailure.getCause());
+        }
+    }
+
+    /**
      * Builds a {@link ToXContent} using a JSON XContentBuilder and check the resulting string with the given {@link Matcher}.
      *
      * By default, the stack trace of the exception is not rendered. The parameter `errorTrace` forces the stack trace to
@@ -532,5 +668,143 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
+    }
+
+    private static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
+        if (expected == null) {
+            assertNull(actual);
+        } else {
+            assertNotNull(actual);
+        }
+
+        do {
+            assertEquals(expected.getMessage(), actual.getMessage());
+            assertEquals(expected.getHeaders(), actual.getHeaders());
+            assertEquals(expected.getMetadata(), actual.getMetadata());
+            assertEquals(expected.getResourceType(), actual.getResourceType());
+            assertEquals(expected.getResourceId(), actual.getResourceId());
+
+            expected = (ElasticsearchException) expected.getCause();
+            actual = (ElasticsearchException) actual.getCause();
+            if (expected == null) {
+                assertNull(actual);
+            }
+        } while (expected != null);
+    }
+
+    private static Tuple<Throwable, ElasticsearchException> randomExceptions() {
+        Throwable actual;
+        ElasticsearchException expected;
+
+        int type = randomIntBetween(0, 5);
+        switch (type) {
+            case 0:
+                actual = new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+                expected = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                        "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
+                break;
+            case 1:
+                actual = new CircuitBreakingException("Data too large", 123, 456);
+                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=Data too large]");
+                break;
+            case 2:
+                actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
+                break;
+            case 3:
+                actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
+                expected = new ElasticsearchException("Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
+                                new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                break;
+            case 4:
+                actual = new SearchPhaseExecutionException("search", "all shards failed",
+                            new ShardSearchFailure[]{
+                                    new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                                            new SearchShardTarget("node_1", new Index("foo", "_na_"), 1))
+                            });
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                        "reason=all shards failed]");
+                expected.addMetadata("es.phase", "search");
+                break;
+            case 5:
+                actual = new ElasticsearchException("Parsing failed",
+                            new ParsingException(9, 42, "Wrong state",
+                                new NullPointerException("Unexpected null value")));
+
+                ElasticsearchException expectedCause = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, " +
+                        "reason=Wrong state]", new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " +
+                        "reason=Unexpected null value]"));
+                expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
+                break;
+            default:
+                throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
+        }
+
+        if (actual instanceof ElasticsearchException) {
+            ElasticsearchException actualException = (ElasticsearchException) actual;
+            if (randomBoolean()) {
+                int nbHeaders = randomIntBetween(1, 5);
+                Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);
+
+                for (int i = 0; i < nbHeaders; i++) {
+                    List<String> values = new ArrayList<>();
+
+                    int nbValues = randomIntBetween(1, 3);
+                    for (int j = 0; j < nbValues; j++) {
+                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                    }
+                    randomHeaders.put("header_" + i, values);
+                }
+
+                for (Map.Entry<String, List<String>> entry : randomHeaders.entrySet()) {
+                    actualException.addHeader(entry.getKey(), entry.getValue());
+                    expected.addHeader(entry.getKey(), entry.getValue());
+                }
+
+                if (rarely()) {
+                    // Empty or null headers are not printed out by the toXContent method
+                    actualException.addHeader("ignored", randomBoolean() ? emptyList() : null);
+                }
+            }
+
+            if (randomBoolean()) {
+                int nbMetadata = randomIntBetween(1, 5);
+                Map<String, List<String>> randomMetadata = new HashMap<>(nbMetadata);
+
+                for (int i = 0; i < nbMetadata; i++) {
+                    List<String> values = new ArrayList<>();
+
+                    int nbValues = randomIntBetween(1, 3);
+                    for (int j = 0; j < nbValues; j++) {
+                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                    }
+                    randomMetadata.put("es.metadata_" + i, values);
+                }
+
+                for (Map.Entry<String, List<String>> entry : randomMetadata.entrySet()) {
+                    actualException.addMetadata(entry.getKey(), entry.getValue());
+                    expected.addMetadata(entry.getKey(), entry.getValue());
+                }
+
+                if (rarely()) {
+                    // Empty or null metadata are not printed out by the toXContent method
+                    actualException.addMetadata("es.ignored", randomBoolean() ? emptyList() : null);
+                }
+            }
+
+            if (randomBoolean()) {
+                int nbResources = randomIntBetween(1, 5);
+                for (int i = 0; i < nbResources; i++) {
+                    String resourceType = "type_" + i;
+                    String[] resourceIds = new String[randomIntBetween(1, 3)];
+                    for (int j = 0; j < resourceIds.length; j++) {
+                        resourceIds[j] = frequently() ? randomAsciiOfLength(5) : "";
+                    }
+                    actualException.setResources(resourceType, resourceIds);
+                    expected.setResources(resourceType, resourceIds);
+                }
+            }
+        }
+        return new Tuple<>(actual, expected);
     }
 }

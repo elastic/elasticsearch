@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 public class InternalSearchHitField implements SearchHitField {
 
@@ -108,5 +109,20 @@ public class InternalSearchHitField implements SearchHitField {
         for (Object value : values) {
             out.writeGenericValue(value);
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalSearchHitField other = (InternalSearchHitField) obj;
+        return Objects.equals(name, other.name)
+                && Objects.equals(values, other.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, values);
     }
 }

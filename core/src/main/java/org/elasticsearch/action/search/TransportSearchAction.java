@@ -191,7 +191,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // disable request cache if we have only suggest
             searchRequest.requestCache(false);
             switch (searchRequest.searchType()) {
-                case DFS_QUERY_AND_FETCH:
                 case DFS_QUERY_THEN_FETCH:
                     // convert to Q_T_F if we have only suggest
                     searchRequest.searchType(QUERY_THEN_FETCH);
@@ -267,11 +266,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion, task);
-                break;
-            case DFS_QUERY_AND_FETCH:
-                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;

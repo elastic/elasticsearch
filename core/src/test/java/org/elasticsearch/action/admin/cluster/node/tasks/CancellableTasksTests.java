@@ -51,6 +51,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -295,6 +296,54 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         assertBusy(() -> {
             for (int i = 0; i < testNodes.length; i++) {
                 assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+            }
+        });
+    }
+
+    public void testChildTasksCancellation() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
+        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
+        Task mainTask = startCancellableTestNodesAction(true, nodesCount, new ActionListener<NodesResponse>() {
+            @Override
+            public void onResponse(NodesResponse listTasksResponse) {
+                responseReference.set(listTasksResponse);
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableReference.set(e);
+                responseLatch.countDown();
+            }
+        });
+
+        // Cancel all child tasks without cancelling the main task, which should quit on its own
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setReason("Testing Cancellation");
+        request.setParentTaskId(new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()));
+        // And send the cancellation request to a random node
+        CancelTasksResponse response = testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction.execute(request)
+            .get();
+
+        // Awaiting for the main task to finish
+        responseLatch.await();
+
+        // Should have cancelled tasks on all nodes
+        assertThat(response.getTasks().size(), equalTo(testNodes.length));
+
+        assertBusy(() -> {
+            try {
+            // Make sure that main task is no longer running
+                ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
+                    .transportListTasksAction.execute(new ListTasksRequest().setTaskId(
+                        new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()))).get();
+                assertEquals(0, listTasksResponse.getTasks().size());
+
+            } catch (ExecutionException | InterruptedException ex) {
+                throw new RuntimeException(ex);
             }
         });
     }

@@ -94,6 +94,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         SearchContext searchContext = mock(SearchContext.class);
+        when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.bigArrays()).thenReturn(new MockBigArrays(Settings.EMPTY, circuitBreakerService));
         when(searchContext.fetchPhase())
@@ -163,13 +164,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, true);
-        try (C root = createAggregator(builder, searcher, fieldTypes)) {
+        C root = createAggregator(builder, searcher, fieldTypes);
+        try {
             for (ShardSearcher subSearcher : subSearchers) {
-                try (C a = createAggregator(builder, subSearcher, fieldTypes)) {
+                C a = createAggregator(builder, subSearcher, fieldTypes);
+                try {
                     a.preCollection();
                     subSearcher.search(weight, a);
                     a.postCollection();
                     aggs.add(a.buildAggregation(0L));
+                } finally {
+                    closeAgg(a);
                 }
             }
             if (aggs.isEmpty()) {
@@ -179,6 +184,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
                 return internalAgg;
             }
+        } finally {
+            closeAgg(root);
+        }
+    }
+
+    private void closeAgg(Aggregator agg) {
+        agg.close();
+        for (Aggregator sub : ((AggregatorBase) agg).subAggregators) {
+            closeAgg(sub);
         }
     }
 

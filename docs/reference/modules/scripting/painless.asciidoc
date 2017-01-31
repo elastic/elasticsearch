@@ -10,8 +10,9 @@ default.
 
 The Painless syntax is similar to http://groovy-lang.org/index.html[Groovy].
 
-You can use Painless anywhere a script can be used in Elasticsearch--simply set the `lang` parameter
-to `painless`.
+You can use Painless anywhere a script can be used in Elasticsearch. It is the
+default if you don't set the `lang` parameter but if you want to be explicit you
+can set the `lang` parameter to `painless`.
 
 [[painless-features]]
 [float]
@@ -19,7 +20,8 @@ to `painless`.
 
 * Fast performance: https://benchmarks.elastic.co/index.html#search_qps_scripts[several times faster] than the alternatives.
 
-* Safety: Fine-grained <<painless-api, whitelist>> with method call/field granularity.
+* Safety: Fine-grained whitelist with method call/field granularity. See
+<<painless-api-reference>> for a complete list of available classes and methods.
 
 * Optional typing: Variables and parameters can use explicit types or the dynamic `def` type.
 
@@ -320,28 +322,3 @@ Note: all of the `_update_by_query` examples above could really do with a
 <<query-dsl-script-query>> it wouldn't be as efficient as using any other query
 because script queries aren't able to use the inverted index to limit the
 documents that they have to check.
-
-[float]
-[[painless-api]]
-== Painless API
-
-The following Java packages are available for use in the Painless language:
-
-* https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[java.lang]
-* https://docs.oracle.com/javase/8/docs/api/java/math/package-summary.html[java.math]
-* https://docs.oracle.com/javase/8/docs/api/java/text/package-summary.html[java.text]
-* https://docs.oracle.com/javase/8/docs/api/java/time/package-summary.html[java.time]
-* https://docs.oracle.com/javase/8/docs/api/java/time/chrono/package-summary.html[java.time.chrono]
-* https://docs.oracle.com/javase/8/docs/api/java/time/format/package-summary.html[java.time.format]
-* https://docs.oracle.com/javase/8/docs/api/java/time/temporal/package-summary.html[java.time.temporal]
-* https://docs.oracle.com/javase/8/docs/api/java/time/zone/package-summary.html[java.time.zone]
-* https://docs.oracle.com/javase/8/docs/api/java/util/package-summary.html[java.util]
-* https://docs.oracle.com/javase/8/docs/api/java/util/function/package-summary.html[java.util.function]
-* https://docs.oracle.com/javase/8/docs/api/java/util/regex/package-summary.html[java.util.regex]
-* https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html[java.util.stream]
-
-Note that unsafe classes and methods are not included, there is no support for:
-
-* Manipulation of processes and threads
-* Input/Output
-* Reflection

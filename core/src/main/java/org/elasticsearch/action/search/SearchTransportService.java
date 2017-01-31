@@ -71,7 +71,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query+fetch]";
-    public static final String QUERY_QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query/query+fetch]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
@@ -139,12 +138,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     public void sendExecuteFetch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final ActionListener<QueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
-    }
-
-    public void sendExecuteFetch(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
-                                 final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(connection, QUERY_QUERY_FETCH_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
     }
 
@@ -350,16 +343,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
-
-        transportService.registerRequestHandler(QUERY_QUERY_FETCH_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
-            new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
-                @Override
-                public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    QueryFetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
-                }
-            });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {

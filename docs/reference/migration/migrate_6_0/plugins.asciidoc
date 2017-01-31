@@ -20,3 +20,8 @@ to securely store the credentials.
 region inside the repository settings. Instead, specify the full endpoint if a custom
 s3 location is needed, or rely on the default behavior which automatically locates
 the region of the configured bucket.
+
+==== Azure Repository plugin
+
+* The container an azure repository is configured with will no longer be created automatically.
+It must exist before the azure repository is created.

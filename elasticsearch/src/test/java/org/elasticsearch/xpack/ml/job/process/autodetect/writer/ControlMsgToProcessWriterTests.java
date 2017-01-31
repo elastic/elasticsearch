@@ -129,7 +129,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
         writer.writeResetBucketsMessage(
-                new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), false, Optional.empty()));
+                new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);

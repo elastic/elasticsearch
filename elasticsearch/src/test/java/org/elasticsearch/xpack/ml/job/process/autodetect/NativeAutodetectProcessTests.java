@@ -106,7 +106,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 bos, Mockito.mock(InputStream.class), Mockito.mock(InputStream.class),
                 NUMBER_ANALYSIS_FIELDS, Collections.emptyList(), EsExecutors.newDirectExecutorService())) {
 
-            DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), true, Optional.empty());
+            DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), Optional.empty());
             process.writeResetBucketsControlMessage(params);
             process.flushStream();
 

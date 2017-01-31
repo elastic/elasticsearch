@@ -174,7 +174,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
         assertEquals(0, manager.numberOfOpenJobs());
 
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().build(), false, Optional.empty());
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().build(), Optional.empty());
         manager.openJob("foo", false, e -> {});
         manager.processData("foo", createInputStream(""), params);
         assertEquals(1, manager.numberOfOpenJobs());
@@ -212,7 +212,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManager(communicator);
 
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), true, Optional.empty());
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1000").endTime("2000").build(), Optional.empty());
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", false, e -> {});
         manager.processData("foo", inputStream, params);

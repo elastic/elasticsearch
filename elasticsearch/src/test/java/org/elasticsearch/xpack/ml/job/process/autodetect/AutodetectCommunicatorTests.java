@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 public class AutodetectCommunicatorTests extends ESTestCase {
 
     public void testWriteResetBucketsControlMessage() throws IOException {
-        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), false, Optional.empty());
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), Optional.empty());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
             communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params);
@@ -148,7 +148,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                 () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
 
         communicator.inUse.set(null);
-        communicator.writeToJob(in, new DataLoadParams(TimeRange.builder().build(), false, Optional.empty()));
+        communicator.writeToJob(in, new DataLoadParams(TimeRange.builder().build(), Optional.empty()));
     }
 
     public void testFlushInUse() throws IOException {

@@ -130,11 +130,9 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
     public static class Request extends TransportJobTaskAction.JobTaskRequest<Request> {
 
-        public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
         public static final ParseField RESET_START = new ParseField("reset_start");
         public static final ParseField RESET_END = new ParseField("reset_end");
 
-        private boolean ignoreDowntime = false;
         private String resetStart = "";
         private String resetEnd = "";
         private DataDescription dataDescription;
@@ -149,14 +147,6 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
         public String getJobId() {
             return jobId;
-        }
-
-        public boolean isIgnoreDowntime() {
-            return ignoreDowntime;
-        }
-
-        public void setIgnoreDowntime(boolean ignoreDowntime) {
-            this.ignoreDowntime = ignoreDowntime;
         }
 
         public String getResetStart() {
@@ -192,7 +182,6 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            ignoreDowntime = in.readBoolean();
             resetStart = in.readOptionalString();
             resetEnd = in.readOptionalString();
             dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -202,7 +191,6 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(ignoreDowntime);
             out.writeOptionalString(resetStart);
             out.writeOptionalString(resetEnd);
             out.writeOptionalWriteable(dataDescription);
@@ -212,7 +200,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         @Override
         public int hashCode() {
             // content stream not included
-            return Objects.hash(jobId, ignoreDowntime, resetStart, resetEnd, dataDescription);
+            return Objects.hash(jobId, resetStart, resetEnd, dataDescription);
         }
 
         @Override
@@ -227,7 +215,6 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
             // content stream not included
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
                     Objects.equals(resetStart, other.resetStart) &&
                     Objects.equals(resetEnd, other.resetEnd) &&
                     Objects.equals(dataDescription, other.dataDescription);
@@ -255,8 +242,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         @Override
         protected void taskOperation(Request request, InternalOpenJobAction.JobTask task, ActionListener<Response> listener) {
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
-            DataLoadParams params = new DataLoadParams(timeRange, request.isIgnoreDowntime(),
-                    Optional.ofNullable(request.getDataDescription()));
+            DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
                     DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);

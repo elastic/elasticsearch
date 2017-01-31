@@ -11,7 +11,6 @@ public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostD
     @Override
     protected PostDataAction.Request createTestInstance() {
         PostDataAction.Request request = new PostDataAction.Request(randomAsciiOfLengthBetween(1, 20));
-        request.setIgnoreDowntime(randomBoolean());
         if (randomBoolean()) {
             request.setResetStart(randomAsciiOfLengthBetween(1, 20));
         }

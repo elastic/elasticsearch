@@ -12,12 +12,10 @@ import java.util.Optional;
 
 public class DataLoadParams {
     private final TimeRange resetTimeRange;
-    private final boolean ignoreDowntime;
     private final Optional<DataDescription> dataDescription;
 
-    public DataLoadParams(TimeRange resetTimeRange, boolean ignoreDowntime, Optional<DataDescription> dataDescription) {
+    public DataLoadParams(TimeRange resetTimeRange, Optional<DataDescription> dataDescription) {
         this.resetTimeRange = Objects.requireNonNull(resetTimeRange);
-        this.ignoreDowntime = ignoreDowntime;
         this.dataDescription = Objects.requireNonNull(dataDescription);
     }
 
@@ -31,10 +29,6 @@ public class DataLoadParams {
 
     public String getEnd() {
         return resetTimeRange.getEnd();
-    }
-
-    public boolean isIgnoreDowntime() {
-        return ignoreDowntime;
     }
 
     public Optional<DataDescription> getDataDescription() {

@@ -139,8 +139,8 @@ public class BytesRestResponse extends RestResponse {
         }
 
         XContentBuilder builder = channel.newErrorBuilder().startObject();
-        builder.field(STATUS, status.getStatus());
         ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
+        builder.field(STATUS, status.getStatus());
         builder.endObject();
         return builder;
     }
@@ -151,12 +151,8 @@ public class BytesRestResponse extends RestResponse {
 
         ElasticsearchException exception = null;
 
-        String currentFieldName = parser.currentName();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            }
-            if (STATUS.equals(currentFieldName) == false) {
+            if ((token == XContentParser.Token.FIELD_NAME) && (STATUS.equals(parser.currentName()) == false)) {
                 exception = ElasticsearchException.failureFromXContent(parser);
             }
         }

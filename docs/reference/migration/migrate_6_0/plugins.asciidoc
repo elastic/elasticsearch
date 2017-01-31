@@ -8,6 +8,20 @@ You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.
 
 ==== S3 Repository plugin
 
+* The bucket an s3 repository is configured with will no longer be created automatically.
+It must exist before the s3 repository is created.
+
 * Support for specifying s3 credentials through environment variables and
 system properties has been removed. Use the `elasticsearch-keystore` tool
 to securely store the credentials.
+
+* Specifying region has been removed. This includes the settings `cloud.aws.region`,
+`cloud.aws.s3.region`, `repositories.s3.region`, and specifying
+region inside the repository settings. Instead, specify the full endpoint if a custom
+s3 location is needed, or rely on the default behavior which automatically locates
+the region of the configured bucket.
+
+==== Azure Repository plugin
+
+* The container an azure repository is configured with will no longer be created automatically.
+It must exist before the azure repository is created.

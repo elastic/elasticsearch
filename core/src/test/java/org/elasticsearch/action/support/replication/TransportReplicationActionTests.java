@@ -1112,7 +1112,8 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void execute() throws Exception {
-            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<>(null, new Response()));
+            // Eclipse can't infer the types below so we have to list them explicitly
+            this.resultListener.onResponse(new TransportReplicationAction.PrimaryResult<Request, Response>(null, new Response()));
         }
     }
 

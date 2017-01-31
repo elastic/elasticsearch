@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
@@ -270,13 +269,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     }
 
     private boolean hasNodeWithStaleOrCorruptShard() {
-        if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
-            return getNodeDecisions().stream().anyMatch(result ->
+        return getNodeDecisions() != null && getNodeDecisions().stream().anyMatch(result ->
                 result.getShardStoreInfo() != null
                     && (result.getShardStoreInfo().getAllocationId() != null
                             || result.getShardStoreInfo().getStoreException() != null));
-        }
-        return false;
     }
 
     @Override

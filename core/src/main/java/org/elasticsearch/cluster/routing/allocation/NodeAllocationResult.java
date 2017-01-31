@@ -80,7 +80,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
-        if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
             canAllocateDecision = Decision.readFrom(in);
         } else {
             canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
@@ -93,7 +93,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
-        if (out.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
             if (canAllocateDecision == null) {
                 Decision.NO.writeTo(out);
             } else {

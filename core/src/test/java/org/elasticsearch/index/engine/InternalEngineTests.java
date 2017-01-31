@@ -34,7 +34,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
@@ -128,7 +127,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.OldIndexUtils;
-import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -137,7 +135,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
@@ -151,7 +148,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -331,8 +327,9 @@ public class InternalEngineTests extends ESTestCase {
         return createEngine(indexSettings, store, translogPath, mergePolicy, null);
 
     }
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy, Supplier<IndexWriter> indexWriterSupplier) throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterSupplier, null);
+    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                                          @Nullable IndexWriterFactory indexWriterFactory) throws IOException {
+        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, null);
     }
 
     protected InternalEngine createEngine(
@@ -340,24 +337,38 @@ public class InternalEngineTests extends ESTestCase {
         Store store,
         Path translogPath,
         MergePolicy mergePolicy,
-        Supplier<IndexWriter> indexWriterSupplier,
-        Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
+        @Nullable IndexWriterFactory indexWriterFactory,
+        @Nullable Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
         EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
-        InternalEngine internalEngine = new InternalEngine(config) {
-            @Override
-            IndexWriter createWriter(boolean create) throws IOException {
-                return (indexWriterSupplier != null) ? indexWriterSupplier.get() : super.createWriter(create);
-            }
-
-            @Override
-            public SequenceNumbersService seqNoService() {
-                return (sequenceNumbersServiceSupplier != null) ? sequenceNumbersServiceSupplier.get() : super.seqNoService();
-            }
-        };
+        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, sequenceNumbersServiceSupplier, config);
         if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             internalEngine.recoverFromTranslog();
         }
         return internalEngine;
+    }
+
+    @FunctionalInterface
+    public interface IndexWriterFactory {
+
+        IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException;
+    }
+
+    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory,
+                                                      @Nullable final Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier,
+                                                      final EngineConfig config) {
+        return new InternalEngine(config) {
+                @Override
+                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                    return (indexWriterFactory != null) ?
+                        indexWriterFactory.createWriter(directory, iwc) :
+                        super.createWriter(directory, iwc);
+                }
+
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return (sequenceNumbersServiceSupplier != null) ? sequenceNumbersServiceSupplier.get() : super.seqNoService();
+                }
+            };
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
@@ -2587,18 +2598,23 @@ public class InternalEngineTests extends ESTestCase {
             final ParsedDocument doc2 = testParsedDocument("2", "test", null, testDocumentWithTextField(), B_1, null);
             final ParsedDocument doc3 = testParsedDocument("3", "test", null, testDocumentWithTextField(), B_1, null);
 
-            ThrowingIndexWriter throwingIndexWriter = new ThrowingIndexWriter(store.directory(), new IndexWriterConfig());
-            try (Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, () -> throwingIndexWriter)) {
+            AtomicReference<ThrowingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            try (Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
+                (directory, iwc) -> {
+                  throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
+                  return throwingIndexWriter.get();
+                })
+            ) {
                 // test document failure while indexing
                 if (randomBoolean()) {
-                    throwingIndexWriter.setThrowFailure(() -> new IOException("simulated"));
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
                 } else {
-                    throwingIndexWriter.setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
                 }
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
 
-                throwingIndexWriter.clearFailure();
+                throwingIndexWriter.get().clearFailure();
                 indexResult = engine.index(indexForDoc(doc1));
                 assertNull(indexResult.getFailure());
                 engine.index(indexForDoc(doc2));
@@ -2606,17 +2622,17 @@ public class InternalEngineTests extends ESTestCase {
                 // test failure while deleting
                 // all these simulated exceptions are not fatal to the IW so we treat them as document failures
                 if (randomBoolean()) {
-                    throwingIndexWriter.setThrowFailure(() -> new IOException("simulated"));
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
                     expectThrows(IOException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
                 } else {
-                    throwingIndexWriter.setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
                     expectThrows(IllegalArgumentException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
                 }
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {
                     // simulate close by corruption
-                    throwingIndexWriter.setThrowFailure(null);
+                    throwingIndexWriter.get().setThrowFailure(null);
                     UncheckedIOException uncheckedIOException = expectThrows(UncheckedIOException.class, () -> {
                         Engine.Index index = indexForDoc(doc3);
                         index.parsedDoc().rootDoc().add(new StoredField("foo", "bar") {

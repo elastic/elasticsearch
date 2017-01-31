@@ -31,6 +31,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * unusual scores.
  * <p>
  * Renormalized results must already have an ID.
+ * <p>
+ * This class is NOT thread safe.
  */
 public class JobRenormalizedResultsPersister extends AbstractComponent {
 

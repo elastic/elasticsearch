@@ -73,7 +73,6 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final StateProcessor stateProcessor;
     private final JobResultsPersister jobResultsPersister;
-    private final JobRenormalizedResultsPersister jobRenormalizedResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
@@ -82,7 +81,6 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
                                     JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                                    JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory) {
         super(settings);
@@ -96,7 +94,6 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobProvider = jobProvider;
 
         this.jobResultsPersister = jobResultsPersister;
-        this.jobRenormalizedResultsPersister = jobRenormalizedResultsPersister;
         this.stateProcessor = new StateProcessor(settings, jobResultsPersister);
         this.jobDataCountsPersister = jobDataCountsPersister;
 
@@ -233,7 +230,8 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job.getId(), fetchDataCounts(jobId),
                 jobDataCountsPersister)) {
-            ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
+            ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
+                    normalizerFactory);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
                     threadPool.executor(MlPlugin.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
             AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormalizer, jobResultsPersister, parser);

@@ -203,7 +203,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         }
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0);
-        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings, client);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
@@ -229,8 +228,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 threadPool.executor(MlPlugin.THREAD_POOL_NAME));
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings);
         AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
-                autodetectProcessFactory, normalizerFactory);
+                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
         PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, clusterService, client);

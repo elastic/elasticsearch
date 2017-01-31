@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -76,7 +75,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobManager jobManager;
     private JobProvider jobProvider;
     private JobResultsPersister jobResultsPersister;
-    private JobRenormalizedResultsPersister jobRenormalizedResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
     private NormalizerFactory normalizerFactory;
 
@@ -85,7 +83,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobManager = mock(JobManager.class);
         jobProvider = mock(JobProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        jobRenormalizedResultsPersister = mock(JobRenormalizedResultsPersister.class);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
         givenAllocationWithStatus(JobStatus.OPENED);
@@ -143,8 +140,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory));
+                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory));
 
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
@@ -300,8 +296,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory));
+                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory));
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
         Set<MlFilter> filters = new HashSet<>();
@@ -331,8 +326,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory);
+                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory);
         manager = spy(manager);
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");

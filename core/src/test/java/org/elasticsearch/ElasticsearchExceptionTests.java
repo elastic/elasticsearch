@@ -672,14 +672,14 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, expectedJson);
     }
 
-    private static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
-        if (expected == null) {
-            assertNull(actual);
-        } else {
-            assertNotNull(actual);
-        }
-
+    public static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
         do {
+            if (expected == null) {
+                assertNull(actual);
+            } else {
+                assertNotNull(actual);
+            }
+
             assertEquals(expected.getMessage(), actual.getMessage());
             assertEquals(expected.getHeaders(), actual.getHeaders());
             assertEquals(expected.getMetadata(), actual.getMetadata());

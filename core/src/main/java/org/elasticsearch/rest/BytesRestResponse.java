@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -145,17 +146,25 @@ public class BytesRestResponse extends RestResponse {
         return builder;
     }
 
-    public static ElasticsearchException errorFromXContent(XContentParser parser) throws IOException {
+    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
         ElasticsearchException exception = null;
+        RestStatus status = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if ((token == XContentParser.Token.FIELD_NAME) && (STATUS.equals(parser.currentName()) == false)) {
+            if (STATUS.equals(parser.currentName()) == false) {
                 exception = ElasticsearchException.failureFromXContent(parser);
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                status = RestStatus.fromCode(parser.intValue());
             }
         }
-        return exception;
+
+        if (exception == null) {
+            throw new IllegalArgumentException("Unable to parse elasticsearch status exception");
+        }
+
+        return new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
     }
 }

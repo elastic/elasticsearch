@@ -226,11 +226,13 @@ public class BytesRestResponseTests extends ESTestCase {
         String reason;
         String type = "exception";
         RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
+        boolean addHeadersOrMetadata = false;
 
         switch (randomIntBetween(0, 5)) {
             case 0:
                 original = new ElasticsearchException("ElasticsearchException without cause");
                 if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
                     reason = "ElasticsearchException without cause";
                 } else {
                     reason = "ElasticsearchException[ElasticsearchException without cause]";
@@ -239,6 +241,7 @@ public class BytesRestResponseTests extends ESTestCase {
             case 1:
                 original = new ElasticsearchException("ElasticsearchException with a cause", new FileNotFoundException("missing"));
                 if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
                     type = "exception";
                     reason = "ElasticsearchException with a cause";
                     cause = new ElasticsearchException("Elasticsearch exception [type=file_not_found_exception, reason=missing]");
@@ -250,6 +253,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 original = new ResourceNotFoundException("ElasticsearchException with custom status");
                 status = RestStatus.NOT_FOUND;
                 if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
                     type = "resource_not_found_exception";
                     reason = "ElasticsearchException with custom status";
                 } else {
@@ -283,6 +287,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 status = randomFrom(RestStatus.values());
                 original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
                 if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
                     type = "status_exception";
                     reason = "ElasticsearchStatusException with random status";
                 } else {
@@ -295,6 +300,28 @@ public class BytesRestResponseTests extends ESTestCase {
 
         String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";
         ElasticsearchStatusException expected = new ElasticsearchStatusException(message, status, cause);
+
+        if (addHeadersOrMetadata) {
+            ElasticsearchException originalException = ((ElasticsearchException) original);
+            if (randomBoolean()) {
+                originalException.addHeader("foo", "bar", "baz");
+                expected.addHeader("foo", "bar", "baz");
+            }
+            if (randomBoolean()) {
+                originalException.addMetadata("es.metadata_0", "0");
+                expected.addMetadata("es.metadata_0", "0");
+            }
+            if (randomBoolean()) {
+                String resourceType = randomAsciiOfLength(5);
+                String resourceId = randomAsciiOfLength(5);
+                originalException.setResources(resourceType, resourceId);
+                expected.setResources(resourceType, resourceId);
+            }
+            if (randomBoolean()) {
+                originalException.setIndex("_index");
+                expected.setIndex("_index");
+            }
+        }
 
         final XContentType xContentType = randomFrom(XContentType.values());
 

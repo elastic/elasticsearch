@@ -153,18 +153,31 @@ public class BytesRestResponse extends RestResponse {
         ElasticsearchException exception = null;
         RestStatus status = null;
 
+        String currentFieldName = parser.currentName();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (STATUS.equals(parser.currentName()) == false) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+            if (STATUS.equals(currentFieldName)) {
+                if (token.isValue()) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
                 exception = ElasticsearchException.failureFromXContent(parser);
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                status = RestStatus.fromCode(parser.intValue());
             }
         }
 
         if (exception == null) {
-            throw new IllegalArgumentException("Unable to parse elasticsearch status exception");
+            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
         }
 
-        return new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        for (String header : exception.getHeaderKeys()) {
+            result.addHeader(header, exception.getHeader(header));
+        }
+        for (String metadata : exception.getMetadataKeys()) {
+            result.addMetadata(metadata, exception.getMetadata(metadata));
+        }
+        return result;
     }
 }

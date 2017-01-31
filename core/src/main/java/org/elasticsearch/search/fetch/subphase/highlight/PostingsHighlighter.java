@@ -25,7 +25,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
 import org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.postingshighlight.Snippet;
+import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
@@ -139,14 +139,14 @@ public class PostingsHighlighter implements Highlighter {
         return fieldMapper.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
     }
 
-    private static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+    static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         //postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         //loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
-    private static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
+    static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
 
         //We need to filter the snippets as due to no_match_size we could have
         //either highlighted snippets or non highlighted ones and we don't want to mix those up
@@ -181,11 +181,11 @@ public class PostingsHighlighter implements Highlighter {
         return filteredSnippets;
     }
 
-    private static class HighlighterEntry {
+    static class HighlighterEntry {
         Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();
     }
 
-    private static class MapperHighlighterEntry {
+    static class MapperHighlighterEntry {
         final CustomPassageFormatter passageFormatter;
 
         private MapperHighlighterEntry(CustomPassageFormatter passageFormatter) {

@@ -24,9 +24,9 @@ import org.apache.lucene.search.highlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**
-Custom passage formatter that allows us to:
-1) extract different snippets (instead of a single big string) together with their scores ({@link Snippet})
-2) use the {@link Encoder} implementations that are already used with the other highlighters
+ * Custom passage formatter that allows us to:
+ * 1) extract different snippets (instead of a single big string) together with their scores ({@link Snippet})
+ * 2) use the {@link Encoder} implementations that are already used with the other highlighters
  */
 public class CustomPassageFormatter extends PassageFormatter {
 

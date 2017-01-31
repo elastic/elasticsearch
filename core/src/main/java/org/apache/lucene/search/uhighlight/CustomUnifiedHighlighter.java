@@ -50,7 +50,7 @@ import java.util.Map;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
- * Uses a custom {@link org.apache.lucene.search.uhighlight.PassageFormatter}. Accepts field content as a constructor
+ * Uses a custom {@link PassageFormatter}. Accepts field content as a constructor
  * argument, given that loadings field value can be done reading from _source field.
  * Supports using different {@link BreakIterator} to break the text into fragments. Considers every distinct field
  * value as a discrete passage for highlighting (unless the whole content needs to be highlighted).
@@ -68,7 +68,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
      * @param analyzer the analyzer used for the field at index time, used for multi term queries internally
-     * @param passageFormatter our own {@link org.apache.lucene.search.uhighlight.CustomPassageFormatter}
+     * @param passageFormatter our own {@link CustomPassageFormatter}
      *                         which generates snippets in forms of {@link Snippet} objects
      * @param breakIterator the {@link BreakIterator} to use for dividing text into passages.
      *                      If null {@link BreakIterator#getSentenceInstance(Locale)} is used.

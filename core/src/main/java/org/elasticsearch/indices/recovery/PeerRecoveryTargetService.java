@@ -367,8 +367,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
-                // commit point is good for seq no based recovery, starting at the first op after the local
-                // check point stored in.
+                // commit point is good for seq no based recovery as the maximum seq# including in it
+                // is below the global checkpoint (i.e., it excludes any ops thay may not be on the primary)
+                // Recovery will start at the first op after the local check point stored in the commit.
                 return seqNoStats.getLocalCheckpoint() + 1;
             } else {
                 return SequenceNumbersService.UNASSIGNED_SEQ_NO;

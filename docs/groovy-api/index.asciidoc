@@ -1,7 +1,7 @@
 = Groovy API
 :ref:  http://www.elastic.co/guide/en/elasticsearch/reference/current
 :java: http://www.elastic.co/guide/en/elasticsearch/client/java-api/current
-:version: 5.3.0
+:version: 5.4.0
 
 [preface]
 == Preface

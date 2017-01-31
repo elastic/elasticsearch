@@ -39,6 +39,10 @@ public class SeqNoStats implements ToXContent, Writeable {
     private final long globalCheckpoint;
 
     public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint) {
+        assert localCheckpoint <= maxSeqNo:
+            "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
+        assert globalCheckpoint <= maxSeqNo:
+            "global checkpoint [" + globalCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
         this.maxSeqNo = maxSeqNo;
         this.localCheckpoint = localCheckpoint;
         this.globalCheckpoint = globalCheckpoint;

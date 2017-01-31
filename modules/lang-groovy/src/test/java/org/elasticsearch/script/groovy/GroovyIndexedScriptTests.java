@@ -67,13 +67,13 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setScriptLang(GroovyScriptEngineService.NAME)
-                .setSource(new BytesArray("{ \"script\" : \"2\"}"))
+                .setLang(GroovyScriptEngineService.NAME)
+                .setContent(new BytesArray("{ \"script\" : \"2\"}"))
                 .get();
         client().admin().cluster().preparePutStoredScript()
                 .setId("script2")
-                .setScriptLang(GroovyScriptEngineService.NAME)
-                .setSource(new BytesArray("{ \"script\" : \"factor * 2\"}"))
+                .setLang(GroovyScriptEngineService.NAME)
+                .setContent(new BytesArray("{ \"script\" : \"factor * 2\"}"))
                 .get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -112,9 +112,9 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(GroovyScriptEngineService.NAME)
+                    .setLang(GroovyScriptEngineService.NAME)
                     .setId("script1")
-                    .setSource(new BytesArray("{\"script\":\"" + i + "\"}")));
+                    .setContent(new BytesArray("{\"script\":\"" + i + "\"}")));
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSource(
@@ -130,9 +130,9 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
 
     public void testDisabledUpdateIndexedScriptsOnly() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setLang(GroovyScriptEngineService.NAME)
                 .setId("script1")
-                .setSource(new BytesArray("{\"script\":\"2\"}")));
+                .setContent(new BytesArray("{\"script\":\"2\"}")));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
@@ -148,9 +148,9 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
     public void testDisabledAggsDynamicScripts() {
         //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setLang(GroovyScriptEngineService.NAME)
                 .setId("script1")
-                .setSource(new BytesArray("{\"script\":\"2\"}")));
+                .setContent(new BytesArray("{\"script\":\"2\"}")));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
         SearchResponse searchResponse = client()

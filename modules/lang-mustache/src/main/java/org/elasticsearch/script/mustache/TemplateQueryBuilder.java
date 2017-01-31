@@ -62,8 +62,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(scriptType, "mustache", template,
-            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
+        this(new Script(scriptType, "mustache", template, scriptType == ScriptType.INLINE ?
+            (ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()))
+            : null, params));
     }
 
     TemplateQueryBuilder(Script template) {
@@ -141,6 +142,13 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
+
+        // for deprecation of stored script namespaces the default lang is ignored,
+        // so the template lang must be set for a stored script
+        if (template.getType() == ScriptType.STORED) {
+            template = new Script(ScriptType.STORED, Script.DEFAULT_TEMPLATE_LANG, template.getIdOrCode(), template.getParams());
+        }
+
         return Optional.of(new TemplateQueryBuilder(template));
     }
 }

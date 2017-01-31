@@ -804,7 +804,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE, emptyMap());
+                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE);
                 executable = scriptService.executable(compiled, params);
             }
             if (context == null) {

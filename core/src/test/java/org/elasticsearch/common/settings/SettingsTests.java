@@ -143,7 +143,7 @@ public class SettingsTests extends ESTestCase {
 
         Settings fooSettings = settings.getAsSettings("foo");
         assertFalse(fooSettings.isEmpty());
-        assertEquals(2, fooSettings.getAsMap().size());
+        assertEquals(2, fooSettings.size());
         assertThat(fooSettings.get("bar"), equalTo("def"));
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
     }
@@ -157,13 +157,13 @@ public class SettingsTests extends ESTestCase {
 
         Settings firstLevelSettings = settings.getByPrefix("1.");
         assertFalse(firstLevelSettings.isEmpty());
-        assertEquals(2, firstLevelSettings.getAsMap().size());
+        assertEquals(2, firstLevelSettings.size());
         assertThat(firstLevelSettings.get("2.3.4"), equalTo("abc"));
         assertThat(firstLevelSettings.get("2.3"), equalTo("hello world"));
 
         Settings secondLevelSetting = firstLevelSettings.getByPrefix("2.");
         assertFalse(secondLevelSetting.isEmpty());
-        assertEquals(2, secondLevelSetting.getAsMap().size());
+        assertEquals(2, secondLevelSetting.size());
         assertNull(secondLevelSetting.get("2.3.4"));
         assertNull(secondLevelSetting.get("1.2.3.4"));
         assertNull(secondLevelSetting.get("1.2.3"));
@@ -172,7 +172,7 @@ public class SettingsTests extends ESTestCase {
 
         Settings thirdLevelSetting = secondLevelSetting.getByPrefix("3.");
         assertFalse(thirdLevelSetting.isEmpty());
-        assertEquals(1, thirdLevelSetting.getAsMap().size());
+        assertEquals(1, thirdLevelSetting.size());
         assertNull(thirdLevelSetting.get("2.3.4"));
         assertNull(thirdLevelSetting.get("3.4"));
         assertNull(thirdLevelSetting.get("1.2.3"));
@@ -312,7 +312,7 @@ public class SettingsTests extends ESTestCase {
                 .normalizePrefix("foo.")
                 .build();
 
-        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
 
@@ -323,7 +323,7 @@ public class SettingsTests extends ESTestCase {
                 .normalizePrefix("foo.")
                 .build();
 
-        assertThat(settings.getAsMap().size(), equalTo(2));
+        assertThat(settings.size(), equalTo(2));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
         assertThat(settings.get("foo.test"), equalTo("test"));
@@ -334,7 +334,7 @@ public class SettingsTests extends ESTestCase {
                 .build();
 
 
-        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
     }
 

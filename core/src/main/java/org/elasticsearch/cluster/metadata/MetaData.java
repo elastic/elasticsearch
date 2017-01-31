@@ -1058,7 +1058,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
 
-            if (!metaData.persistentSettings().getAsMap().isEmpty()) {
+            if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
@@ -1066,7 +1066,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 builder.endObject();
             }
 
-            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
                 builder.startObject("transient_settings");
                 for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());

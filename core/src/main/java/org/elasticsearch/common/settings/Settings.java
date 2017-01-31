@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -564,7 +563,7 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.getAsMap().size());
+        out.writeVInt(settings.size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
@@ -601,7 +600,12 @@ public final class Settings implements ToXContent {
      * @return <tt>true</tt> if this settings object contains no settings
      */
     public boolean isEmpty() {
-        return this.settings.isEmpty();
+        return this.settings.isEmpty(); // TODO: account for secure settings
+    }
+
+    /** Returns the number of settings in this settings object. */
+    public int size() {
+        return this.settings.size(); // TODO: account for secure settings
     }
 
     /**

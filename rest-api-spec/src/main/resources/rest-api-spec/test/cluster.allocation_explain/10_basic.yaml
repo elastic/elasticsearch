@@ -1,8 +1,8 @@
 ---
 "cluster shard allocation explanation test":
   - skip:
-      version: " - 5.1.99"
-      reason: allocation explain api format is different in versions < 5.2.0
+      version: " - 6.0.0"
+      reason: temporary, revert back to 5.1.99 when the 5.3.0-snapshot build is fixed
 
   - do:
       # there aren't any unassigned shards to explain
@@ -36,8 +36,8 @@
 ---
 "cluster shard allocation explanation test with empty request":
   - skip:
-      version: " - 5.1.99"
-      reason: allocation explain api format is different in versions < 5.2.0
+      version: " - 6.0.0"
+      reason: temporary, revert back to 5.1.99 when the 5.3.0-snapshot build is fixed
 
   - do:
       indices.create:

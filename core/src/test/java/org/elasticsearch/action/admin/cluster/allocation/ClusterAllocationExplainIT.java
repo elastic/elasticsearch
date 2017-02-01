@@ -1009,10 +1009,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "")
     public void testCannotAllocateStaleReplicaExplanation() throws Exception {
         logger.info("--> starting 3 nodes");
-        String masterNode = internalCluster().startNode();
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startNodes(3);
+        String masterNode = internalCluster().getMasterName();
 
         logger.info("--> creating an index with 1 primary and 1 replica");
         createIndexAndIndexData(1, 1,

@@ -42,6 +42,7 @@ public class DirectSpellcheckerSettings  {
     public static int DEFAULT_PREFIX_LENGTH = 1;
     public static int DEFAULT_MIN_WORD_LENGTH = 4;
     public static float DEFAULT_MIN_DOC_FREQ = 0f;
+    public static boolean DEFAULT_EXACT_MATCH = false;
 
     private SuggestMode suggestMode = DEFAULT_SUGGEST_MODE;
     private float accuracy = DEFAULT_ACCURACY;
@@ -53,7 +54,7 @@ public class DirectSpellcheckerSettings  {
     private int prefixLength = DEFAULT_PREFIX_LENGTH;
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
-	private boolean exactMatch = false;
+    private boolean exactMatch = DEFAULT_EXACT_MATCH;
 
     private static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
     private static final Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
@@ -145,6 +146,14 @@ public class DirectSpellcheckerSettings  {
        this.exactMatch = exactMatch;
     }
 
+	public boolean exactMatch() {
+        return exactMatch;
+    }
+ 
+    public void exactMatch(boolean exactMatch) {
+       this.exactMatch = exactMatch;
+    }
+
     public DirectSpellChecker createDirectSpellChecker() {
 
         DirectSpellChecker directSpellChecker = new DirectSpellChecker();
@@ -185,6 +194,7 @@ public class DirectSpellcheckerSettings  {
                    ",prefixLength=" + prefixLength +
                    ",minWordLength=" + minWordLength +
                    ",minDocFreq=" + minDocFreq +
+                   ",exactMatch=" + exactMatch +
                "]";
     }
 

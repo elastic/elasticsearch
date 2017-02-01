@@ -120,7 +120,7 @@ doesn't take the query into account that is part of request.
     algorithm.
     `jarowinkler` - String distance algorithm based on Jaro-Winkler algorithm.
     `ngram` - String distance algorithm based on character n-grams.
-
+    
 `exact_match`::
-     Indicate whether to include the text input as a suggest candidate
-     if a term is found to match it exactly. Defaults to false.
+    Indicate whether to include the text input as a suggest candidate
+    if a term is found to match it exactly. Defaults to false.

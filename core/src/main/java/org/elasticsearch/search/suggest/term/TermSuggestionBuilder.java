@@ -78,7 +78,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     private int prefixLength = DEFAULT_PREFIX_LENGTH;
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private float minDocFreq = DEFAULT_MIN_DOC_FREQ;
-    private Boolean exactMatch;
+    private boolean exactMatch = DEFAULT_EXACT_MATCH;
 
     public TermSuggestionBuilder(String field) {
         super(field);
@@ -437,7 +437,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else if (parseFieldMatcher.match(currentFieldName, EXACT_MATCH)) {
-                   tmpSuggestion.exactMatch(parser.booleanValue());
+                    tmpSuggestion.exactMatch(parser.booleanValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                                                   "suggester[term] doesn't support field [" + currentFieldName + "]");

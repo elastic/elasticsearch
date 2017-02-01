@@ -202,11 +202,15 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
+        File jjs = new File(javaHome, 'bin/jjs')
+        if (jjs.exists() == false) {
+            throw new GradleException("Cannot find jjs binary in java installation at ${javaHome}. At least java 1.8 is required.")
+        }
         File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
         tmpScript.setText(script, 'UTF-8')
         ByteArrayOutputStream output = new ByteArrayOutputStream()
         ExecResult result = project.exec {
-            executable = new File(javaHome, 'bin/jjs')
+            executable = jjs
             args tmpScript.toString()
             standardOutput = output
             errorOutput = new ByteArrayOutputStream()

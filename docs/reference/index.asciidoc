@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.4.0
+:version:        5.3.0
 :major-version:  5.x
 :docker-image: docker.elastic.co/elasticsearch/elasticsearch:{version}
 :x-pack-baseurl: https://www.elastic.co/guide/en/x-pack/5.0

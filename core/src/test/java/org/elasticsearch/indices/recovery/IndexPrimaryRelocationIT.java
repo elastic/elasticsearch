@@ -44,7 +44,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     private static final int RELOCATION_COUNT = 25;
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.delete:TRACE,org.elasticsearch.action.index:TRACE,index.shard:TRACE,org.elasticsearch.cluster.service:TRACE")
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.delete:TRACE,org.elasticsearch.action.index:TRACE,index.shard:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.action.bulk:TRACE")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test")

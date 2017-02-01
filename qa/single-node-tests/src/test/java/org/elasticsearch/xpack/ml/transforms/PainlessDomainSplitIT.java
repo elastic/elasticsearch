@@ -283,7 +283,12 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         // Index some data
         DateTime baseTime = new DateTime().minusYears(1);
         TestConfiguration test = tests.get(randomInt(tests.size()-1));
-        Pattern pattern = Pattern.compile("by_field_value\":\"(" + test.subDomainExpected + "),(" + test.domainExpected +")\",");
+
+        // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() did not, so we need a special case for sub
+        String expectedSub = test.subDomainExpected == null ? ".*" : test.subDomainExpected.replace(".", "\\.");
+        String expectedHRD = test.domainExpected.replace(".", "\\.");
+        Pattern pattern = Pattern.compile("domain_split\":\\[\"(" + expectedSub + "),(" + expectedHRD +")\"[,\\]]");
+
         for (int i = 0; i < 100; i++) {
 
             DateTime time = baseTime.plusHours(i);

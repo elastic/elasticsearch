@@ -31,8 +31,10 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
 
-import java.util.Collections;
+import java.util.AbstractList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import static java.lang.Math.max;
 
@@ -41,19 +43,47 @@ import static java.lang.Math.max;
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public interface ScriptDocValues<T> extends List<T> {
+public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
      * Set the current doc ID.
      */
-    void setNextDocId(int docId);
+    public abstract void setNextDocId(int docId);
 
     /**
      * Return a copy of the list of the values for the current document.
      */
-    List<T> getValues();
+    public final List<T> getValues() {
+        return this;
+    }
 
-    public static final class Strings extends AbstractScriptDocValues<String> implements ScriptDocValues<String> {
+    // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
+    @Override
+    public final void add(int index, T element) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final boolean remove(Object o) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final void replaceAll(UnaryOperator<T> operator) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final T set(int index, T element) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    @Override
+    public final void sort(Comparator<? super T> c) {
+        throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    public static final class Strings extends ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -88,11 +118,6 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<String> getValues() {
-            return Collections.unmodifiableList(this);
-        }
-
-        @Override
         public String get(int index) {
             return values.valueAt(index).utf8ToString();
         }
@@ -104,7 +129,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Longs extends AbstractScriptDocValues<Long> implements ScriptDocValues<Long> {
+    public static final class Longs extends ScriptDocValues<Long> {
 
         private final SortedNumericDocValues values;
         /**
@@ -112,7 +137,7 @@ public interface ScriptDocValues<T> extends List<T> {
          * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
          */
         private MutableDateTime[] dates;
-        private AbstractScriptDocValues<ReadableDateTime> dateList;
+        private ScriptDocValues<ReadableDateTime> dateList;
 
         public Longs(SortedNumericDocValues values) {
             this.values = values;
@@ -135,11 +160,6 @@ public interface ScriptDocValues<T> extends List<T> {
             return values.valueAt(0);
         }
 
-        @Override
-        public List<Long> getValues() {
-            return this;
-        }
-
         public ReadableDateTime getDate() {
             if (values.count() == 0) {
                 return dateAt(0, 0L);
@@ -149,7 +169,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         public List<ReadableDateTime> getDates() {
             if (dateList == null) {
-                dateList = new AbstractScriptDocValues<ReadableDateTime>() {
+                dateList = new ScriptDocValues<ReadableDateTime>() {
                     @Override
                     public ReadableDateTime get(int index) {
                         return dateAt(index, values.valueAt(index));
@@ -158,6 +178,12 @@ public interface ScriptDocValues<T> extends List<T> {
                     @Override
                     public int size() {
                         return values.count();
+                    }
+
+                    @Override
+                    public void setNextDocId(int docId) {
+                        // Not needed
+                        throw new UnsupportedOperationException();
                     }
                 };
             }
@@ -196,7 +222,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    public static class Doubles extends AbstractScriptDocValues<Double> implements ScriptDocValues<Double> {
+    public static final class Doubles extends ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues values;
 
@@ -222,11 +248,6 @@ public interface ScriptDocValues<T> extends List<T> {
         }
 
         @Override
-        public List<Double> getValues() {
-            return this;
-        }
-
-        @Override
         public Double get(int index) {
             return values.valueAt(index);
         }
@@ -237,7 +258,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    class GeoPoints extends AbstractScriptDocValues<GeoPoint> implements ScriptDocValues<GeoPoint> {
+    public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
         private final MultiGeoPointValues values;
 
@@ -282,11 +303,6 @@ public interface ScriptDocValues<T> extends List<T> {
 
         public double getLon() {
             return getValue().lon();
-        }
-
-        @Override
-        public List<GeoPoint> getValues() {
-            return this;
         }
 
         @Override
@@ -338,7 +354,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    final class Booleans extends AbstractScriptDocValues<Boolean> implements ScriptDocValues<Boolean> {
+    public static final class Booleans extends ScriptDocValues<Boolean> {
 
         private final SortedNumericDocValues values;
 
@@ -349,11 +365,6 @@ public interface ScriptDocValues<T> extends List<T> {
         @Override
         public void setNextDocId(int docId) {
             values.setDocument(docId);
-        }
-
-        @Override
-        public List<Boolean> getValues() {
-            return this;
         }
 
         public boolean getValue() {
@@ -372,7 +383,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class BytesRefs extends AbstractScriptDocValues<BytesRef> implements ScriptDocValues<BytesRef> {
+    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
         private final SortedBinaryDocValues values;
 
@@ -395,11 +406,6 @@ public interface ScriptDocValues<T> extends List<T> {
                 return new BytesRef();
             }
             return values.valueAt(0);
-        }
-
-        @Override
-        public List<BytesRef> getValues() {
-            return this;
         }
 
         @Override

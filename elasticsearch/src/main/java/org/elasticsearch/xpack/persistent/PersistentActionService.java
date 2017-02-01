@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 /**
@@ -60,4 +61,14 @@ public class PersistentActionService extends AbstractComponent {
             listener.onFailure(e);
         }
     }
+
+    public void updateStatus(long taskId, Task.Status status, ActionListener<UpdatePersistentTaskStatusAction.Response> listener) {
+        UpdatePersistentTaskStatusAction.Request updateStatusRequest = new UpdatePersistentTaskStatusAction.Request(taskId, status);
+        try {
+            client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
 }

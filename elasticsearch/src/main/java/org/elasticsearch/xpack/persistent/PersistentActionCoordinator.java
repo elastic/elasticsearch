@@ -119,6 +119,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
         try {
             RunningPersistentTask runningPersistentTask = new RunningPersistentTask(task, taskInProgress.getId());
             task.setStatusProvider(runningPersistentTask);
+            task.setPersistentTaskId(taskInProgress.getId());
             PersistentTaskListener listener = new PersistentTaskListener(runningPersistentTask);
             try {
                 runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), runningPersistentTask);

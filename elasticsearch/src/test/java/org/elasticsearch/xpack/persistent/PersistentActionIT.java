@@ -20,6 +20,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class PersistentActionIT extends ESIntegTestCase {
@@ -118,17 +120,7 @@ public class PersistentActionIT extends ESIntegTestCase {
 
         }
 
-        assertBusy(() -> {
-            // Wait for the task to finish
-            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get()
-                    .getTasks();
-            logger.info("Found {} tasks", tasks.size());
-            assertThat(tasks.size(), equalTo(0));
-
-            // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE))
-                    .entries(), empty());
-        });
+        assertNoRunningTasks();
     }
 
     public void testPersistentActionWithNoAvailableNode() throws Exception {
@@ -162,5 +154,57 @@ public class PersistentActionIT extends ESIntegTestCase {
 
     }
 
+    public void testPersistentActionStatusUpdate() throws Exception {
+        TestPersistentAction.INSTANCE.newRequestBuilder(client()).testParam("Blah").get();
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get().getTasks().size(),
+                    equalTo(1));
+        });
+        TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]")
+                .get().getTasks().get(0);
+
+        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE);
+        assertThat(tasksInProgress.entries().size(), equalTo(1));
+        assertThat(tasksInProgress.entries().get(0).getStatus(), nullValue());
+
+        int numberOfUpdates = randomIntBetween(1, 10);
+        for (int i = 0; i < numberOfUpdates; i++) {
+            logger.info("Updating the task status");
+            // Complete the running task and make sure it finishes properly
+            assertThat(new TestTasksRequestBuilder(client()).setOperation("update_status").setTaskId(firstRunningTask.getTaskId())
+                    .get().getTasks().size(), equalTo(1));
+
+            int finalI = i;
+            assertBusy(() -> {
+                PersistentTasksInProgress tasks = internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE);
+                assertThat(tasks.entries().size(), equalTo(1));
+                assertThat(tasks.entries().get(0).getStatus(), notNullValue());
+                assertThat(tasks.entries().get(0).getStatus().toString(), equalTo("{\"phase\":\"phase " + (finalI + 1) + "\"}"));
+            });
+
+        }
+
+        logger.info("Completing the running task");
+        // Complete the running task and make sure it finishes properly
+        assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId())
+                .get().getTasks().size(), equalTo(1));
+
+        assertNoRunningTasks();
+    }
+
+    private void assertNoRunningTasks() throws Exception {
+        assertBusy(() -> {
+            // Wait for the task to finish
+            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get()
+                    .getTasks();
+            logger.info("Found {} tasks", tasks.size());
+            assertThat(tasks.size(), equalTo(0));
+
+            // Make sure the task is removed from the cluster state
+            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE))
+                    .entries(), empty());
+        });
+    }
 
 }

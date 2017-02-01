@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,6 +42,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -52,7 +54,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
@@ -69,6 +76,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(TestPersistentAction.INSTANCE, TransportTestPersistentAction.class),
                 new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
+                new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class)
         );
@@ -95,7 +103,8 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                 new NamedWriteableRegistry.Entry(PersistentActionCoordinator.Status.class,
                         PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
                 new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom)
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+                new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
         );
     }
 
@@ -229,6 +238,63 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         }
     }
 
+    public static class Status implements Task.Status {
+        public static final String NAME = "test";
+
+        private final String phase;
+
+        public Status(String phase) {
+            this.phase = requireNonNull(phase, "Phase cannot be null");
+        }
+
+        public Status(StreamInput in) throws IOException {
+            phase = in.readString();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("phase", phase);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return false;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(phase);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        // Implements equals and hashcode for testing
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != Status.class) {
+                return false;
+            }
+            Status other = (Status) obj;
+            return phase.equals(other.phase);
+        }
+
+        @Override
+        public int hashCode() {
+            return phase.hashCode();
+        }
+    }
+
 
     public static class TransportTestPersistentAction extends TransportPersistentAction<TestRequest> {
 
@@ -260,14 +326,41 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
-                assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                        testTask.getOperation() != null ||
-                        transportService.lifecycleState() != Lifecycle.State.STARTED)); // speedup finishing on closed nodes
-                if (transportService.lifecycleState() == Lifecycle.State.STARTED) {
+                AtomicInteger phase = new AtomicInteger();
+                while (true) {
+                    // wait for something to happen
+                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
+                            testTask.getOperation() != null ||
+                            transportService.lifecycleState() != Lifecycle.State.STARTED)); // speedup finishing on closed nodes
+                    if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
+                        return;
+                    }
                     if ("finish".equals(testTask.getOperation())) {
                         listener.onResponse(Empty.INSTANCE);
+                        return;
                     } else if ("fail".equals(testTask.getOperation())) {
                         listener.onFailure(new RuntimeException("Simulating failure"));
+                        return;
+                    } else if ("update_status".equals(testTask.getOperation())) {
+                        testTask.setOperation(null);
+                        CountDownLatch latch = new CountDownLatch(1);
+                        Status status = new Status("phase " + phase.incrementAndGet());
+                        logger.info("updating the task status to {}", status);
+                        updatePersistentTaskStatus(task, status, new ActionListener<Empty>() {
+                            @Override
+                            public void onResponse(Empty empty) {
+                                logger.info("updating was successful");
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.info("updating failed", e);
+                                latch.countDown();
+                                fail(e.toString());
+                            }
+                        });
+                        assertTrue(latch.await(10, TimeUnit.SECONDS));
                     } else if (testTask.isCancelled()) {
                         // Cancellation make cause different ways for the task to finish
                         if (randomBoolean()) {
@@ -279,6 +372,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                         } else {
                             listener.onFailure(new RuntimeException(testTask.getReasonCancelled()));
                         }
+                        return;
                     } else {
                         fail("We really shouldn't be here");
                     }
@@ -418,8 +512,8 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
 
         @Inject
         public TransportTestTaskAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                          TransportService transportService, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, String nodeExecutor) {
+                                       TransportService transportService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, String nodeExecutor) {
             super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                     TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }

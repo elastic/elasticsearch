@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -88,8 +89,29 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
     }
 
     /**
+     * Updates the persistent task status in the cluster state.
+     * <p>
+     * The status can be used to store the current progress of the task or provide an insight for the
+     * task allocator about the state of the currently running tasks.
+     */
+    protected void updatePersistentTaskStatus(PersistentTask task, Task.Status status, ActionListener<Empty> listener) {
+        persistentActionService.updateStatus(task.getPersistentTaskId(), status,
+                new ActionListener<UpdatePersistentTaskStatusAction.Response>() {
+                    @Override
+                    public void onResponse(UpdatePersistentTaskStatusAction.Response response) {
+                        listener.onResponse(Empty.INSTANCE);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+    }
+
+    /**
      * This operation will be executed on the executor node.
-     *
+     * <p>
      * If nodeOperation throws an exception or triggers listener.onFailure() method, the task will be restarted,
      * possibly on a different node. If listener.onResponse() is called, the task is considered to be successfully
      * completed and will be removed from the cluster state and not restarted.

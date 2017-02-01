@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.transport.TransportResponse.Empty;
 
@@ -119,13 +120,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                         currentTasks.add(taskInProgress);
                     }
                 }
-                if (found) {
-                    ClusterState.Builder builder = ClusterState.builder(currentState);
-                    PersistentTasksInProgress tasks = new PersistentTasksInProgress(tasksInProgress.getCurrentId(), currentTasks);
-                    return builder.putCustom(PersistentTasksInProgress.TYPE, tasks).build();
-                } else {
-                    return currentState;
-                }
+                return rebuildClusterStateIfNeeded(found, currentState, currentTasks);
             }
 
             @Override
@@ -138,6 +133,61 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 listener.onResponse(Empty.INSTANCE);
             }
         });
+    }
+
+    /**
+     * Update task status
+     *
+     * @param id       the id of a persistent task
+     * @param status   new status
+     * @param listener the listener that will be called when task is removed
+     */
+    public void updatePersistentTaskStatus(long id, Task.Status status, ActionListener<Empty> listener) {
+        clusterService.submitStateUpdateTask("update task status", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                PersistentTasksInProgress tasksInProgress = currentState.custom(PersistentTasksInProgress.TYPE);
+                if (tasksInProgress == null) {
+                    // Nothing to do, the task no longer exists
+                    return currentState;
+                }
+
+                boolean found = false;
+                final List<PersistentTaskInProgress<?>> currentTasks = new ArrayList<>();
+                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.entries()) {
+                    if (taskInProgress.getId() == id) {
+                        assert found == false;
+                        found = true;
+                        currentTasks.add(new PersistentTaskInProgress<>(taskInProgress, status));
+                    } else {
+                        currentTasks.add(taskInProgress);
+                    }
+                }
+                return rebuildClusterStateIfNeeded(found, currentState, currentTasks);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(Empty.INSTANCE);
+            }
+        });
+    }
+
+    private ClusterState rebuildClusterStateIfNeeded(boolean rebuild, ClusterState oldState,
+                                                     List<PersistentTaskInProgress<?>> currentTasks) {
+        if (rebuild) {
+            ClusterState.Builder builder = ClusterState.builder(oldState);
+            PersistentTasksInProgress oldTasks = oldState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = new PersistentTasksInProgress(oldTasks.getCurrentId(), currentTasks);
+            return builder.putCustom(PersistentTasksInProgress.TYPE, tasks).build();
+        } else {
+            return oldState;
+        }
     }
 
     private <Request extends PersistentActionRequest> String executorNode(String action, ClusterState currentState, Request request) {

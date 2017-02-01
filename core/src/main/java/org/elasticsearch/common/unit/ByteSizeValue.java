@@ -107,23 +107,26 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     @Override
     public String toString() {
-        long bytes = getBytes();
+        return formatBytesSizeValue(getBytes());
+    }
+
+    public static String formatBytesSizeValue(long bytes) {
         double value = bytes;
         String suffix = "b";
         if (bytes >= ByteSizeUnit.C5) {
-            value = getPbFrac();
+            value = value / ByteSizeUnit.C5;
             suffix = "pb";
         } else if (bytes >= ByteSizeUnit.C4) {
-            value = getTbFrac();
+            value = value / ByteSizeUnit.C4;
             suffix = "tb";
         } else if (bytes >= ByteSizeUnit.C3) {
-            value = getGbFrac();
+            value = value / ByteSizeUnit.C3;
             suffix = "gb";
         } else if (bytes >= ByteSizeUnit.C2) {
-            value = getMbFrac();
+            value = value / ByteSizeUnit.C2;
             suffix = "mb";
         } else if (bytes >= ByteSizeUnit.C1) {
-            value = getKbFrac();
+            value = value / ByteSizeUnit.C1;
             suffix = "kb";
         }
         return Strings.format1Decimals(value, suffix);

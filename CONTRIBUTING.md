@@ -92,16 +92,14 @@ Elasticsearch uses it as its build system. Gradle must be version 2.13 _exactly_
 order to build successfully.
 
 Eclipse users can automatically configure their IDE: `gradle eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
+then `File->Import->Existing Projects into Workspace`. Select the
 option `Search for nested projects`. Additionally you will want to
 ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
 accordingly to avoid GC overhead errors.
 
 IntelliJ users can automatically configure their IDE: `gradle idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`.
+and then open the generated project (`File->Open...`). Additionally
+you will want to enable `Use auto-import` in Gradle settings.
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This

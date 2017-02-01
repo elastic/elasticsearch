@@ -100,7 +100,7 @@ setup:
   - match: { jobs.0.data_counts.processed_record_count: 2 }
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
-  - match: { jobs.0.model_size_stats.model_bytes: 9105 }
+  - gt: { jobs.0.model_size_stats.model_bytes: 0 }
   - match: { jobs.0.status: CLOSED }
 
 ---

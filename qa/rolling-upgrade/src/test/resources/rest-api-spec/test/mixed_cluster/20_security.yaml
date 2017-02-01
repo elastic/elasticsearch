@@ -1,5 +1,8 @@
 ---
 "Verify user and role in mixed cluster":
+  - skip:
+      version: " - 6.0.0"
+      reason: Temporary until test issue is resolved
   - do:
       headers:
         Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="

@@ -565,7 +565,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
      */
     public static ElasticsearchException failureFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
         ensureFieldName(parser, token, ERROR);
 
         token = parser.nextToken();

@@ -21,13 +21,22 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -38,7 +47,10 @@ import org.mockito.internal.matchers.VarargMatcher;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -91,6 +103,28 @@ public class RestHighLevelClientTests extends ESTestCase {
                 Matchers.isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
+    public void testRequestValidation() throws IOException {
+        ActionRequestValidationException validationException = new ActionRequestValidationException();
+        validationException.addValidationError("validation error");
+        ActionRequest request = new ActionRequest() {
+            @Override
+            public ActionRequestValidationException validate() {
+                return validationException;
+            }
+        };
+
+        {
+            ActionRequestValidationException actualException = expectThrows(ActionRequestValidationException.class,
+                    () -> restHighLevelClient.performRequest(request, null, null));
+            assertSame(validationException, actualException);
+        }
+        {
+            TrackingActionListener trackingActionListener = new TrackingActionListener();
+            restHighLevelClient.performRequestAsync(request, null, null, trackingActionListener);
+            assertSame(validationException, trackingActionListener.exception.get());
+        }
+    }
+
     public void testParseEntity() throws IOException {
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> RestHighLevelClient.parseEntity(null, null));
@@ -99,7 +133,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class,
                     () -> RestHighLevelClient.parseEntity(new BasicHttpEntity(), null));
-            assertEquals("Elasticsearch didn't return the Content-Type header, unable to parse response body", ise.getMessage());
+            assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
         }
         {
             StringEntity entity = new StringEntity("", ContentType.APPLICATION_SVG_XML);
@@ -120,7 +154,165 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
-    //TODO add unit tests for all of the private / package private methods in RestHighLevelClient
+    public void testConvertExistsResponse() {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        RestStatus restStatus = randomBoolean() ? RestStatus.OK : randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                restStatus.getStatus(), restStatus.name()));
+        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        boolean result = RestHighLevelClient.convertExistsResponse(response);
+        assertEquals(restStatus == RestStatus.OK, result);
+    }
+
+    public void testParseResponseException() throws IOException {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        {
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                    restStatus.getStatus(), restStatus.name()));
+            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
+            assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
+            assertEquals(restStatus, elasticsearchException.status());
+            assertEquals(1, elasticsearchException.getSuppressed().length);
+            assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        }
+        {
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                    restStatus.getStatus(), restStatus.name()));
+            httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+                    ContentType.APPLICATION_JSON));
+            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
+            assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
+            assertEquals(restStatus, elasticsearchException.status());
+            assertEquals(1, elasticsearchException.getSuppressed().length);
+            assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        }
+        {
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                    restStatus.getStatus(), restStatus.name()));
+            httpResponse.setEntity(new StringEntity("{\"error\":",
+                    ContentType.APPLICATION_JSON));
+            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
+            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertThat(elasticsearchException.getCause(), instanceOf(IOException.class));
+            assertEquals(restStatus, elasticsearchException.status());
+            assertEquals(1, elasticsearchException.getSuppressed().length);
+            assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        }
+    }
+
+    public void testWrapResponseListenerOnSuccess() throws IOException {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                restStatus.getStatus(), restStatus.name()));
+        responseListener.onSuccess(new Response(requestLine, new HttpHost("localhost", 9200), httpResponse));
+        assertNull(trackingActionListener.exception.get());
+        assertEquals(restStatus.getStatus(), trackingActionListener.statusCode.get());
+    }
+
+    public void testWrapResponseListenerOnException() throws IOException {
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+        IllegalStateException exception = new IllegalStateException();
+        responseListener.onFailure(exception);
+        assertSame(exception, trackingActionListener.exception.get());
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithoutEntity() throws IOException {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                restStatus.getStatus(), restStatus.name()));
+        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(response);
+        responseListener.onFailure(responseException);
+        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+        assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertEquals(1, elasticsearchException.getSuppressed().length);
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithEntity() throws IOException {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                restStatus.getStatus(), restStatus.name()));
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+                ContentType.APPLICATION_JSON));
+        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(response);
+        responseListener.onFailure(responseException);
+        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
+        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertEquals(1, elasticsearchException.getSuppressed().length);
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithBrokenEntity() throws IOException {
+        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
+                restStatus.getStatus(), restStatus.name()));
+        httpResponse.setEntity(new StringEntity("{\"error\":",
+                ContentType.APPLICATION_JSON));
+        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(response);
+        responseListener.onFailure(responseException);
+        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
+        assertEquals("unable to parse response body", elasticsearchException.getMessage());
+        assertThat(elasticsearchException.getCause(), instanceOf(IOException.class));
+        assertEquals(restStatus, elasticsearchException.status());
+        assertEquals(1, elasticsearchException.getSuppressed().length);
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+    }
+
+    private static class TrackingActionListener implements ActionListener<Integer> {
+        private final AtomicInteger statusCode = new AtomicInteger(-1);
+        private final AtomicReference<Exception> exception = new AtomicReference<>();
+
+        @Override
+        public void onResponse(Integer statusCode) {
+            assertTrue(this.statusCode.compareAndSet(-1, statusCode));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assertTrue(exception.compareAndSet(null, e));
+        }
+    }
 
     private static class HeadersVarargMatcher extends ArgumentMatcher<Header[]> implements VarargMatcher {
         private Header[] expectedHeaders;

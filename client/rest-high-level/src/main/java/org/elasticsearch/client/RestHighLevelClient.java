@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,6 +33,8 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -88,7 +92,7 @@ public class RestHighLevelClient {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequest(Req request, Function<Req, Request> requestConverter,
+    <Req extends ActionRequest, Resp> Resp performRequest(Req request, Function<Req, Request> requestConverter,
             CheckedFunction<Response, Resp, IOException> responseConverter, Header... headers) throws IOException {
 
         ActionRequestValidationException validationException = request.validate();
@@ -100,9 +104,7 @@ public class RestHighLevelClient {
         try {
             response = client.performRequest(req.method, req.endpoint, req.params, req.entity, headers);
         } catch (ResponseException e) {
-            //TODO add parsing of root exception, printed out via BytesRestResponse#convert
-            //throw parseEntity(request, e.getResponse().getEntity(), here goes the parsing method ref);
-            throw e;
+            throw parseResponseException(e);
         }
         return responseConverter.apply(response);
     }
@@ -112,11 +114,12 @@ public class RestHighLevelClient {
         performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), listener, headers);
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsync(Req request, Function<Req, Request> requestConverter,
+    <Req extends ActionRequest, Resp> void performRequestAsync(Req request, Function<Req, Request> requestConverter,
             CheckedFunction<Response, Resp, IOException> responseConverter, ActionListener<Resp> listener, Header... headers) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
+            return;
         }
         Request req = requestConverter.apply(request);
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener);
@@ -137,20 +140,34 @@ public class RestHighLevelClient {
 
             @Override
             public void onFailure(Exception exception) {
-                /* TODO add parsing of root exception, printed out via BytesRestResponse#convert
                 if (exception instanceof ResponseException) {
-                    HttpEntity entity = ((ResponseException) exception).getResponse().getEntity();
-                    try {
-                        ElasticsearchException elasticsearchException = parseEntity(request, entity, here goes the parsing method ref);
-                        actionListener.onFailure(elasticsearchException);
-                        return;
-                    } catch (IOException e) {
-                        exception.addSuppressed(e);
-                    }
-                }*/
-                actionListener.onFailure(exception);
+                    ResponseException responseException = (ResponseException) exception;
+                    actionListener.onFailure(parseResponseException(responseException));
+                } else {
+                    actionListener.onFailure(exception);
+                }
             }
         };
+    }
+
+    static ElasticsearchException parseResponseException(ResponseException responseException) {
+        Response response = responseException.getResponse();
+        HttpEntity entity = response.getEntity();
+        ElasticsearchException elasticsearchException;
+        if (entity == null) {
+            elasticsearchException = new ElasticsearchStatusException(
+                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()));
+
+        } else {
+            try {
+                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+            } catch (IOException e) {
+                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+                elasticsearchException = new ElasticsearchStatusException("unable to parse response body", restStatus, e);
+            }
+        }
+        elasticsearchException.addSuppressed(responseException);
+        return elasticsearchException;
     }
 
     static <Resp> Resp parseEntity(
@@ -170,7 +187,7 @@ public class RestHighLevelClient {
         }
     }
 
-    private static boolean convertExistsResponse(Response response) {
+    static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 }

@@ -49,6 +49,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return restHighLevelClient;
     }
 
+    /**
+     * Executes the provided request using either the sync method or its async variant, both provided as functions
+     */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod, Header... headers) throws IOException {
         if (randomBoolean()) {

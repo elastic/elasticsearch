@@ -63,9 +63,9 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             if (suggestion.getDirectSpellCheckerSettings().exactMatch()){
                 final TermsEnum termsEnum = MultiFields.getTerms(indexReader, token.term.field()).iterator();
-				if (termsEnum.seekExact(token.term.bytes())) {
-					Text word = new Text(token.term.text());
-					resultEntry.addOption(new TermSuggestion.Entry.Option(word, termsEnum.docFreq(), 1f));
+                if (termsEnum.seekExact(token.term.bytes())) {
+				    Text word = new Text(token.term.text());
+				    resultEntry.addOption(new TermSuggestion.Entry.Option(word, termsEnum.docFreq(), 1f));
 				}
             }
             for (SuggestWord suggestWord : suggestedWords) {

@@ -90,7 +90,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         }, spare);
        return result;
     }
-	
+
     private static class Token {
 
         public final Term term;

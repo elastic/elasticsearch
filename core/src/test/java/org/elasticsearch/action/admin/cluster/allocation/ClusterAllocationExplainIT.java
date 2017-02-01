@@ -1038,6 +1038,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterAllocationExplanation explanation = client().admin().cluster().prepareAllocationExplain()
                 .setIndex("idx").setShard(0).setPrimary(true).get().getExplanation();
+            assertTrue(explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
             assertEquals(AllocationDecision.NO_VALID_SHARD_COPY,
                 explanation.getShardAllocationDecision().getAllocateDecision().getAllocationDecision());
         });
@@ -1069,18 +1070,19 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
         assertEquals(2, allocateDecision.getNodeDecisions().size());
-        NodeAllocationResult nodeAllocationResult = allocateDecision.getNodeDecisions().get(0);
-        assertEquals(restartedNode, nodeAllocationResult.getNode().getName());
-        assertNotNull(nodeAllocationResult.getShardStoreInfo());
-        assertNotNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
-        assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
-        assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
-        nodeAllocationResult = allocateDecision.getNodeDecisions().get(1);
-        assertEquals(masterNode, nodeAllocationResult.getNode().getName());
-        assertNotNull(nodeAllocationResult.getShardStoreInfo());
-        assertNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
-        assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
-        assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
+        for (NodeAllocationResult nodeAllocationResult : allocateDecision.getNodeDecisions()) {
+            if (nodeAllocationResult.getNode().getName().equals(restartedNode)) {
+                assertNotNull(nodeAllocationResult.getShardStoreInfo());
+                assertNotNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
+                assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
+                assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
+            } else {
+                assertNotNull(nodeAllocationResult.getShardStoreInfo());
+                assertNull(nodeAllocationResult.getShardStoreInfo().getAllocationId());
+                assertFalse(nodeAllocationResult.getShardStoreInfo().isInSync());
+                assertNull(nodeAllocationResult.getShardStoreInfo().getStoreException());
+            }
+        }
 
         // verify JSON output
         try (XContentParser parser = getParser(explanation)) {

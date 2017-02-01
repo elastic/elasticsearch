@@ -218,7 +218,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             closeIndices
                     ));
                 }
-                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s",
                             skippedSettigns.getAsMap().keySet(),

@@ -206,6 +206,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "")
     public void testOldIndexes() throws Exception {
         setupCluster();
 

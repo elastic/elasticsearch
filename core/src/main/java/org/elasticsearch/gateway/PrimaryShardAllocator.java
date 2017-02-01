@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -183,7 +184,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // this shard will be picked up when the node joins and we do another allocation reroute
                 logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]",
                              unassignedShard.index(), unassignedShard.id(), nodeShardsResult.allocationsFound);
-                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, explain ? new ArrayList<>() : null);
+                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY,
+                    explain ? buildNodeDecisions(null, shardState, inSyncAllocationIds) : null);
             }
         }
 
@@ -228,7 +230,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         List<NodeAllocationResult> nodeResults = null;
         if (explain) {
-            nodeResults = buildNodeDecisions(nodesToAllocate, inSyncAllocationIds);
+            nodeResults = buildNodeDecisions(nodesToAllocate, shardState, inSyncAllocationIds);
         }
         if (allocation.hasPendingAsyncFetch()) {
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
@@ -244,13 +246,35 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Builds a map of nodes to the corresponding allocation decisions for those nodes.
      */
-    private static List<NodeAllocationResult> buildNodeDecisions(NodesToAllocate nodesToAllocate, Set<String> inSyncAllocationIds) {
-        return Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
-                   .flatMap(Collection::stream)
-                   .map(dnode -> new NodeAllocationResult(dnode.nodeShardState.getNode(),
-                                                             shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
-                                                             dnode.decision))
-                   .collect(Collectors.toList());
+    private static List<NodeAllocationResult> buildNodeDecisions(NodesToAllocate nodesToAllocate,
+                                                                 FetchResult<NodeGatewayStartedShards> fetchedShardData,
+                                                                 Set<String> inSyncAllocationIds) {
+        List<NodeAllocationResult> nodeResults = new ArrayList<>();
+        Collection<NodeGatewayStartedShards> ineligibleShards;
+        if (nodesToAllocate != null) {
+            final Set<DiscoveryNode> discoNodes = new HashSet<>();
+            nodeResults.addAll(Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
+                                .flatMap(Collection::stream)
+                                .map(dnode -> {
+                                    discoNodes.add(dnode.nodeShardState.getNode());
+                                    return new NodeAllocationResult(dnode.nodeShardState.getNode(),
+                                                                       shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
+                                                                       dnode.decision);
+                                }).collect(Collectors.toList()));
+            ineligibleShards = fetchedShardData.getData().values().stream().filter(shardData ->
+                discoNodes.contains(shardData.getNode()) == false
+            ).collect(Collectors.toList());
+        } else {
+            // there were no shard copies that were eligible for being assigned the allocation,
+            // so all fetched shard data are ineligible shards
+            ineligibleShards = fetchedShardData.getData().values();
+        }
+
+        nodeResults.addAll(ineligibleShards.stream().map(shardData ->
+            new NodeAllocationResult(shardData.getNode(), shardStoreInfo(shardData, inSyncAllocationIds), null)
+        ).collect(Collectors.toList()));
+
+        return nodeResults;
     }
 
     private static ShardStoreInfo shardStoreInfo(NodeGatewayStartedShards nodeShardState, Set<String> inSyncAllocationIds) {
@@ -389,7 +413,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 yesNodeShards.add(decidedNode);
             }
         }
-        return new NodesToAllocate(Collections.unmodifiableList(yesNodeShards), Collections.unmodifiableList(throttledNodeShards), Collections.unmodifiableList(noNodeShards));
+        return new NodesToAllocate(Collections.unmodifiableList(yesNodeShards), Collections.unmodifiableList(throttledNodeShards),
+                                      Collections.unmodifiableList(noNodeShards));
     }
 
     /**
@@ -486,9 +511,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    static class NodeShardsResult {
-        public final List<NodeGatewayStartedShards> orderedAllocationCandidates;
-        public final int allocationsFound;
+    private static class NodeShardsResult {
+        final List<NodeGatewayStartedShards> orderedAllocationCandidates;
+        final int allocationsFound;
 
         public NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
             this.orderedAllocationCandidates = orderedAllocationCandidates;

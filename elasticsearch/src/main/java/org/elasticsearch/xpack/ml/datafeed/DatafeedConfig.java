@@ -18,10 +18,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 
@@ -29,7 +31,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -401,7 +405,27 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
-            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
+            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
+            for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
+                String script = scriptField.script().getIdOrCode();
+
+                if (script.contains("domainSplit(")) {
+                    String modifiedCode = DomainSplitFunction.function + "\n" + script;
+                    Map<String, Object> modifiedParams = new HashMap<>(scriptField.script().getParams().size()
+                            + DomainSplitFunction.params.size());
+
+                    modifiedParams.putAll(scriptField.script().getParams());
+                    modifiedParams.putAll(DomainSplitFunction.params);
+
+                    Script newScript = new Script(scriptField.script().getType(), scriptField.script().getLang(),
+                            modifiedCode, modifiedParams);
+
+                    sorted.add(new SearchSourceBuilder.ScriptField(scriptField.fieldName(), newScript, scriptField.ignoreFailure()));
+                } else {
+                    sorted.add(scriptField);
+                }
+
+            }
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
         }

@@ -13,17 +13,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.ResourceBundle;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,88 +31,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessDomainSplitIT extends ESRestTestCase {
-
-    private static final Map<String, String> EXCLUDED;
-
-    static {
-        EXCLUDED = new HashMap<>();
-        EXCLUDED.put("city.yokohama.jp", "i");
-        EXCLUDED.put("teledata.mz", "i");
-        EXCLUDED.put("city.kobe.jp", "i");
-        EXCLUDED.put("city.sapporo.jp", "i");
-        EXCLUDED.put("city.kawasaki.jp", "i");
-        EXCLUDED.put("city.nagoya.jp", "i");
-        EXCLUDED.put("www.ck", "i");
-        EXCLUDED.put("city.sendai.jp", "i");
-        EXCLUDED.put("city.kitakyushu.jp", "i");
-    }
-
-    private static final Map<String, String> UNDER;
-
-    static {
-        UNDER = new HashMap<>();
-        UNDER.put("bd", "i");
-        UNDER.put("np", "i");
-        UNDER.put("jm", "i");
-        UNDER.put("fj", "i");
-        UNDER.put("fk", "i");
-        UNDER.put("ye", "i");
-        UNDER.put("sch.uk", "i");
-        UNDER.put("bn", "i");
-        UNDER.put("kitakyushu.jp", "i");
-        UNDER.put("kobe.jp", "i");
-        UNDER.put("ke", "i");
-        UNDER.put("sapporo.jp", "i");
-        UNDER.put("kh", "i");
-        UNDER.put("mm", "i");
-        UNDER.put("il", "i");
-        UNDER.put("yokohama.jp", "i");
-        UNDER.put("ck", "i");
-        UNDER.put("nagoya.jp", "i");
-        UNDER.put("sendai.jp", "i");
-        UNDER.put("kw", "i");
-        UNDER.put("er", "i");
-        UNDER.put("mz", "i");
-        UNDER.put("platform.sh", "p");
-        UNDER.put("gu", "i");
-        UNDER.put("nom.br", "i");
-        UNDER.put("zm", "i");
-        UNDER.put("pg", "i");
-        UNDER.put("ni", "i");
-        UNDER.put("kawasaki.jp", "i");
-        UNDER.put("zw", "i");
-    }
-
-    public static final Map<String, Object> params;
-
-    static {
-        params = new HashMap<>();
-
-        ResourceBundle resource = ResourceBundle.getBundle("org/elasticsearch/xpack/ml/transforms/exact", Locale.getDefault());
-        Enumeration keys = resource.getKeys();
-        Map<String, String> exact = new HashMap<>(2048);
-        while (keys.hasMoreElements()) {
-            String key = (String) keys.nextElement();
-            String value = resource.getString(key);
-            exact.put(key, value);
-        }
-        params.put("excluded", EXCLUDED);
-        params.put("under", UNDER);
-        params.put("exact", exact);
-    }
-
-    static String domainSplitFunction;
-
-    static {
-
-        try {
-            domainSplitFunction = StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/ml/transforms/script.painless")
-                    .replace("\n", "");
-        } catch (Exception e) {
-            domainSplitFunction = "";
-            fail(e.toString());
-        }
-    }
 
     static class TestConfiguration {
         public String subDomainExpected;
@@ -272,7 +190,12 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }")));
     }
 
-    public void testBasics() throws Exception {
+    private void createIndex(String name, Settings settings, String mapping) throws IOException {
+        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
+                new StringEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }")));
+    }
+
+    public void testIsolated() throws Exception {
 
         Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -284,6 +207,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
 
+        Map<String, Object> params = new HashMap<>(DomainSplitFunction.params.size() + 1);
+        params.putAll(DomainSplitFunction.params);
         for (TestConfiguration testConfig : tests) {
             params.put("host", testConfig.hostName);
             String mapAsJson = new ObjectMapper().writeValueAsString(params);
@@ -296,7 +221,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" + domainSplitFunction + " return domainSplit(params['host'], params); \",\n" +
+                    "                \"inline\": \"" + DomainSplitFunction.function + " return domainSplit(params['host'], params); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +
                     "        }\n" +
@@ -326,6 +251,117 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             assertThat("Expected domain [" + testConfig.domainExpected + "] but found [" + actualDomain + "].  Actual "
                     + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(testConfig.domainExpected));
         }
+    }
 
+    public void testHRDSplit() throws Exception {
+
+        // Create job
+        String job = "{\n" +
+                "      \"description\":\"Domain splitting\",\n" +
+                "      \"analysis_config\" : {\n" +
+                "          \"bucket_span\":3600,\n" +
+                "          \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
+                "      },\n" +
+                "      \"data_description\" : {\n" +
+                "          \"field_delimiter\":\",\",\n" +
+                "          \"time_field\":\"time\"\n" +
+                "          \n" +
+                "      }\n" +
+                "  }";
+
+        client().performRequest("PUT", MlPlugin.BASE_PATH + "anomaly_detectors/painless", Collections.emptyMap(), new StringEntity(job));
+        client().performRequest("POST", MlPlugin.BASE_PATH + "anomaly_detectors/painless/_open");
+
+        // Create index to hold data
+        Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+
+        createIndex("painless", settings.build(), "\"test\": { \"properties\": { \"domain\": { \"type\": \"keyword\" },\"time\": { " +
+                "\"type\": \"date\" } } }");
+
+        // Index some data
+        DateTime baseTime = new DateTime().minusYears(1);
+        TestConfiguration test = tests.get(randomInt(tests.size()-1));
+        Pattern pattern = Pattern.compile("by_field_value\":\"(" + test.subDomainExpected + "),(" + test.domainExpected +")\",");
+        for (int i = 0; i < 100; i++) {
+
+            DateTime time = baseTime.plusHours(i);
+            if (i == 64) {
+                // Anomaly has 100 docs, but we don't care about the value
+                for (int j = 0; j < 100; j++) {
+                    client().performRequest("PUT", "painless/test/" + time.toDateTimeISO() + "_" + j,
+                            Collections.emptyMap(),
+                            new StringEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO() + "\"}"));
+                }
+            } else {
+                // Non-anomalous values will be what's seen when the anomaly is reported
+                client().performRequest("PUT", "painless/test/" + time.toDateTimeISO(),
+                        Collections.emptyMap(),
+                        new StringEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO() + "\"}"));
+            }
+        }
+
+        client().performRequest("POST", "painless/_refresh");
+
+        // Create and start datafeed
+        String body = "{\n" +
+                "         \"job_id\":\"painless\",\n" +
+                "         \"indexes\":[\"painless\"],\n" +
+                "         \"types\":[\"test\"],\n" +
+                "         \"script_fields\": {\n" +
+                "            \"domain_split\": {\n" +
+                "               \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +
+                "            }\n" +
+                "         }\n" +
+                "      }";
+
+        client().performRequest("PUT", MlPlugin.BASE_PATH + "datafeeds/painless", Collections.emptyMap(), new StringEntity(body));
+        client().performRequest("POST", MlPlugin.BASE_PATH + "datafeeds/painless/_start");
+
+        boolean passed = awaitBusy(() -> {
+            try {
+                client().performRequest("POST", "/_refresh");
+
+                Response response = client().performRequest("GET", MlPlugin.BASE_PATH + "anomaly_detectors/painless/results/records");
+                String responseBody = EntityUtils.toString(response.getEntity());
+
+                if (responseBody.contains("\"count\":2")) {
+                    Matcher m = pattern.matcher(responseBody);
+
+                    String actualSubDomain = "";
+                    String actualDomain = "";
+                    if (m.find()) {
+                        actualSubDomain = m.group(1).replace("\"", "");
+                        actualDomain = m.group(2).replace("\"", "");
+                    }
+
+                    String expectedTotal = "[" + test.subDomainExpected + "," + test.domainExpected + "]";
+                    String actualTotal = "[" + actualSubDomain + "," + actualDomain + "]";
+
+                    // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
+                    if (test.subDomainExpected != null) {
+                        assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain + "]. Actual "
+                                + actualTotal + " vs Expected " + expectedTotal, actualSubDomain, equalTo(test.subDomainExpected));
+                    }
+
+                    assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
+                            + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
+
+                    return true;
+                } else {
+                    return false;
+                }
+
+            } catch (Exception e) {
+                logger.error(e.getMessage());
+                return false;
+            }
+
+        }, 5, TimeUnit.SECONDS);
+
+        if (!passed) {
+            fail("Anomaly records were not found within 5 seconds");
+        }
     }
 }

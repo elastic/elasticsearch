@@ -324,11 +324,11 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    private Engine.IndexResult index(String id) {
+    private Engine.IndexResult index(String id) throws IOException {
         return index(id, "test");
     }
 
-    private Engine.IndexResult index(String id, String testFieldValue) {
+    private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
         String type = "test";
         Document document = new Document();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));

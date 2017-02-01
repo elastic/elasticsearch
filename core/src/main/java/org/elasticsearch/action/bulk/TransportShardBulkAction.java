@@ -61,6 +61,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;
@@ -375,7 +376,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    public static Engine.IndexResult executeIndexRequestOnReplica(IndexRequest request, IndexShard replica) {
+    public static Engine.IndexResult executeIndexRequestOnReplica(IndexRequest request, IndexShard replica) throws IOException {
         final ShardId shardId = replica.shardId();
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(), request.type(), request.id(), request.source())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
@@ -442,12 +443,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return result;
     }
 
-    public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
+    public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
         final Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         return primary.delete(delete);
     }
 
-    public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
+    public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) throws IOException {
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
                 request.version(), request.versionType());
         return replica.delete(delete);

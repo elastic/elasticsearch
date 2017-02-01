@@ -75,6 +75,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -349,22 +350,36 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private boolean checkVersionConflict(
-            final Operation op,
-            final long currentVersion,
-            final long expectedVersion,
-            final boolean deleted) {
+    /**
+     * Checks for version conflicts. If a non-critical version conflict exists <code>true</code> is returned. In the case of a critical
+     * version conflict (if operation origin is primary) a {@link VersionConflictEngineException} is thrown.
+     *
+     * @param op              the operation
+     * @param currentVersion  the current version
+     * @param expectedVersion the expected version
+     * @param deleted         {@code true} if the current version is not found or represents a delete
+     * @return <code>true</code> iff a non-critical version conflict (origin recovery or replica) is found otherwise <code>false</code>
+     * @throws VersionConflictEngineException if a critical version conflict was found where the operation origin is primary
+     * @throws IllegalArgumentException if an unsupported version type is used.
+     */
+    private boolean checkVersionConflict(final Operation op, final long currentVersion, final long expectedVersion, final boolean deleted) {
         if (op.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-            if (op.origin().isRecovery()) {
-                // version conflict, but okay
-                return true;
-            } else {
+            if (op.origin() == Operation.Origin.PRIMARY) {
                 // fatal version conflict
-                throw new VersionConflictEngineException(shardId, op.type(), op.id(),
+                throw new VersionConflictEngineException(
+                        shardId,
+                        op.type(),
+                        op.id(),
                         op.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+
+            } else {
+                /* Version conflicts during recovery and on replicas are normal due to asynchronous execution; as such, we should return a
+                 * successful result.*/
+                return true;
             }
+        } else {
+            return false;
         }
-        return false;
     }
 
     private long checkDeletedAndGCed(VersionValue versionValue) {
@@ -378,7 +393,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexResult index(Index index) {
+    public IndexResult index(Index index) throws IOException {
         IndexResult result;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -390,51 +405,15 @@ public class InternalEngine extends Engine {
                     result = innerIndex(index);
                 }
             }
-        } catch (Exception e) {
-            result = new IndexResult(checkIfDocumentFailureOrThrow(index, e), index.version());
-            if (e instanceof AlreadyClosedException) {
-                throw (AlreadyClosedException)e;
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("index", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
             }
+            throw e;
         }
         return result;
-    }
-
-    /**
-     * Inspects exception thrown when executing index or delete operations
-     *
-     * @return failure if the failure is a document specific failure (e.g. analysis chain failure)
-     * or throws Exception if the failure caused the engine to fail (e.g. out of disk, lucene tragic event)
-     *
-     * Note: pkg-private for testing
-     */
-    final Exception checkIfDocumentFailureOrThrow(final Operation operation, final Exception failure) {
-        boolean isDocumentFailure;
-        try {
-            // When indexing a document into Lucene, Lucene distinguishes between environment related errors
-            // (like out of disk space) and document specific errors (like analysis chain problems) by setting
-            // the IndexWriter.getTragicEvent() value for the former. maybeFailEngine checks for these kind of
-            // errors and returns true if that is the case. We use that to indicate a document level failure
-            // and set the error in operation.setFailure. In case of environment related errors, the failure
-            // is bubbled up
-            isDocumentFailure = maybeFailEngine(operation.operationType().getLowercase(), failure) == false;
-        } catch (Exception inner) {
-            // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
-            isDocumentFailure = false;
-            failure.addSuppressed(inner);
-        }
-        if (isDocumentFailure) {
-            return failure;
-        } else {
-            // throw original exception in case the exception caused the engine to fail
-            rethrow(failure);
-            return null;
-        }
-    }
-
-    // hack to rethrow original exception in case of engine level failures during index/delete operation
-    @SuppressWarnings("unchecked")
-    private static <T extends Throwable> void rethrow(Throwable t) throws T {
-        throw (T) t;
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -462,8 +441,8 @@ public class InternalEngine extends Engine {
     }
 
     private IndexResult innerIndex(Index index) throws IOException {
+        // TODO we gotta split this method up it's too big!
         final Translog.Location location;
-        final long updatedVersion;
         try (Releasable ignored = acquireLock(index.uid())) {
             lastWriteNanos = index.startTime();
             /* if we have an autoGeneratedID that comes into the engine we can potentially optimize
@@ -528,25 +507,58 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
+            Optional<IndexResult> resultOnVersionConflict;
+            try {
+                final boolean isVersionConflict = checkVersionConflict(index, currentVersion, expectedVersion, deleted);
+                resultOnVersionConflict = isVersionConflict ? Optional.of(new IndexResult(currentVersion, false))
+                    : Optional.empty();
+            } catch (IllegalArgumentException | VersionConflictEngineException ex) {
+                resultOnVersionConflict = Optional.of(new IndexResult(ex, currentVersion));
+            }
+
             final IndexResult indexResult;
-            if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
+            if (resultOnVersionConflict.isPresent()) {
                 // skip index operation because of version conflict on recovery
-                indexResult = new IndexResult(expectedVersion, false);
+                indexResult = resultOnVersionConflict.get();
             } else {
-                updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+                // no version conflict
+                final long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
-                if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
-                    // document does not exists, we can optimize for create, but double check if assertions are running
-                    assert assertDocDoesNotExist(index, canOptimizeAddDocument == false);
-                    index(index.docs(), indexWriter);
-                } else {
-                    update(index.uid(), index.docs(), indexWriter);
+                IndexResult innerIndexResult;
+                try {
+                    if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
+                        // document does not exists, we can optimize for create, but double check if assertions are running
+                        assert assertDocDoesNotExist(index, canOptimizeAddDocument == false);
+                        index(index.docs(), indexWriter);
+                    } else {
+                        update(index.uid(), index.docs(), indexWriter);
+                    }
+                    versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
+                    innerIndexResult = new IndexResult(updatedVersion, deleted);
+                } catch (Exception ex) {
+                    if (indexWriter.getTragicException() == null) {
+                        /* There is no tragic event recorded so this must be a document failure.
+                         *
+                         * The handling inside IW doesn't guarantee that an tragic / aborting exception
+                         * will be used as THE tragicEventException since if there are multiple exceptions causing an abort in IW
+                         * only one wins. Yet, only the one that wins will also close the IW and in turn fail the engine such that
+                         * we can potentially handle the exception before the engine is failed.
+                         * Bottom line is that we can only rely on the fact that if it's a document failure then
+                         * `indexWriter.getTragicException()` will be null otherwise we have to rethrow and treat it as fatal or rather
+                         * non-document failure
+                         */
+                        innerIndexResult = new IndexResult(ex, currentVersion);
+                    } else {
+                        throw ex;
+                    }
                 }
-                indexResult = new IndexResult(updatedVersion, deleted);
+                assert innerIndexResult != null;
+                indexResult = innerIndexResult;
+            }
+            if (indexResult.hasFailure() == false) {
                 location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                         ? translog.add(new Translog.Index(index, indexResult))
                         : null;
-                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
                 indexResult.setTranslogLocation(location);
             }
             indexResult.setTook(System.nanoTime() - index.startTime());
@@ -592,17 +604,19 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public DeleteResult delete(Delete delete) {
+    public DeleteResult delete(Delete delete) throws IOException {
         DeleteResult result;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);
-        } catch (Exception e) {
-            result = new DeleteResult(checkIfDocumentFailureOrThrow(delete, e), delete.version());
-            if (e instanceof AlreadyClosedException) {
-                throw (AlreadyClosedException)e;
+        } catch (RuntimeException | IOException e) {
+            try {
+                maybeFailEngine("index", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
             }
+            throw e;
         }
         maybePruneDeletedTombstones();
         return result;
@@ -635,19 +649,28 @@ public class InternalEngine extends Engine {
             }
 
             final long expectedVersion = delete.version();
+            Optional<DeleteResult> resultOnVersionConflict;
+            try {
+                final boolean isVersionConflict = checkVersionConflict(delete, currentVersion, expectedVersion, deleted);
+                resultOnVersionConflict = isVersionConflict ? Optional.of(new DeleteResult(expectedVersion, true))
+                    : Optional.empty();
+            } catch (IllegalArgumentException | VersionConflictEngineException ex) {
+                resultOnVersionConflict = Optional.of(new DeleteResult(ex, expectedVersion));
+            }
             final DeleteResult deleteResult;
-            if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
-                // skip executing delete because of version conflict on recovery
-                deleteResult = new DeleteResult(expectedVersion, true);
+            if (resultOnVersionConflict.isPresent()) {
+                deleteResult = resultOnVersionConflict.get();
             } else {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, found);
+                versionMap.putUnderLock(delete.uid().bytes(),
+                        new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+            }
+            if (deleteResult.hasFailure() == false) {
                 location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                         ? translog.add(new Translog.Delete(delete, deleteResult))
                         : null;
-                versionMap.putUnderLock(delete.uid().bytes(),
-                        new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
                 deleteResult.setTranslogLocation(location);
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
@@ -657,6 +680,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean deleteIfFound(Term uid, long currentVersion, boolean deleted, VersionValue versionValue) throws IOException {
+        assert uid != null : "uid must not be null";
         final boolean found;
         if (currentVersion == Versions.NOT_FOUND) {
             // doc does not exist and no prior deletes
@@ -666,6 +690,8 @@ public class InternalEngine extends Engine {
             found = false;
         } else {
             // we deleted a currently existing document
+            // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures coming
+            // from this.
             indexWriter.deleteDocuments(uid);
             found = true;
         }

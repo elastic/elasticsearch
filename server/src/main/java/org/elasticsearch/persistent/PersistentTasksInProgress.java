@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.Task.Status;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -101,23 +103,31 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
         private final String action;
         private final Request request;
         @Nullable
+        private final Status status;
+        @Nullable
         private final String executorNode;
 
 
         public PersistentTaskInProgress(long id, String action, Request request, String executorNode) {
-            this(id, 0L, action, request, executorNode);
+            this(id, 0L, action, request, null, executorNode);
         }
 
         public PersistentTaskInProgress(PersistentTaskInProgress<Request> persistentTaskInProgress, String newExecutorNode) {
             this(persistentTaskInProgress.id, persistentTaskInProgress.allocationId + 1L,
-                    persistentTaskInProgress.action, persistentTaskInProgress.request, newExecutorNode);
+                    persistentTaskInProgress.action, persistentTaskInProgress.request, null, newExecutorNode);
         }
 
-        private PersistentTaskInProgress(long id, long allocationId, String action, Request request, String executorNode) {
+        public PersistentTaskInProgress(PersistentTaskInProgress<Request> persistentTaskInProgress, Status status) {
+            this(persistentTaskInProgress.id, persistentTaskInProgress.allocationId,
+                    persistentTaskInProgress.action, persistentTaskInProgress.request, status, persistentTaskInProgress.executorNode);
+        }
+
+        private PersistentTaskInProgress(long id, long allocationId, String action, Request request, Status status, String executorNode) {
             this.id = id;
             this.allocationId = allocationId;
             this.action = action;
             this.request = request;
+            this.status = status;
             this.executorNode = executorNode;
             // Update parent request for starting tasks with correct parent task ID
             request.setParentTask("cluster", id);
@@ -129,6 +139,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
             allocationId = in.readLong();
             action = in.readString();
             request = (Request) in.readNamedWriteable(PersistentActionRequest.class);
+            status = in.readOptionalNamedWriteable(Task.Status.class);
             executorNode = in.readOptionalString();
         }
 
@@ -138,6 +149,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
             out.writeLong(allocationId);
             out.writeString(action);
             out.writeNamedWriteable(request);
+            out.writeOptionalNamedWriteable(status);
             out.writeOptionalString(executorNode);
         }
 
@@ -150,12 +162,13 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
                     allocationId == that.allocationId &&
                     Objects.equals(action, that.action) &&
                     Objects.equals(request, that.request) &&
+                    Objects.equals(status, that.status) &&
                     Objects.equals(executorNode, that.executorNode);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, allocationId, action, request, executorNode);
+            return Objects.hash(id, allocationId, action, request, status, executorNode);
         }
 
         public long getId() {
@@ -179,6 +192,10 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
             return executorNode;
         }
 
+        @Nullable
+        public Status getStatus() {
+            return status;
+        }
     }
 
     @Override
@@ -224,6 +241,9 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
             builder.field("action", entry.action);
             builder.field("request");
             entry.request.toXContent(builder, params);
+            if (entry.status != null) {
+                builder.field("status", entry.status, params);
+            }
             builder.field("executor_node", entry.executorNode);
         }
         builder.endObject();

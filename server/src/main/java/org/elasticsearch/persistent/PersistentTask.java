@@ -29,6 +29,8 @@ import org.elasticsearch.tasks.TaskId;
 public class PersistentTask extends CancellableTask {
     private Provider<Status> statusProvider;
 
+    private long persistentTaskId;
+
     public PersistentTask(long id, String type, String action, String description, TaskId parentTask) {
         super(id, type, action, description, parentTask);
     }
@@ -51,5 +53,13 @@ public class PersistentTask extends CancellableTask {
     public void setStatusProvider(Provider<Status> statusProvider) {
         assert this.statusProvider == null;
         this.statusProvider = statusProvider;
+    }
+
+    public long getPersistentTaskId() {
+        return persistentTaskId;
+    }
+
+    public void setPersistentTaskId(long persistentTaskId) {
+        this.persistentTaskId = persistentTaskId;
     }
 }

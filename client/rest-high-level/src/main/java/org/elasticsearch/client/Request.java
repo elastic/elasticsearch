@@ -59,11 +59,16 @@ final class Request {
         return new Request("HEAD", "/", Collections.emptyMap(), null);
     }
 
+    static Request exists(GetRequest getRequest) {
+        return new Request("HEAD", getEndpoint(getRequest), getParams(getRequest), null);
+    }
+
     static Request get(GetRequest getRequest) {
-        StringJoiner pathJoiner = new StringJoiner("/", "/", "");
-        String endpoint = pathJoiner.add(getRequest.index()).add(getRequest.type()).add(getRequest.id()).toString();
+        return new Request("GET", getEndpoint(getRequest), getParams(getRequest), null);
+    }
+
+    private static Map<String, String> getParams(GetRequest getRequest) {
         Map<String, String> params = new HashMap<>();
-        params.put("ignore", "404");
         putParam("preference", getRequest.preference(), params);
         putParam("routing", getRequest.routing(), params);
         putParam("parent", getRequest.parent(), params);
@@ -94,7 +99,12 @@ final class Request {
                 params.put("_source_exclude", String.join(",", fetchSourceContext.excludes()));
             }
         }
-        return new Request("GET", endpoint, params, null);
+        return Collections.unmodifiableMap(params);
+    }
+
+    private static String getEndpoint(GetRequest getRequest) {
+        StringJoiner pathJoiner = new StringJoiner("/", "/", "");
+        return pathJoiner.add(getRequest.index()).add(getRequest.type()).add(getRequest.id()).toString();
     }
 
     private static void putParam(String key, String value, Map<String, String> params) {

@@ -21,9 +21,11 @@ package org.elasticsearch.client;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -32,7 +34,26 @@ import java.util.Map;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
-    public void testGetAndExists() throws IOException {
+    public void testExists() throws IOException {
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+        }
+        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
+        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
+            assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+        }
+    }
+
+    public void testGet() throws IOException {
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
         StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
         Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
@@ -50,7 +71,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(getResponse.isSourceEmpty());
             assertEquals(1L, getResponse.getVersion());
             assertEquals(document, getResponse.getSourceAsString());
-            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
@@ -62,7 +82,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(-1, getResponse.getVersion());
             assertTrue(getResponse.isSourceEmpty());
             assertNull(getResponse.getSourceAsString());
-            assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -75,7 +94,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertTrue(getResponse.isSourceEmpty());
             assertEquals(1L, getResponse.getVersion());
             assertNull(getResponse.getSourceAsString());
-            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -84,7 +102,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             } else {
                 getRequest.fetchSourceContext(new FetchSourceContext(true, Strings.EMPTY_ARRAY, new String[]{"field2"}));
             }
-
             GetResponse getResponse = execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync);
             assertEquals("index", getResponse.getIndex());
             assertEquals("type", getResponse.getType());
@@ -95,31 +112,29 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             assertEquals("value1", sourceAsMap.get("field1"));
-            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
 
-    //TODO test exceptions once we are able to parse them back
-    //another exception that could be tested is IndexNotFoundException
-    /*
-    {
-        GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
-        GetResponse getResponse = highLevelClient().get(getRequest);
-        assertEquals("index", getResponse.getIndex());
-        assertEquals("type", getResponse.getType());
-        assertEquals("id", getResponse.getId());
-        assertFalse(getResponse.isExists());
-        assertEquals(-1, getResponse.getVersion());
-        assertTrue(getResponse.isSourceEmpty());
-        assertNull(getResponse.getSourceAsString());
+    public void testGetExceptions() throws IOException {
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
+        }
+        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
+        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
+        assertEquals(201, response.getStatusLine().getStatusCode());
 
-        409 Conflict
-        {"error":{"root_cause":[{"type":"version_conflict_engine_exception",
-        "reason":"[type][id]: version conflict, current version [1] is different than the one provided [2]",
-        "index_uuid":"fMhefwt5S-m3NLiFhniBwA","shard":"4","index":"index"}],
-        "type":"version_conflict_engine_exception",
-        "reason":"[type][id]: version conflict, current version [1] is different than the one provided [2]",
-        "index_uuid":"fMhefwt5S-m3NLiFhniBwA","shard":"4","index":"index"},"status":409}
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, " + "reason=[type][id]: " +
+                    "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+        }
     }
-    */
 }

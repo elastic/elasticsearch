@@ -115,12 +115,12 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         {
             ActionRequestValidationException actualException = expectThrows(ActionRequestValidationException.class,
-                    () -> restHighLevelClient.performRequest(request, null, null));
+                    () -> restHighLevelClient.performRequest(request, null, null, null));
             assertSame(validationException, actualException);
         }
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
-            restHighLevelClient.performRequestAsync(request, null, null, trackingActionListener);
+            restHighLevelClient.performRequestAsync(request, null, null, trackingActionListener, null);
             assertSame(validationException, trackingActionListener.exception.get());
         }
     }
@@ -177,8 +177,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
-            assertEquals(1, elasticsearchException.getSuppressed().length);
-            assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+            assertSame(responseException, elasticsearchException.getCause());
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
@@ -191,7 +190,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
-            assertEquals(1, elasticsearchException.getSuppressed().length);
             assertSame(responseException, elasticsearchException.getSuppressed()[0]);
         }
         {
@@ -204,10 +202,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals("unable to parse response body", elasticsearchException.getMessage());
-            assertThat(elasticsearchException.getCause(), instanceOf(IOException.class));
             assertEquals(restStatus, elasticsearchException.status());
-            assertEquals(1, elasticsearchException.getSuppressed().length);
-            assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+            assertSame(responseException, elasticsearchException.getCause());
+            assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IOException.class));
         }
     }
 
@@ -216,7 +213,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
                 restStatus.getStatus(), restStatus.name()));
@@ -228,7 +225,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testWrapResponseListenerOnException() throws IOException {
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         IllegalStateException exception = new IllegalStateException();
         responseListener.onFailure(exception);
         assertSame(exception, trackingActionListener.exception.get());
@@ -239,7 +236,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
                 restStatus.getStatus(), restStatus.name()));
@@ -250,8 +247,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
         assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
-        assertEquals(1, elasticsearchException.getSuppressed().length);
-        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        assertSame(responseException, elasticsearchException.getCause());
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithEntity() throws IOException {
@@ -259,7 +255,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
                 restStatus.getStatus(), restStatus.name()));
@@ -272,7 +268,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
-        assertEquals(1, elasticsearchException.getSuppressed().length);
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
     }
 
@@ -281,7 +276,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
                 restStatus.getStatus(), restStatus.name()));
@@ -295,8 +290,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("unable to parse response body", elasticsearchException.getMessage());
         assertThat(elasticsearchException.getCause(), instanceOf(IOException.class));
         assertEquals(restStatus, elasticsearchException.status());
-        assertEquals(1, elasticsearchException.getSuppressed().length);
-        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        assertSame(responseException, elasticsearchException.getCause());
+        assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IOException.class));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

@@ -20,12 +20,19 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +44,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -208,6 +216,144 @@ public class BytesRestResponseTests extends ESTestCase {
         assertThat(content, containsString("\"type\":\"exception\""));
         assertThat(content, containsString("\"reason\":\"simulated\""));
         assertThat(content, containsString("\"status\":" + 500));
+    }
+
+    public void testErrorToAndFromXContent() throws IOException {
+        final boolean detailed = randomBoolean();
+
+        Exception original;
+        ElasticsearchException cause = null;
+        String reason;
+        String type = "exception";
+        RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
+        boolean addHeadersOrMetadata = false;
+
+        switch (randomIntBetween(0, 5)) {
+            case 0:
+                original = new ElasticsearchException("ElasticsearchException without cause");
+                if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
+                    reason = "ElasticsearchException without cause";
+                } else {
+                    reason = "ElasticsearchException[ElasticsearchException without cause]";
+                }
+                break;
+            case 1:
+                original = new ElasticsearchException("ElasticsearchException with a cause", new FileNotFoundException("missing"));
+                if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
+                    type = "exception";
+                    reason = "ElasticsearchException with a cause";
+                    cause = new ElasticsearchException("Elasticsearch exception [type=file_not_found_exception, reason=missing]");
+                } else {
+                    reason = "ElasticsearchException[ElasticsearchException with a cause]";
+                }
+                break;
+            case 2:
+                original = new ResourceNotFoundException("ElasticsearchException with custom status");
+                status = RestStatus.NOT_FOUND;
+                if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
+                    type = "resource_not_found_exception";
+                    reason = "ElasticsearchException with custom status";
+                } else {
+                    reason = "ResourceNotFoundException[ElasticsearchException with custom status]";
+                }
+                break;
+            case 3:
+                TransportAddress address = buildNewFakeTransportAddress();
+                original = new RemoteTransportException("remote", address, "action",
+                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status"));
+                status = RestStatus.BAD_REQUEST;
+                if (detailed) {
+                    type = "resource_already_exists_exception";
+                    reason = "ElasticsearchWrapperException with a cause that has a custom status";
+                } else {
+                    reason = "RemoteTransportException[[remote][" + address.toString() + "][action]]";
+                }
+                break;
+            case 4:
+                original = new RemoteTransportException("ElasticsearchWrapperException with a cause that has a special treatment",
+                        new IllegalArgumentException("wrong"));
+                status = RestStatus.BAD_REQUEST;
+                if (detailed) {
+                    type = "illegal_argument_exception";
+                    reason = "wrong";
+                } else {
+                    reason = "RemoteTransportException[[ElasticsearchWrapperException with a cause that has a special treatment]]";
+                }
+                break;
+            case 5:
+                status = randomFrom(RestStatus.values());
+                original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
+                if (detailed) {
+                    addHeadersOrMetadata = randomBoolean();
+                    type = "status_exception";
+                    reason = "ElasticsearchStatusException with random status";
+                } else {
+                    reason = "ElasticsearchStatusException[ElasticsearchStatusException with random status]";
+                }
+                break;
+            default:
+                throw new UnsupportedOperationException("Failed to generate random exception");
+        }
+
+        String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";
+        ElasticsearchStatusException expected = new ElasticsearchStatusException(message, status, cause);
+
+        if (addHeadersOrMetadata) {
+            ElasticsearchException originalException = ((ElasticsearchException) original);
+            if (randomBoolean()) {
+                originalException.addHeader("foo", "bar", "baz");
+                expected.addHeader("foo", "bar", "baz");
+            }
+            if (randomBoolean()) {
+                originalException.addMetadata("es.metadata_0", "0");
+                expected.addMetadata("es.metadata_0", "0");
+            }
+            if (randomBoolean()) {
+                String resourceType = randomAsciiOfLength(5);
+                String resourceId = randomAsciiOfLength(5);
+                originalException.setResources(resourceType, resourceId);
+                expected.setResources(resourceType, resourceId);
+            }
+            if (randomBoolean()) {
+                originalException.setIndex("_index");
+                expected.setIndex("_index");
+            }
+        }
+
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        Map<String, String> params = Collections.singletonMap("format", xContentType.mediaType());
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        RestChannel channel = detailed ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
+
+        BytesRestResponse response = new BytesRestResponse(channel, original);
+
+        ElasticsearchException parsedError;
+        try (XContentParser parser = createParser(xContentType.xContent(), response.content())) {
+            parsedError = BytesRestResponse.errorFromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(expected.status(), parsedError.status());
+        assertDeepEquals(expected, parsedError);
+    }
+
+    public void testNoErrorFromXContent() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
+                builder.startObject();
+                builder.field("status", randomFrom(RestStatus.values()).getStatus());
+                builder.endObject();
+
+                try (XContentParser parser = createParser(builder.contentType().xContent(), builder.bytes())) {
+                    BytesRestResponse.errorFromXContent(parser);
+                }
+            }
+        });
+        assertEquals("Failed to parse elasticsearch status exception: no exception was found", e.getMessage());
     }
 
     public static class WithHeadersException extends ElasticsearchException {

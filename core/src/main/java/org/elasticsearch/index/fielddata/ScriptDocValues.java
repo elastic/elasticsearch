@@ -21,12 +21,11 @@ package org.elasticsearch.index.fielddata;
 
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
@@ -35,8 +34,6 @@ import java.util.AbstractList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.UnaryOperator;
-
-import static java.lang.Math.max;
 
 
 /**
@@ -132,12 +129,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Longs extends ScriptDocValues<Long> {
 
         private final SortedNumericDocValues values;
-        /**
-         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so there is no cost if not used. We keep
-         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
-         */
-        private MutableDateTime[] dates;
-        private ScriptDocValues<ReadableDateTime> dateList;
+        private Dates dates;
 
         public Longs(SortedNumericDocValues values) {
             this.values = values;
@@ -146,6 +138,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public void setNextDocId(int docId) {
             values.setDocument(docId);
+            if (dates != null) {
+                dates.refreshArray();
+            }
         }
 
         public SortedNumericDocValues getInternalValues() {
@@ -161,33 +156,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public ReadableDateTime getDate() {
-            if (values.count() == 0) {
-                return dateAt(0, 0L);
+            if (dates == null) {
+                dates = new Dates(values);
+                dates.refreshArray();
             }
-            return dateAt(0, values.valueAt(0));
+            return dates.getValue();
         }
 
         public List<ReadableDateTime> getDates() {
-            if (dateList == null) {
-                dateList = new ScriptDocValues<ReadableDateTime>() {
-                    @Override
-                    public ReadableDateTime get(int index) {
-                        return dateAt(index, values.valueAt(index));
-                    }
-
-                    @Override
-                    public int size() {
-                        return values.count();
-                    }
-
-                    @Override
-                    public void setNextDocId(int docId) {
-                        // Not needed
-                        throw new UnsupportedOperationException();
-                    }
-                };
+            if (dates == null) {
+                dates = new Dates(values);
+                dates.refreshArray();
             }
-            return dateList;
+            return dates;
         }
 
         @Override
@@ -199,26 +180,83 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return values.count();
         }
+    }
+
+    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
+        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+
+        private final SortedNumericDocValues values;
+        /**
+         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
+         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         */
+        private MutableDateTime[] dates;
+
+        public Dates(SortedNumericDocValues values) {
+            this.values = values;
+        }
 
         /**
-         * Fetch the value at an index wrapped in a {@link ReadableDateTime}. We take care not to allocate a new {@link MutableDateTime}
-         * if possible.
+         * Fetch the first field value or 0 millis after epoch if there are no values.
          */
-        private ReadableDateTime dateAt(int index, long value) {
-            if (dates == null) {
-                dates = new MutableDateTime[ArrayUtil.oversize(max(1, values.count()), RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                dates[index] = new MutableDateTime(value, DateTimeZone.UTC);
-            } else {
-                if (index >= dates.length) {
-                    dates = ArrayUtil.grow(dates, max(1, values.count()));
-                }
-                if (dates[index] == null) {
-                    dates[index] = new MutableDateTime(value, DateTimeZone.UTC);
-                } else {
-                    dates[index].setMillis(value);
-                }
+        public ReadableDateTime getValue() {
+            if (values.count() == 0) {
+                return EPOCH;
+            }
+            return get(0);
+        }
+
+        @Override
+        public ReadableDateTime get(int index) {
+            if (index >= values.count()) {
+                throw new IndexOutOfBoundsException(
+                        "attempted to fetch the [" + index + "] date when there are only [" + values.count() + "] dates.");
             }
             return dates[index];
+        }
+
+        @Override
+        public int size() {
+            return values.count();
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            values.setDocument(docId);
+            refreshArray();
+        }
+
+        /**
+         * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
+         */
+        void refreshArray() {
+            if (values.count() == 0) {
+                return;
+            }
+            if (dates == null) {
+                // Uninitialized
+                dates = new MutableDateTime[values.count()];
+                for (int i = 0; i < dates.length; i++) {
+                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                }
+                return;
+            }
+            if (values.count() > dates.length) {
+                // Values too small
+                MutableDateTime[] backup = dates;
+                dates = new MutableDateTime[values.count()];
+                System.arraycopy(backup, 0, dates, 0, backup.length);
+                for (int i = 0; i < backup.length; i++) {
+                    dates[i].setMillis(values.valueAt(i));
+                }
+                for (int i = backup.length; i < dates.length; i++) {
+                    dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
+                }
+                return;
+            }
+            for (int i = 0; i < values.count(); i++) {
+                dates[i].setMillis(values.valueAt(i));
+            }
         }
     }
 

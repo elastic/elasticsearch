@@ -32,8 +32,7 @@ import java.util.Base64;
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar");
-        storedScriptRequest.script(new BytesArray("{}"), XContentType.JSON);
+        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar", new BytesArray("{}"), XContentType.JSON);
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -43,7 +42,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest();
                 serialized.readFrom(in);
                 assertEquals(XContentType.JSON, serialized.xContentType());
-                assertEquals(storedScriptRequest.scriptLang(), serialized.scriptLang());
+                assertEquals(storedScriptRequest.lang(), serialized.lang());
                 assertEquals(storedScriptRequest.id(), serialized.id());
             }
         }
@@ -58,9 +57,9 @@ public class PutStoredScriptRequestTests extends ESTestCase {
             PutStoredScriptRequest serialized = new PutStoredScriptRequest();
             serialized.readFrom(in);
             assertEquals(XContentType.JSON, serialized.xContentType());
-            assertEquals("mustache", serialized.scriptLang());
+            assertEquals("mustache", serialized.lang());
             assertEquals("script", serialized.id());
-            assertEquals(new BytesArray("{}"), serialized.script());
+            assertEquals(new BytesArray("{}"), serialized.content());
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);

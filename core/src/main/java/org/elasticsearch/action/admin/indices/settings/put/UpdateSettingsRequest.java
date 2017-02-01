@@ -70,7 +70,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (settings.getAsMap().isEmpty()) {
+        if (settings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;

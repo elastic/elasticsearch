@@ -1210,7 +1210,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(@Nullable String scriptLang, String id){
-            return prepareDeleteStoredScript().setScriptLang(scriptLang).setId(id);
+            return prepareDeleteStoredScript().setLang(scriptLang).setId(id);
         }
     }
 

@@ -31,11 +31,6 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         super(client, action, new PutStoredScriptRequest());
     }
 
-    public PutStoredScriptRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
-        return this;
-    }
-
     public PutStoredScriptRequestBuilder setId(String id) {
         request.id(id);
         return this;
@@ -43,19 +38,24 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
 
     /**
      * Set the source of the script.
-     * @deprecated this method requires content type detection. Use {@link #setSource(BytesReference, XContentType)} instead
+     * @deprecated this method requires content type detection. Use {@link #setContent(BytesReference, XContentType)} instead
      */
     @Deprecated
-    public PutStoredScriptRequestBuilder setSource(BytesReference source) {
-        request.script(source);
+    public PutStoredScriptRequestBuilder setContent(BytesReference content) {
+        request.content(content);
         return this;
     }
 
     /**
      * Set the source of the script along with the content type of the source
      */
-    public PutStoredScriptRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.script(source, xContentType);
+    public PutStoredScriptRequestBuilder setContent(BytesReference source, XContentType xContentType) {
+        request.content(source, xContentType);
+        return this;
+    }
+
+    public PutStoredScriptRequestBuilder setLang(String lang) {
+        request.lang(lang);
         return this;
     }
 }

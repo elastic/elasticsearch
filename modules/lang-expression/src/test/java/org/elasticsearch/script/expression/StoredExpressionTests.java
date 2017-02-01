@@ -36,7 +36,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
-public class IndexedExpressionTests extends ESIntegTestCase {
+public class StoredExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
@@ -52,9 +52,9 @@ public class IndexedExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(ExpressionScriptEngineService.NAME)
+                .setLang(ExpressionScriptEngineService.NAME)
                 .setId("script1")
-                .setSource(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
@@ -63,7 +63,7 @@ public class IndexedExpressionTests extends ESIntegTestCase {
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are disabled"));
+            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are not supported"));
         }
         try {
             client().prepareSearch()

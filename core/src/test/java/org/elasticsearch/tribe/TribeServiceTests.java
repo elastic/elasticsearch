@@ -54,7 +54,7 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("false", clientSettings.get("node.ingest"));
         assertEquals("false", clientSettings.get("node.local_storage"));
         assertEquals("3707202549613653169", clientSettings.get("node.id.seed")); // should be fixed by the parent id and tribe name
-        assertEquals(9, clientSettings.getAsMap().size());
+        assertEquals(9, clientSettings.size());
     }
 
     public void testEnvironmentSettings() {

@@ -46,7 +46,9 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
             if (randomBoolean()) {
                 params.put("foo", "bar");
             }
-            script = new Script(randomFrom(ScriptType.values()), randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
+            ScriptType type = randomFrom(ScriptType.values());
+            script =
+                new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
         }
         BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {

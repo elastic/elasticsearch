@@ -3,7 +3,7 @@
 
 The search API allows one to execute a search query and get back search hits
 that match the query. It can be executed across one or more indices and
-across one or more types. The query can provided using the <<java-query-dsl,query Java API>>.
+across one or more types. The query can be provided using the <<java-query-dsl,query Java API>>.
 The body of the search request is built using the `SearchSourceBuilder`. Here is an example:
 
 [source,java]

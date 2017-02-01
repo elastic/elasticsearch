@@ -49,6 +49,7 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_DOC_FREQ;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
+import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_EXACT_MATCH;
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.ACCURACY_FIELD;
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MAX_EDITS_FIELD;
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.MAX_INSPECTIONS_FIELD;
@@ -59,6 +60,7 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.SORT_FIELD;
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.STRING_DISTANCE_FIELD;
 import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.SUGGESTMODE_FIELD;
+import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder.EXACT_MATCH;
 
 /**
  * Defines the actual suggest command. Each command uses the global options
@@ -366,8 +368,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         this.minDocFreq = minDocFreq;
         return this;
     }
-	
-	/**
+    
+    /**
      * Indicate whether to return exact matches as suggestions
      */
     public TermSuggestionBuilder exactMatch(boolean exactMatch) {
@@ -436,7 +438,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     tmpSuggestion.minWordLength(parser.intValue());
                 } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, EXACT_MATCH)) {
+                } else if (EXACT_MATCH.match(currentFieldName)) {
                     tmpSuggestion.exactMatch(parser.booleanValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

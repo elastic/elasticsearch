@@ -138,15 +138,8 @@ public class DirectSpellcheckerSettings  {
     public void minDocFreq(float minDocFreq) {
         this.minDocFreq = minDocFreq;
     }
-	public boolean exactMatch() {
-        return exactMatch;
-    }
- 
-    public void exactMatch(boolean exactMatch) {
-       this.exactMatch = exactMatch;
-    }
 
-	public boolean exactMatch() {
+    public boolean exactMatch() {
         return exactMatch;
     }
  

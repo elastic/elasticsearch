@@ -64,9 +64,9 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             if (suggestion.getDirectSpellCheckerSettings().exactMatch()){
                 final TermsEnum termsEnum = MultiFields.getTerms(indexReader, token.term.field()).iterator();
                 if (termsEnum.seekExact(token.term.bytes())) {
-				    Text word = new Text(token.term.text());
-				    resultEntry.addOption(new TermSuggestion.Entry.Option(word, termsEnum.docFreq(), 1f));
-				}
+                    Text word = new Text(token.term.text());
+                    resultEntry.addOption(new TermSuggestion.Entry.Option(word, termsEnum.docFreq(), 1f));
+                }
             }
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new Text(suggestWord.string);
@@ -104,8 +104,10 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         }
 
     }
-	
-	private void addExactMatch(TermSuggestionContext suggestion, IndexReader indexReader, Token token, TermSuggestion.Entry resultEntry) throws IOException{
+    
+    private void addExactMatch(TermSuggestionContext suggestion, IndexReader indexReader, Token token, 
+                               TermSuggestion.Entry resultEntry) 
+            throws IOException{
          //If token is spelled correctly, add to results with a score of 1
          Terms terms = MultiFields.getTerms(indexReader, token.term.field());
          TermsEnum e = terms.iterator();
@@ -130,7 +132,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                  //we found it
                  foundToken = true;
                  //add to results
-                 Text word = new StringText(exactMatch.string);
+                 Text word = new Text(exactMatch.string);
                  resultEntry.addOption(new TermSuggestion.Entry.Option(word, exactMatch.freq, exactMatch.score));
              }
          }

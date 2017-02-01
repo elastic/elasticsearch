@@ -62,6 +62,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     public static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
     public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
     public static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
+    public static final ParseField EXACT_MATCH = new ParseField("exact_match");
 
     private final String field;
     private String preFilter;

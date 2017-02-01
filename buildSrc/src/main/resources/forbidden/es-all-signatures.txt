@@ -36,3 +36,10 @@ org.apache.lucene.document.FieldType#numericType()
 java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
+@defaultMessage Don't open socket connections
+java.net.URL#openStream()
+java.net.Socket#connect(java.net.SocketAddress)
+java.net.Socket#connect(java.net.SocketAddress, int)
+java.nio.channels.SocketChannel#open(java.net.SocketAddress)
+java.nio.channels.SocketChannel#connect(java.net.SocketAddress)

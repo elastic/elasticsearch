@@ -153,13 +153,14 @@ public class BytesRestResponse extends RestResponse {
         ElasticsearchException exception = null;
         RestStatus status = null;
 
-        String currentFieldName = parser.currentName();
+        String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             }
             if (STATUS.equals(currentFieldName)) {
-                if (token.isValue()) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
                     status = RestStatus.fromCode(parser.intValue());
                 }
             } else {

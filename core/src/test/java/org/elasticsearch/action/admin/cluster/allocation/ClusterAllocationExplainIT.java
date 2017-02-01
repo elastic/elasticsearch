@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.isOneOf;
@@ -1011,28 +1012,39 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     public void testCannotAllocateStaleReplicaExplanation() throws Exception {
         logger.info("--> starting 3 nodes");
-        String masterNode = internalCluster().startNode();
-        internalCluster().startDataOnlyNodes(2);
+        final String masterNode = internalCluster().startNode();
+        // start replica node first, so it's path will be used first when we start a node after
+        // stopping all of them at end of test.
+        final String replicaNode = internalCluster().startNode();
+        final String primaryNode = internalCluster().startNode();
 
         logger.info("--> creating an index with 1 primary and 1 replica");
         createIndexAndIndexData(1, 1,
-            Settings.builder().put("index.routing.allocation.exclude._name", masterNode).build(),
-            ActiveShardCount.ALL);
+            Settings.builder()
+                .put("index.routing.allocation.include._name", primaryNode)
+                .put("index.routing.allocation.exclude._name", masterNode)
+                .build(),
+            ActiveShardCount.ONE);
+
+        client().admin().indices().prepareUpdateSettings("idx").setSettings(
+            Settings.builder().put("index.routing.allocation.include._name", (String) null)).get();
+        ensureGreen();
+
+        assertThat(replicaNode().getName(), equalTo(replicaNode));
+        assertThat(primaryNodeName(), equalTo(primaryNode));
 
         logger.info("--> stop node with the replica shard");
-        String stoppedNode = replicaNode().getName();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(stoppedNode));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
         logger.info("--> index more data, now the replica is stale");
         indexData();
 
         logger.info("--> stop the node with the primary");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
 
         logger.info("--> restart the node with the stale replica");
-        client().admin().indices().prepareUpdateSettings("idx").setSettings(
-            Settings.builder().put("index.routing.allocation.include._name", (String) null)).get();
-        String restartedNode = internalCluster().startNode(Settings.builder().put("node.name", stoppedNode).build());
+        String restartedNode = internalCluster().startDataOnlyNode();
+        ensureClusterSizeConsistency(); // wait for the master to finish processing join.
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {

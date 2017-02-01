@@ -342,10 +342,10 @@ public class BytesRestResponseTests extends ESTestCase {
     }
 
     public void testNoErrorFromXContent() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
                 builder.startObject();
-                builder.field("status", randomFrom(RestStatus.values()));
+                builder.field("status", randomFrom(RestStatus.values()).getStatus());
                 builder.endObject();
 
                 try (XContentParser parser = createParser(builder.contentType().xContent(), builder.bytes())) {
@@ -353,7 +353,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 }
             }
         });
-        assertEquals("Unable to parse elasticsearch status exception", e.getMessage());
+        assertEquals("Failed to parse elasticsearch status exception: no exception was found", e.getMessage());
     }
 
     public static class WithHeadersException extends ElasticsearchException {

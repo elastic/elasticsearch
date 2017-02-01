@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
@@ -203,16 +205,16 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testToStringSizeLimit() {
+    public void testToStringSizeLimit() throws UnsupportedEncodingException {
         IndexRequest request = new IndexRequest("index", "type");
 
         String source = "{\"name\":\"value\"}";
         request.source(source);
         assertEquals("index {[index][type][null], source[" + source + "]}", request.toString());
 
-        source = "{\"name\":\"" + randomAsciiOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
+        source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source);
-        assertEquals("index {[index][type][null], source[" + source.substring(0, IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "...2kb]}",
-            request.toString());
+        assertEquals("index {[index][type][null], source[too big: " + ByteSizeValue.formatBytesSizeValue(source.getBytes("UTF-8").length) +
+                "]}", request.toString());
     }
 }

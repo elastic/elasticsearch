@@ -616,16 +616,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         String sSource = "_na_";
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
-                // We might slice in the middle of a UTF-8 character here, but BytesRef.utf8ToString() will read more bytes if needed.
-                // There is no risk of ArrayIndexOutOfBoundsException either as source is assumed to be properly UTF-8 encoded.
-                sSource = source.slice(0, MAX_SOURCE_LENGTH_IN_TOSTRING).utf8ToString() + "..." +
-                    new ByteSizeValue(source.length()).toString();
-            }
-            else {
+                sSource = "too big: " + ByteSizeValue.formatBytesSizeValue(source.length());
+            } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             // ignore
         }
         return "index {[" + index + "][" + type + "][" + id + "], source[" + sSource + "]}";

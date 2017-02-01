@@ -604,6 +604,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedFailure = ElasticsearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -629,6 +630,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parsedFailure = ElasticsearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -670,14 +672,14 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, expectedJson);
     }
 
-    private static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
-        if (expected == null) {
-            assertNull(actual);
-        } else {
-            assertNotNull(actual);
-        }
-
+    public static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
         do {
+            if (expected == null) {
+                assertNull(actual);
+            } else {
+                assertNotNull(actual);
+            }
+
             assertEquals(expected.getMessage(), actual.getMessage());
             assertEquals(expected.getHeaders(), actual.getHeaders());
             assertEquals(expected.getMetadata(), actual.getMetadata());

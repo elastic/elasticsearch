@@ -23,6 +23,7 @@ a number of clients that have been contributed by the community for various lang
 * <<python>>
 * <<r>>
 * <<ruby>>
+* <<rust>>
 * <<scala>>
 * <<smalltalk>>
 * <<vertx>>
@@ -90,7 +91,7 @@ See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy cli
 
 Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
-* [Flummi](https://github.com/otto-de/flummi):
+* https://github.com/otto-de/flummi[Flummi]:
   Java Rest client with comprehensive query DSL API
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
@@ -228,8 +229,15 @@ The following projects appear to be abandoned:
 * https://github.com/ddnexus/flex[Flex]:
   Ruby Client.
 
+[[rust]]
+== Rust
 
+* https://github.com/benashford/rs-es[rs-es]:
+  A REST API client with a strongly-typed Query DSL.
 
+* https://github.com/elastic-rs/elastic[elastic]:
+  A modular REST API client that supports freeform queries.
+  
 [[scala]]
 == Scala
 

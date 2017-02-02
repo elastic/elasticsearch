@@ -96,7 +96,8 @@ public class IndexingIT extends ESRestTestCase {
     public void testSeqNoCheckpoints() throws Exception {
         Nodes nodes = buildNodeAndVersions();
         logger.info("cluster discovered: {}", nodes.toString());
-        final String bwcNames = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
@@ -120,6 +121,10 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen();
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            for (final String bwcName : bwcNamesList) {
+                assertCount(index, "_only_nodes:" + bwcName, numDocs);
+            }
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);

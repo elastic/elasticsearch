@@ -118,9 +118,22 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             }
 
             @Override
-            public void onFailure(Exception t) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), t);
+            public void onFailure(Exception e) {
+                logFailure(e);
                 onCompletion.run();
+            }
+
+            private void logFailure(Exception e) {
+                if (e instanceof ResponseException) {
+                    ResponseException re = (ResponseException) e;
+                    if (remoteVersion.before(Version.V_2_0_0) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
+                                        + "normally as the scroll has already been cleared automatically.", scrollId), e);
+                        return;
+                    }
+                }
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
             }
         });
     }
@@ -132,7 +145,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         threadPool.generic().submit(() -> {
             try {
                 client.close();
-                logger.info("Shut down remote connection");
+                logger.debug("Shut down remote connection");
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
             }

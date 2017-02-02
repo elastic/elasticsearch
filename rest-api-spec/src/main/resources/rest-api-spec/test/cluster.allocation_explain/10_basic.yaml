@@ -10,7 +10,7 @@
       cluster.allocation_explain: {}
 
   - do:
-      indices.create:Ø
+      indices.create:
         index: test
 
   - match: { acknowledged: true }

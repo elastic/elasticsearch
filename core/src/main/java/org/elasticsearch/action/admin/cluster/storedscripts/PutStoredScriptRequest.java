@@ -19,14 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -35,17 +39,23 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     private String id;
     private String lang;
     private BytesReference content;
+    private XContentType xContentType;
 
     public PutStoredScriptRequest() {
         super();
     }
 
+    @Deprecated
     public PutStoredScriptRequest(String id, String lang, BytesReference content) {
-        super();
+        this(id, lang, content, XContentFactory.xContentType(content));
+    }
 
+    public PutStoredScriptRequest(String id, String lang, BytesReference content, XContentType xContentType) {
+        super();
         this.id = id;
         this.lang = lang;
         this.content = content;
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     @Override
@@ -93,9 +103,25 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return content;
     }
 
-    public PutStoredScriptRequest content(BytesReference content) {
-        this.content = content;
+    public XContentType xContentType() {
+        return xContentType;
+    }
 
+    /**
+     * Set the script source using bytes.
+     * @deprecated this method is deprecated as it relies on content type detection. Use {@link #content(BytesReference, XContentType)}
+     */
+    @Deprecated
+    public PutStoredScriptRequest content(BytesReference content) {
+        return content(content, XContentFactory.xContentType(content));
+    }
+
+    /**
+     * Set the script source and the content type of the bytes.
+     */
+    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
+        this.content = content;
+        this.xContentType = Objects.requireNonNull(xContentType);
         return this;
     }
 
@@ -111,6 +137,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
         id = in.readOptionalString();
         content = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(content);
+        }
     }
 
     @Override
@@ -120,6 +151,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeString(lang == null ? "" : lang);
         out.writeOptionalString(id);
         out.writeBytesReference(content);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType.writeTo(out);
+        }
     }
 
     @Override
@@ -127,8 +161,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         String source = "_na_";
 
         try {
-            source = XContentHelper.convertToJson(content, false);
-        } catch (Exception exception) {
+            source = XContentHelper.convertToJson(content, false, xContentType);
+        } catch (Exception e) {
             // ignore
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -331,19 +332,19 @@ public class InnerHitsIT extends ESIntegTestCase {
         int[] child2InnerObjects = new int[numDocs];
         for (int parent = 0; parent < numDocs; parent++) {
             String parentId = String.format(Locale.ENGLISH, "%03d", parent);
-            requestBuilders.add(client().prepareIndex("idx", "parent", parentId).setSource("{}"));
+            requestBuilders.add(client().prepareIndex("idx", "parent", parentId).setSource("{}", XContentType.JSON));
 
             int numChildDocs = child1InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
             int limit = child1 + numChildDocs;
             for (; child1 < limit; child1++) {
                 requestBuilders.add(client().prepareIndex("idx", "child1",
-                        String.format(Locale.ENGLISH, "%04d", child1)).setParent(parentId).setSource("{}"));
+                        String.format(Locale.ENGLISH, "%04d", child1)).setParent(parentId).setSource("{}", XContentType.JSON));
             }
             numChildDocs = child2InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
             limit = child2 + numChildDocs;
             for (; child2 < limit; child2++) {
                 requestBuilders.add(client().prepareIndex("idx", "child2",
-                        String.format(Locale.ENGLISH, "%04d", child2)).setParent(parentId).setSource("{}"));
+                        String.format(Locale.ENGLISH, "%04d", child2)).setParent(parentId).setSource("{}", XContentType.JSON));
             }
         }
         indexRandom(true, requestBuilders);
@@ -727,17 +728,26 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("royals", "king", "king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "prince", "prince").setParent("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "duke", "duke").setParent("prince").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "earl", "earl1").setParent("duke").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "earl", "earl2").setParent("duke").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "earl", "earl3").setParent("duke").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "earl", "earl4").setParent("duke").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "baron", "baron1").setParent("earl1").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "baron", "baron2").setParent("earl2").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "baron", "baron3").setParent("earl3").setRouting("king").setSource("{}"));
-        requests.add(client().prepareIndex("royals", "baron", "baron4").setParent("earl4").setRouting("king").setSource("{}"));
+        requests.add(client().prepareIndex("royals", "king", "king").setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "prince", "prince").setParent("king").setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "duke", "duke").setParent("prince").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "earl", "earl1").setParent("duke").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "earl", "earl2").setParent("duke").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "earl", "earl3").setParent("duke").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "earl", "earl4").setParent("duke").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "baron", "baron1").setParent("earl1").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "baron", "baron2").setParent("earl2").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "baron", "baron3").setParent("earl3").setRouting("king")
+            .setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("royals", "baron", "baron4").setParent("earl4").setRouting("king")
+            .setSource("{}", XContentType.JSON));
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch("royals")
@@ -899,10 +909,10 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testMatchesQueriesParentChildInnerHits() throws Exception {
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("index", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index", "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex("index", "child", "1").setParent("1").setSource("field", "value1"));
         requests.add(client().prepareIndex("index", "child", "2").setParent("1").setSource("field", "value2"));
-        requests.add(client().prepareIndex("index", "parent", "2").setSource("{}"));
+        requests.add(client().prepareIndex("index", "parent", "2").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex("index", "child", "3").setParent("2").setSource("field", "value1"));
         indexRandom(true, requests);
 
@@ -938,7 +948,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testDontExplode() throws Exception {
         assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex("index1", "child", "1").setParent("1").setSource("field", "value1"));
         indexRandom(true, requests);
 
@@ -1025,7 +1035,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
         createIndex("index2");
         client().prepareIndex("index1", "parent_type", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}").get();
+        client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
         refresh();
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
@@ -159,7 +160,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}")));
+                        "}"), XContentType.JSON));
 
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
@@ -171,18 +172,18 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}")));
+                        "}"), XContentType.JSON));
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -221,7 +222,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "       }" +
                         "}" +
                         "}"
-                ))
+                ), XContentType.JSON)
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setLang(MustacheScriptEngineService.NAME)
@@ -233,7 +234,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
                         "}" +
-                        "}"))
+                        "}"), XContentType.JSON)
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setLang(MustacheScriptEngineService.NAME)
@@ -243,15 +244,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         "             \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}"))
+                        "}"), XContentType.JSON)
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -315,7 +316,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setLang(MustacheScriptEngineService.NAME)
                     .setId("git01")
                     .setContent(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"ooophrase_prefix\"}}}}}")));
+                            "\"type\": \"ooophrase_prefix\"}}}}}"), XContentType.JSON));
 
             GetStoredScriptResponse getResponse = client().admin().cluster()
                     .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
@@ -335,7 +336,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setLang(MustacheScriptEngineService.NAME)
                     .setId("git01")
                     .setContent(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"phrase_prefix\"}}}}")));
+                            "\"type\": \"phrase_prefix\"}}}}"), XContentType.JSON));
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
@@ -343,7 +344,6 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
             assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]");
-
         }
     }
 
@@ -353,14 +353,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 client().admin().cluster().preparePutStoredScript()
                         .setLang(MustacheScriptEngineService.NAME)
                         .setId("4")
-                        .setContent(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes())
+                        .setContent(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes(), XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 

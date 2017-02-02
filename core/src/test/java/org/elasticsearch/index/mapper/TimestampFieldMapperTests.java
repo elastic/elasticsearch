@@ -34,6 +34,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
@@ -89,7 +90,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).timestamp(1));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON).timestamp(1));
 
         assertThat(doc.rootDoc().getField("_timestamp"), equalTo(null));
     }
@@ -104,7 +105,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).timestamp(1));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON).timestamp(1));
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_timestamp").fieldType().indexOptions());

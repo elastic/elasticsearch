@@ -27,7 +27,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -59,9 +58,9 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true")));
 
         Response response = e.getResponse();
-        assertThat(response.getHeader("Content-Type"), is("application/json"));
+        assertThat(response.getHeader("Content-Type"), is("application/json; charset=UTF-8"));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()),
-                   containsString("\"error\":\"error traces in responses are disabled.\""));
+            containsString("{\"error\":\"error traces in responses are disabled.\",\"status\":400}"));
         assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
 }

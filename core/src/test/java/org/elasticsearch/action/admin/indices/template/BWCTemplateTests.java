@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.template;
 
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 
 /**
  * Rudimentary tests that the templates used by Logstash and Beats
@@ -29,14 +30,14 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
  */
 public class BWCTemplateTests extends ESSingleNodeTestCase {
     public void testBeatsTemplatesBWC() throws Exception {
-        String topBeat = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/topbeat-1.3.template.json");
-        String packetBeat = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/packetbeat-1.3.template.json");
-        String fileBeat = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/filebeat-1.3.template.json");
-        String winLogBeat = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/winlogbeat-1.3.template.json");
-        client().admin().indices().preparePutTemplate("topbeat").setSource(topBeat).get();
-        client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat).get();
-        client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat).get();
-        client().admin().indices().preparePutTemplate("winlogbeat").setSource(winLogBeat).get();
+        byte[] topBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/topbeat-1.3.template.json");
+        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/packetbeat-1.3.template.json");
+        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/filebeat-1.3.template.json");
+        byte[] winLogBeat = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/winlogbeat-1.3.template.json");
+        client().admin().indices().preparePutTemplate("topbeat").setSource(topBeat, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("winlogbeat").setSource(winLogBeat, XContentType.JSON).get();
 
         client().prepareIndex("topbeat-foo", "doc", "1").setSource("message", "foo").get();
         client().prepareIndex("packetbeat-foo", "doc", "1").setSource("message", "foo").get();
@@ -45,13 +46,13 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
     }
 
     public void testLogstashTemplatesBWC() throws Exception {
-        String ls2x = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/logstash-2.x.template.json");
-        String ls5x = copyToStringFromClasspath("/org/elasticsearch/action/admin/indices/template/logstash-5.x.template.json");
-        client().admin().indices().preparePutTemplate("logstash-2x").setSource(ls2x).get();
+        byte[] ls2x = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/logstash-2.x.template.json");
+        byte[] ls5x = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/logstash-5.x.template.json");
+        client().admin().indices().preparePutTemplate("logstash-2x").setSource(ls2x, XContentType.JSON).get();
         client().prepareIndex("logstash-foo", "doc", "1").setSource("message", "foo").get();
         client().admin().indices().prepareDeleteTemplate("*").get();
 
-        client().admin().indices().preparePutTemplate("logstash-5x").setSource(ls5x).get();
+        client().admin().indices().preparePutTemplate("logstash-5x").setSource(ls5x, XContentType.JSON).get();
         client().prepareIndex("logstash-foo", "doc", "1").setSource("message", "foo").get();
     }
 

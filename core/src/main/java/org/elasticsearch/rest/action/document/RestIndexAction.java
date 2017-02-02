@@ -73,7 +73,7 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.ttl(request.param("ttl"));
         }
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.content());
+        indexRequest.source(request.content(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));

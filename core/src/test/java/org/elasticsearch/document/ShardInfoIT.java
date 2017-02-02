@@ -31,6 +31,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -47,7 +48,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx", "type").setSource("{}").get();
+        IndexResponse indexResponse = client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", "type", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -55,7 +56,8 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testUpdate() throws Exception {
         prepareIndex(1);
-        UpdateResponse updateResponse = client().prepareUpdate("idx", "type", "1").setDoc("{}").setDocAsUpsert(true).get();
+        UpdateResponse updateResponse = client().prepareUpdate("idx", "type", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
+            .get();
         assertShardInfo(updateResponse);
     }
 
@@ -63,7 +65,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx", "type").setSource("{}"));
+            bulkRequestBuilder.add(client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -85,7 +87,8 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareUpdate("idx", "type", Integer.toString(i)).setDoc("{}").setDocAsUpsert(true));
+            bulkRequestBuilder.add(client().prepareUpdate("idx", "type", Integer.toString(i)).setDoc("{}", XContentType.JSON)
+                .setDocAsUpsert(true));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();

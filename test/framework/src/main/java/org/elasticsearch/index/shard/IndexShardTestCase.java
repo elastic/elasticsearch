@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
@@ -439,14 +440,23 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
+        return indexDoc(shard, type, id, source, XContentType.JSON);
+    }
+
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType) throws IOException {
         final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
-                Versions.MATCH_ANY, VersionType.INTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                    xContentType),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false);
         } else {
             index = shard.prepareIndexOnReplica(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
+                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                    xContentType),
                 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);

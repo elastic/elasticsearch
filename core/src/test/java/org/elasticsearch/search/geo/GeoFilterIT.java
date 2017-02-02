@@ -21,7 +21,6 @@ package org.elasticsearch.search.geo;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -51,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -243,7 +243,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
         BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
 
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Point in polygon
@@ -305,7 +305,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
         data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // re-check point on polygon hole
@@ -339,7 +339,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -348,7 +348,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
 
         data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
-        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         result = client().prepareSearch()
@@ -400,7 +400,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
                 .addMapping("country", xContentBuilder.string()).execute().actionGet();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null).execute().actionGet();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -95,9 +96,9 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         RestAnalyzeAction action = new RestAnalyzeAction(Settings.EMPTY, mock(RestController.class));
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray("{invalid_json}")).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> action.handleRequest(request, null, null));
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.handleRequest(request, null, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
     }
 
@@ -175,7 +176,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
         BytesReference content = new BytesArray("this is test");
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(content)
+            .withContent(content, null)
             .withMethod(randomFrom(RestRequest.Method.values()))
             .build();
 

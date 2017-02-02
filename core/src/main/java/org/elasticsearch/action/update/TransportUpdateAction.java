@@ -188,7 +188,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getResult());
                         if ((request.fetchSource() != null && request.fetchSource().fetchSource()) ||
                             (request.fields() != null && request.fields().length > 0)) {
-                            Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
+                            Tuple<XContentType, Map<String, Object>> sourceAndContent =
+                                XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
                             update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                         } else {
                             update.setGetResult(null);

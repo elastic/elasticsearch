@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -387,7 +388,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SearchHit hit = searchReq.get().getHits().getAt(0);
         String docId = hit.getId();
         // foo is new, it is not a field in the generated index
-        client().prepareUpdate(indexName, "doc", docId).setDoc("foo", "bar").get();
+        client().prepareUpdate(indexName, "doc", docId).setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "bar").get();
         GetResponse getRsp = client().prepareGet(indexName, "doc", docId).get();
         Map<String, Object> source = getRsp.getSourceAsMap();
         assertThat(source, Matchers.hasKey("foo"));

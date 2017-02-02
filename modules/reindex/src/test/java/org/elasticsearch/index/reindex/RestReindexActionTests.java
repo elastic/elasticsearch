@@ -143,7 +143,7 @@ public class RestReindexActionTests extends ESTestCase {
                 body.endObject();
             }
             body.endObject();
-            request.withContent(body.bytes());
+            request.withContent(body.bytes(), body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));

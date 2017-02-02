@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -33,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -62,6 +65,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private String id;
 
     private BytesReference doc;
+
+    private XContentType xContentType;
 
     private String routing;
 
@@ -156,8 +161,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         super(other.index());
         this.id = other.id();
         this.type = other.type();
-        if (this.doc != null) {
+        if (other.doc != null) {
             this.doc = new BytesArray(other.doc().toBytesRef(), true);
+            this.xContentType = other.xContentType;
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
@@ -225,22 +231,36 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return doc;
     }
 
-    /**
-     * Sets an artificial document from which term vectors are requested for.
-     */
-    public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(documentBuilder.bytes(), true);
+    public XContentType xContentType() {
+        return xContentType;
     }
 
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
+    public TermVectorsRequest doc(XContentBuilder documentBuilder) {
+        return this.doc(documentBuilder.bytes(), true, documentBuilder.contentType());
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     * @deprecated use {@link #doc(BytesReference, boolean, XContentType)} to avoid content auto detection
+     */
+    @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
+        return this.doc(doc, generateRandomId, XContentFactory.xContentType(doc));
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, XContentType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
+        this.xContentType = xContentType;
         return this;
     }
 
@@ -479,6 +499,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
+            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                xContentType = XContentType.readFrom(in);
+            } else {
+                xContentType = XContentFactory.xContentType(doc);
+            }
         }
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -519,6 +544,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
+            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                xContentType.writeTo(out);
+            }
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);

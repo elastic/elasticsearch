@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -267,8 +268,9 @@ public class DocumentMapper implements ToXContent {
         return this.objectMappers;
     }
 
+    // TODO this method looks like it is only used in tests...
     public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(index, type, id, source));
+        return parse(SourceToParse.source(index, type, id, source, XContentType.JSON));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {

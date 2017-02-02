@@ -387,7 +387,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj"}, Strings.EMPTY_ARRAY);
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
@@ -399,7 +399,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"nonExistingField"});
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
@@ -412,7 +412,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"obj.f1"});
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -432,7 +432,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject();
 
         // implicit include
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2"});
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -462,7 +462,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, Strings.EMPTY_ARRAY);
 
         assertThat(filteredSource.size(), equalTo(1));

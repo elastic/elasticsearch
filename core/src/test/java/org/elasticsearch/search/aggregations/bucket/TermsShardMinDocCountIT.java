@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -102,10 +103,10 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass, XContentType.JSON));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceNotClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceNotClass, XContentType.JSON));
         }
     }
 
@@ -155,7 +156,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass, XContentType.JSON));
         }
 
     }

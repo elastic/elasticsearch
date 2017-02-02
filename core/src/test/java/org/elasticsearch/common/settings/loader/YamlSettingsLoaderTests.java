@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -70,7 +71,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testDuplicateKeysThrowsException() {
         String yaml = "foo: bar\nfoo: baz";
         SettingsException e = expectThrows(SettingsException.class, () -> {
-            Settings.builder().loadFromSource(yaml);
+            Settings.builder().loadFromSource(yaml, XContentType.YAML);
         });
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         String msg = e.getCause().getMessage();

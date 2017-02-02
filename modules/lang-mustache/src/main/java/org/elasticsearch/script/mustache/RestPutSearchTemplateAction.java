@@ -47,7 +47,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         String id = request.param("id");
         BytesReference content = request.content();
 
-        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content);
+        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(put, new AcknowledgedRestListener<>(channel));
     }
 }

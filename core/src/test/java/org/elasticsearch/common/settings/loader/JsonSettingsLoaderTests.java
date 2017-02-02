@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -49,7 +50,8 @@ public class JsonSettingsLoaderTests extends ESTestCase {
 
     public void testDuplicateKeysThrowsException() {
         final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(json).build());
+        final SettingsException e = expectThrows(SettingsException.class,
+            () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         assertThat(
                 e.toString(),

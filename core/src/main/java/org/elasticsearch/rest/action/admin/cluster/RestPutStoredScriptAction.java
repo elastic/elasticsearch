@@ -65,7 +65,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
                 "specifying lang [" + lang + "] as part of the url path is deprecated, use request content instead");
         }
 
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, content);
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

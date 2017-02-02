@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -80,7 +81,7 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl"), equalTo(null));
     }
@@ -95,7 +96,7 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_ttl").fieldType().indexOptions());

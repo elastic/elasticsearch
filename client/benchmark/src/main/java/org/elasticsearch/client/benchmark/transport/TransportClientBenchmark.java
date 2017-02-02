@@ -28,6 +28,7 @@ import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
@@ -80,7 +81,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
         public boolean bulkIndex(List<String> bulkData) {
             NoopBulkRequestBuilder builder = NoopBulkAction.INSTANCE.newRequestBuilder(client);
             for (String bulkItem : bulkData) {
-                builder.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8)));
+                builder.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8), XContentType.JSON));
             }
             BulkResponse bulkResponse;
             try {

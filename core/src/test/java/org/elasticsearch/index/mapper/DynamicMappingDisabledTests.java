@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -113,7 +114,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     public void testDynamicDisabled() {
         IndexRequest request = new IndexRequest("index", "type", "1");
-        request.source("foo", 3);
+        request.source(Requests.INDEX_CONTENT_TYPE, "foo", 3);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
         final AtomicBoolean onFailureCalled = new AtomicBoolean();

@@ -25,11 +25,18 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty3.Netty3Utils;
 import org.jboss.netty.channel.Channel;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 
 import java.net.SocketAddress;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Netty3HttpRequest extends RestRequest {
 
@@ -38,7 +45,7 @@ public class Netty3HttpRequest extends RestRequest {
     private final BytesReference content;
 
     public Netty3HttpRequest(NamedXContentRegistry xContentRegistry, HttpRequest request, Channel channel) {
-        super(xContentRegistry, request.getUri());
+        super(xContentRegistry, request.getUri(), new HttpHeadersMap(request.headers()));
         this.request = request;
         this.channel = channel;
         if (request.getContent().readable()) {
@@ -119,14 +126,82 @@ public class Netty3HttpRequest extends RestRequest {
         return channel;
     }
 
-    @Override
-    public String header(String name) {
-        return request.headers().get(name);
-    }
+    /**
+     * A wrapper of {@link HttpHeaders} that implements a map to prevent copying unnecessarily. This class does not support modifications
+     * and due to the underlying implementation, it performs case insensitive lookups of key to values.
+     *
+     * It is important to note that this implementation does have some downsides in that each invocation of the
+     * {@link #values()} and {@link #entrySet()} methods will perform a copy of the values in the HttpHeaders rather than returning a
+     * view of the underlying values.
+     */
+    private static class HttpHeadersMap implements Map<String, List<String>> {
 
-    @Override
-    public Iterable<Map.Entry<String, String>> headers() {
-        return request.headers().entries();
-    }
+        private final HttpHeaders httpHeaders;
 
+        private HttpHeadersMap(HttpHeaders httpHeaders) {
+            this.httpHeaders = httpHeaders;
+        }
+
+        @Override
+        public int size() {
+            return httpHeaders.names().size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return httpHeaders.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return key instanceof String && httpHeaders.contains((String) key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return value instanceof List && httpHeaders.names().stream().map(httpHeaders::getAll).anyMatch(value::equals);
+        }
+
+        @Override
+        public List<String> get(Object key) {
+            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+        }
+
+        @Override
+        public List<String> put(String key, List<String> value) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public List<String> remove(Object key) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ? extends List<String>> m) {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("modifications are not supported");
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return httpHeaders.names();
+        }
+
+        @Override
+        public Collection<List<String>> values() {
+            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).collect(Collectors.toList());
+        }
+
+        @Override
+        public Set<Entry<String, List<String>>> entrySet() {
+            return httpHeaders.names().stream()
+                .map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k))).collect(Collectors.toSet());
+
+        }
+    }
 }

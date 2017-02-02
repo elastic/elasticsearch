@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.TimestampFieldMapper;
@@ -701,8 +702,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endArray()
                 .endObject().bytes();
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source).get();
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
 
 
         String field = "field1.field2.field3.field4";

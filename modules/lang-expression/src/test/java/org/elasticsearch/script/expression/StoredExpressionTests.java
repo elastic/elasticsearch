@@ -21,6 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -53,9 +54,9 @@ public class StoredExpressionTests extends ESIntegTestCase {
         client().admin().cluster().preparePutStoredScript()
                 .setLang(ExpressionScriptEngineService.NAME)
                 .setId("script1")
-                .setContent(new BytesArray("{\"script\":\"2\"}"))
+                .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
                 .get();
-        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
                     .setScript(new Script(ScriptType.STORED, ExpressionScriptEngineService.NAME, "script1", Collections.emptyMap())).get();

@@ -41,7 +41,7 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        return XContentHelper.convertToMap(builder.bytes(), false).v2();
+        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
     }
 
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -68,11 +67,11 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));
-        putMappingRequest.source(request.content().utf8ToString());
+        putMappingRequest.source(request.content(), request.getXContentType());
         putMappingRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
-        return channel -> client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
+        return channel -> client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<>(channel));
     }
 }

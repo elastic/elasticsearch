@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -37,10 +38,12 @@ public class ClientYamlTestResponse {
 
     private final Response response;
     private final String body;
+    private final Version nodeVersion;
     private ObjectPath parsedResponse;
 
-    ClientYamlTestResponse(Response response) throws IOException {
+    ClientYamlTestResponse(Response response, Version version) throws IOException {
         this.response = response;
+        this.nodeVersion = version;
         if (response.getEntity() != null) {
             try {
                 this.body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
@@ -80,7 +83,17 @@ public class ClientYamlTestResponse {
         List<String> warningHeaders = new ArrayList<>();
         for (Header header : response.getHeaders()) {
             if (header.getName().equals("Warning")) {
-                warningHeaders.add(header.getValue());
+                if (nodeVersion.onOrAfter(Version.V_5_3_0_UNRELEASED) && response.getRequestLine().getMethod().equals("GET")
+                    && response.getRequestLine().getUri().contains("source")
+                    && response.getRequestLine().getUri().contains("source_content_type") == false && header.getValue().startsWith(
+                        "Deprecated use of the [source] parameter without the [source_content_type] parameter.")) {
+                    // this is because we do not send the source content type header when the node is 5.3.0 or below and the request
+                    // might have been sent to a node with a version > 5.3.0 when running backwards 5.0 tests. The Java RestClient
+                    // has control of the node the request is sent to so we can only detect this after the fact right now
+                } else {
+                    warningHeaders.add(header.getValue());
+                }
+
             }
         }
         return warningHeaders;

@@ -343,6 +343,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1085,6 +1086,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
+            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
+        }
+
+        @Override
         public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
             execute(DeletePipelineAction.INSTANCE, request, listener);
         }
@@ -1132,6 +1138,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
             return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
+        }
+
+        @Override
+        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
+            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source, xContentType);
         }
 
         @Override

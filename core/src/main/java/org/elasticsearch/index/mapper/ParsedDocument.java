@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
@@ -45,13 +46,14 @@ public class ParsedDocument {
     private final List<Document> documents;
 
     private BytesReference source;
+    private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
 
     private String parent;
 
     public ParsedDocument(Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents,
-                          BytesReference source, Mapping dynamicMappingsUpdate) {
+                          BytesReference source, XContentType xContentType, Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.id = id;
         this.type = type;
@@ -62,6 +64,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
+        this.xContentType = xContentType;
     }
     public Field version() {
         return version;
@@ -103,8 +106,13 @@ public class ParsedDocument {
         return this.source;
     }
 
-    public void setSource(BytesReference source) {
+    public XContentType getXContentType() {
+        return this.xContentType;
+    }
+
+    public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     public ParsedDocument parent(String parent) {

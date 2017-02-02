@@ -34,23 +34,23 @@ public class ScriptMetaDataTests extends ESTestCase {
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse("lang", sourceBuilder.bytes()));
+        builder.storeScript("template", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse("lang", sourceBuilder.bytes()));
+        builder.storeScript("template_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("field", "value").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse("lang", sourceBuilder.bytes()));
+        builder.storeScript("script", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("script", "value").endObject();
-        builder.storeScript("script_field", StoredScriptSource.parse("lang", sourceBuilder.bytes()));
+        builder.storeScript("script_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("field", "value").endObject();
-        builder.storeScript("any", StoredScriptSource.parse("lang", sourceBuilder.bytes()));
+        builder.storeScript("any", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template", "lang").getCode());
@@ -62,15 +62,15 @@ public class ScriptMetaDataTests extends ESTestCase {
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"abc\"}")));
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"def\"}")));
-        builder.storeScript("3", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"ghi\"}")));
+        builder.storeScript("1", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
+        builder.storeScript("3", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"changed\"}")));
+        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
         builder.deleteScript("3", "lang");
-        builder.storeScript("4", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"jkl\"}")));
+        builder.storeScript("4", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -89,7 +89,7 @@ public class ScriptMetaDataTests extends ESTestCase {
 
     public void testBuilder() {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"1 + 1\"}")));
+        builder.storeScript("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON));
 
         ScriptMetaData result = builder.build();
         assertEquals("1 + 1", result.getStoredScript("_id", "_lang").getCode());
@@ -102,7 +102,8 @@ public class ScriptMetaDataTests extends ESTestCase {
             String lang = randomAsciiOfLength(4);
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
             sourceBuilder.startObject().field("script", randomAsciiOfLength(4)).endObject();
-            builder.storeScript(randomAsciiOfLength(i + 1), StoredScriptSource.parse(lang, sourceBuilder.bytes()));
+            builder.storeScript(randomAsciiOfLength(i + 1),
+                StoredScriptSource.parse(lang, sourceBuilder.bytes(), sourceBuilder.contentType()));
         }
         return builder.build();
     }

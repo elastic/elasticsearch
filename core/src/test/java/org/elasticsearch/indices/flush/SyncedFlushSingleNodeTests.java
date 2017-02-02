@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -44,7 +45,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testModificationPreventsFlushing() throws InterruptedException {
         createIndex("test");
-        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
@@ -56,7 +57,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals("exactly one active shard", 1, activeShards.size());
         Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
-        client().prepareIndex("test", "test", "2").setSource("{}").get();
+        client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
         String syncId = UUIDs.base64UUID();
         SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
         flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
@@ -88,7 +89,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSingleShardSuccess() throws InterruptedException {
         createIndex("test");
-        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
@@ -108,7 +109,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSyncFailsIfOperationIsInFlight() throws InterruptedException, ExecutionException {
         createIndex("test");
-        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
@@ -163,7 +164,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testFailAfterIntermediateCommit() throws InterruptedException {
         createIndex("test");
-        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 
@@ -176,7 +177,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
         assertEquals("exactly one commit id", 1, commitIds.size());
         if (randomBoolean()) {
-            client().prepareIndex("test", "test", "2").setSource("{}").get();
+            client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("test").setForce(true).get();
         String syncId = UUIDs.base64UUID();
@@ -196,7 +197,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testFailWhenCommitIsMissing() throws InterruptedException {
         createIndex("test");
-        client().prepareIndex("test", "test", "1").setSource("{}").get();
+        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
 

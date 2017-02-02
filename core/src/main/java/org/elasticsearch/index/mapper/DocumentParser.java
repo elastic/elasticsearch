@@ -156,6 +156,7 @@ final class DocumentParser {
             source.ttl(),
             context.docs(),
             context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
             update
         ).parent(source.parent());
     }

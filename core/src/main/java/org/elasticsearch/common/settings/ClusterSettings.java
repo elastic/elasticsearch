@@ -246,6 +246,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
                     HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+                    HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
                     HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,

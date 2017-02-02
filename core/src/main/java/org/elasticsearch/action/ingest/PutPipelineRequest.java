@@ -19,32 +19,40 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> {
 
     private String id;
     private BytesReference source;
+    private XContentType xContentType;
 
+    /**
+     * Create a new pipeline request
+     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public PutPipelineRequest(String id, BytesReference source) {
-        if (id == null) {
-            throw new IllegalArgumentException("id is missing");
-        }
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
+        this(id, source, XContentFactory.xContentType(source));
+    }
 
-        this.id = id;
-        this.source = source;
+    /**
+     * Create a new pipeline request with the id and source along with the content type of the source
+     */
+    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
+        this.id = Objects.requireNonNull(id);
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     PutPipelineRequest() {
@@ -63,11 +71,20 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         return source;
     }
 
+    public XContentType getXContentType() {
+        return xContentType;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
@@ -75,5 +92,8 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType.writeTo(out);
+        }
     }
 }

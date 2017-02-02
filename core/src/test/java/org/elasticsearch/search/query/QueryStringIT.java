@@ -37,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -56,7 +57,7 @@ public class QueryStringIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody).get();
+        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
     }
 
@@ -143,7 +144,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody));
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
@@ -206,7 +207,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testExplicitAllFieldsRequested() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test2").setSource(indexBody).get();
+        prepareCreate("test2").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test2");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();

@@ -160,7 +160,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", new CompressedXContent(mapping), defaultMapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("my_type", new CompressedXContent(mapping), defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }

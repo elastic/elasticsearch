@@ -21,6 +21,7 @@ package org.elasticsearch.index.replication;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
@@ -103,7 +104,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+            final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
             indexRequest.onRetry(); // force an update of the timestamp
             final IndexResponse response = shards.index(indexRequest);
             assertEquals(DocWriteResponse.Result.CREATED, response.getResult());

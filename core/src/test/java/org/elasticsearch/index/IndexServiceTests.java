@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -218,7 +219,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         // now disable
         IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).build();
         indexService.updateMetaData(metaData);
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
@@ -245,7 +246,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> {
             assertFalse(shard.getTranslog().syncNeeded());
@@ -264,7 +265,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService.updateMetaData(metaData);
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> {
             assertFalse(shard.getTranslog().syncNeeded());

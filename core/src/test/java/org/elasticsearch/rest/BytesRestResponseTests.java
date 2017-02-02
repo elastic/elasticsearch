@@ -166,7 +166,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path) {
+        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
             @Override
             public Method method() {
                 return null;
@@ -184,16 +184,6 @@ public class BytesRestResponseTests extends ESTestCase {
 
             @Override
             public BytesReference content() {
-                return null;
-            }
-
-            @Override
-            public String header(String name) {
-                return null;
-            }
-
-            @Override
-            public Iterable<Map.Entry<String, String>> headers() {
                 return null;
             }
         };

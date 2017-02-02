@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -424,7 +425,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}").get();
+            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         }
 
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};

@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -105,30 +104,38 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
         deprecationLog("attributes", request);
 
-        handleBodyContent(request, texts, analyzeRequest);
+        try {
+            handleBodyContent(request, texts, analyzeRequest);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to parse request body", e);
+        }
 
         return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    void handleBodyContent(RestRequest request, String[] texts, AnalyzeRequest analyzeRequest) {
-        BytesReference body = request.contentOrSourceParam();
-        if (body.length() > 0) {
-            if (XContentFactory.xContentType(body) == null) {
-                if (texts == null || texts.length == 0) {
-                    texts = new String[]{ body.utf8ToString() };
-                    analyzeRequest.text(texts);
-                    deprecationLogForText(" plain text bodies is deprecated and " +
-                        "this feature will be removed in the next major release. Please use the text param in JSON");
+    void handleBodyContent(RestRequest request, final String[] texts, AnalyzeRequest analyzeRequest) throws IOException {
+        request.withContentOrSourceParamParserOrNullLenient(parser -> {
+            if (parser == null) {
+                if (request.hasContent()) {
+                    BytesReference body = request.getContentOrSourceParamOnly();
+                    if (texts == null || texts.length == 0) {
+                        final String[] localTexts = new String[]{ body.utf8ToString() };
+                        analyzeRequest.text(localTexts);
+                        deprecationLogForText(" plain text bodies is deprecated and " +
+                            "this feature will be removed in the next major release. Please use the text param in JSON");
+                    }
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters do not override xcontent values
-                try (XContentParser parser = request.contentOrSourceParamParser()) {
-                    buildFromContent(parser, analyzeRequest);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse request body", e);
-                }
+                buildFromContent(parser, analyzeRequest);
             }
-        }
+        });
+    }
+
+
+    @Override
+    public boolean supportsPlainText() {
+        return true;
     }
 
     static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest) throws IOException {

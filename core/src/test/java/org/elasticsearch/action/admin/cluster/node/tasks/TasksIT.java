@@ -50,6 +50,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -298,7 +299,8 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")).get();
+        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
+            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
         assertEquals(1, numberOfEvents(BulkAction.NAME, Tuple::v1));
@@ -345,7 +347,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(SearchAction.NAME + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")
+        client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         assertSearchResponse(client().prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());

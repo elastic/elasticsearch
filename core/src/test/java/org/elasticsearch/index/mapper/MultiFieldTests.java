@@ -189,7 +189,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         Arrays.sort(multiFieldNames);
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true).v2();
+        Map<String, Object> sourceAsMap =
+            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, builder.contentType()).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));

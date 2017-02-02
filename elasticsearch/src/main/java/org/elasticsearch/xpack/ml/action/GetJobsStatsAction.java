@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -344,11 +346,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                                      ActionListener<QueryPage<Response.JobStats>> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
             MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-            List<Response.JobStats> stats = processManager.getStatistics(request.getJobId()).map(t -> {
-                String jobId = t.v1().getJobid();
-                return new Response.JobStats(jobId, t.v1(), t.v2(), mlMetadata.getAllocations().get(jobId).getStatus());
-            }).collect(Collectors.toList());
-            listener.onResponse(new QueryPage<>(stats, stats.size(), Job.RESULTS_FIELD));
+            Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(request.getJobId());
+            if (stats.isPresent()) {
+                JobStatus jobStatus = mlMetadata.getAllocations().get(request.jobId).getStatus();
+                Response.JobStats jobStats = new Response.JobStats(request.jobId, stats.get().v1(), stats.get().v2(), jobStatus);
+                listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
+            } else {
+                listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
+            }
         }
 
         // Up until now we gathered the stats for jobs that were open,

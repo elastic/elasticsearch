@@ -47,7 +47,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -56,7 +56,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 public class AutodetectProcessManager extends AbstractComponent {
 
@@ -338,12 +337,11 @@ public class AutodetectProcessManager extends AbstractComponent {
         client.execute(UpdateJobStatusAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
     }
 
-    public Stream<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {
-        return autoDetectCommunicatorByJob.entrySet().stream()
-                .filter(entry -> jobId.equals(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .map(autodetectCommunicator -> {
-                    return new Tuple<>(autodetectCommunicator.getDataCounts(), autodetectCommunicator.getModelSizeStats());
-                });
+    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        if (communicator == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
     }
 }

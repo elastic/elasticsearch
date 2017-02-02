@@ -675,8 +675,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
         Exception failure;
-        Throwable cause;
+        Throwable failureCause;
         ElasticsearchException expected;
+        ElasticsearchException expectedCause;
         ElasticsearchException suppressed;
 
         switch (randomIntBetween(0, 6)) {
@@ -698,12 +699,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 2: // Elasticsearch exception with a cause, headers and parsable metadata
-                cause = new NullPointerException("var is null");
-                failure = new ScriptException("C", cause, singletonList("stack"), "test", "painless");
+                failureCause = new NullPointerException("var is null");
+                failure = new ScriptException("C", failureCause, singletonList("stack"), "test", "painless");
                 ((ElasticsearchException) failure).addHeader("script_name", "my_script");
 
-                cause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
-                expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", cause);
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
+                expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
                 expected.addHeader("script_name", "my_script");
                 expected.addMetadata("es.lang", "painless");
                 expected.addMetadata("es.script", "test");
@@ -725,21 +726,21 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 4: // JDK exception with cause
-                cause = new RoutingMissingException("idx", "type", "id");
-                failure = new RuntimeException("E", cause);
+                failureCause = new RoutingMissingException("idx", "type", "id");
+                failure = new RuntimeException("E", failureCause);
 
-                cause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, reason=routing is required " +
-                        "for [idx]/[type]/[id]]");
-                ((ElasticsearchException) cause).addMetadata("es.index", "idx");
-                ((ElasticsearchException) cause).addMetadata("es.index_uuid", "_na_");
-                expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", cause);
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, " +
+                        "reason=routing is required for [idx]/[type]/[id]]");
+                expectedCause.addMetadata("es.index", "idx");
+                expectedCause.addMetadata("es.index_uuid", "_na_");
+                expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]");
                 expected.addSuppressed(suppressed);
                 break;
 
             case 5: // Wrapped exception with cause
-                cause = new FileAlreadyExistsException("File exists");
-                failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", cause);
+                failureCause = new FileAlreadyExistsException("File exists");
+                failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 // strangely, the wrapped exception appears as the root cause...
@@ -750,8 +751,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
             case 6: // SearchPhaseExecutionException with cause and multiple failures
                 DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
-                cause = new NodeClosedException(node);
-                cause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", cause);
+                failureCause = new NodeClosedException(node);
+                failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
                         new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61))),
@@ -759,16 +760,18 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62))),
                         new ShardSearchFailure(new SearchContextMissingException(0L), null)
                 };
-                failure = new SearchPhaseExecutionException("phase_g", "G", cause, shardFailures);
+                failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 
-                cause = new ElasticsearchException("Elasticsearch exception [type=node_closed_exception, reason=node closed " + node + "]");
-                cause = new ElasticsearchException("Elasticsearch exception [type=no_shard_available_action_exception, " +
-                        "reason=node_g]", cause);
-                ((ElasticsearchException) cause).addMetadata("es.index", "_index_g");
-                ((ElasticsearchException) cause).addMetadata("es.index_uuid", "_uuid_g");
-                ((ElasticsearchException) cause).addMetadata("es.shard", "6");
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=node_closed_exception, " +
+                        "reason=node closed " + node + "]");
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=no_shard_available_action_exception, " +
+                        "reason=node_g]", expectedCause);
+                expectedCause.addMetadata("es.index", "_index_g");
+                expectedCause.addMetadata("es.index_uuid", "_uuid_g");
+                expectedCause.addMetadata("es.shard", "6");
 
-                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, reason=G]", cause);
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                        "reason=G]", expectedCause);
                 expected.addMetadata("es.phase", "phase_g");
 
                 expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Parsing g]"));

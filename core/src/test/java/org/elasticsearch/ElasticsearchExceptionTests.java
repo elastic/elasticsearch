@@ -20,11 +20,14 @@
 package org.elasticsearch;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -45,7 +48,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -56,6 +63,7 @@ import org.hamcrest.Matcher;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,6 +72,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -536,20 +545,31 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         // of other types than list of strings.
         BytesReference originalBytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
-            builder.startObject();
-            builder.field("metadata_int", 1);
-            builder.array("metadata_array_of_ints", new int[]{8, 13, 21});
-            builder.field("reason", "Custom reason");
-            builder.array("metadata_array_of_boolean", new boolean[]{false, false});
-            builder.field("type", "custom_exception");
-            builder.field("metadata_long", 1L);
-            builder.array("metadata_array_of_longs", new long[]{2L, 3L, 5L});
-            builder.field("metadata_other", "some metadata");
-            builder.startObject("header");
-            builder.field("header_string", "some header");
-            builder.array("header_array_of_strings", new String[]{"foo", "bar", "baz"});
-            builder.endObject();
-            builder.endObject();
+            builder.startObject()
+                    .field("metadata_int", 1)
+                    .array("metadata_array_of_ints", new int[]{8, 13, 21})
+                    .field("reason", "Custom reason")
+                    .array("metadata_array_of_boolean", new boolean[]{false, false})
+                    .startArray("metadata_array_of_objects")
+                        .startObject()
+                            .field("object_array_one", "value_one")
+                        .endObject()
+                        .startObject()
+                            .field("object_array_two", "value_two")
+                        .endObject()
+                    .endArray()
+                    .field("type", "custom_exception")
+                    .field("metadata_long", 1L)
+                    .array("metadata_array_of_longs", new long[]{2L, 3L, 5L})
+                    .field("metadata_other", "some metadata")
+                    .startObject("header")
+                        .field("header_string", "some header")
+                        .array("header_array_of_strings", new String[]{"foo", "bar", "baz"})
+                    .endObject()
+                    .startObject("metadata_object")
+                        .field("object_field", "value")
+                    .endObject()
+            .endObject();
 
             originalBytes = builder.bytes();
         }
@@ -616,16 +636,18 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(0, parsedFailure.getMetadata().size());
     }
 
-    public void testFailureToAndFromXContent() throws IOException {
+    public void testFailureToAndFromXContentWithNoDetails() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
-        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
-        final boolean detailed = randomBoolean();
 
-        Exception failure = (Exception) exceptions.v1();
+        final Exception failure = (Exception) randomExceptions().v1();
         BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
-            ElasticsearchException.generateFailureXContent(builder, params, failure, detailed);
+            ElasticsearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
         }, xContent.type(), randomBoolean());
+
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+        }
 
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -637,21 +659,151 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         assertNotNull(parsedFailure);
 
-        ElasticsearchException expected = exceptions.v2();
-        if (detailed) {
-            assertDeepEquals(expected, parsedFailure);
+        String reason;
+        if (failure instanceof ElasticsearchException) {
+            reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
         } else {
-            String reason;
-            if (failure instanceof ElasticsearchException) {
-                reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
-            } else {
-                reason = "No ElasticsearchException found";
-            }
-            assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
-            assertEquals(0, parsedFailure.getHeaders().size());
-            assertEquals(0, parsedFailure.getMetadata().size());
-            assertNull(parsedFailure.getCause());
+            reason = "No ElasticsearchException found";
         }
+        assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
+        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getMetadata().size());
+        assertNull(parsedFailure.getCause());
+    }
+
+    public void testFailureToAndFromXContentWithDetails() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        Exception failure;
+        Throwable failureCause;
+        ElasticsearchException expected;
+        ElasticsearchException expectedCause;
+        ElasticsearchException suppressed;
+
+        switch (randomIntBetween(0, 6)) {
+            case 0: // Simple elasticsearch exception without cause
+                failure = new NoNodeAvailableException("A");
+
+                expected = new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]");
+                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]"));
+                break;
+
+            case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
+                failure = new CircuitBreakingException("B", 5_000, 2_000);
+                ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
+                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                expected.addHeader("header_name", "0", "1");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                suppressed.addHeader("header_name", "0", "1");
+                expected.addSuppressed(suppressed);
+                break;
+
+            case 2: // Elasticsearch exception with a cause, headers and parsable metadata
+                failureCause = new NullPointerException("var is null");
+                failure = new ScriptException("C", failureCause, singletonList("stack"), "test", "painless");
+                ((ElasticsearchException) failure).addHeader("script_name", "my_script");
+
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
+                expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
+                expected.addHeader("script_name", "my_script");
+                expected.addMetadata("es.lang", "painless");
+                expected.addMetadata("es.script", "test");
+                expected.addMetadata("es.script_stack", "stack");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]");
+                suppressed.addHeader("script_name", "my_script");
+                suppressed.addMetadata("es.lang", "painless");
+                suppressed.addMetadata("es.script", "test");
+                suppressed.addMetadata("es.script_stack", "stack");
+                expected.addSuppressed(suppressed);
+                break;
+
+            case 3: // JDK exception without cause
+                failure = new IllegalStateException("D");
+
+                expected = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
+                expected.addSuppressed(suppressed);
+                break;
+
+            case 4: // JDK exception with cause
+                failureCause = new RoutingMissingException("idx", "type", "id");
+                failure = new RuntimeException("E", failureCause);
+
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, " +
+                        "reason=routing is required for [idx]/[type]/[id]]");
+                expectedCause.addMetadata("es.index", "idx");
+                expectedCause.addMetadata("es.index_uuid", "_na_");
+                expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]");
+                expected.addSuppressed(suppressed);
+                break;
+
+            case 5: // Wrapped exception with cause
+                failureCause = new FileAlreadyExistsException("File exists");
+                failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
+
+                expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
+                // strangely, the wrapped exception appears as the root cause...
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=broadcast_shard_operation_failed_exception, " +
+                        "reason=F]");
+                expected.addSuppressed(suppressed);
+                break;
+
+            case 6: // SearchPhaseExecutionException with cause and multiple failures
+                DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
+                failureCause = new NodeClosedException(node);
+                failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
+                ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
+                        new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61))),
+                        new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62))),
+                        new ShardSearchFailure(new SearchContextMissingException(0L), null)
+                };
+                failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
+
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=node_closed_exception, " +
+                        "reason=node closed " + node + "]");
+                expectedCause = new ElasticsearchException("Elasticsearch exception [type=no_shard_available_action_exception, " +
+                        "reason=node_g]", expectedCause);
+                expectedCause.addMetadata("es.index", "_index_g");
+                expectedCause.addMetadata("es.index_uuid", "_uuid_g");
+                expectedCause.addMetadata("es.shard", "6");
+
+                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                        "reason=G]", expectedCause);
+                expected.addMetadata("es.phase", "phase_g");
+
+                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Parsing g]"));
+                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=repository_exception, " +
+                        "reason=[repository_g] Repo]"));
+                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=search_context_missing_exception, " +
+                        "reason=No search context found for id [0]]"));
+                break;
+            default:
+                throw new UnsupportedOperationException("Failed to generate randomized failure");
+        }
+
+        Exception finalFailure = failure;
+        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+            ElasticsearchException.generateFailureXContent(builder, params, finalFailure, true);
+            return builder;
+        }, xContent.type(), randomBoolean());
+
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+        }
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertDeepEquals(expected, parsedFailure);
     }
 
     /**
@@ -685,6 +837,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(expected.getMetadata(), actual.getMetadata());
             assertEquals(expected.getResourceType(), actual.getResourceType());
             assertEquals(expected.getResourceId(), actual.getResourceId());
+
+            Throwable[] expectedSuppressed = expected.getSuppressed();
+            Throwable[] actualSuppressed = actual.getSuppressed();
+
+            if (expectedSuppressed == null) {
+                assertNull(actualSuppressed);
+            } else {
+                assertNotNull(actualSuppressed);
+                assertEquals(expectedSuppressed.length, actualSuppressed.length);
+                for (int i = 0; i < expectedSuppressed.length; i++) {
+                    assertDeepEquals((ElasticsearchException) expectedSuppressed[i], (ElasticsearchException) actualSuppressed[i]);
+                }
+            }
 
             expected = (ElasticsearchException) expected.getCause();
             actual = (ElasticsearchException) actual.getCause();

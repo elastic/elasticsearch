@@ -160,7 +160,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearchEntity(searchRequest, new BytesArray(query));
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals("{\"query\":" + query + "}",
+        assertEquals("{\"query\":" + query + ",\"_source\":true}",
                 Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Source filtering is included if set up

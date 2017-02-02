@@ -193,8 +193,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginName, boolean isBatch, Environment env) throws Exception {
-        if (pluginName == null) {
+    void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
+        if (pluginId == null) {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");
         }
         // TODO: remove this leniency!! is it needed anymore?
@@ -203,7 +203,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             Files.createDirectory(env.pluginsFile());
         }
 
-        Path pluginZip = download(terminal, pluginName, env.tmpFile());
+        Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
         install(terminal, isBatch, extractedZip, env);
     }

@@ -405,12 +405,14 @@ public class RangeFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false))) {
             builder.field("format", fieldType().dateTimeFormatter().format());
         }
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != Locale.ROOT)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {

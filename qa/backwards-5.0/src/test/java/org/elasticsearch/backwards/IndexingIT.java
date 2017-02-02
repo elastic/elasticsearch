@@ -158,9 +158,7 @@ public class IndexingIT extends ESRestTestCase {
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         final Response response = client().performRequest("GET", index + "/_count", Collections.singletonMap("preference", preference));
         assertOK(response);
-        final InputStream content = response.getEntity().getContent();
-        final int actualCount =
-            Integer.parseInt(XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false).get("count").toString());
+        final int actualCount = Integer.parseInt(objectPath(response).evaluate("count").toString());
         assertThat(actualCount, equalTo(expectedCount));
     }
 

@@ -1,0 +1,196 @@
+= How to bump the Elasticsearch version
+
+[partintro]
+
+This is a short guide on all the steps required to bump the Elasticsearch
+version number to the next version after a release has been cut.
+
+== Introduction
+
+In order to make the steps concrete, it helps to work through an example.  
+In this scenario, suppose our current major release version of Elasticsearch
+is version 5, and Elasticsearch's current version of 5.x is 5.2.0.  The 
+next major release version is 6, which is reflected in the master branch.  
+
+== Steps to take for feature freeze
+
+When ready to feature freeze 5.2.0, the following steps must be taken.
+
+==== Create the branch
+
+Create a new `5.2` branch from the `5.x` branch and push it to Github.  
+The `5.2` branch will represent the 5.2 line of 5.x.
+-------------------------------------
+git checkout -b 5.2 upstream/5.x
+git push upstream 5.2
+-------------------------------------
+
+==== Update the version on the branch
+
+Update the version of the `5.x` branch to 5.3.0.  This requires the following
+steps:
+
+- Checkout a new branch for this work, from which you will issue a pull request against `5.x`: 
+-------------------------------------
+  `git checkout -b bump_version_to_5.3 upstream/5.x`
+-------------------------------------
+
+- In `core/src/main/java/org/elasticsearch/Version.java`, add a constant for V_5_3_0,
+mimicking how the constants are created for other versions.  Set the `CURRENT` constant
+to the newly created V_5_3_0 version constant.  Make sure the Lucene version is correct
+for the newly created version.
+-------------------------------------
+  + public static final int V_5_3_0_ID_UNRELEASED = 5030099;
+  + public static final Version V_5_3_0_UNRELEASED = new Version(V_5_3_0_ID, org.apache.lucene.util.Version.LUCENE_6_4_0);
+  + public static final Version CURRENT = V_5_3_0_UNRELEASED;
+-------------------------------------
+
+- Update the `Version#fromId` method to include the new 5.3.0 version:
+-------------------------------------
+   public static Version fromId(int id) {
+       switch (id) {
+  +       case V_5_3_0_ID_UNRELEASED:
+  +           return V_5_3_0_UNRELEASED;
+-------------------------------------
+
+- Update the elasticsearch version in `buildSrc/version.properties` to 5.3.0:
+-------------------------------------
+  -elasticsearch     = 5.2.0
+  +elasticsearch     = 5.3.0
+-------------------------------------
+
+- In `docs/groovy-api/index.asciidoc`, update the `version` to 5.3.0:
+-------------------------------------
+  -:version: 5.2.0
+  +:version: 5.3.0
+-------------------------------------
+
+- In `docs/java-api/index.asciidoc`, update the `version` to 5.3.0:
+-------------------------------------
+  -:version: 5.2.0
+  +:version: 5.3.0
+-------------------------------------
+
+- In `docs/java-rest/index.asciidoc`, update the `version` to 5.3.0:
+-------------------------------------
+  -:version: 5.2.0
+  +:version: 5.3.0
+-------------------------------------
+
+- In `docs/plugins/index.asciidoc`, update the `version` to 5.3.0:
+-------------------------------------
+  -:version: 5.2.0
+  +:version: 5.3.0
+-------------------------------------
+
+- In `docs/reference/index.asciidoc`, update the `version` to 5.3.0:
+-------------------------------------
+  -:version: 5.2.0
+  +:version: 5.3.0
+-------------------------------------
+
+==== Update the rolling-upgrade test version
+
+In the master branch, update the `qa/rolling-upgrade/build.gradle` by setting the `bwcVersion` 
+of the rolling upgrade tests to `5.3.0-SNAPSHOT`.  This should go away soon as we create a matrix 
+of backward compatibility versions to run the rolling upgrade tests against, and the versions will 
+be generated automatically.
+-------------------------------------
+  -bwcVersion = '5.2.0-SNAPSHOT'
+  +bwcVersion = '5.3.0-SNAPSHOT'
+-------------------------------------
+
+Before the rolling upgrade tests can be run, however, make sure the 5.3.0-SNAPSHOT build is already
+published to the staging artifacts (there is an internal CI job to generate the 5.x snapshot build).
+This should also go away soon, as work is underway to not require pulling down a snapshot build of
+the backward compatibility version but instead, the rolling upgrade test will checkout the backward
+compatibility version in question to a git worktree.
+
+
+== Steps to take after releasing
+
+After releasing a version of Elasticsearch (in our scenario, 5.2.0), then the following must 
+be done to bump to the next version of Elasticsearch.  Note that the same procedure is followed
+when bumping the bug-fix version (for example, after releasing 5.2.1, bumping the release version
+to 5.2.2).
+
+==== Upgrade the version
+
+Since 5.2.0 has been released, the next bug-fix version in the 5.2.0 line 
+will be 5.2.1.  Create a V_5_2_1 version constant in `core/src/main/java/org/elasticsearch/Version.java`
+for all branches >= 5.2.  In this case, the V_5_2_1 version constant should go into
+the 5.2, 5.x, and master branches.  
+
+For the 5.2 branch only, set the CURRENT version in `Version.java` to the new V_5_2_1 constant.  
+For the 5.x and master branches, just add the V_5_2_1 constant without setting the CURRENT version.
+-------------------------------------
+  + public static final int V_5_2_1_ID_UNRELEASED = 5020199;
+  + public static final Version V_5_2_1_UNRELEASED = new Version(V_5_2_1_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
+  + public static final Version CURRENT = V_5_2_1_UNRELEASED;
+-------------------------------------
+
+Also, update the `Version#fromId` method to include the new 5.2.1 version in each branch
+-------------------------------------
+   public static Version fromId(int id) {
+       switch (id) {
+  +       case V_5_2_1_ID_UNRELEASED:
+  +           return V_5_2_1_UNRELEASED;
+-------------------------------------
+
+==== Upgrade version.properties
+
+In the 5.2 branch, change the elasticsearch version in `buildSrc/version.properties` to 5.2.1:
+-------------------------------------
+  -elasticsearch     = 5.2.0
+  +elasticsearch     = 5.2.1
+-------------------------------------
+
+==== Add the version to the vagrant tests
+
+In the `qa/vagrant/versions` file, add the newly released 5.2.0:
+-------------------------------------
+  +5.2.0
+-------------------------------------
+
+==== Generate the backward compatibility indices
+
+Generate the backward compatibility (bwc) indices for the bwc tests for the just released 5.2.0 
+with the following steps:
+
+- Make sure python3 is installed, if you don't already have it (on a Mac, execute `brew install python3`)
+- Make sure the Elasticsearch Python client is installed, if you don't have it already.
+-------------------------------------
+  pip install elasticsearch
+-------------------------------------
+- You may need to additionally install the requests package in python3:
+-------------------------------------
+  pip3 install requests
+-------------------------------------
+- Change directories to the `dev-tools` directory under the root Elasticsearch repository.
+- Get the distribution of the newly released Elasticsearch version (5.2.0 in our scenario) and
+  untar it to the `backwards` folder inside `dev-tools`:
+-------------------------------------
+  mkdir -p {path_to_repo}/dev-tools/backwards && tar -zxvf {path_to_distribution}/elasticsearch-5.2.0.tar.gz -C {path_to_repo}/dev-tools/backwards
+-------------------------------------
+- While still inside the `dev-tools` directory, generate the bwc index and repo for the version in 
+  question (in this case, 5.2.0) with the following command:
+-------------------------------------
+  python3 ./create_bwc_index.py -o {path_to_repo}/core/src/test/resources/indices/bwc 5.2.0
+-------------------------------------
+   
+This will generate the bwc artifacts for 5.2.0 and put them in the place they need to be when 
+committing the repository.
+
+==== Generate the X-Pack bwc index
+
+Generate the X-Pack bwc index for the just released 5.2.0:
+
+- Change directories to `{path_to_xpack_repo}/dev-tools` directory.
+- Generate the bwc index for x-pack with the following command:
+-------------------------------------
+  python3 ./create_bwc_indexex.py -o {path_to_xpack_repo}/elasticsearch/src/test/resources/indices/bwc 5.2.0 
+-------------------------------------
+
+
+
+

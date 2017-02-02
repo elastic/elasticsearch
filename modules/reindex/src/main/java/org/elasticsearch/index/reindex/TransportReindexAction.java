@@ -62,6 +62,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
@@ -72,6 +76,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -321,7 +327,24 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
             index.id(doc.getId());
-            index.source(doc.getSource());
+
+            // the source xcontent type and destination could be different
+            final XContentType sourceXContentType = doc.getXContentType();
+            final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
+            if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
+                // we need to convert
+                try (XContentParser parser = sourceXContentType.xContent().createParser(NamedXContentRegistry.EMPTY, doc.getSource());
+                     XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())) {
+                    parser.nextToken();
+                    builder.copyCurrentStructure(parser);
+                    index.source(builder.bytes(), builder.contentType());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("failed to convert hit from " + sourceXContentType + " to "
+                        + mainRequestXContentType, e);
+                }
+            } else {
+                index.source(doc.getSource(), doc.getXContentType());
+            }
 
             /*
              * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the superclass
@@ -329,7 +352,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              */
             index.routing(mainRequest.getDestination().routing());
             index.parent(mainRequest.getDestination().parent());
-            index.contentType(mainRequest.getDestination().getContentType());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
 

@@ -24,7 +24,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -54,7 +53,7 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
-            assertThat(response.getHeader("Content-Type"), is("application/json"));
+            assertThat(response.getHeader("Content-Type"), is("application/json; charset=UTF-8"));
             assertThat(EntityUtils.toString(e.getResponse().getEntity()), is("{\"error\":\"error traces in responses are disabled.\"}"));
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }

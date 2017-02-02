@@ -187,7 +187,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script", "code").endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -197,7 +197,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("template", "code").endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code",
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -213,7 +213,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", code,
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -229,7 +229,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", code,
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -245,7 +245,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", code,
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -256,7 +256,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -267,7 +267,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
                 .field("options").startObject().endObject().endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -283,7 +283,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes());
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", code,
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -297,7 +297,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("template", "code").endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes()));
+                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("unexpected stored script format"));
         }
 
@@ -306,7 +306,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("script").startObject().field("code", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes()));
+                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
 
@@ -315,7 +315,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes()));
+                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("must specify code for stored script"));
         }
 
@@ -325,7 +325,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .startObject("options").field("option", "option").endObject().endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes()));
+                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
 
@@ -335,7 +335,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .startObject("options").field("content_type", "option").endObject().endObject().endObject();
 
             ParsingException pe = expectThrows(ParsingException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes()));
+                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(pe.getRootCause().getMessage(), equalTo("content_type cannot be user-specified"));
         }
     }

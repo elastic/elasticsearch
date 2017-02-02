@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -52,7 +53,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setLang(LANG)
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\":\"1\"}")));
+                .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
                 .get().getSource().getCode();
         assertNotNull(script);
@@ -68,7 +69,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setLang("lang#")
                 .setId("id#")
-                .setContent(new BytesArray("{}"))
+                .setContent(new BytesArray("{}"), XContentType.JSON)
                 .get());
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;" +
             "2: lang cannot contain '#' for stored script;", e.getMessage());
@@ -78,7 +79,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setLang(LANG)
                 .setId("foobar")
-                .setContent(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
+                .setContent(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)), XContentType.JSON)
                 .get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());

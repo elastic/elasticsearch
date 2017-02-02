@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -57,6 +58,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
@@ -110,7 +112,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -140,7 +142,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     private <T> void execute(String method, String uri, Map<String, String> params, HttpEntity entity,
-            BiFunction<XContentParser, Void, T> parser, Consumer<? super T> listener) {
+                             BiFunction<XContentParser, XContentType, T> parser, Consumer<? super T> listener) {
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         class RetryHelper extends AbstractRunnable {
@@ -160,7 +162,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 InputStream content = responseEntity.getContent();
                                 XContentType xContentType = null;
                                 if (responseEntity.getContentType() != null) {
-                                    xContentType = XContentType.fromMediaTypeOrFormat(responseEntity.getContentType().getValue());
+                                    final String mimeType = ContentType.parse(responseEntity.getContentType().getValue()).getMimeType();
+                                    xContentType = XContentType.fromMediaType(mimeType);
                                 }
                                 if (xContentType == null) {
                                     try {
@@ -175,7 +178,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 // EMPTY is safe here because we don't call namedObject
                                 try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                                     content)) {
-                                    parsedResponse = parser.apply(xContentParser, null);
+                                    parsedResponse = parser.apply(xContentParser, xContentType);
                                 } catch (ParsingException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */

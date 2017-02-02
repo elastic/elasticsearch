@@ -842,11 +842,22 @@ public abstract class ESTestCase extends LuceneTestCase {
      * internally should stay untouched.
      */
     public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
-        XContentParser parser = createParser(builder);
+        try (XContentParser parser = createParser(builder)) {
+            return shuffleXContent(parser, builder.isPrettyPrint(), exceptFieldNames);
+        }
+    }
+
+    /**
+     * Randomly shuffles the fields inside objects parsed using the {@link XContentParser} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
+    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
         // use ordered maps for reproducibility
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
-        if (builder.isPrettyPrint()) {
+        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+        if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }
         return xContentBuilder.map(shuffledMap);

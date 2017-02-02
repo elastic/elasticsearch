@@ -94,6 +94,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -308,10 +309,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // check if the snapshot name already exists in the repository
             final RepositoryData repositoryData = getRepositoryData();
             if (repositoryData.getAllSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-                throw new SnapshotCreationException(metadata.name(), snapshotId, "snapshot with the same name already exists");
+                throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
             if (snapshotFormat.exists(snapshotsBlobContainer, snapshotId.getUUID())) {
-                throw new SnapshotCreationException(metadata.name(), snapshotId, "snapshot with such name already exists");
+                throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
 
             // Write Global MetaData

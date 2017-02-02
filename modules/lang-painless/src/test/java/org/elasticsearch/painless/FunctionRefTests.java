@@ -19,6 +19,13 @@
 
 package org.elasticsearch.painless;
 
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+
+import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.startsWith;
+
 public class FunctionRefTests extends ScriptTestCase {
 
     public void testStaticMethodReference() {
@@ -35,6 +42,30 @@ public class FunctionRefTests extends ScriptTestCase {
     
     public void testVirtualMethodReferenceDef() {
         assertEquals(2, exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(Integer::intValue).sum();"));
+    }
+
+    public void testQualifiedStaticMethodReference() {
+        assertEquals(true,
+                exec("List l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+    }
+
+    public void testQualifiedStaticMethodReferenceDef() {
+        assertEquals(true,
+                exec("def l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+    }
+
+    public void testQualifiedVirtualMethodReference() {
+        long instant = randomLong();
+        assertEquals(instant, exec(
+                "List l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
+                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
+    }
+
+    public void testQualifiedVirtualMethodReferenceDef() {
+        long instant = randomLong();
+        assertEquals(instant, exec(
+                "def l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
+                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
     }
 
     public void testCtorMethodReference() {
@@ -144,10 +175,33 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testMethodMissing() {
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::bogus); return l.get(0);");
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(Integer::bogus); return l.get(0);");
         });
-        assertTrue(expected.getMessage().contains("Unknown reference"));
+        assertThat(e.getMessage(), startsWith("Unknown reference"));
+    }
+
+    public void testQualifiedMethodMissing() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(org.joda.time.ReadableDateTime::bogus); return l.get(0);", false);
+        });
+        assertThat(e.getMessage(), startsWith("Unknown reference"));
+    }
+
+    public void testClassMissing() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
+        });
+        assertThat(e.getMessage(), endsWith("Variable [Bogus] is not defined."));
+    }
+
+    public void testQualifiedClassMissing() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(org.joda.time.BogusDateTime::bogus); return l.get(0);", false);
+        });
+        /* Because the type isn't known and we use the lexer hack this fails to parse. I find this error message confusing but it is the one
+         * we have... */
+        assertEquals("invalid sequence of tokens near ['::'].", e.getMessage());
     }
 
     public void testNotFunctionalInterface() {

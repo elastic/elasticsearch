@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-public class ScriptDocValuesTests extends ESTestCase {
+public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
     private static MultiGeoPointValues wrap(final GeoPoint... points) {
         return new MultiGeoPointValues() {

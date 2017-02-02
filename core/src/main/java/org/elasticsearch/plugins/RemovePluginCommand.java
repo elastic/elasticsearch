@@ -57,6 +57,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     // pkg private for testing
     void execute(Terminal terminal, String pluginName, Environment env) throws Exception {
+        if (pluginName == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin name is required");
+        }
+
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);

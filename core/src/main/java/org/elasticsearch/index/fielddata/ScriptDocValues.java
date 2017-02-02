@@ -234,7 +234,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return;
             }
             if (dates == null) {
-                // Uninitialized
+                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
                 dates = new MutableDateTime[values.count()];
                 for (int i = 0; i < dates.length; i++) {
                     dates[i] = new MutableDateTime(values.valueAt(i), DateTimeZone.UTC);
@@ -242,7 +242,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return;
             }
             if (values.count() > dates.length) {
-                // Values too small
+                // Happens when we move to a new document and it has more dates than any documents before it.
                 MutableDateTime[] backup = dates;
                 dates = new MutableDateTime[values.count()];
                 System.arraycopy(backup, 0, dates, 0, backup.length);

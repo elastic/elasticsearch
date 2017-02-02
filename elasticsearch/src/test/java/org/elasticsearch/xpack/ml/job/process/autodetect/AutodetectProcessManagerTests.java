@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
-import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -45,12 +44,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.doReturn;
@@ -90,6 +87,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobManager = mock(JobManager.class);
         jobProvider = mock(JobProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
+        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
         givenAllocationWithState(JobState.OPENED);
@@ -152,28 +150,16 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
-        ExecutorService executorService = mock(ExecutorService.class);
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        }).when(executorService).execute(any(Runnable.class));
-        when(threadPool.executor(MlPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME)).thenReturn(executorService);
-        AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
-        @SuppressWarnings("unchecked")
-        Stream<AutodetectResult> stream = mock(Stream.class);
-        @SuppressWarnings("unchecked")
-        Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(stream.iterator()).thenReturn(iterator);
-        when(iterator.hasNext()).thenReturn(false);
-        when(parser.parseResults(any())).thenReturn(stream);
+        when(threadPool.executor(MlPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME))
+                .thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
-        when(autodetectProcess.getPersistStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory));
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory));
 
         DataCounts dataCounts = new DataCounts("foo");
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
@@ -296,7 +282,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         when(communicator.writeToJob(any(), any())).thenReturn(new DataCounts("foo"));
         AutodetectProcessManager manager = createManager(communicator);
-
         givenAllocationWithState(JobState.OPENED);
 
         InputStream inputStream = createInputStream("");
@@ -310,8 +295,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
-        doThrow(new EsRejectedExecutionException("")).when(executorService).execute(any());
+        doThrow(new EsRejectedExecutionException("")).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
         doAnswer(invocationOnMock -> {
             String jobId = (String) invocationOnMock.getArguments()[0];
@@ -321,11 +307,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             return null;
         }).when(jobProvider).dataCounts(eq("my_id"), any(), any());
 
-        AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory);
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
 
         expectThrows(EsRejectedExecutionException.class,
                 () -> manager.create("my_id", dataCounts, modelSnapshot, quantiles, filters, false, e -> {}));
@@ -345,10 +330,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator, Client client) {
         ThreadPool threadPool = mock(ThreadPool.class);
-        AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, normalizerFactory);
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
         manager = spy(manager);
         doReturn(communicator).when(manager)
                 .create(any(), eq(dataCounts), eq(modelSnapshot), eq(quantiles), eq(filters), anyBoolean(), any());

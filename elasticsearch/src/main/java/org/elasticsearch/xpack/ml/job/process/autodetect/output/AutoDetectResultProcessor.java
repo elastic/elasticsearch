@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
@@ -21,16 +22,14 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Stream;
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process(InputStream, boolean)} method and persists parsed
+ * {@link #process(AutodetectProcess, boolean)} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -52,35 +51,31 @@ public class AutoDetectResultProcessor {
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
-    private final AutodetectResultsParser parser;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     private final FlushListener flushListener;
 
     private volatile ModelSizeStats latestModelSizeStats;
 
-    public AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                                     AutodetectResultsParser parser) {
-        this(jobId, renormalizer, persister, parser, new FlushListener());
+    public AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister) {
+        this(jobId, renormalizer, persister, new FlushListener());
     }
 
-    AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister, AutodetectResultsParser parser,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister, FlushListener flushListener) {
         this.jobId = jobId;
         this.renormalizer = renormalizer;
         this.persister = persister;
-        this.parser = parser;
         this.flushListener = flushListener;
 
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(jobId);
         latestModelSizeStats = builder.build();
     }
 
-    public void process(InputStream in, boolean isPerPartitionNormalization) {
-        try (Stream<AutodetectResult> stream = parser.parseResults(in)) {
+    public void process(AutodetectProcess process, boolean isPerPartitionNormalization) {
+        Context context = new Context(jobId, isPerPartitionNormalization, persister.bulkPersisterBuilder(jobId));
+        try {
             int bucketCount = 0;
-            Iterator<AutodetectResult> iterator = stream.iterator();
-            Context context = new Context(jobId, isPerPartitionNormalization, persister.bulkPersisterBuilder(jobId));
+            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
                 AutodetectResult result = iterator.next();
                 processResult(context, result);
@@ -89,7 +84,6 @@ public class AutoDetectResultProcessor {
                     LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                 }
             }
-
             context.bulkResultsPersister.executeRequest();
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);

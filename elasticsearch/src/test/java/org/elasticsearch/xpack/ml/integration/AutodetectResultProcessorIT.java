@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -20,8 +18,8 @@ import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -29,6 +27,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.noop.NoOpRenormalizer;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
@@ -38,77 +37,59 @@ import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutputTests;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private static final String JOB_ID = "foo";
 
     private Renormalizer renormalizer;
     private JobResultsPersister jobResultsPersister;
-    private AutodetectResultsParser autodetectResultsParser;
     private JobProvider jobProvider;
 
     @Before
     public void createComponents() {
         renormalizer = new NoOpRenormalizer();
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
-        autodetectResultsParser = new AutodetectResultsParser(nodeSettings());
         jobProvider = new JobProvider(client(), 1);
     }
 
     public void testProcessResults() throws Exception {
         createJob();
+        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
 
-        AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
-
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-
+        ResultsBuilder builder = new ResultsBuilder();
         Bucket bucket = createBucket(false);
-        assertNotNull(bucket);
+        builder.addBucket(bucket);
         List<AnomalyRecord> records = createRecords(false);
+        builder.addRecords(records);
         List<Influencer> influencers = createInfluencers(false);
+        builder.addInfluencers(influencers);
         CategoryDefinition categoryDefinition = createCategoryDefinition();
+        builder.addCategoryDefinition(categoryDefinition);
         ModelDebugOutput modelDebugOutput = createModelDebugOutput();
+        builder.addModelDebugOutput(modelDebugOutput);
         ModelSizeStats modelSizeStats = createModelSizeStats();
+        builder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
+        builder.addModelSnapshot(modelSnapshot);
         Quantiles quantiles = createQuantiles();
+        builder.addQuantiles(quantiles);
 
-        // Add the bucket last as the bucket result triggers persistence
-        ResultsBuilder resultBuilder = new ResultsBuilder()
-                .start()
-                .addRecords(records)
-                .addInfluencers(influencers)
-                .addCategoryDefinition(categoryDefinition)
-                .addModelDebugOutput(modelDebugOutput)
-                .addModelSizeStats(modelSizeStats)
-                .addModelSnapshot(modelSnapshot)
-                .addQuantiles(quantiles)
-                .addBucket(bucket)
-                .end();
-
-        new Thread(() -> {
-            try {
-                writeResults(resultBuilder.build(), outputStream);
-            } catch (IOException e) {
-            }
-        }).start();
-
-        resultProcessor.process(inputStream, false);
+        resultProcessor.process(builder.buildTestProcess(), false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
@@ -125,7 +106,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertResultsAreSame(influencers, persistedInfluencers);
 
-        QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(Long.toString(categoryDefinition.getCategoryId()));
+        QueryPage<CategoryDefinition> persistedDefinition =
+                getCategoryDefinition(Long.toString(categoryDefinition.getCategoryId()));
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
@@ -147,33 +129,18 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testDeleteInterimResults() throws Exception {
         createJob();
-
-        AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
-
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-
+        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket nonInterimBucket = createBucket(false);
         Bucket interimBucket = createBucket(true);
 
         ResultsBuilder resultBuilder = new ResultsBuilder()
-                .start()
                 .addRecords(createRecords(true))
                 .addInfluencers(createInfluencers(true))
                 .addBucket(interimBucket)  // this will persist the interim results
                 .addFlushAcknowledgement(createFlushAcknowledgement())
-                .addBucket(nonInterimBucket) // and this will delete the interim results
-                .end();
+                .addBucket(nonInterimBucket); // and this will delete the interim results
 
-        new Thread(() -> {
-            try {
-                writeResults(resultBuilder.build(), outputStream);
-            } catch (IOException e) {
-            }
-        }).start();
-
-        resultProcessor.process(inputStream, false);
+        resultProcessor.process(resultBuilder.buildTestProcess(), false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -192,18 +159,11 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testMultipleFlushesBetweenPersisting() throws Exception {
         createJob();
-
-        AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
-
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-
+        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket finalBucket = createBucket(true);
         List<AnomalyRecord> finalAnomalyRecords = createRecords(true);
 
         ResultsBuilder resultBuilder = new ResultsBuilder()
-                .start()
                 .addRecords(createRecords(true))
                 .addInfluencers(createInfluencers(true))
                 .addBucket(createBucket(true))  // this will persist the interim results
@@ -212,17 +172,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
                 .addBucket(createBucket(true)) // and this will delete the interim results and persist the new interim bucket & records
                 .addFlushAcknowledgement(createFlushAcknowledgement())
                 .addRecords(finalAnomalyRecords)
-                .addBucket(finalBucket) // this deletes the previous interim and persists final bucket & records
-                .end();
+                .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
 
-        new Thread(() -> {
-            try {
-                writeResults(resultBuilder.build(), outputStream);
-            } catch (IOException e) {
-            }
-        }).start();
-
-        resultProcessor.process(inputStream, false);
+        resultProcessor.process(resultBuilder.buildTestProcess(), false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -238,32 +190,17 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testEndOfStreamTriggersPersisting() throws Exception {
         createJob();
-
-        AutoDetectResultProcessor resultProcessor =
-                new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister, autodetectResultsParser);
-
-        PipedOutputStream outputStream = new PipedOutputStream();
-        PipedInputStream inputStream = new PipedInputStream(outputStream);
-
+        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket bucket = createBucket(false);
         List<AnomalyRecord> firstSetOfRecords = createRecords(false);
         List<AnomalyRecord> secondSetOfRecords = createRecords(false);
 
         ResultsBuilder resultBuilder = new ResultsBuilder()
-                .start()
                 .addRecords(firstSetOfRecords)
                 .addBucket(bucket)  // bucket triggers persistence
-                .addRecords(secondSetOfRecords)
-                .end();  // end of stream should persist the second bunch of records
+                .addRecords(secondSetOfRecords);
 
-        new Thread(() -> {
-            try {
-                writeResults(resultBuilder.build(), outputStream);
-            } catch (IOException e) {
-            }
-        }).start();
-
-        resultProcessor.process(inputStream, false);
+        resultProcessor.process(resultBuilder.buildTestProcess(), false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
@@ -273,10 +210,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
         assertResultsAreSame(allRecords, persistedRecords);
-    }
-
-    private void writeResults(XContentBuilder builder, OutputStream out) throws IOException {
-        builder.bytes().writeTo(out);
     }
 
     private void createJob() {
@@ -369,72 +302,61 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     private class ResultsBuilder {
-        private XContentBuilder contentBuilder;
 
-        private ResultsBuilder() throws IOException {
-            contentBuilder = XContentFactory.jsonBuilder();
-        }
+        private List<AutodetectResult> results = new ArrayList<>();
+        FlushAcknowledgement flushAcknowledgement;
 
-        ResultsBuilder start() throws IOException {
-            contentBuilder.startArray();
+        ResultsBuilder addBucket(Bucket bucket) {
+            results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null));
             return this;
         }
 
-        ResultsBuilder addBucket(Bucket bucket) throws IOException {
-            contentBuilder.startObject().field(Bucket.RESULT_TYPE_FIELD.getPreferredName(), bucket).endObject();
+        ResultsBuilder addRecords(List<AnomalyRecord> records) {
+            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null));
             return this;
         }
 
-        ResultsBuilder addRecords(List<AnomalyRecord> records) throws IOException {
-            contentBuilder.startObject().field(AnomalyRecord.RESULTS_FIELD.getPreferredName(), records).endObject();
+        ResultsBuilder addInfluencers(List<Influencer> influencers) {
+            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null));
             return this;
         }
 
-        ResultsBuilder addInfluencers(List<Influencer> influencers) throws IOException {
-            contentBuilder.startObject().field(Influencer.RESULTS_FIELD.getPreferredName(), influencers).endObject();
+        ResultsBuilder addCategoryDefinition(CategoryDefinition categoryDefinition) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, categoryDefinition, null));
             return this;
         }
 
-        ResultsBuilder addCategoryDefinition(CategoryDefinition definition) throws IOException {
-            contentBuilder.startObject().field(CategoryDefinition.TYPE.getPreferredName(), definition).endObject();
+        ResultsBuilder addModelDebugOutput(ModelDebugOutput modelDebugOutput) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, modelDebugOutput, null, null));
             return this;
         }
 
-        ResultsBuilder addModelDebugOutput(ModelDebugOutput modelDebugOutput) throws IOException {
-            contentBuilder.startObject().field(ModelDebugOutput.RESULTS_FIELD.getPreferredName(), modelDebugOutput).endObject();
+        ResultsBuilder addModelSizeStats(ModelSizeStats modelSizeStats) {
+            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null));
             return this;
         }
 
-        ResultsBuilder addModelSizeStats(ModelSizeStats modelSizeStats) throws IOException {
-            contentBuilder.startObject().field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats).endObject();
+        ResultsBuilder addModelSnapshot(ModelSnapshot modelSnapshot) {
+            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null));
             return this;
         }
 
-        ResultsBuilder addModelSnapshot(ModelSnapshot modelSnapshot) throws IOException {
-            contentBuilder.startObject().field(ModelSnapshot.TYPE.getPreferredName(), modelSnapshot).endObject();
+        ResultsBuilder addQuantiles(Quantiles quantiles) {
+            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null));
             return this;
         }
 
-        ResultsBuilder addQuantiles(Quantiles quantiles) throws IOException {
-            contentBuilder.startObject().field(Quantiles.TYPE.getPreferredName(), quantiles).endObject();
-            return this;
-        }
-
-        ResultsBuilder addFlushAcknowledgement(FlushAcknowledgement flushAcknowledgement) throws IOException {
-            contentBuilder.startObject().field(FlushAcknowledgement.TYPE.getPreferredName(), flushAcknowledgement).endObject();
+        ResultsBuilder addFlushAcknowledgement(FlushAcknowledgement flushAcknowledgement) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, flushAcknowledgement));
             return this;
         }
 
 
-        ResultsBuilder end() throws IOException {
-            contentBuilder.endArray();
-            return this;
-        }
-
-        XContentBuilder build() throws IOException {
-            XContentBuilder result = contentBuilder;
-            contentBuilder = XContentFactory.jsonBuilder();
-            return result;
+        AutodetectProcess buildTestProcess() {
+            AutodetectResult[] results = this.results.toArray(new AutodetectResult[0]);
+            AutodetectProcess process = mock(AutodetectProcess.class);
+            when(process.readAutodetectResults()).thenReturn(Arrays.asList(results).iterator());
+            return process;
         }
     }
 

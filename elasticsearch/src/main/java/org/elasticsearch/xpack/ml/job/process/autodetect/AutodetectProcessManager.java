@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
@@ -28,8 +29,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersiste
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -66,11 +65,9 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobProvider jobProvider;
-    private final AutodetectResultsParser parser;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
 
-    private final StateProcessor stateProcessor;
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
@@ -80,20 +77,18 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
                                     JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
+                                    JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.maxAllowedRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
-        this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
         this.jobProvider = jobProvider;
 
         this.jobResultsPersister = jobResultsPersister;
-        this.stateProcessor = new StateProcessor(settings, jobResultsPersister);
         this.jobDataCountsPersister = jobDataCountsPersister;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
@@ -227,26 +222,25 @@ public class AutodetectProcessManager extends AbstractComponent {
                     RestStatus.CONFLICT);
         }
 
-        // TODO norelease, once we remove black hole process
-        // then we can  remove this method and move not enough threads logic to the auto detect process factory
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(MlPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
-
         try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job.getId(), dataCounts,
                 jobDataCountsPersister)) {
-            ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
+            ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
                     normalizerFactory);
-            Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
+            Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                     threadPool.executor(MlPlugin.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(jobId, renormalizer, jobResultsPersister, parser);
 
-            AutodetectProcess process = null;
+            AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, filters,
+                    ignoreDowntime, executorService);
+            boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(jobId, renormalizer, jobResultsPersister);
             try {
-                process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, filters,
-                        ignoreDowntime, executorService);
-                return new AutodetectCommunicator(executorService, job, process, dataCountsReporter, processor, stateProcessor, handler);
-            } catch (Exception e) {
+                executorService.submit(() -> processor.process(process, usePerPartitionNormalization));
+            } catch (EsRejectedExecutionException e) {
+                // If submitting the operation to read the results from the process fails we need to close
+                // the process too, so that other submitted operations to threadpool are stopped.
                 try {
                     IOUtils.close(process);
                 } catch (IOException ioe) {
@@ -254,6 +248,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 throw e;
             }
+            return new AutodetectCommunicator(job, process, dataCountsReporter, processor, handler);
         }
     }
 

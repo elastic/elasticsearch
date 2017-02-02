@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.ZonedDateTime;
+import java.util.Iterator;
 
 /**
  * Interface representing the native C++ autodetect process
@@ -60,16 +61,9 @@ public interface AutodetectProcess extends Closeable {
     void flushStream() throws IOException;
 
     /**
-     * Autodetect's output stream
-     * @return output stream
+     * @return stream of autodetect results.
      */
-    InputStream getProcessOutStream();
-
-    /**
-     * Autodetect's state persistence stream
-     * @return persist stream
-     */
-    InputStream getPersistStream();
+    Iterator<AutodetectResult> readAutodetectResults();
 
     /**
      * The time the process was started

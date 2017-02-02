@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
+import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
+import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.BufferedOutputStream;
@@ -23,6 +25,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -40,31 +43,37 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
     private final InputStream processOutStream;
-    private final InputStream persistStream;
     private final LengthEncodedWriter recordWriter;
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
     private final List<Path> filesToDelete;
     private Future<?> logTailFuture;
+    private Future<?> stateProcessorFuture;
+    private AutodetectResultsParser resultsParser;
 
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                            InputStream persistStream, int numberOfAnalysisFields, List<Path> filesToDelete,
-                            ExecutorService executorService) throws EsRejectedExecutionException {
+                            int numberOfAnalysisFields, List<Path> filesToDelete, AutodetectResultsParser resultsParser) {
         this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
         this.processOutStream = processOutStream;
-        this.persistStream = persistStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
         startTime = ZonedDateTime.now();
         this.numberOfAnalysisFields = numberOfAnalysisFields;
         this.filesToDelete = filesToDelete;
+        this.resultsParser = resultsParser;
+    }
+
+    public void start(ExecutorService executorService, StateProcessor stateProcessor, InputStream persistStream) {
         logTailFuture = executorService.submit(() -> {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
                 LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }), e);
             }
+        });
+        stateProcessorFuture = executorService.submit(() -> {
+            stateProcessor.process(jobId, persistStream);
         });
     }
 
@@ -105,6 +114,8 @@ class NativeAutodetectProcess implements AutodetectProcess {
             // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger
             // this may take a long time as it persists the model state
             logTailFuture.get(30, TimeUnit.MINUTES);
+            // the state processor should have stopped by now as the process should have exit
+            stateProcessorFuture.get(1, TimeUnit.SECONDS);
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
@@ -135,13 +146,8 @@ class NativeAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public InputStream getProcessOutStream() {
-        return processOutStream;
-    }
-
-    @Override
-    public InputStream getPersistStream() {
-        return persistStream;
+    public Iterator<AutodetectResult> readAutodetectResults() {
+        return resultsParser.parseResults(processOutStream);
     }
 
     @Override

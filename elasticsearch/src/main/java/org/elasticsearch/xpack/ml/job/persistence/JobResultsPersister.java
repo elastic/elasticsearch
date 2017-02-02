@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -278,22 +277,6 @@ public class JobResultsPersister extends AbstractComponent {
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelDebugOutput.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
-    }
-
-    /**
-     * Persist state sent from the native process
-     */
-    public void persistBulkState(String jobId, BytesReference bytesRef) {
-        try {
-            // No validation - assume the native process has formatted the state correctly
-            byte[] bytes = bytesRef.toBytesRef().bytes;
-            logger.trace("[{}] ES API CALL: bulk index", jobId);
-            client.prepareBulk()
-                    .add(bytes, 0, bytes.length)
-                    .execute().actionGet();
-        } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
-        }
     }
 
     /**

@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -20,6 +20,9 @@ import java.util.List;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -41,16 +44,19 @@ public class StateProcessorTests extends ESTestCase {
     private static final int NUM_LARGE_DOCS = 2;
     private static final int LARGE_DOC_SIZE = 16000000;
 
+    private StateProcessor stateProcessor;
+
+    @Before
+    public void initialize() {
+        stateProcessor = spy(new StateProcessor(Settings.EMPTY, mock(Client.class)));
+        doNothing().when(stateProcessor).persist(any(), any());
+    }
+
     public void testStateRead() throws IOException {
         ByteArrayInputStream stream = new ByteArrayInputStream(STATE_SAMPLE.getBytes(StandardCharsets.UTF_8));
-
+        stateProcessor.process("_id", stream);
         ArgumentCaptor<BytesReference> bytesRefCaptor = ArgumentCaptor.forClass(BytesReference.class);
-        JobResultsPersister persister = Mockito.mock(JobResultsPersister.class);
-
-        StateProcessor stateParser = new StateProcessor(Settings.EMPTY, persister);
-        stateParser.process("_id", stream);
-
-        verify(persister, times(3)).persistBulkState(eq("_id"), bytesRefCaptor.capture());
+        verify(stateProcessor, times(3)).persist(eq("_id"), bytesRefCaptor.capture());
 
         String[] threeStates = STATE_SAMPLE.split("\0");
         List<BytesReference> capturedBytes = bytesRefCaptor.getAllValues();
@@ -68,7 +74,7 @@ public class StateProcessorTests extends ESTestCase {
     public void testLargeStateRead() throws Exception {
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {
-            builder.append("header").append(docNum).append("\n");
+            builder.append("{\"index\":{\"_index\":\"header").append(docNum).append("\",\"_type\":\"type\"}}\n");
             for (int count = 0; count < (LARGE_DOC_SIZE / "data".length()); ++count) {
                 builder.append("data");
             }
@@ -76,12 +82,7 @@ public class StateProcessorTests extends ESTestCase {
         }
 
         ByteArrayInputStream stream = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
-
-        JobResultsPersister persister = Mockito.mock(JobResultsPersister.class);
-
-        StateProcessor stateParser = new StateProcessor(Settings.EMPTY, persister);
-        stateParser.process("_id", stream);
-
-        verify(persister, times(NUM_LARGE_DOCS)).persistBulkState(eq("_id"), any());
+        stateProcessor.process("_id", stream);
+        verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq("_id"), any());
     }
 }

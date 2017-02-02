@@ -7,18 +7,21 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -39,16 +42,19 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
     private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(2);
 
+    private final Client client;
     private final Environment env;
     private final Settings settings;
     private final JobProvider jobProvider;
     private final NativeController nativeController;
 
-    public NativeAutodetectProcessFactory(JobProvider jobProvider, Environment env, Settings settings, NativeController nativeController) {
+    public NativeAutodetectProcessFactory(JobProvider jobProvider, Environment env, Settings settings,
+                                          NativeController nativeController, Client client) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.client = client;
     }
 
     @Override
@@ -60,11 +66,14 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         createNativeProcess(job, quantiles, filters, processPipes, ignoreDowntime, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
 
-        NativeAutodetectProcess autodetect = null;
+        StateProcessor stateProcessor = new StateProcessor(settings, client);
+        AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
+        NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
+                job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
+                processPipes.getProcessOutStream().get(), numberOfAnalysisFields, filesToDelete, resultsParser
+        );
         try {
-            autodetect = new NativeAutodetectProcess(job.getId(), processPipes.getLogStream().get(),
-                    processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(),
-                    processPipes.getPersistStream().get(), numberOfAnalysisFields, filesToDelete, executorService);
+            autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
             if (modelSnapshot != null) {
                 // TODO (norelease): I don't think we should do this in the background. If this happens then we should wait
                 // until restore it is done before we can accept data.

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -115,11 +114,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     }
 
     private AutodetectProcess mockAutodetectProcessWithOutputStream() throws IOException {
-        InputStream io = Mockito.mock(InputStream.class);
-        when(io.read(any(byte [].class))).thenReturn(-1);
         AutodetectProcess process = Mockito.mock(AutodetectProcess.class);
-        when(process.getProcessOutStream()).thenReturn(io);
-        when(process.getPersistStream()).thenReturn(io);
         when(process.isProcessAlive()).thenReturn(true);
         return process;
     }
@@ -132,9 +127,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             return null;
         }).when(executorService).execute(any(Runnable.class));
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
-        StateProcessor stateProcessor = mock(StateProcessor.class);
-        return new AutodetectCommunicator(executorService, createJobDetails(), autodetectProcess, dataCountsReporter,
-                autoDetectResultProcessor, stateProcessor, e -> {});
+        return new AutodetectCommunicator(createJobDetails(), autodetectProcess, dataCountsReporter, autoDetectResultProcessor, e -> {});
     }
 
     public void testWriteToJobInUse() throws IOException {

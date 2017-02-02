@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
@@ -20,12 +21,10 @@ import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.mockito.InOrder;
 
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -43,19 +42,15 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     public void testProcess() {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         @SuppressWarnings("unchecked")
-        Stream<AutodetectResult> stream = mock(Stream.class);
-        @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
-        when(stream.iterator()).thenReturn(iterator);
         when(iterator.hasNext()).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
-        AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
-        when(parser.parseResults(any())).thenReturn(stream);
-
+        AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.readAutodetectResults()).thenReturn(iterator);
         Renormalizer renormalizer = mock(Renormalizer.class);
         JobResultsPersister persister = mock(JobResultsPersister.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, parser);
-        processor.process(mock(InputStream.class), randomBoolean());
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister);
+        processor.process(process, randomBoolean());
         verify(renormalizer, times(1)).waitUntilIdle();
         assertEquals(0, processor.completionLatch.getCount());
     }
@@ -196,7 +191,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         FlushListener flushListener = mock(FlushListener.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null, flushListener);
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, flushListener);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -218,7 +213,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         FlushListener flushListener = mock(FlushListener.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null, flushListener);
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, flushListener);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;

@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactor
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.NativeAutodetectProcessFactory;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
@@ -214,7 +213,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
             try {
                 NativeController nativeController = new NativeController(env, new NamedPipeHelper());
                 nativeController.tailLogsInThread();
-                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController, client);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to create native process factories", e);
@@ -228,9 +227,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MlPlugin.THREAD_POOL_NAME));
-        AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings);
         AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, autodetectProcessFactory, normalizerFactory);
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
         PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, clusterService, client);

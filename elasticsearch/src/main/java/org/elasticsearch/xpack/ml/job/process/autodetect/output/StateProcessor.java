@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -22,11 +24,11 @@ import java.io.InputStream;
 public class StateProcessor extends AbstractComponent {
 
     private static final int READ_BUF_SIZE = 8192;
-    private final JobResultsPersister persister;
+    private final Client client;
 
-    public StateProcessor(Settings settings, JobResultsPersister persister) {
+    public StateProcessor(Settings settings, Client client) {
         super(settings);
-        this.persister = persister;
+        this.client = client;
     }
 
     public void process(String jobId, InputStream in) {
@@ -64,13 +66,25 @@ public class StateProcessor extends AbstractComponent {
                 // No more zero bytes in this block
                 break;
             }
-            persister.persistBulkState(jobId, bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
+            // No validation - assume the native process has formatted the state correctly
+            persist(jobId, bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
             splitFrom = nextZeroByte + 1;
         }
         if (splitFrom >= bytesRef.length()) {
             return null;
         }
         return bytesRef.slice(splitFrom, bytesRef.length() - splitFrom);
+    }
+
+    void persist(String jobId, BytesReference bytes) {
+        try {
+            logger.trace("[{}] ES API CALL: bulk index", jobId);
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(bytes, null, null);
+            client.bulk(bulkRequest).actionGet();
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
+        }
     }
 
     private static int findNextZeroByte(BytesReference bytesRef, int searchFrom, int splitFrom) {

@@ -11,14 +11,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -34,7 +32,6 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -52,23 +49,13 @@ public class AutodetectCommunicator implements Closeable {
 
     final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
-    public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process,
-                                  DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
-                                  StateProcessor stateProcessor, Consumer<Exception> handler) {
+    public AutodetectCommunicator(Job job, AutodetectProcess process, DataCountsReporter dataCountsReporter,
+                                  AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler) {
         this.job = job;
         this.autodetectProcess = process;
         this.dataCountsReporter = dataCountsReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
         this.handler = handler;
-
-        AnalysisConfig analysisConfig = job.getAnalysisConfig();
-        boolean usePerPartitionNormalization = analysisConfig.getUsePerPartitionNormalization();
-        autoDetectExecutor.execute(() ->
-            autoDetectResultProcessor.process(process.getProcessOutStream(), usePerPartitionNormalization)
-        );
-        autoDetectExecutor.execute(() ->
-            stateProcessor.process(job.getId(), process.getPersistStream())
-        );
     }
 
     public void writeJobInputHeader() throws IOException {

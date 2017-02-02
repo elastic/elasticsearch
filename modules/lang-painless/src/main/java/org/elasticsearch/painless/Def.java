@@ -268,7 +268,7 @@ public final class Def {
              if (lambdaArgs.get(i - 1)) {
                  // decode signature of form 'type.call,2' 
                  String signature = (String) args[upTo++];
-                 int separator = signature.indexOf('.');
+                 int separator = signature.lastIndexOf('.');
                  int separator2 = signature.indexOf(',');
                  String type = signature.substring(1, separator);
                  String call = signature.substring(separator+1, separator2);

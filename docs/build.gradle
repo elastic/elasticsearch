@@ -113,7 +113,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/index-modules/translog.asciidoc',
   'reference/indices/analyze.asciidoc',
   'reference/indices/flush.asciidoc',
-  'reference/indices/get-field-mapping.asciidoc',
   'reference/indices/get-settings.asciidoc',
   'reference/indices/put-mapping.asciidoc',
   'reference/indices/recovery.asciidoc',

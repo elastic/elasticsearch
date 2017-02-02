@@ -125,6 +125,8 @@ class ClusterConfiguration {
 
     Map<String, Object> settings = new HashMap<>()
 
+    Map<String, Object> keyStoreKVs = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
@@ -134,6 +136,7 @@ class ClusterConfiguration {
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
+
     @Input
     void systemProperty(String property, String value) {
         systemProperties.put(property, value)
@@ -142,6 +145,11 @@ class ClusterConfiguration {
     @Input
     void setting(String name, Object value) {
         settings.put(name, value)
+    }
+
+    @Input
+    void keyStoreKV(String name, Object value) {
+        keyStoreKVs.put(name, value)
     }
 
     @Input

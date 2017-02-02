@@ -164,6 +164,7 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
+        setup = configureCreateKeyStoreTask(taskName(task, node, 'keystore'), project, setup, node, seedNode)
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
@@ -303,6 +304,15 @@ class ClusterFormationTasks {
             File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
+        }
+    }
+
+    /** Adds a task to create keystore */
+    static Task configureCreateKeyStoreTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
+        Map kvs = node.config.keyStoreKVs
+        Task createKeyStore = project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
+            File esKeyStoreUtil =  Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            commandLine esKeyStoreUtil, 'create'
         }
     }
 

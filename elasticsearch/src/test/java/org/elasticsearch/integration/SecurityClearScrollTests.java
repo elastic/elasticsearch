@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -66,7 +67,8 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
     public void indexRandomDocuments() {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(IMMEDIATE);
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
-            bulkRequestBuilder.add(client().prepareIndex("index", "type", String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }"));
+            bulkRequestBuilder.add(client().prepareIndex("index", "type",
+                    String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }", XContentType.JSON));
         }
         BulkResponse bulkItemResponses = bulkRequestBuilder.get();
         assertThat(bulkItemResponses.hasFailures(), is(false));

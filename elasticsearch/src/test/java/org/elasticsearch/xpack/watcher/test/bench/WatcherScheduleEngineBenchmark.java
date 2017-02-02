@@ -101,7 +101,7 @@ public class WatcherScheduleEngineBenchmark {
 
                 client.admin().indices().prepareDelete("_all").get();
                 client.admin().indices().prepareCreate("test").get();
-                client.prepareIndex("test", "test", "1").setSource("{}").get();
+                client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
 
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
@@ -112,7 +112,7 @@ public class WatcherScheduleEngineBenchmark {
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
                                             .condition(new ScriptCondition(new Script("ctx.payload.hits.total > 0")))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
-                                            .buildAsBytes(XContentType.JSON)
+                                            .buildAsBytes(XContentType.JSON), XContentType.JSON
                             ).get();
                 }
                 client.admin().indices().prepareFlush(Watch.INDEX, "test").get();

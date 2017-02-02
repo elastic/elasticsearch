@@ -175,7 +175,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
                                     .input(searchInput(request))
                                     .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
-                                    .buildAsBytes(XContentType.JSON)
+                                    .buildAsBytes(XContentType.JSON), XContentType.JSON
                     )
                     .setWaitForActiveShards(ActiveShardCount.ALL)
                     .get();

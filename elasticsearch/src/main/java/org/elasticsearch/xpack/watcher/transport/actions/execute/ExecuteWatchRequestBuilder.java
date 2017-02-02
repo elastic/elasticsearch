@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.execute;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -79,9 +80,19 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
 
     /**
      * @param watchSource instead of using an existing watch use this non persisted watch
+     * @deprecated use {@link #setWatchSource(BytesReference, XContentType)}
      */
+    @Deprecated
     public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource) {
         request.setWatchSource(watchSource);
+        return this;
+    }
+
+    /**
+     * @param watchSource instead of using an existing watch use this non persisted watch
+     */
+    public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource, XContentType xContentType) {
+        request.setWatchSource(watchSource, xContentType);
         return this;
     }
 

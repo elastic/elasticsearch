@@ -125,11 +125,12 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
     @SuppressWarnings("unchecked")
     public void testSource() throws IOException {
         MonitoringIndexNameResolver resolver = newResolver();
-        BytesReference source = resolver.source(newMonitoringDoc(), randomFrom(XContentType.values()));
+        final XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference source = resolver.source(newMonitoringDoc(), xContentType);
 
         assertNotNull(source);
         assertThat(source.length(), greaterThan(0));
-        assertSource(source, resolver.filters());
+        assertSource(source, resolver.filters(), xContentType);
     }
 
     @SuppressWarnings("unchecked")
@@ -150,8 +151,8 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         }
     }
 
-    protected void assertSource(BytesReference source, Set<String> fields) {
-        Map<String, Object> sourceFields = XContentHelper.convertToMap(source, false).v2();
+    protected void assertSource(BytesReference source, Set<String> fields, XContentType xContentType) {
+        Map<String, Object> sourceFields = XContentHelper.convertToMap(source, false, xContentType).v2();
         assertNotNull(sourceFields);
 
         String[] commons = new String[]{

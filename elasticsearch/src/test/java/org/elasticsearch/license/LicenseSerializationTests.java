@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,7 +27,7 @@ public class LicenseSerializationTests extends ESTestCase {
         String issueDate = TestUtils.dateMathString("now", now);
         String expiryDate = TestUtils.dateMathString("now+10d/d", now);
         String licenseSpecs = TestUtils.generateLicenseSpecString(new TestUtils.LicenseSpec(issueDate, expiryDate));
-        License generatedLicense = License.fromSource(licenseSpecs.getBytes(StandardCharsets.UTF_8));
+        License generatedLicense = License.fromSource(new BytesArray(licenseSpecs.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         assertThat(generatedLicense.issueDate(), equalTo(DateUtils.beginningOfTheDay(issueDate)));
         assertThat(generatedLicense.expiryDate(), equalTo(DateUtils.endOfTheDay(expiryDate)));
     }
@@ -34,7 +35,8 @@ public class LicenseSerializationTests extends ESTestCase {
     public void testLicensesFields() throws Exception {
         TestUtils.LicenseSpec randomLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_START);
         String licenseSpecsSource = TestUtils.generateLicenseSpecString(randomLicenseSpec);
-        final License fromSource = License.fromSource(licenseSpecsSource.getBytes(StandardCharsets.UTF_8));
+        final License fromSource =
+                License.fromSource(new BytesArray(licenseSpecsSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         TestUtils.assertLicenseSpec(randomLicenseSpec, fromSource);
     }
 
@@ -49,7 +51,7 @@ public class LicenseSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(License.REST_VIEW_MODE, "true")));
         builder.flush();
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         // should have an extra status field, human readable issue_data and expiry_date
         assertThat(map.get("status"), notNullValue());
@@ -59,14 +61,14 @@ public class LicenseSerializationTests extends ESTestCase {
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
-        map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map.get("status"), nullValue());
 
         license = TestUtils.generateLicenses(new TestUtils.LicenseSpec(validLicenseIssueDate, validLicenseExpiryDate));
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(License.REST_VIEW_MODE, "true")));
         builder.flush();
-        map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         // should have an extra status field, human readable issue_data and expiry_date
         assertThat(map.get("status"), notNullValue());
@@ -76,14 +78,14 @@ public class LicenseSerializationTests extends ESTestCase {
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
-        map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map.get("status"), nullValue());
 
         license = TestUtils.generateLicenses(new TestUtils.LicenseSpec(invalidLicenseIssueDate, validLicenseExpiryDate));
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(License.REST_VIEW_MODE, "true")));
         builder.flush();
-        map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         // should have an extra status field, human readable issue_data and expiry_date
         assertThat(map.get("status"), notNullValue());
@@ -93,7 +95,7 @@ public class LicenseSerializationTests extends ESTestCase {
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
-        map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map.get("status"), nullValue());
     }
 }

@@ -7,15 +7,19 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -49,24 +53,16 @@ public class RestExecuteWatchActionTests extends ESTestCase {
     }
 
     private FakeRestRequest createFakeRestRequest(String randomId, String recordExecution, String ignoreCondition, String debugCondition) {
-        FakeRestRequest restRequest = new FakeRestRequest() {
-            @Override
-            public boolean hasContent() {
-                return true;
-            }
-
-            @Override
-            public BytesReference content() {
-                return new BytesArray("{}");
-            }
-        };
-
-        restRequest.params().put("id", randomId);
+        FakeRestRequest.Builder builder = new Builder(NamedXContentRegistry.EMPTY);
+        builder.withContent(new BytesArray("{}"), XContentType.JSON);
+        Map<String, String> params = new HashMap<>();
+        params.put("id", randomId);
         // make sure we test true/false/no params
-        if (recordExecution != null) restRequest.params().put("record_execution", recordExecution);
-        if (ignoreCondition != null) restRequest.params().put("ignore_condition", ignoreCondition);
-        if (debugCondition != null) restRequest.params().put("debug", debugCondition);
+        if (recordExecution != null) params.put("record_execution", recordExecution);
+        if (ignoreCondition != null) params.put("ignore_condition", ignoreCondition);
+        if (debugCondition != null) params.put("debug", debugCondition);
 
-        return restRequest;
+        builder.withParams(params);
+        return builder.build();
     }
 }

@@ -123,7 +123,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                         "cluster_uuid",
                         "timestamp",
                         "source_node",
-                        "node_stats"));
+                        "node_stats"), XContentType.JSON);
     }
 
     /**

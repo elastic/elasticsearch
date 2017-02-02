@@ -51,8 +51,10 @@ public class RestPutUserAction extends BaseRestHandler implements RestRequestFil
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutUserRequestBuilder requestBuilder = new SecurityClient(client).preparePutUser(request.param("username"), request.content());
-        requestBuilder.setRefreshPolicy(request.param("refresh"));
+        PutUserRequestBuilder requestBuilder = new SecurityClient(client)
+                .preparePutUser(request.param("username"), request.content(), request.getXContentType())
+                .setRefreshPolicy(request.param("refresh"));
+
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {

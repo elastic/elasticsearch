@@ -74,7 +74,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
         builder.setId(request.param("id"));
         builder.setDebug(WatcherParams.debug(request));
 
-        if (request.content() == null || request.content().length() == 0) {
+        if (request.hasContent() == false) {
             return builder.request();
         }
 
@@ -106,7 +106,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                     } else if (Field.WATCH.match(currentFieldName)) {
                         XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
                         XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
-                        builder.setWatchSource(watcherSource.bytes());
+                        builder.setWatchSource(watcherSource.bytes(), parser.contentType());
                     } else if (Field.ACTION_MODES.match(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

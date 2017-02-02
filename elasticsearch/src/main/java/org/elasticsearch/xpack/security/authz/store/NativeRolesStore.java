@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
@@ -457,7 +458,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
             if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                 return roleDescriptor;
             } else {

@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
@@ -18,6 +22,7 @@ public class MonitoringBulkDoc extends MonitoringDoc {
     private String type;
     private String id;
     private BytesReference source;
+    private XContentType xContentType;
 
     public MonitoringBulkDoc(String monitoringId, String monitoringVersion) {
         super(monitoringId, monitoringVersion);
@@ -25,12 +30,13 @@ public class MonitoringBulkDoc extends MonitoringDoc {
 
     public MonitoringBulkDoc(String monitoringId, String monitoringVersion,
                              MonitoringIndex index, String type, String id,
-                             BytesReference source) {
+                             BytesReference source, XContentType xContentType) {
         super(monitoringId, monitoringVersion);
         this.index = index;
         this.type = type;
         this.id = id;
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     /**
@@ -42,6 +48,11 @@ public class MonitoringBulkDoc extends MonitoringDoc {
         type = in.readOptionalString();
         id = in.readOptionalString();
         source = in.readBytesReference();
+        if (source != BytesArray.EMPTY && in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
@@ -51,6 +62,10 @@ public class MonitoringBulkDoc extends MonitoringDoc {
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeBytesReference(source);
+        if (source != null && source != BytesArray.EMPTY && out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to
+            // onOrAfter after backporting
+            xContentType.writeTo(out);
+        }
     }
 
     public MonitoringIndex getIndex() {
@@ -81,8 +96,12 @@ public class MonitoringBulkDoc extends MonitoringDoc {
         return source;
     }
 
-    public void setSource(BytesReference source) {
+    public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
+        this.xContentType = xContentType;
     }
 
+    public XContentType getXContentType() {
+        return xContentType;
+    }
 }

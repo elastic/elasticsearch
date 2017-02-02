@@ -45,7 +45,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
     @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
-        putLicenseRequest.license(request.content().utf8ToString());
+        putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
                 new RestBuilderListener<PutLicenseResponse>(channel) {

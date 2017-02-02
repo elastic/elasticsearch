@@ -8,8 +8,10 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -31,10 +33,11 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
      * Parses license from json format to an instance of {@link License}
      *
      * @param licenseDefinition licenses definition
+     * @param xContentType the content type of the license
      */
-    public PutLicenseRequest license(String licenseDefinition) {
+    public PutLicenseRequest license(BytesReference licenseDefinition, XContentType xContentType) {
         try {
-            return license(License.fromSource(licenseDefinition));
+            return license(License.fromSource(licenseDefinition, xContentType));
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse license source", e);
         }

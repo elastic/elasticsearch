@@ -10,6 +10,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -127,7 +128,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("my-script")
                     .setLang("painless")
-                    .setContent(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"))
+                    .setContent(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"), XContentType.JSON)
                     .get());
             script = new Script(ScriptType.STORED, "painless", "my-script", Collections.emptyMap());
         } else {

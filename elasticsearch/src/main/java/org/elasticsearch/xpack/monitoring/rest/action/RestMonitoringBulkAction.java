@@ -61,7 +61,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         }
 
         MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
-        requestBuilder.add(request.content(), id, version, defaultType);
+        requestBuilder.add(request.content(), id, version, defaultType, request.getXContentType());
         return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {

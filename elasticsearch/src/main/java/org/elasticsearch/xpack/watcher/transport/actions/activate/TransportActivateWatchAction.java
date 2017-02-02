@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -86,7 +87,8 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
             client.update(updateRequest, ActionListener.wrap(updateResponse -> {
                 client.getWatch(request.getWatchId(), ActionListener.wrap(getResponse -> {
                     if (getResponse.isExists()) {
-                        Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now);
+                        Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
+                                XContentType.JSON);
                         watch.version(getResponse.getVersion());
                         watch.status().version(getResponse.getVersion());
 

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
@@ -158,6 +159,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             conn.setRequestProperty("Authorization",
                     UsernamePasswordToken.basicAuthHeaderValue(username.value(options),
                             new SecuredString(password.value(options).toCharArray())));
+            conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
             conn.setDoOutput(true); // we'll be sending a body
             SocketAccess.doPrivileged(conn::connect);
             if (bodyString != null) {

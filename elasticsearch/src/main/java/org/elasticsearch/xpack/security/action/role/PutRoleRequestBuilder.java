@@ -10,6 +10,8 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -29,10 +31,22 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         super(client, action, new PutRoleRequest());
     }
 
+    /**
+     * Populate the put role request from the source and the role's name
+     * @deprecated use {@link #source(String, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public PutRoleRequestBuilder source(String name, BytesReference source) throws IOException {
+        return source(name, source, XContentFactory.xContentType(source));
+    }
+
+    /**
+     * Populate the put role request from the source and the role's name
+     */
+    public PutRoleRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
         // we pass false as last parameter because we want to reject the request if field permissions
         // are given in 2.x syntax
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false);
+        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());

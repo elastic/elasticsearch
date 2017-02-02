@@ -57,6 +57,6 @@ public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestC
                         "node.id",
                         "node.name",
                         "node.transport_address",
-                        "node.attributes"));
+                        "node.attributes"), XContentType.JSON);
     }
 }

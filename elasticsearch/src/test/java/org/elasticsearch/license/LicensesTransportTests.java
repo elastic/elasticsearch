@@ -6,14 +6,17 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -84,7 +87,8 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
 
         // put license source
         PutLicenseRequestBuilder putLicenseRequestBuilder =
-                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(licenseString)
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE)
+                        .setLicense(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
                         .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));

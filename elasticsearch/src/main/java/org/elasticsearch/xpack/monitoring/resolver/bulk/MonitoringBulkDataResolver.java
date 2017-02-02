@@ -29,7 +29,7 @@ public class MonitoringBulkDataResolver extends MonitoringIndexNameResolver.Data
     protected void buildXContent(MonitoringBulkDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
         BytesReference source = document.getSource();
         if (source != null && source.length() > 0) {
-            builder.rawField(type(document), source);
+            builder.rawField(type(document), source, document.getXContentType());
         }
     }
 }

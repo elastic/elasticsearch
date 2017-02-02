@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
@@ -199,7 +200,8 @@ public final class ExecutionService extends AbstractComponent {
                     logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 } else {
                     try {
-                        Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
+                        Watch watch =
+                                parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
                         TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
                         contexts.add(ctx);
                         triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
@@ -239,7 +241,7 @@ public final class ExecutionService extends AbstractComponent {
                 logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
             }
-            Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
+            Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
             TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
             contexts.add(ctx);
             triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
@@ -438,7 +440,7 @@ public final class ExecutionService extends AbstractComponent {
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
                 DateTime now = new DateTime(clock.millis(), UTC);
-                Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
+                Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
                 TriggeredExecutionContext ctx =
                         new StartupExecutionContext(watch, now, triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);

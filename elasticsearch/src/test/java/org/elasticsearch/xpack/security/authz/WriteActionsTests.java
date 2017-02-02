@@ -13,6 +13,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -68,33 +69,35 @@ public class WriteActionsTests extends SecurityIntegTestCase {
     public void testUpdate() {
         createIndex("test1", "index1");
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
-        assertEquals(RestStatus.OK, client().prepareUpdate("test1", "type", "id").setDoc("field2", "value2").get().status());
+        assertEquals(RestStatus.OK, client().prepareUpdate("test1", "type", "id")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("index1", "type", "id").setDoc("field2", "value2")::get,
-                UpdateAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("index1", "type", "id")
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get, UpdateAction.NAME);
 
-        expectThrows(DocumentMissingException.class, () -> client().prepareUpdate("test4", "type", "id").setDoc("field2", "value2").get());
+        expectThrows(DocumentMissingException.class, () -> client().prepareUpdate("test4", "type", "id")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("missing", "type", "id").setDoc("field2", "value2")::get,
-                UpdateAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareUpdate("missing", "type", "id")
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get, UpdateAction.NAME);
     }
 
     public void testBulk() {
         createIndex("test1", "test2", "test3", "index1");
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(new IndexRequest("test1", "type", "id").source("field", "value"))
-                .add(new IndexRequest("index1", "type", "id").source("field", "value"))
-                .add(new IndexRequest("test4", "type", "id").source("field", "value"))
-                .add(new IndexRequest("missing", "type", "id").source("field", "value"))
+                .add(new IndexRequest("test1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("index1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("test4", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("missing", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .add(new DeleteRequest("test1", "type", "id"))
                 .add(new DeleteRequest("index1", "type", "id"))
                 .add(new DeleteRequest("test4", "type", "id"))
                 .add(new DeleteRequest("missing", "type", "id"))
-                .add(new IndexRequest("test1", "type", "id").source("field", "value"))
-                .add(new UpdateRequest("test1", "type", "id").doc("field", "value"))
-                .add(new UpdateRequest("index1", "type", "id").doc("field", "value"))
-                .add(new UpdateRequest("test4", "type", "id").doc("field", "value"))
-                .add(new UpdateRequest("missing", "type", "id").doc("field", "value")).get();
+                .add(new IndexRequest("test1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test1", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("index1", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test4", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("missing", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")).get();
         assertTrue(bulkResponse.hasFailures());
         assertEquals(13, bulkResponse.getItems().length);
         assertFalse(bulkResponse.getItems()[0].isFailed());

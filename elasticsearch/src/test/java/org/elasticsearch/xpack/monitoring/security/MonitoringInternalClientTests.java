@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.monitoring.security;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -44,13 +46,15 @@ public class MonitoringInternalClientTests extends MonitoringIntegTestCase {
         assertAccessIsAllowed(internalClient.admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
         assertAccessIsAllowed(internalClient.admin().indices().prepareCreate(MONITORING_INDICES_PREFIX + "test"));
 
-        assertAccessIsAllowed(internalClient.admin().indices().preparePutTemplate("foo").setSource(randomTemplateSource()));
+        assertAccessIsAllowed(internalClient.admin().indices().preparePutTemplate("foo")
+                .setSource(new BytesArray(randomTemplateSource()), XContentType.JSON));
         assertAccessIsAllowed(internalClient.admin().indices().prepareGetTemplates("foo"));
     }
 
     public void testAllowAllAccess() {
         InternalClient internalClient = internalCluster().getInstance(InternalClient.class);
-        assertAcked(internalClient.admin().indices().preparePutTemplate("foo").setSource(randomTemplateSource()).get());
+        assertAcked(internalClient.admin().indices().preparePutTemplate("foo")
+                .setSource(new BytesArray(randomTemplateSource()), XContentType.JSON).get());
 
         assertAccessIsAllowed(internalClient.admin().indices().prepareDeleteTemplate("foo"));
         assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());

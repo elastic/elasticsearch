@@ -147,6 +147,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/log/1"))
                 .body(new TextTemplate("{\"foo\":\"bar\"}"))
                 .auth(new BasicAuth("test", "changeme".toCharArray()))
+                .putHeader("Content-Type", new TextTemplate("application/json"))
                 .method(HttpMethod.PUT);
 
         watcherClient().preparePutWatch("_id")

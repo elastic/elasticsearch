@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -87,7 +88,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
-                .setDoc("new", "field")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
                 .get();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,10 +87,10 @@ public class MonitoringBulkRequest extends ActionRequest {
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
     public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringApiVersion,
-                                     String defaultType) throws IOException {
+                                     String defaultType, XContentType xContentType) throws IOException {
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest:
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
-        BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType);
+        BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType, xContentType);
 
         for (DocWriteRequest request : bulkRequest.requests()) {
             if (request instanceof IndexRequest) {
@@ -102,7 +103,8 @@ public class MonitoringBulkRequest extends ActionRequest {
                                               MonitoringIndex.from(indexRequest.index()),
                                               indexRequest.type(),
                                               indexRequest.id(),
-                                              indexRequest.source());
+                                              indexRequest.source(),
+                                              xContentType);
 
                 add(doc);
             } else {

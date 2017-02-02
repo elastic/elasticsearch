@@ -7,6 +7,8 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * Register license request builder
@@ -37,8 +39,8 @@ public class PutLicenseRequestBuilder extends AcknowledgedRequestBuilder<PutLice
         return this;
     }
 
-    public PutLicenseRequestBuilder setLicense(String licenseSource) {
-        request.license(licenseSource);
+    public PutLicenseRequestBuilder setLicense(BytesReference licenseSource, XContentType xContentType) {
+        request.license(licenseSource, xContentType);
         return this;
     }
 

@@ -88,7 +88,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                         "cluster_uuid",
                         "timestamp",
                         "source_node",
-                        "cluster_stats"));
+                        "cluster_stats"), XContentType.JSON);
     }
 
     /**

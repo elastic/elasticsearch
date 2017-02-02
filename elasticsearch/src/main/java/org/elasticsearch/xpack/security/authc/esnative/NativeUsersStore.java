@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -231,7 +233,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         }
 
         client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, docType, username)
-                .setDoc(Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
+                .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
                     @Override
@@ -318,7 +320,8 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         assert putUserRequest.passwordHash() == null;
         // We must have an existing document
         client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
-                .setDoc(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                .setDoc(Requests.INDEX_CONTENT_TYPE,
+                        User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                         User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
                         User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
                         User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
@@ -403,7 +406,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                             final ActionListener<Void> listener) {
         try {
             client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, username)
-                    .setDoc(User.Fields.ENABLED.getPreferredName(), enabled)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
@@ -445,8 +448,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                                         final ActionListener<Void> listener) {
         try {
             client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
-                    .setDoc(User.Fields.ENABLED.getPreferredName(), enabled)
-                    .setUpsert(User.Fields.PASSWORD.getPreferredName(), String.valueOf(ReservedRealm.DEFAULT_PASSWORD_HASH),
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
+                    .setUpsert(XContentType.JSON,
+                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(ReservedRealm.DEFAULT_PASSWORD_HASH),
                             User.Fields.ENABLED.getPreferredName(), enabled)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {

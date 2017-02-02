@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
@@ -199,10 +200,11 @@ public class RoleDescriptor implements ToXContentObject {
         }
     }
 
-    public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat) throws IOException {
+    public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
+            throws IOException {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source)) {
             return parse(name, parser, allow2xFormat);
         }
     }

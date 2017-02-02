@@ -64,6 +64,6 @@ public class ClusterStateNodeResolverTests extends
                         "timestamp",
                         "source_node",
                         "state_uuid",
-                        "node.id"));
+                        "node.id"), XContentType.JSON);
     }
 }

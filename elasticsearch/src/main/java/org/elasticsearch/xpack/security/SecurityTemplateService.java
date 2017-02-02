@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.template.TemplateUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -212,7 +214,9 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
 
         PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
-                .preparePutTemplate(SECURITY_TEMPLATE_NAME).setSource(template).request();
+                .preparePutTemplate(SECURITY_TEMPLATE_NAME)
+                .setSource(new BytesArray(template.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
+                .request();
         client.admin().indices().putTemplate(putTemplateRequest, new ActionListener<PutIndexTemplateResponse>() {
             @Override
             public void onResponse(PutIndexTemplateResponse putIndexTemplateResponse) {
@@ -287,8 +291,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         for (Object typeMapping : mappings.values().toArray()) {
             CompressedXContent typeMappingXContent = (CompressedXContent) typeMapping;
             try  {
-                Map<String, Object> typeMappingMap = XContentHelper.convertToMap(new BytesArray(typeMappingXContent.uncompressed()), false)
-                        .v2();
+                Map<String, Object> typeMappingMap =
+                        XContentHelper.convertToMap(new BytesArray(typeMappingXContent.uncompressed()), false, XContentType.JSON).v2();
                 // should always contain one entry with key = typename
                 assert (typeMappingMap.size() == 1);
                 String key = typeMappingMap.keySet().iterator().next();

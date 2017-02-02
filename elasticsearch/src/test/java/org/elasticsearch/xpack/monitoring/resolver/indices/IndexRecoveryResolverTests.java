@@ -71,6 +71,6 @@ public class IndexRecoveryResolverTests extends MonitoringIndexNameResolverTestC
                         "cluster_uuid",
                         "timestamp",
                         "source_node",
-                        "index_recovery"));
+                        "index_recovery"), XContentType.JSON);
     }
 }

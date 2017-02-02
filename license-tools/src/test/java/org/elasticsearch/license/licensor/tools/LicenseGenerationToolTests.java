@@ -13,6 +13,8 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.licensor.TestUtils;
 import org.junit.Before;
@@ -63,7 +65,7 @@ public class LicenseGenerationToolTests extends CommandTestCase {
         String output = execute("--publicKeyPath", pubKeyPath.toString(),
                                 "--privateKeyPath", priKeyPath.toString(),
                                 "--license", licenseSpecString);
-        License outputLicense = License.fromSource(output.getBytes(StandardCharsets.UTF_8));
+        License outputLicense = License.fromSource(new BytesArray(output.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         TestUtils.assertLicenseSpec(inputLicenseSpec, outputLicense);
     }
 
@@ -75,7 +77,7 @@ public class LicenseGenerationToolTests extends CommandTestCase {
         String output = execute("--publicKeyPath", pubKeyPath.toString(),
                                 "--privateKeyPath", priKeyPath.toString(),
                                 "--licenseFile", licenseSpecFile.toString());
-        License outputLicense = License.fromSource(output.getBytes(StandardCharsets.UTF_8));
+        License outputLicense = License.fromSource(new BytesArray(output.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         TestUtils.assertLicenseSpec(inputLicenseSpec, outputLicense);
     }
 }

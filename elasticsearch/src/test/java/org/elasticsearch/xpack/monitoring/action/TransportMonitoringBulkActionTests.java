@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -245,7 +246,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             MonitoringBulkDoc doc = new MonitoringBulkDoc(randomFrom(MonitoredSystem.values()).getSystem(),
                     randomVersion(random()).toString());
             doc.setType(randomFrom("type1", "type2"));
-            doc.setSource(jsonBuilder().startObject().field("num", i).endObject().bytes());
+            doc.setSource(jsonBuilder().startObject().field("num", i).endObject().bytes(), XContentType.JSON);
             request.add(doc);
         }
         return request;

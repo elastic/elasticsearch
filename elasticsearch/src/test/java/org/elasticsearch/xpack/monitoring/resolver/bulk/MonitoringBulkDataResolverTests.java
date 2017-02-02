@@ -32,7 +32,7 @@ public class MonitoringBulkDataResolverTests extends MonitoringIndexNameResolver
     protected MonitoringBulkDoc newMonitoringDoc() {
         MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION,
                                                       MonitoringIndex.DATA, "kibana", id,
-                                                      new BytesArray("{\"field1\" : \"value1\"}"));
+                                                      new BytesArray("{\"field1\" : \"value1\"}"), XContentType.JSON);
 
         if (randomBoolean()) {
             doc.setClusterUUID(randomAsciiOfLength(5));
@@ -70,6 +70,6 @@ public class MonitoringBulkDataResolverTests extends MonitoringIndexNameResolver
                         "timestamp",
                         "source_node",
                         "kibana",
-                        "kibana.field1"));
+                        "kibana.field1"), XContentType.JSON);
     }
 }

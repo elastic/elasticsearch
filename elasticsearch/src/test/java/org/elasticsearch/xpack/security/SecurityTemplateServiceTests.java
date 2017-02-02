@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -330,7 +331,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString()
                 , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(template);
+        request.source(template, XContentType.JSON);
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME);
         indexMetaData.settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -360,7 +361,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString()
                 , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-        request.source(template);
+        request.source(template, XContentType.JSON);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(SECURITY_TEMPLATE_NAME);
         for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
             templateBuilder.putMapping(entry.getKey(), entry.getValue());

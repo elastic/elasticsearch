@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -487,14 +489,9 @@ public class License implements ToXContentObject {
         }
     }
 
-
-    public static License fromSource(String content) throws IOException {
-        return fromSource(content.getBytes(StandardCharsets.UTF_8));
-    }
-
-    public static License fromSource(byte[] bytes) throws IOException {
+    public static License fromSource(BytesReference bytes, XContentType xContentType) throws IOException {
         // EMPTY is safe here because we don't call namedObject
-        final XContentParser parser = XContentFactory.xContent(bytes).createParser(NamedXContentRegistry.EMPTY, bytes);
+        final XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes);
         License license = null;
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {

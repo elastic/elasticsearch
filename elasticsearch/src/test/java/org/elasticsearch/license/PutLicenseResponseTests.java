@@ -36,7 +36,7 @@ public class PutLicenseResponseTests extends ESTestCase {
         response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
 
-        Map<String, Object> map = XContentHelper.convertToMap(contentBuilder.bytes(), false).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(contentBuilder.bytes(), false, contentBuilder.contentType()).v2();
         assertThat(map.containsKey("acknowledged"), equalTo(true));
         boolean actualAcknowledged = (boolean) map.get("acknowledged");
         assertThat(actualAcknowledged, equalTo(acknowledged));

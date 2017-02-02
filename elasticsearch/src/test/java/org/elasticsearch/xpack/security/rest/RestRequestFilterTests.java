@@ -22,7 +22,8 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevels() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("root.second.third");
-        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content).build();
+        FakeRestRequest restRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
@@ -38,7 +39,8 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevelsWithWildCard() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("root.*.third");
-        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content).build();
+        FakeRestRequest restRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
@@ -54,7 +56,8 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevelsWithLeadingWildCard() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("*.third");
-        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content).build();
+        FakeRestRequest restRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 

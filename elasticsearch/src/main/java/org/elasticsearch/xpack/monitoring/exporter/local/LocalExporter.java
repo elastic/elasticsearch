@@ -364,7 +364,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         putMapping.type(type);
         // avoid mapping at all; we use this index as a data cache rather than for search
-        putMapping.source("{\"enabled\":false}");
+        putMapping.source("{\"enabled\":false}", XContentType.JSON);
 
         client.admin().indices().putMapping(putMapping, listener);
     }
@@ -404,7 +404,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.debug("installing ingest pipeline [{}]", EXPORT_PIPELINE_NAME);
 
         final BytesReference emptyPipeline = emptyPipeline(XContentType.JSON).bytes();
-        final PutPipelineRequest request = new PutPipelineRequest(EXPORT_PIPELINE_NAME, emptyPipeline);
+        final PutPipelineRequest request = new PutPipelineRequest(EXPORT_PIPELINE_NAME, emptyPipeline, XContentType.JSON);
 
         client.admin().cluster().putPipeline(request, listener);
     }
@@ -440,7 +440,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
         logger.debug("installing template [{}]",template);
 
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source);
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
         assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
 
         // async call, so we won't block cluster event thread

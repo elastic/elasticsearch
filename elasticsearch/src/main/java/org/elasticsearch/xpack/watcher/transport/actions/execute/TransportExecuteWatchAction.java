@@ -89,7 +89,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             try {
                 // should be executed async in the future
                 GetResponse getResponse = client.getWatch(request.getId());
-                Watch watch = watchParser.parse(request.getId(), true, getResponse.getSourceAsBytesRef());
+                Watch watch = watchParser.parse(request.getId(), true, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 ExecuteWatchResponse executeWatchResponse = executeWatch(request, watch, true);
                 listener.onResponse(executeWatchResponse);
             } catch (IOException e) {
@@ -98,7 +98,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         } else if (request.getWatchSource() != null) {
             try {
                 assert !request.isRecordExecution();
-                Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource());
+                Watch watch =
+                        watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(), request.getXContentType());
                 ExecuteWatchResponse response = executeWatch(request, watch, false);
                 listener.onResponse(response);
             } catch (Exception e) {

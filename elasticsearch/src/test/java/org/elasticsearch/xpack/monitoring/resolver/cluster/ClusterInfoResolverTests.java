@@ -85,6 +85,6 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
                          "version",
                          "license",
                          "cluster_stats",
-                         "stack_stats.xpack"));
+                         "stack_stats.xpack"), XContentType.JSON);
     }
 }

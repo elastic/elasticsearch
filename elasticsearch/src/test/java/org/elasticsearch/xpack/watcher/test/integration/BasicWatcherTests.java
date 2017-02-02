@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -263,7 +264,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setLang("mustache")
                 .setId("my-template")
-                .setContent(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
+                .setContent(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes(), XContentType.JSON)
                 .get());
 
         Script template = new Script(ScriptType.STORED, "mustache", "my-template", Collections.emptyMap());

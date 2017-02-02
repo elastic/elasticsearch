@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.test.bench;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
@@ -72,7 +73,7 @@ public class WatcherExecutorServiceBenchmark {
         public static void main(String[] args) throws Exception {
             start();
             client.admin().indices().prepareCreate("test").get();
-            client.prepareIndex("test", "test", "1").setSource("{}").get();
+            client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
 
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {

@@ -12,8 +12,9 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -57,9 +58,21 @@ public class ChangePasswordRequestBuilder
         return this;
     }
 
+    /**
+     * Populate the change password request from the source
+     * @deprecated use {@link #source(BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public ChangePasswordRequestBuilder source(BytesReference source) throws IOException {
+        return source(source, XContentFactory.xContentType(source));
+    }
+
+    /**
+     * Populate the change password request from the source in the provided content type
+     */
+    public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         // EMPTY is ok here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

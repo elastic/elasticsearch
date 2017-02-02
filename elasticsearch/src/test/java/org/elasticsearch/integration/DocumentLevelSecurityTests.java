@@ -17,6 +17,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -794,7 +795,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // With document level security enabled the update is not allowed:
         try {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareUpdate("test", "type", "1").setDoc("field1", "value2")
+                    .prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
                     .get();
             fail("failed, because update request shouldn't be allowed if document level security is enabled");
         } catch (ElasticsearchSecurityException e) {
@@ -804,7 +805,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value1"));
 
         // With no document level security enabled the update is allowed:
-        client().prepareUpdate("test", "type", "1").setDoc("field1", "value2")
+        client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
                 .get();
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
@@ -812,7 +813,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue
                 ("user1", USERS_PASSWD)))
                 .prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc("field1", "value3"))
+                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3"))
                 .get();
         assertEquals(1, bulkResponse.getItems().length);
         BulkItemResponse bulkItem = bulkResponse.getItems()[0];
@@ -826,7 +827,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         client().prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc("field1", "value3"))
+                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3"))
                 .get();
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value3"));
     }

@@ -14,9 +14,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse, PutUserRequestBuilder>
         implements WriteRequestBuilder<PutUserRequestBuilder> {
@@ -90,10 +92,23 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
+    /**
+     * Populate the put user request using the given source and username
+     * @deprecated use {@link #source(String, BytesReference, XContentType)} to avoid content type auto-detection
+     */
+    @Deprecated
     public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
+        return source(username, source, XContentFactory.xContentType(source));
+    }
+
+    /**
+     * Populate the put user request using the given source and username
+     */
+    public PutUserRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
+        Objects.requireNonNull(xContentType);
         username(username);
         // EMPTY is ok here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

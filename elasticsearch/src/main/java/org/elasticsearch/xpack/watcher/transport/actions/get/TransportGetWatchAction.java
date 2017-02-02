@@ -76,7 +76,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                     // we don't include the status in the watch source itself, but as a separate top level field, so that
                     // it indicates the the status is managed by watcher itself.
                     DateTime now = new DateTime(clock.millis(), UTC);
-                    Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now);
+                    Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now, XContentType.JSON);
                     watch.toXContent(builder, WatcherParams.builder()
                             .hideSecrets(true)
                             .put(Watch.INCLUDE_STATUS_KEY, false)

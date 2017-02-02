@@ -139,7 +139,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         // now that we filtered out the watch status state, lets put it back in
         IndexResponse indexResponse = client().prepareIndex(".watches", "watch", "_id")
-                .setSource(builder.bytes())
+                .setSource(builder.bytes(), XContentType.JSON)
                 .get();
         assertThat(indexResponse.getId(), is("_id"));
 

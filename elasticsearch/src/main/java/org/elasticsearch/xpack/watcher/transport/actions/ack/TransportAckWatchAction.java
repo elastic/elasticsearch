@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -74,7 +75,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                 listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exit", request.getWatchId()));
             } else {
                 DateTime now = new DateTime(clock.millis(), UTC);
-                Watch watch = parser.parseWithSecrets(request.getWatchId(), true, response.getSourceAsBytesRef(), now);
+                Watch watch = parser.parseWithSecrets(request.getWatchId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
                 watch.version(response.getVersion());
                 watch.status().version(response.getVersion());
                 String[] actionIds = request.getActionIds();

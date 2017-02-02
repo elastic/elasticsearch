@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -169,7 +170,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName()+ ".json", INDEX_TEMPLATE_VERSION,
                     Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template, XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             Settings customSettings = customIndexSettings.get(config.getSetting().getKey());
             if (customSettings != null && customSettings.names().size() > 0) {

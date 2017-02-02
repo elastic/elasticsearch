@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -136,7 +137,7 @@ public class WatcherService extends AbstractComponent {
                 for (SearchHit hit : response.getHits()) {
                     String id = hit.getId();
                     try {
-                        Watch watch = parser.parse(id, true, hit.getSourceRef());
+                        Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON);
                         watch.version(hit.version());
                         watches.add(watch);
                     } catch (Exception e) {

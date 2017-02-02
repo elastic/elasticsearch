@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequest;
@@ -120,7 +121,7 @@ public class WatchRequestValidationTests extends ESTestCase {
 
     public void testExecuteWatchWatchIdAndSource() {
         ExecuteWatchRequest request = new ExecuteWatchRequest("foo");
-        request.setWatchSource(BytesArray.EMPTY);
+        request.setWatchSource(BytesArray.EMPTY, XContentType.JSON);
         ActionRequestValidationException e = request.validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(),
@@ -129,7 +130,7 @@ public class WatchRequestValidationTests extends ESTestCase {
 
     public void testExecuteWatchSourceAndRecordExecution() {
         ExecuteWatchRequest request = new ExecuteWatchRequest();
-        request.setWatchSource(BytesArray.EMPTY);
+        request.setWatchSource(BytesArray.EMPTY, XContentType.JSON);
         request.setRecordExecution(true);
         ActionRequestValidationException e = request.validate();
         assertThat(e, is(notNullValue()));

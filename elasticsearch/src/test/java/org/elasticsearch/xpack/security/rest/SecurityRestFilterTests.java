@@ -40,7 +40,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -114,7 +113,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessFiltersBodyCorrectly() throws Exception {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withContent(new BytesArray("{\"password\": \"changeme\", \"foo\": \"bar\"}")).build();
+                .withContent(new BytesArray("{\"password\": \"changeme\", \"foo\": \"bar\"}"), XContentType.JSON).build();
         when(channel.request()).thenReturn(restRequest);
         SetOnce<RestRequest> handlerRequest = new SetOnce<>();
         restHandler = new FilteredRestHandler() {

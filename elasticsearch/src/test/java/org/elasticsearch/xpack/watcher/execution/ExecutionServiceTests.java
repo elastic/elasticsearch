@@ -768,7 +768,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         when(getResponse.getId()).thenReturn("foo");
         when(client.getWatch(any())).thenReturn(getResponse);
-        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any())).thenReturn(watch);
 
         // execute needs to fail as well as storing the history
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());

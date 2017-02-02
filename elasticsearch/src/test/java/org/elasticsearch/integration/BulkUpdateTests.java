@@ -16,6 +16,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
@@ -41,7 +42,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertEquals(DocWriteResponse.Result.CREATED,
-                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}").setId("1").get().getResult());
+                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
         GetResponse getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
 
@@ -51,7 +52,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
         // update with a new field
         assertEquals(DocWriteResponse.Result.UPDATED, internalCluster().transportClient().prepareUpdate("index1", "type", "1")
-                .setDoc("{\"not test\": \"not test\"}").get().getResult());
+                .setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult());
         getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
         assertEquals("not test", getResponse.getSource().get("not test"));
@@ -62,7 +63,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
         // do it in a bulk
         BulkResponse response = internalCluster().transportClient().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
-                .setDoc("{\"bulk updated\": \"bulk updated\"}")).get();
+                .setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)).get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
         getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));

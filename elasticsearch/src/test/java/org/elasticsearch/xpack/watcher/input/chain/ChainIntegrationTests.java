@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.chain;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
@@ -54,7 +55,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        client().prepareIndex(index, "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(index, "type", "id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())

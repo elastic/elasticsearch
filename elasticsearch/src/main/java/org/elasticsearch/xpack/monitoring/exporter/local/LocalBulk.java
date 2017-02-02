@@ -60,7 +60,7 @@ public class LocalBulk extends ExportBulk {
             try {
                 MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
                 IndexRequest request = new IndexRequest(resolver.index(doc), resolver.type(doc), resolver.id(doc));
-                request.source(resolver.source(doc, XContentType.SMILE));
+                request.source(resolver.source(doc, XContentType.SMILE), XContentType.SMILE);
 
                 // allow the use of ingest pipelines to be completely optional
                 if (usePipeline) {

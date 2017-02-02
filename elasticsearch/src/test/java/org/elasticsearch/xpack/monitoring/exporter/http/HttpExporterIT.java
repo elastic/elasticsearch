@@ -337,7 +337,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         String indexName = new ResolversRegistry(Settings.EMPTY).getResolver(doc).index(doc);
 
         byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
-        Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
+        Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> index = (Map<String, Object>) data.get("index");
         assertThat(index.get("_index"), equalTo(indexName));
@@ -360,7 +360,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         recordedRequest = assertBulk(webServer);
 
         bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
-        data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
+        data = XContentHelper.convertToMap(new BytesArray(bytes), false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked")
         final Map<String, Object> newIndex = (Map<String, Object>) data.get("index");
         assertThat(newIndex.get("_index"), equalTo(expectedMonitoringIndex));

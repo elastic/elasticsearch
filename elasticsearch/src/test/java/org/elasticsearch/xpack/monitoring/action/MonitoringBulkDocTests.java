@@ -9,10 +9,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,7 +39,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             doc.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(randomVersion(random()));
+            streamInput.setVersion(outputVersion);
             MonitoringBulkDoc doc2 = new MonitoringBulkDoc(streamInput);
 
             assertThat(doc2.getMonitoringId(), equalTo(doc.getMonitoringId()));
@@ -48,10 +50,34 @@ public class MonitoringBulkDocTests extends ESTestCase {
             assertThat(doc2.getIndex(), equalTo(doc.getIndex()));
             assertThat(doc2.getType(), equalTo(doc.getType()));
             assertThat(doc2.getId(), equalTo(doc.getId()));
+            assertThat(doc2.getXContentType(), equalTo(doc.getXContentType()));
             if (doc.getSource() == null) {
                 assertThat(doc2.getSource(), equalTo(BytesArray.EMPTY));
             } else {
                 assertThat(doc2.getSource(), equalTo(doc.getSource()));
+            }
+        }
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AQNtSWQBBTUuMS4yAAAAAQEEdHlwZQECaWQNeyJmb28iOiJiYXIifQAAAAAAAAAA");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+                Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            MonitoringBulkDoc bulkDoc = new MonitoringBulkDoc(in);
+            assertEquals(XContentType.JSON, bulkDoc.getXContentType());
+            assertEquals("mId", bulkDoc.getMonitoringId());
+            assertEquals("5.1.2", bulkDoc.getMonitoringVersion());
+            assertEquals(MonitoringIndex.TIMESTAMPED, bulkDoc.getIndex());
+            assertEquals("{\"foo\":\"bar\"}", bulkDoc.getSource().utf8ToString());
+            assertEquals("type", bulkDoc.getType());
+            assertEquals("id", bulkDoc.getId());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                bulkDoc.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
             }
         }
     }
@@ -64,7 +90,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
         }
         if (randomBoolean()) {
             doc.setTimestamp(System.currentTimeMillis());
-            doc.setSource(new BytesArray("{\"key\" : \"value\"}"));
+            doc.setSource(new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON);
         }
         if (rarely()) {
             doc.setIndex(MonitoringIndex.DATA);

@@ -14,12 +14,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -33,6 +38,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -147,11 +153,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAnonymousAccessDeniedRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
         InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
-        String expectedMessage = prepareRestContent(request);
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.anonymousAccessDenied(request);
@@ -217,11 +222,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
         InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
-        String expectedMessage = prepareRestContent(request);
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed(new MockToken(), request);
@@ -243,11 +247,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
-        RestRequest request = mock(RestRequest.class);
         InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
-        String expectedMessage = prepareRestContent(request);
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed(request);
@@ -291,11 +294,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAuthenticationFailedRealmRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
         InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
-        String expectedMessage = prepareRestContent(request);
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationFailed("_realm", new MockToken(), request);
@@ -432,11 +434,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testTamperedRequestRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
         InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
-        String expectedMessage = prepareRestContent(request);
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.tamperedRequest(request);
@@ -598,14 +599,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessRest() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
-        when(request.uri()).thenReturn("_uri");
         Map<String, String> params = new HashMap<>();
         params.put("foo", "bar");
-        when(request.params()).thenReturn(params);
-        String expectedMessage = prepareRestContent(request);
+        InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
+        Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        String expectedMessage = tuple.v1().expectedMessage();
+        RestRequest request = tuple.v2();
         boolean runAs = randomBoolean();
         User user;
         if (runAs) {
@@ -686,13 +685,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(CapturingLogger.isEmpty(logger.getName()), is(true));
     }
 
-    private String prepareRestContent(RestRequest mock) {
+    private Tuple<RestContent, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress) {
+        return prepareRestContent(uri, remoteAddress, Collections.emptyMap());
+    }
+
+    private Tuple<RestContent, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress, Map<String, String> params) {
         RestContent content = randomFrom(RestContent.values());
-        when(mock.hasContent()).thenReturn(content.hasContent());
+        FakeRestRequest.Builder builder = new Builder(NamedXContentRegistry.EMPTY);
         if (content.hasContent()) {
-            when(mock.content()).thenReturn(content.content());
+            builder.withContent(content.content(), XContentType.JSON);
         }
-        return content.expectedMessage();
+        builder.withPath(uri);
+        builder.withRemoteAddress(remoteAddress);
+        builder.withParams(params);
+        return new Tuple<>(content, builder.build());
     }
 
     /** creates address without any lookups. hostname can be null, for missing */

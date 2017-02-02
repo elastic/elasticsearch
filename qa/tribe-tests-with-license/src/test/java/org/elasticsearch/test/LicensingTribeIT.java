@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesStatus;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -103,7 +106,8 @@ public class LicensingTribeIT extends ESIntegTestCase {
 
         // test that signed license put in one cluster propagates to tribe
         LicensingClient cluster1Client = new LicensingClient(client());
-        PutLicenseResponse licenseResponse = cluster1Client.preparePutLicense(License.fromSource(BASIC_LICENSE))
+        PutLicenseResponse licenseResponse = cluster1Client
+                .preparePutLicense(License.fromSource(new BytesArray(BASIC_LICENSE.getBytes(StandardCharsets.UTF_8)), XContentType.JSON))
                 .setAcknowledge(true).get();
         assertThat(licenseResponse.isAcknowledged(), equalTo(true));
         assertThat(licenseResponse.status(), equalTo(LicensesStatus.VALID));
@@ -115,7 +119,9 @@ public class LicensingTribeIT extends ESIntegTestCase {
 
         // test that signed license with higher operation mode takes precedence
         LicensingClient cluster2Client = new LicensingClient(cluster2.client());
-        licenseResponse = cluster2Client.preparePutLicense(License.fromSource(PLATINUM_LICENSE)).setAcknowledge(true).get();
+        licenseResponse = cluster2Client
+                .preparePutLicense(License.fromSource(new BytesArray(PLATINUM_LICENSE.getBytes(StandardCharsets.UTF_8)), XContentType.JSON))
+                .setAcknowledge(true).get();
         assertThat(licenseResponse.isAcknowledged(), equalTo(true));
         assertThat(licenseResponse.status(), equalTo(LicensesStatus.VALID));
         assertBusy(() -> {

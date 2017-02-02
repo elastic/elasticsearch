@@ -497,8 +497,10 @@ public class RecoverySourceHandler {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
-            // we have to send older ops for which no sequence number was assigned, and any ops after the starting sequence number
-            if (operation.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO || operation.seqNo() < startingSeqNo) continue;
+            // if we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
+            // any ops before the starting sequence number
+            final long seqNo = operation.seqNo();
+            if (startingSeqNo >= 0 && (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) continue;
             operations.add(operation);
             ops++;
             size += operation.estimateSize();

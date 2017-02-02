@@ -96,7 +96,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             case DOUBLE:
                 return new SortedNumericDoubleFieldData(reader, field);
             default:
-                return new SortedNumericLongFieldData(reader, field, numericType == NumericType.BOOLEAN);
+                return new SortedNumericLongFieldData(reader, field, numericType);
         }
     }
 
@@ -117,8 +117,8 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         final LeafReader reader;
         final String field;
 
-        SortedNumericLongFieldData(LeafReader reader, String field, boolean isBoolean) {
-            super(0L, isBoolean);
+        SortedNumericLongFieldData(LeafReader reader, String field, NumericType numericType) {
+            super(0L, numericType);
             this.reader = reader;
             this.field = field;
         }

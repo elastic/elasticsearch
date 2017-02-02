@@ -196,10 +196,17 @@ POST hockey/player/1/_update
 
 [float]
 [[modules-scripting-painless-dates]]
-=== Regular expressions
+=== Dates
 
-Dates are a little different to work with than regular values. Here is an
-example returning the year of every player's birth:
+Date fields are exposed as
+<<painless-api-reference-org-joda-time-ReadableDateTime, `ReadableDateTime`>>s
+so they support methods like
+<<painless-api-reference-org-joda-time-ReadableDateTime-getYear-0, `getYear`>>,
+and
+<<painless-api-reference-org-joda-time-ReadableDateTime-getDayOfWeek-0, `getDayOfWeek`>>.
+To get milliseconds since epoch call
+<<painless-api-reference-org-joda-time-ReadableInstant-getMillis-0, `getMillis`>>.
+For example, the following returns every hockey player's birth year:
 
 [source,js]
 ----------------------------------------------------------------
@@ -208,25 +215,13 @@ GET hockey/_search
   "script_fields": {
     "birth_year": {
       "script": {
-        "inline": "doc.born.date.year"
+        "inline": "doc.born.value.year"
       }
     }
   }
 }
 ----------------------------------------------------------------
 // CONSOLE
-
-The key here is that instead of indexing directly into `doc.born` like you would
-a normal field you have to call `doc.born.date` to get a
-<<painless-api-reference-org-joda-time-ReadableDateTime, `ReadableDateTime`>>.
-From there you can call methods like
-<<painless-api-reference-org-joda-time-ReadableDateTime-getYear-0, `getYear`>>,
-and <<painless-api-reference-org-joda-time-ReadableDateTime-getDayOfWeek-0, `getDayOfWeek`>>.
-In the example above `year` is a shortcut to `getYear()`.
-
-If the date field is a list then `date` will always return the first date. To
-access all the dates use `dates` instead of `date`.
-
 
 [float]
 [[modules-scripting-painless-regex]]

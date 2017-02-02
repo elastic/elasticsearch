@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.joda.time.ReadableInstant;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -77,6 +78,9 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
     private static long toLongValue(Object o) {
         if (o instanceof Number) {
             return ((Number) o).longValue();
+        } else if (o instanceof ReadableInstant) {
+            // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
+            return ((ReadableInstant) o).getMillis();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean

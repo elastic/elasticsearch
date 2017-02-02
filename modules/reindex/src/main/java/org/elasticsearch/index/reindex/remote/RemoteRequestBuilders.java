@@ -124,6 +124,8 @@ final class RemoteRequestBuilders {
 
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
+            } else {
+                entity.field("_source", true);
             }
 
             entity.endObject();

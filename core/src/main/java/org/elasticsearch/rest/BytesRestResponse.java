@@ -150,6 +150,7 @@ public class BytesRestResponse extends RestResponse {
     static BytesRestResponse createSimpleErrorResponse(RestStatus status, String errorMessage) throws IOException {
         return new BytesRestResponse(status, JsonXContent.contentBuilder().startObject()
             .field("error", errorMessage)
+            .field("status", status.getStatus())
             .endObject());
     }
 

@@ -83,7 +83,6 @@ class AggregationDataExtractor implements DataExtractor {
 
     private SearchRequestBuilder buildSearchRequest() {
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
-                .addSort(context.timeField, SortOrder.ASC)
                 .setIndices(context.indexes)
                 .setTypes(context.types)
                 .setSize(0)

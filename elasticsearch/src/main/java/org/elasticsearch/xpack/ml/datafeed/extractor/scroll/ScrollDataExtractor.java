@@ -120,6 +120,7 @@ class ScrollDataExtractor implements DataExtractor {
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().hits().length == 0) {
             hasNext = false;
+            clearScroll(scrollId);
             return null;
         }
 

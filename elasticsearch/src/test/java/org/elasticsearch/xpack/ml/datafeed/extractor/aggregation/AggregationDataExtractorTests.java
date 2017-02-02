@@ -117,7 +117,6 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
                 "{\"range\":{\"time\":{\"from\":1000,\"to\":4000,\"include_lower\":true,\"include_upper\":false," +
                 "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
         assertThat(searchRequest,
                 stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));
     }

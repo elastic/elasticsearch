@@ -105,12 +105,12 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testSinglePageExtraction() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        SearchResponse response = createSearchResponse(
+        SearchResponse response1 = createSearchResponse(
                 Arrays.asList(1100L, 1200L),
                 Arrays.asList("a1", "a2"),
                 Arrays.asList("b1", "b2")
         );
-        extractor.setNextResponse(response);
+        extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
@@ -118,7 +118,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         String expectedStream = "{\"time\":1100,\"field_1\":\"a1\"} {\"time\":1200,\"field_1\":\"a2\"}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
-        extractor.setNextResponse(createEmptySearchResponse());
+        SearchResponse response2 = createEmptySearchResponse();
+        extractor.setNextResponse(response2);
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.next().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
@@ -133,9 +134,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
-        assertThat(capturedContinueScrollIds.get(0), equalTo(response.getScrollId()));
+        assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));
 
-        assertThat(capturedClearScrollIds.isEmpty(), is(true));
+        assertThat(capturedClearScrollIds.size(), equalTo(1));
+        assertThat(capturedClearScrollIds.get(0), equalTo(response2.getScrollId()));
     }
 
     public void testMultiplePageExtraction() throws IOException {
@@ -167,7 +169,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         expectedStream = "{\"time\":3000,\"field_1\":\"a3\"} {\"time\":4000,\"field_1\":\"a4\"}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
-        extractor.setNextResponse(createEmptySearchResponse());
+        SearchResponse response3 = createEmptySearchResponse();
+        extractor.setNextResponse(response3);
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.next().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
@@ -184,7 +187,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));
         assertThat(capturedContinueScrollIds.get(1), equalTo(response2.getScrollId()));
 
-        assertThat(capturedClearScrollIds.isEmpty(), is(true));
+        assertThat(capturedClearScrollIds.size(), equalTo(1));
+        assertThat(capturedClearScrollIds.get(0), equalTo(response3.getScrollId()));
     }
 
     public void testMultiplePageExtractionGivenCancel() throws IOException {

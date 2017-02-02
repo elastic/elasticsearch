@@ -267,7 +267,7 @@ public class ShadowEngineTests extends ESTestCase {
     protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
     protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
 
-    public void testCommitStats() {
+    public void testCommitStats() throws IOException {
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(indexForDoc(doc));
@@ -846,7 +846,7 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    public void testFailEngineOnCorruption() {
+    public void testFailEngineOnCorruption() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, -1,-1, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(indexForDoc(doc));
         primaryEngine.flush();

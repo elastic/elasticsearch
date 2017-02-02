@@ -195,7 +195,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     // pkg private for testing
     void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
         if (pluginId == null) {
-            throw new UserException(ExitCodes.USAGE, "plugin name is required");
+            throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {

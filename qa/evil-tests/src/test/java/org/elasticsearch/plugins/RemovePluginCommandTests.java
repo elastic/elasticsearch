@@ -78,6 +78,12 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testMissing() throws Exception {
+        UserException e = expectThrows(UserException.class, () -> removePlugin(null, home));
+        assertTrue(e.getMessage(), e.getMessage().contains("A plugin name must be provided"));
+        assertRemoveCleaned(env);
+    }
+
+    public void testUnknown() throws Exception {
         UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin dne not found"));
         assertRemoveCleaned(env);

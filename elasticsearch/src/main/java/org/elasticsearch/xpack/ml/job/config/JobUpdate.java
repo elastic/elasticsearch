@@ -57,9 +57,9 @@ public class JobUpdate implements Writeable, ToXContent {
 
     public JobUpdate(@Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
                      @Nullable ModelDebugConfig modelDebugConfig, @Nullable AnalysisLimits analysisLimits,
-                     @Nullable Long backgroundPersistInterval, @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                     @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
-                     @Nullable  Map<String, Object> customSettings) {
+                     @Nullable Long backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
+                     @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
+                     @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings) {
         this.description = description;
         this.detectorUpdates = detectorUpdates;
         this.modelDebugConfig = modelDebugConfig;

@@ -84,9 +84,9 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             // that scripts return the same internal representation as regular fields, so boolean
             // values in scripts need to be converted to a number, and the value formatter will
             // make sure of using true/false in the key_as_string field
-            return ((Boolean) o).booleanValue() ? 1L : 0L;
+            return ((Boolean) o).booleanValue() ? 1.0 : 0.0;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number");
+            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
         }
     }
 

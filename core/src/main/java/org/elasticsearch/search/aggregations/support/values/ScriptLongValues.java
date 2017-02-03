@@ -88,7 +88,7 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
             // make sure of using true/false in the key_as_string field
             return ((Boolean) o).booleanValue() ? 1L : 0L;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number");
+            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
         }
     }
 

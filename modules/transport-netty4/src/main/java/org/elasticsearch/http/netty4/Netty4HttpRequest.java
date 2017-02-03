@@ -31,6 +31,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.SocketAddress;
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -199,23 +200,8 @@ public class Netty4HttpRequest extends RestRequest {
 
         @Override
         public Set<Entry<String, List<String>>> entrySet() {
-            return httpHeaders.names().stream().map(k -> new Entry<String, List<String>>() {
-
-                @Override
-                public String getKey() {
-                    return k;
-                }
-
-                @Override
-                public List<String> getValue() {
-                    return httpHeaders.getAll(k);
-                }
-
-                @Override
-                public List<String> setValue(List<String> value) {
-                    throw new UnsupportedOperationException("modifications are not supported");
-                }
-            }).collect(Collectors.toSet());
+            return httpHeaders.names().stream().map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
+                    .collect(Collectors.toSet());
         }
     }
 }

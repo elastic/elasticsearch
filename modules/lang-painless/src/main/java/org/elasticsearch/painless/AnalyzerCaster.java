@@ -722,9 +722,10 @@ public final class AnalyzerCaster {
                 break;
         }
 
-        if (actual.sort == Sort.DEF || expected.sort == Sort.DEF ||
-            expected.clazz.isAssignableFrom(actual.clazz) ||
-            explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
+        if (       actual.sort == Sort.DEF
+                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)
+                || expected.clazz.isAssignableFrom(actual.clazz)
+                || (explicit && actual.clazz.isAssignableFrom(expected.clazz))) {
             return new Cast(actual, expected, explicit);
         } else {
             throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));

@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Evil test-coverage cheat, we parse a bunch of docs from tika
@@ -37,11 +38,17 @@ import java.nio.file.Path;
 public class TikaDocTests extends ESTestCase {
 
     /** some test files from tika test suite, zipped up */
-    static final String TIKA_FILES = "/org/elasticsearch/ingest/attachment/test/tika-files.zip";
+    static final String TIKA_FILES = "/org/elasticsearch/ingest/attachment/test/tika-files/";
 
     public void testFiles() throws Exception {
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(TIKA_FILES), tmp);
+        logger.debug("unzipping all tika sample files");
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get(getClass().getResource(TIKA_FILES).toURI()))) {
+            for (Path doc : stream) {
+                String filename = doc.getFileName().toString();
+                TestUtil.unzip(getClass().getResourceAsStream(TIKA_FILES + filename), tmp);
+            }
+        }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
             for (Path doc : stream) {

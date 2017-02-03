@@ -141,6 +141,22 @@ setup:
         datafeed_id: a-missing-datafeed
 
 ---
+"Test put datafeed with chunking_config":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"],
+            "chunking_config": {"mode":"manual","time_span": 3600}
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { chunking_config.mode: "manual" }
+  - match: { chunking_config.time_span: 3600 }
+
+---
 "Test delete datafeed":
   - do:
       xpack.ml.put_datafeed:

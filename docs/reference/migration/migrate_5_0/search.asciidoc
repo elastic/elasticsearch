@@ -162,6 +162,8 @@ This parameter was undocumented and silently ignored before for these types of `
 
 * The `geo_distance_range` query is deprecated and should be replaced by either the `geo_distance` bucket aggregation, or geo_distance sort.
 
+* For `geo_distance` query, aggregation, and sort the `sloppy_arc` option for the `distance_type` parameter has been deprecated.
+
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,

@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -211,7 +212,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         final BytesReference source = new BytesArray(new byte[] { 1 });
-        final ParsedDocument doc = new ParsedDocument(versionField, seqID, id, type, null, Arrays.asList(document), source, null);
+        final ParsedDocument doc =
+            new ParsedDocument(versionField, seqID, id, type, null, Arrays.asList(document), source, XContentType.JSON, null);
         return new Engine.Index(new Term("_uid", doc.uid()), doc);
     }
 

@@ -216,11 +216,11 @@ public class StreamTests extends ESTestCase {
     static final class WriteableString implements Writeable {
         final String string;
 
-        public WriteableString(String string) {
+        WriteableString(String string) {
             this.string = string;
         }
 
-        public WriteableString(StreamInput in) throws IOException {
+        WriteableString(StreamInput in) throws IOException {
             this(in.readString());
         }
 

@@ -932,7 +932,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         public volatile boolean sawResponseReceived;
 
         public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
-        public Tracer(Set<String> actions) {
+        Tracer(Set<String> actions) {
             this.actions = actions;
         }
         @Override
@@ -1543,10 +1543,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         String info;
 
-        public TestResponse() {
+        TestResponse() {
         }
 
-        public TestResponse(String info) {
+        TestResponse(String info) {
             this.info = info;
         }
 
@@ -1690,7 +1690,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             private final int id;
 
-            public TestResponseHandler(int id) {
+            TestResponseHandler(int id) {
                 this.id = id;
             }
 

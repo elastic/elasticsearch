@@ -154,7 +154,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
         final String prefix = "repo";
         final List<String> repoVersions = new ArrayList<>();
         final Path repoFiles = getBwcIndicesPath();
-        try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> dirStream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (final Path entry : dirStream) {
                 final String fileName = entry.getFileName().toString();
                 String version = fileName.substring(prefix.length() + 1);

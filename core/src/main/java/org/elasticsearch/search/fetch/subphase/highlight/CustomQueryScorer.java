@@ -66,11 +66,11 @@ public final class CustomQueryScorer extends QueryScorer {
 
     private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
 
-        public CustomWeightedSpanTermExtractor() {
+        CustomWeightedSpanTermExtractor() {
             super();
         }
 
-        public CustomWeightedSpanTermExtractor(String defaultField) {
+        CustomWeightedSpanTermExtractor(String defaultField) {
             super(defaultField);
         }
 

@@ -361,7 +361,7 @@ public class RestController extends AbstractComponent {
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;

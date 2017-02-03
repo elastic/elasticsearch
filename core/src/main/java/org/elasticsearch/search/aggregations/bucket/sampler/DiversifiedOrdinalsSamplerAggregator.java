@@ -65,7 +65,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -79,7 +79,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
             }
 

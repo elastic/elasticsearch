@@ -516,7 +516,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             private final DiscoveryNode node;
             private final String reason;
 
-            public Task(final DiscoveryNode node, final String reason) {
+            Task(final DiscoveryNode node, final String reason) {
                 this.node = node;
                 this.reason = reason;
             }
@@ -1136,7 +1136,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         private final AtomicBoolean running = new AtomicBoolean(false);
         private final AtomicReference<Thread> currentJoinThread = new AtomicReference<>();
 
-        public JoinThreadControl(ThreadPool threadPool) {
+        JoinThreadControl(ThreadPool threadPool) {
             this.threadPool = threadPool;
         }
 

@@ -98,7 +98,7 @@ public class BytesRestResponse extends RestResponse {
             this.content = BytesArray.EMPTY;
             this.contentType = TEXT_CONTENT_TYPE;
         } else {
-            try (final XContentBuilder builder = build(channel, status, e)) {
+            try (XContentBuilder builder = build(channel, status, e)) {
                 this.content = builder.bytes();
                 this.contentType = builder.contentType().mediaType();
             }

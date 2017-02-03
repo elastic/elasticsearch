@@ -40,7 +40,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     static class Bucket extends InternalTerms.Bucket<Bucket> {
         private final double term;
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
             super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
@@ -49,7 +49,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
+        Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
             super(in, format, showDocCountError);
             term = in.readDouble();
         }

@@ -705,7 +705,7 @@ public class RestClient implements Closeable {
         public final T hosts;
         public final AuthCache authCache;
 
-        public HostTuple(final T hosts, final AuthCache authCache) {
+        HostTuple(final T hosts, final AuthCache authCache) {
             this.hosts = hosts;
             this.authCache = authCache;
         }

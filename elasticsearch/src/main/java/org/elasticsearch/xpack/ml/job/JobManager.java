@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
@@ -185,21 +187,40 @@ public class JobManager extends AbstractComponent {
 
         clusterService.submitStateUpdateTask("put-job-" + job.getId(),
                 new AckedClusterStateUpdateTask<Boolean>(request, createResultsIndexListener) {
-            @Override
-            protected Boolean newResponse(boolean acknowledged) {
-                return acknowledged;
-            }
+                    @Override
+                    protected Boolean newResponse(boolean acknowledged) {
+                        return acknowledged;
+                    }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ClusterState cs = updateClusterState(job, false, currentState);
-                if (currentState.metaData().index(AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())) != null) {
-                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS,
-                            AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())));
-                }
-                return cs;
-            }
-        });
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        ClusterState cs = updateClusterState(job, false, currentState);
+                        if (currentState.metaData().index(AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())) != null) {
+                            throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS,
+                                    AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())));
+                        }
+                        return cs;
+                    }
+                });
+    }
+
+    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("update-job-" + jobId,
+                new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                    private Job updatedJob;
+
+                    @Override
+                    protected PutJobAction.Response newResponse(boolean acknowledged) {
+                        return new PutJobAction.Response(acknowledged, updatedJob);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        Job job = getJob(jobId, currentState).results().get(0);
+                        updatedJob = jobUpdate.mergeWithJob(job);
+                        return updateClusterState(updatedJob, true, currentState);
+                    }
+                });
     }
 
     ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
@@ -207,7 +228,6 @@ public class JobManager extends AbstractComponent {
         builder.putJob(job, overwrite);
         return buildNewClusterState(currentState, builder);
     }
-
 
     public void deleteJob(Client client, DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
         String jobId = request.getJobId();

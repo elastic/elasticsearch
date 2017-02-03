@@ -77,7 +77,6 @@ public class Detector extends ToXContentToBytes implements Writeable {
         }
     }
 
-    public static final ParseField DETECTOR_FIELD = new ParseField("detector");
     public static final ParseField DETECTOR_DESCRIPTION_FIELD = new ParseField("detector_description");
     public static final ParseField FUNCTION_FIELD = new ParseField("function");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");

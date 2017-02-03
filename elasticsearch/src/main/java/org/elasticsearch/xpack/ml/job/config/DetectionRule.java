@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 
 public class DetectionRule extends ToXContentToBytes implements Writeable {
     public static final ParseField DETECTION_RULE_FIELD = new ParseField("detection_rule");
-    public static final ParseField RULE_ACTION_FIELD = new ParseField("rule_action");
     public static final ParseField TARGET_FIELD_NAME_FIELD = new ParseField("target_field_name");
     public static final ParseField TARGET_FIELD_VALUE_FIELD = new ParseField("target_field_value");
     public static final ParseField CONDITIONS_CONNECTIVE_FIELD = new ParseField("conditions_connective");

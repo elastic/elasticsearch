@@ -51,7 +51,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     private static final ParseField BATCH_SPAN = new ParseField("batch_span");
     private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
-    private static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     private static final ParseField LATENCY = new ParseField("latency");
     private static final ParseField PERIOD = new ParseField("period");
     private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");

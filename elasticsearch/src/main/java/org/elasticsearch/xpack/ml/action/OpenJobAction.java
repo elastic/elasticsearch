@@ -214,7 +214,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             validate(mlMetadata, request.getJobId());
 
             InternalOpenJobAction.Request internalRequest = new InternalOpenJobAction.Request(request.jobId);
-            internalRequest.setIgnoreDowntime(internalRequest.isIgnoreDowntime());
             internalOpenJobAction.execute(internalRequest, LoggingTaskListener.instance());
             observer.waitForState(request.getJobId(), request.openTimeout, JobState.OPENED, e -> {
                 if (e != null) {

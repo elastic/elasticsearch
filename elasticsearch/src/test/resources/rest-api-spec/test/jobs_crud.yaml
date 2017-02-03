@@ -182,6 +182,87 @@
           }
 
 ---
+"Test update job":
+  - do:
+      xpack.ml.put_job:
+        job_id: to-update
+        body:  >
+          {
+            "description":"Pre update description",
+            "analysis_config" : {
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"}, {"function":"count"}],
+                "categorization_field_name": "some_category",
+                "categorization_filters" : ["cat1.*", "cat2.*"]
+            },
+            "data_description" : {
+              "field_delimiter":","
+            },
+            "model_debug_config": {
+              "bounds_percentile": 95.0,
+              "write_to" : "data_store"
+            },
+            "analysis_limits": {
+              "model_memory_limit": 10
+            },
+            "renormalization_window_days": 1,
+            "background_persist_interval": 7200,
+            "model_snapshot_retention_days": 3,
+            "results_retention_days": 4,
+            "custom_settings": {
+              "setting1": "custom1",
+              "setting2": "custom2"
+            }
+          }
+  - match: { job_id: "to-update" }
+
+  - do:
+      xpack.ml.update_job:
+        job_id: to-update
+        body:  >
+          {
+            "description":"Post update description",
+            "detectors": [{"index": 0, "rules": {"target_field_name": "airline",
+                                      "rule_conditions": [ { "condition_type": "numerical_actual",
+                                                             "condition": {"operator": "gt", "value": "10" } } ] } },
+                          {"index": 1, "description": "updated description"}],
+            "model_debug_config": {
+              "write_to" : "data_store",
+              "bounds_percentile": 99.0
+            },
+            "analysis_limits": {
+              "model_memory_limit": 20
+            },
+            "renormalization_window_days": 10,
+            "background_persist_interval": 10800,
+            "model_snapshot_retention_days": 30,
+            "results_retention_days": 40,
+            "categorization_filters" : ["cat3.*"],
+            "custom_settings": {
+              "setting3": "custom3"
+            }
+          }
+  - match: { job_id: "to-update" }
+  - match: { description: "Post update description" }
+  - match: { model_debug_config.bounds_percentile: 99.0 }
+  - match: { analysis_limits.model_memory_limit: 20 }
+  - match: { analysis_config.categorization_filters: ["cat3.*"] }
+  - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }
+  - match: { analysis_config.detectors.1.detector_description: "updated description" }
+  - match: { renormalization_window_days: 10 }
+  - match: { background_persist_interval: 10800 }
+  - match: { model_snapshot_retention_days: 30 }
+  - match: { results_retention_days: 40 }
+
+  - do:
+      catch: request
+      xpack.ml.put_job:
+        job_id: _all
+        body:  >
+          {
+            "description":"Can't update all description"
+          }
+
+---
 "Test delete job that is referred by a datafeed":
   - do:
       xpack.ml.put_job:

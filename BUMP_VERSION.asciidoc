@@ -27,7 +27,8 @@ Elasticsearch repository (i.e., `git@github.com:elastic/elasticsearch.git`).
 -------------------------------------
 git fetch origin
 git checkout -b 5.2 origin/5.x
-git push origin 5.2
+git branch --set-upstream-to=origin/5.2
+git push origin
 -------------------------------------
 
 === Update the version on the branch

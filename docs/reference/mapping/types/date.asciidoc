@@ -74,7 +74,7 @@ PUT my_index
       "properties": {
         "date": {
           "type":   "date",
-          "format": "yyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
         }
       }
     }

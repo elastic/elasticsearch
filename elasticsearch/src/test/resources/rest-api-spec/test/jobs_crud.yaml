@@ -255,7 +255,7 @@
 
   - do:
       catch: request
-      xpack.ml.put_job:
+      xpack.ml.update_job:
         job_id: _all
         body:  >
           {

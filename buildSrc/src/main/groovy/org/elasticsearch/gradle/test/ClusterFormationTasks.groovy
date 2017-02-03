@@ -38,6 +38,8 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 
@@ -164,7 +166,8 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureCreateKeyStoreTask(taskName(task, node, 'keystore'), project, setup, node, seedNode)
+        setup = configureCreateKeyStoreTask(taskName(task, node, 'createKeystore'), project, setup, node)
+        setup = configureAddKeyStoreTask(taskName(task, node, 'addToKeyStore'), project, setup, node)
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
@@ -308,11 +311,22 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to create keystore */
-    static Task configureCreateKeyStoreTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
-        Map kvs = node.config.keyStoreKVs
+    static Task configureCreateKeyStoreTask(String name, Project project, Task setup, NodeInfo node) {
+        File esKeyStoreUtil =  Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task createKeyStore = project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
-            File esKeyStoreUtil =  Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
             commandLine esKeyStoreUtil, 'create'
+        }
+    }
+
+    /** Adds a task to add to keystore */
+    static Task configureAddKeyStoreTask(String name, Project project, Task setup, NodeInfo node) {
+        Map kvs = node.config.keyStoreKVs
+        File esKeyStoreUtil =  Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+        Task createKeyStore = project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
+            commandLine esKeyStoreUtil, 'add', 'key', '-x'
+        }
+        createKeyStore.doFirst {
+            standardInput = new ByteArrayInputStream("value".getBytes(StandardCharsets.UTF_8))
         }
     }
 

@@ -96,10 +96,9 @@ public class FieldPermissionsCacheTests extends ESTestCase {
                 new FieldPermissions(allowed2, denied2);
         mergedFieldPermissions =
                 fieldPermissionsCache.getFieldPermissions(Arrays.asList(fieldPermissions1, fieldPermissions2));
-        assertTrue(fieldPermissions1.isAllFieldIsAllowed());
-        assertFalse(fieldPermissions2.isAllFieldIsAllowed());
+        assertTrue(fieldPermissions1.grantsAccessTo("_all"));
+        assertFalse(fieldPermissions2.grantsAccessTo("_all"));
         assertTrue(mergedFieldPermissions.grantsAccessTo("_all"));
-        assertTrue(mergedFieldPermissions.isAllFieldIsAllowed());
 
         allowed1 = new String[] { "a*" };
         allowed2 = new String[] { "b*" };

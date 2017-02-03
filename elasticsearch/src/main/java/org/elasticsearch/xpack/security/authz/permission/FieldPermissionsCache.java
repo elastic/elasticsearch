@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
@@ -22,6 +21,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -39,8 +39,7 @@ public final class FieldPermissionsCache {
     public FieldPermissionsCache(Settings settings) {
         this.cache = CacheBuilder.<Key, FieldPermissions>builder()
                 .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
-                // this is not completely accurate but in most cases the automaton should be the most expensive aspect
-                .weigher((key, fieldPermissions) -> fieldPermissions.getPermittedFieldsAutomaton().ramBytesUsed())
+                .weigher((key, fieldPermissions) -> fieldPermissions.ramBytesUsed())
                 .build();
     }
 
@@ -90,7 +89,7 @@ public final class FieldPermissionsCache {
      */
     FieldPermissions getFieldPermissions(Collection<FieldPermissions> fieldPermissionsCollection) {
         Optional<FieldPermissions> allowAllFieldPermissions = fieldPermissionsCollection.stream()
-                .filter((fp) -> Operations.isTotal(fp.getPermittedFieldsAutomaton()))
+                .filter(((Predicate<FieldPermissions>) (FieldPermissions::hasFieldLevelSecurity)).negate())
                 .findFirst();
         return allowAllFieldPermissions.orElseGet(() -> {
             final Set<String> allowedFields;

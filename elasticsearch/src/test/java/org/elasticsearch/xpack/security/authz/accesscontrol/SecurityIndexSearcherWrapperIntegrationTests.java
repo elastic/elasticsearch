@@ -89,7 +89,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         });
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, s -> queryShardContext, mapperService,
+        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, s -> queryShardContext,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override

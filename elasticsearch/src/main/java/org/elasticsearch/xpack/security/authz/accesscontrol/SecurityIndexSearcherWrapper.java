@@ -42,10 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -77,10 +73,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -98,8 +92,6 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  */
 public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
-    private final MapperService mapperService;
-    private final Set<String> allowedMetaFields;
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
     private final BitsetFilterCache bitsetFilterCache;
     private final XPackLicenseState licenseState;
@@ -108,26 +100,14 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private final ScriptService scriptService;
 
     public SecurityIndexSearcherWrapper(IndexSettings indexSettings, Function<ShardId, QueryShardContext> queryShardContextProvider,
-                                        MapperService mapperService, BitsetFilterCache bitsetFilterCache,
-                                        ThreadContext threadContext, XPackLicenseState licenseState,
+                                        BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
                                         ScriptService scriptService) {
         this.scriptService = scriptService;
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
-        this.mapperService = mapperService;
         this.queryShardContextProvider = queryShardContextProvider;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
         this.licenseState = licenseState;
-
-        Set<String> allowedMetaFields = new HashSet<>();
-        allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
-        allowedMetaFields.add(FieldNamesFieldMapper.NAME); // TODO: add _field_names to MapperService#META_FIELDS?
-        allowedMetaFields.add("_source"); // TODO: add _source to MapperService#META_FIELDS?
-        allowedMetaFields.add("_version"); // TODO: add _version to MapperService#META_FIELDS?
-        allowedMetaFields.remove("_all"); // The _all field contains actual data and we can't include that by default.
-        allowedMetaFields.add("_seq_no"); // TODO: add _seq_no to MapperService#META_FIELDS?
-
-        this.allowedMetaFields = Collections.unmodifiableSet(allowedMetaFields);
     }
 
     @Override
@@ -136,7 +116,6 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             return reader;
         }
 
-        final Set<String> allowedMetaFields = this.allowedMetaFields;
         try {
             final IndicesAccessControl indicesAccessControl = getIndicesAccessControl();
 
@@ -170,14 +149,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
             }
 
-            if (permissions.getFieldPermissions().hasFieldLevelSecurity()) {
-                // now add the allowed fields based on the current granted permissions and :
-                Set<String> allowedFields = permissions.getFieldPermissions().resolveAllowedFields(allowedMetaFields, mapperService);
-                resolveParentChildJoinFields(allowedFields);
-                reader = FieldSubsetReader.wrap(reader, allowedFields);
-            }
-
-            return reader;
+            return permissions.getFieldPermissions().filter(reader);
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
@@ -255,20 +227,6 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    public Set<String> getAllowedMetaFields() {
-        return allowedMetaFields;
-    }
-
-    private void resolveParentChildJoinFields(Set<String> allowedFields) {
-        for (DocumentMapper mapper : mapperService.docMappers(false)) {
-            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
-                allowedFields.add(joinField);
             }
         }
     }

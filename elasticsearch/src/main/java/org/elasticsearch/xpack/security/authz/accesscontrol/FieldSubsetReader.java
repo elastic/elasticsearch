@@ -24,6 +24,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -31,15 +32,15 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -55,35 +56,36 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on.
      * @param in reader to filter
-     * @param fieldNames fields to filter.
+     * @param filter fields to filter.
      */
-    public static DirectoryReader wrap(DirectoryReader in, Set<String> fieldNames) throws IOException {
-        return new FieldSubsetDirectoryReader(in, fieldNames);
+    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter) throws IOException {
+        return new FieldSubsetDirectoryReader(in, filter);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
-        private final Set<String> fieldNames;
+        private final CharacterRunAutomaton filter;
 
-        FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fieldNames) throws IOException {
+        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FieldSubsetReader(reader, fieldNames);
+                    return new FieldSubsetReader(reader, filter);
                 }
             });
-            this.fieldNames = fieldNames;
+            this.filter = filter;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, fieldNames);
+            return new FieldSubsetDirectoryReader(in, filter);
         }
 
-        public Set<String> getFieldNames() {
-            return fieldNames;
+        /** Return the automaton that is used to filter fields. */
+        CharacterRunAutomaton getFilter() {
+            return filter;
         }
 
         private static void verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
@@ -106,22 +108,22 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
     /** List of filtered fields */
     private final FieldInfos fieldInfos;
-    /** List of filtered fields. this is used for _source filtering */
-    private final String[] fieldNames;
+    /** An automaton that only accepts authorized fields. */
+    private final CharacterRunAutomaton filter;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, Set<String> fieldNames) {
+    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (fieldNames.contains(fi.name)) {
+            if (filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
-        this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
+        this.filter = filter;
     }
 
     /** returns true if this field is allowed. */
@@ -145,6 +147,75 @@ public final class FieldSubsetReader extends FilterLeafReader {
         return f.iterator().hasNext() ? f : null;
     }
 
+    /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
+        Map<String, Object> filtered = new HashMap<>();
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
+            String key = entry.getKey();
+
+            int state = step(includeAutomaton, key, initialState);
+            if (state == -1) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+
+            if (includeAutomaton.isAccept(state)) {
+                filtered.put(key, value);
+            } else if (value instanceof Map) {
+                state = includeAutomaton.step(state, '.');
+                if (state == -1) {
+                    continue;
+                }
+
+                Map<String, ?> mapValue = (Map<String, ?>) value;
+                Map<String, Object> filteredValue = filter(mapValue, includeAutomaton, state);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.put(key, filteredValue);
+                }
+            } else if (value instanceof Iterable) {
+                Iterable<?> iterableValue = (Iterable<?>) value;
+                List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.put(key, filteredValue);
+                }
+            }
+        }
+        return filtered;
+    }
+
+    /** Filter a list by a {@link CharacterRunAutomaton} that defines the fields to retain. */
+    private static List<Object> filter(Iterable<?> iterable, CharacterRunAutomaton includeAutomaton, int initialState) {
+        List<Object> filtered = new ArrayList<>();
+        for (Object value : iterable) {
+            if (value instanceof Map) {
+                int state = includeAutomaton.step(initialState, '.');
+                if (state == -1) {
+                    continue;
+                }
+                Map<String, Object> filteredValue = filter((Map<String, ?>)value, includeAutomaton, state);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.add(filteredValue);
+                }
+            } else if (value instanceof Iterable) {
+                List<Object> filteredValue = filter((Iterable<?>) value, includeAutomaton, initialState);
+                if (filteredValue.isEmpty() == false) {
+                    filtered.add(filteredValue);
+                }
+            }
+        }
+        return filtered;
+    }
+
+    /** Step through all characters of the provided string, and return the
+     *  resulting state, or -1 if that did not lead to a valid state. */
+    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+        for (int i = 0; state != -1 && i < key.length(); ++i) {
+            state = automaton.step(state, key.charAt(i));
+        }
+        return state;
+    }
+
     @Override
     public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
         super.document(docID, new StoredFieldVisitor() {
@@ -154,7 +225,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                     // for _source, parse, filter out the fields we care about, and serialize back downstream
                     BytesReference bytes = new BytesArray(value);
                     Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                    Map<String, Object> transformedSource = XContentMapValues.filter(result.v2(), fieldNames, null);
+                    Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
                     XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                     visitor.binaryField(fieldInfo, BytesReference.toBytes(xContentBuilder.bytes()));
                 } else {

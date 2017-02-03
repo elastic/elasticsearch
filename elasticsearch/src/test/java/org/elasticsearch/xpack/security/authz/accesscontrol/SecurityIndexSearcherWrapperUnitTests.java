@@ -38,7 +38,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,12 +45,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -66,8 +66,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ExecutableScript;
@@ -94,11 +92,9 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -113,8 +109,17 @@ import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
+    private static final Set<String> META_FIELDS_WITHOUT_ALL;
+    static {
+        final Set<String> metaFieldsWithoutAll = new HashSet<>(Arrays.asList(MapperService.getAllMetaFields()));
+        metaFieldsWithoutAll.add(SourceFieldMapper.NAME);
+        metaFieldsWithoutAll.add(FieldNamesFieldMapper.NAME);
+        metaFieldsWithoutAll.add(SeqNoFieldMapper.NAME);
+        metaFieldsWithoutAll.remove(AllFieldMapper.NAME);
+        META_FIELDS_WITHOUT_ALL = Collections.unmodifiableSet(metaFieldsWithoutAll);
+    }
+
     private ThreadContext threadContext;
-    private MapperService mapperService;
     private ScriptService scriptService;
     private SecurityIndexSearcherWrapper securityIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
@@ -126,12 +131,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Index index = new Index("_index", "testUUID");
         scriptService = mock(ScriptService.class);
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
-        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
-                Collections.emptyMap(), Collections.emptyMap());
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry(), similarityService,
-                new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
@@ -155,14 +154,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testDefaultMetaFields() throws Exception {
-        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -173,129 +166,64 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         FieldSubsetReader.FieldSubsetDirectoryReader result =
                 (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexSearcherWrapper.wrap(esIn);
-        assertThat(result.getFieldNames().size(), equalTo(13));
-        assertThat(result.getFieldNames().contains("_uid"), is(true));
-        assertThat(result.getFieldNames().contains("_id"), is(true));
-        assertThat(result.getFieldNames().contains("_version"), is(true));
-        assertThat(result.getFieldNames().contains("_type"), is(true));
-        assertThat(result.getFieldNames().contains("_source"), is(true));
-        assertThat(result.getFieldNames().contains("_routing"), is(true));
-        assertThat(result.getFieldNames().contains("_parent"), is(true));
-        assertThat(result.getFieldNames().contains("_timestamp"), is(true));
-        assertThat(result.getFieldNames().contains("_ttl"), is(true));
-        assertThat(result.getFieldNames().contains("_size"), is(true));
-        assertThat(result.getFieldNames().contains("_index"), is(true));
-        assertThat(result.getFieldNames().contains("_field_names"), is(true));
-        assertThat(result.getFieldNames().contains("_seq_no"), is(true));
+        assertThat(result.getFilter().run("_uid"), is(true));
+        assertThat(result.getFilter().run("_id"), is(true));
+        assertThat(result.getFilter().run("_version"), is(true));
+        assertThat(result.getFilter().run("_type"), is(true));
+        assertThat(result.getFilter().run("_source"), is(true));
+        assertThat(result.getFilter().run("_routing"), is(true));
+        assertThat(result.getFilter().run("_parent"), is(true));
+        assertThat(result.getFilter().run("_timestamp"), is(true));
+        assertThat(result.getFilter().run("_ttl"), is(true));
+        assertThat(result.getFilter().run("_size"), is(true));
+        assertThat(result.getFilter().run("_index"), is(true));
+        assertThat(result.getFilter().run("_field_names"), is(true));
+        assertThat(result.getFilter().run("_seq_no"), is(true));
         // _all contains actual user data and therefor can't be included by default
-        assertThat(result.getFieldNames().contains("_all"), is(false));
+        assertThat(result.getFilter().run("_all"), is(false));
+        assertThat(result.getFilter().run("_some_random_meta_field"), is(true));
+        assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexSearcherWrapper.wrap(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
     }
 
     public void testWildcards() throws Exception {
-        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("field1_a").field("type", "text").endObject()
-                .startObject("field1_b").field("type", "text").endObject()
-                .startObject("field1_c").field("type", "text").endObject()
-                .startObject("field2_a").field("type", "text").endObject()
-                .startObject("field2_b").field("type", "text").endObject()
-                .startObject("field2_c").field("type", "text").endObject()
-                .endObject().endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-
-        assertResolvedFields("field1*", "field1_a", "field1_b", "field1_c");
-        assertResolvedFields("field2*", "field2_a", "field2_b", "field2_c");
+        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("field1_a");
+        expected.add("field1_b");
+        expected.add("field1_c");
+        assertResolved(new FieldPermissions(new String[] {"field1*"}, null), expected, "field", "field2");
     }
 
     public void testDotNotion() throws Exception {
-        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("bar").field("type", "text").endObject()
-                .startObject("baz").field("type", "text").endObject()
-                .endObject()
-                .endObject()
-                .startObject("bar")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("foo").field("type", "text").endObject()
-                .startObject("baz").field("type", "text").endObject()
-                .endObject()
-                .endObject()
-                .startObject("baz")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("bar").field("type", "text").endObject()
-                .startObject("foo").field("type", "text").endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject().endObject();
-        mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-
-        assertResolvedFields("foo.bar", "foo.bar");
-        assertResolvedFields("bar.baz", "bar.baz");
-        assertResolvedFields("foo.*", "foo.bar", "foo.baz");
-        assertResolvedFields("baz.*", "baz.bar", "baz.foo");
+        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("foo.bar");
+        assertResolved(new FieldPermissions(new String[] {"foo.bar"}, null), expected, "foo", "foo.baz", "bar.foo");
+        
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("foo.bar");
+        assertResolved(new FieldPermissions(new String[] {"foo.*"}, null), expected, "foo", "bar");
     }
 
     public void testParentChild() throws Exception {
-        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("parent1")
-                .startObject("properties")
-                .startObject("field").field("type", "text").endObject()
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mappingSource = jsonBuilder().startObject().startObject("child1")
-                .startObject("properties")
-                .startObject("field").field("type", "text").endObject()
-                .endObject()
-                .startObject("_parent")
-                .field("type", "parent1")
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("child1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mappingSource = jsonBuilder().startObject().startObject("child2")
-                .startObject("properties")
-                .startObject("field").field("type", "text").endObject()
-                .endObject()
-                .startObject("_parent")
-                .field("type", "parent1")
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("child2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mappingSource = jsonBuilder().startObject().startObject("parent2")
-                .startObject("properties")
-                .startObject("field").field("type", "text").endObject()
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mappingSource = jsonBuilder().startObject().startObject("child3")
-                .startObject("properties")
-                .startObject("field").field("type", "text").endObject()
-                .endObject()
-                .startObject("_parent")
-                .field("type", "parent2")
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("child3", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-
-        assertResolvedFields("field", "field", ParentFieldMapper.joinField("parent1"), ParentFieldMapper.joinField("parent2"));
+        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add(ParentFieldMapper.joinField("parent1"));
+        expected.add("foo");
+        assertResolved(new FieldPermissions(new String[] {"foo"}, null), expected, "bar");
     }
 
     public void testDelegateSimilarity() throws Exception {
@@ -313,7 +241,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
@@ -322,7 +250,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testIntersectScorerAndRoleBits() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         final Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
                 directory,
@@ -399,135 +327,95 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         directory.close();
     }
 
+    private void assertResolved(FieldPermissions permissions, Set<String> expected, String... fieldsToTest) {
+        for (String field : expected) {
+            assertThat(field, permissions.grantsAccessTo(field), is(true));
+        }
+        for (String field : fieldsToTest) {
+            assertThat(field, permissions.grantsAccessTo(field), is(expected.contains(field)));
+        }
+    }
+
     public void testFieldPermissionsWithFieldExceptions() throws Exception {
-        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
-                .startObject("properties")
-                .startObject("field1").field("type", "text").endObject()
-                .startObject("field2").field("type", "text").endObject()
-                .startObject("xfield3").field("type", "text").endObject()
-                .endObject()
-                .endObject().endObject();
-        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, null);
-        Set<String> allowedMetaFields = securityIndexSearcherWrapper.getAllowedMetaFields();
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, null);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
+        Set<String> expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
         // Presence of fields in a role with an empty array implies access to no fields except the meta fields
-        Set<String> resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        Set<String> expectedResultSet = new HashSet<>(allowedMetaFields);
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        assertResolved(new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{}),
+                expected, "foo", "bar");
 
         // make sure meta fields cannot be denied access to
-        deniedFields = allowedMetaFields.toArray(new String[allowedMetaFields.size()]);
-        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        deniedFields = META_FIELDS_WITHOUT_ALL.toArray(new String[0]);
+        assertResolved(new FieldPermissions(null, deniedFields),
+                new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field")));
 
         // check we can add all fields with *
         grantedFields = new String[]{"*"};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add(AllFieldMapper.NAME);
+        expected.add("foo");
+        assertResolved(new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{}), expected);
 
         // same with null
-        resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        grantedFields = null;
+        assertResolved(new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{}), expected);
 
         // check we remove only excluded fields
         grantedFields = new String[]{"*"};
-        deniedFields = new String[]{"xfield3"};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1", "field2"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        deniedFields = new String[]{"xfield"};
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("foo");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "xfield", "_all");
 
         // same with null
-        deniedFields = new String[]{"field1"};
-        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field2", "xfield3"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        grantedFields = null;
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "xfield", "_all");
 
         // some other checks
         grantedFields = new String[]{"field*"};
         deniedFields = new String[]{"field1", "field2"};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("field3");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "field1", "field2", "_all");
 
         grantedFields = new String[]{"field1", "field2"};
         deniedFields = new String[]{"field2"};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("field1");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "field1", "field2", "_all");
 
         grantedFields = new String[]{"field*"};
         deniedFields = new String[]{"field2"};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("field1");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "field2", "_all");
 
         deniedFields = new String[]{"field*"};
-        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("xfield3"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        assertResolved(new FieldPermissions(grantedFields, deniedFields),
+                META_FIELDS_WITHOUT_ALL, "field1", "field2");
 
         // empty array for allowed fields always means no field is allowed
         grantedFields = new String[]{};
         deniedFields = new String[]{};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        assertResolved(new FieldPermissions(grantedFields, deniedFields),
+                META_FIELDS_WITHOUT_ALL, "field1", "field2");
 
         // make sure all field can be explicitly allowed
         grantedFields = new String[]{"_all", "*"};
         deniedFields = randomBoolean() ? null : new String[]{};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3", "_all"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("_all");
+        expected.add("field1");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected);
 
         // make sure all field can be explicitly allowed
         grantedFields = new String[]{"_all"};
         deniedFields = randomBoolean() ? null : new String[]{};
-        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
-                .resolveAllowedFields(allowedMetaFields, mapperService);
-        expectedResultSet = new HashSet<>(allowedMetaFields);
-        expectedResultSet.addAll(Arrays.asList("_all"));
-        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
-        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+        expected = new HashSet<>(META_FIELDS_WITHOUT_ALL);
+        expected.add("_all");
+        assertResolved(new FieldPermissions(grantedFields, deniedFields), expected, "field1", "_source");
     }
 
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
@@ -538,26 +426,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         PostingsEnum penum = tenum.postings(null);
         sparseFixedBitSet.or(penum);
         return sparseFixedBitSet;
-    }
-
-    private void assertResolvedFields(String expression, String... expectedFields) {
-        securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
-            @Override
-            protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
-                        new FieldPermissions(new String[]{expression}, null), null);
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
-            }
-        };
-        FieldSubsetReader.FieldSubsetDirectoryReader result =
-                (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexSearcherWrapper.wrap(esIn);
-
-        assertThat(result.getFieldNames().size() - securityIndexSearcherWrapper.getAllowedMetaFields().size(),
-                equalTo(expectedFields.length));
-        for (String expectedField : expectedFields) {
-            assertThat(result.getFieldNames().contains(expectedField), is(true));
-        }
     }
 
     public void testIndexSearcherWrapperSparseNoDeletions() throws IOException {
@@ -580,7 +448,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
                 Collections.singletonMap("key", "value"), true);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService) {
 
                     @Override
                     protected User getUser() {
@@ -621,7 +489,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testSkipTemplating() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         XContentBuilder builder = jsonBuilder();
         BytesReference querySource =  new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
         BytesReference result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
@@ -815,7 +683,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(null, mapperService, scriptService, xContentRegistry(), client, null,
+        QueryRewriteContext context = new QueryRewriteContext(null, null, scriptService, xContentRegistry(), client, null,
                 () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder1, context);

@@ -84,13 +84,4 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaTypeOrFormat("text/plain"), nullValue());
         assertThat(XContentType.fromMediaTypeOrFormat("gobbly;goop"), nullValue());
     }
-
-    public void testLineDelimitedJson() throws Exception {
-        final String oldMimeType = "application/x-ldjson";
-        final String currentMimeType = "application/x-ndjson";
-        assertEquals(XContentType.JSON, XContentType.fromMediaType(oldMimeType));
-        assertEquals(XContentType.JSON, XContentType.fromMediaTypeOrFormat(oldMimeType));
-        assertEquals(XContentType.JSON, XContentType.fromMediaType(currentMimeType));
-        assertEquals(XContentType.JSON, XContentType.fromMediaTypeOrFormat(currentMimeType));
-    }
 }

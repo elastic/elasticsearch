@@ -309,6 +309,30 @@ public class RestControllerTests extends ESTestCase {
         assertWarnings("Content type detection for rest requests is deprecated. Specify the content type using the [Content-Type] header.");
     }
 
+    public void testDispatchWorksWithNewlineDelimitedJson() {
+        final String mimeType = randomFrom("application/x-ldjson", "application/x-ndjson");
+        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean supportsContentStream() {
+                return true;
+            }
+        });
+
+        assertFalse(channel.sendResponseCalled.get());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.sendResponseCalled.get());
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {
 

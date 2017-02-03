@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContent;
 
 /**
  * Handler for REST requests
@@ -44,6 +45,14 @@ public interface RestHandler {
      */
     @Deprecated
     default boolean supportsPlainText() {
+        return false;
+    }
+
+    /**
+     * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
+     * {@link XContent#streamSeparator()}
+     */
+    default boolean supportsContentStream() {
         return false;
     }
 }

@@ -138,13 +138,6 @@ public enum XContentType implements Writeable {
             return JSON;
         }
 
-        // we also support line-delimited JSON, which isn't official and has a few variations
-        // http://specs.okfnlabs.org/ndjson/
-        // https://github.com/ndjson/ndjson-spec/blob/48ea03cea6796b614cfbff4d4eb921f0b1d35c26/specification.md
-        if (lowercaseMediaType.equals("application/x-ldjson") || lowercaseMediaType.equals("application/x-ndjson")) {
-            return JSON;
-        }
-
         return null;
     }
 
@@ -159,13 +152,6 @@ public enum XContentType implements Writeable {
             if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
                 return type;
             }
-        }
-
-        // we also support line-delimited JSON, which isn't official and has a few variations
-        // http://specs.okfnlabs.org/ndjson/
-        // https://github.com/ndjson/ndjson-spec/blob/48ea03cea6796b614cfbff4d4eb921f0b1d35c26/specification.md
-        if (lowercaseMediaType.equals("application/x-ldjson") || lowercaseMediaType.equals("application/x-ndjson")) {
-            return JSON;
         }
 
         return null;

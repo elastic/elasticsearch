@@ -300,7 +300,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         final NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
-            try (final TokenStream ts = normalizer.tokenStream(name(), value)) {
+            try (TokenStream ts = normalizer.tokenStream(name(), value)) {
                 final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                 ts.reset();
                 if (ts.incrementToken() == false) {

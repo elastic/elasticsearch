@@ -88,7 +88,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public IdFieldType() {
+        IdFieldType() {
         }
 
         protected IdFieldType(IdFieldType ref) {

@@ -531,7 +531,7 @@ public class BytesStreamsTests extends ESTestCase {
             this.field2 = field2;
         }
 
-        public TestNamedWriteable(StreamInput in) throws IOException {
+        TestNamedWriteable(StreamInput in) throws IOException {
             field1 = in.readString();
             field2 = in.readString();
         }
@@ -613,9 +613,9 @@ public class BytesStreamsTests extends ESTestCase {
 
         private boolean value;
 
-        public TestStreamable() { }
+        TestStreamable() { }
 
-        public TestStreamable(boolean value) {
+        TestStreamable(boolean value) {
             this.value = value;
         }
 

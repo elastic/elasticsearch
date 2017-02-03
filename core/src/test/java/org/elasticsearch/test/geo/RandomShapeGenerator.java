@@ -56,7 +56,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     protected static final double xDIVISIBLE = 2;
     protected static boolean ST_VALIDATE = true;
 
-    public static enum ShapeType {
+    public enum ShapeType {
         POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON;
         private static final ShapeType[] types = values();
 

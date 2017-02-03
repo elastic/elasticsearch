@@ -161,7 +161,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
 

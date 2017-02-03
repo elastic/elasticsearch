@@ -87,7 +87,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
@@ -114,7 +114,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", false)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 

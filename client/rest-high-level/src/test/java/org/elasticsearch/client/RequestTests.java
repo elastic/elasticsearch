@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 public class RequestTests extends ESTestCase {
 
@@ -40,13 +41,20 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testGet() {
+        getAndExistsTest(Request::get, "GET");
+    }
+
+    public void testExists() {
+        getAndExistsTest(Request::exists, "HEAD");
+    }
+
+    private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
         String index = randomAsciiOfLengthBetween(3, 10);
         String type = randomAsciiOfLengthBetween(3, 10);
         String id = randomAsciiOfLengthBetween(3, 10);
         GetRequest getRequest = new GetRequest(index, type, id);
 
         Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("ignore", "404");
         if (randomBoolean()) {
             if (randomBoolean()) {
                 String preference = randomAsciiOfLengthBetween(3, 10);
@@ -141,11 +149,10 @@ public class RequestTests extends ESTestCase {
                 }
             }
         }
-
-        Request request = Request.get(getRequest);
+        Request request = requestConverter.apply(getRequest);
         assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
         assertEquals(expectedParams, request.params);
         assertNull(request.entity);
-        assertEquals("GET", request.method);
+        assertEquals(method, request.method);
     }
 }

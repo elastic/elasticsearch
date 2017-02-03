@@ -39,7 +39,7 @@ final class Request {
     final Map<String, String> params;
     final HttpEntity entity;
 
-    private Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
+    Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
         this.method = method;
         this.endpoint = endpoint;
         this.params = params;

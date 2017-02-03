@@ -30,7 +30,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -113,13 +112,17 @@ public class RestHighLevelClient {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
                     return responseConverter.apply(e.getResponse());
-                } catch (ParsingException | IOException ioe) {
+                } catch (Exception innerException) {
                     throw parseResponseException(e);
                 }
             }
             throw parseResponseException(e);
         }
-        return responseConverter.apply(response);
+        try {
+            return responseConverter.apply(response);
+        } catch(Exception e) {
+            throw new IOException("unable to parse response body for " + response, e);
+        }
     }
 
     private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request, Function<Req, Request> requestConverter,
@@ -150,7 +153,8 @@ public class RestHighLevelClient {
                 try {
                     actionListener.onResponse(responseConverter.apply(response));
                 } catch(Exception e) {
-                    onFailure(e);
+                    IOException ioe = new IOException("unable to parse response body for " + response, e);
+                    onFailure(ioe);
                 }
             }
 
@@ -162,7 +166,11 @@ public class RestHighLevelClient {
                     if (ignores.contains(response.getStatusLine().getStatusCode())) {
                         try {
                             actionListener.onResponse(responseConverter.apply(response));
-                        } catch (ParsingException | IOException ioe) {
+                        } catch (Exception innerException) {
+                            //the exception is ignored as we now try to parse the response as an error.
+                            //this covers cases like get where 404 can either be a valid document not found response,
+                            //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                            //first. If parsing of the response breaks, we fall back to parsing it as an error.
                             actionListener.onFailure(parseResponseException(responseException));
                         }
                     } else {
@@ -175,6 +183,13 @@ public class RestHighLevelClient {
         };
     }
 
+    /**
+     * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
+     * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
+     * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link ElasticsearchStatusException}
+     * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
+     * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
+     */
     static ElasticsearchException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
@@ -186,7 +201,7 @@ public class RestHighLevelClient {
             try {
                 elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
                 elasticsearchException = new ElasticsearchStatusException("unable to parse response body", restStatus, responseException);
                 elasticsearchException.addSuppressed(e);

@@ -19,13 +19,16 @@
 
 package org.elasticsearch.client;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
+import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.BasicHttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
@@ -35,7 +38,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -49,6 +57,7 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.anyMapOf;
@@ -63,6 +72,9 @@ import static org.mockito.Mockito.when;
 
 public class RestHighLevelClientTests extends ESTestCase {
 
+    private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
+    private static final RequestLine REQUEST_LINE = new BasicRequestLine("GET", "/", HTTP_PROTOCOL);
+
     private RestClient restClient;
     private RestHighLevelClient restHighLevelClient;
 
@@ -75,7 +87,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testPingSuccessful() throws IOException {
         Header[] headers = RestClientTestUtil.randomHeaders(random(), "Header");
         Response response = mock(Response.class);
-        when(response.getStatusLine()).thenReturn(newStatusLine(200));
+        when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
         when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
                 anyObject(), anyVararg())).thenReturn(response);
         assertTrue(restHighLevelClient.ping(headers));
@@ -86,7 +98,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testPing404NotFound() throws IOException {
         Header[] headers = RestClientTestUtil.randomHeaders(random(), "Header");
         Response response = mock(Response.class);
-        when(response.getStatusLine()).thenReturn(newStatusLine(404));
+        when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.NOT_FOUND));
         when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
                 anyObject(), anyVararg())).thenReturn(response);
         assertFalse(restHighLevelClient.ping(headers));
@@ -103,7 +115,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 Matchers.isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
-    public void testRequestValidation() throws IOException {
+    public void testRequestValidation() {
         ActionRequestValidationException validationException = new ActionRequestValidationException();
         validationException.addValidationError("validation error");
         ActionRequest request = new ActionRequest() {
@@ -141,38 +153,47 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
         }
         {
-            StringEntity entity = new StringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
-            assertEquals("value", RestHighLevelClient.parseEntity(entity, parser -> {
+            CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertTrue(parser.nextToken().isValue());
                 String value = parser.text();
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
                 return value;
-            }));
+            };
+            HttpEntity jsonEntity = new StringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+            assertEquals("value", RestHighLevelClient.parseEntity(jsonEntity, entityParser));
+            HttpEntity yamlEntity = new StringEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+            assertEquals("value", RestHighLevelClient.parseEntity(yamlEntity, entityParser));
+            HttpEntity smileEntity = createBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+            assertEquals("value", RestHighLevelClient.parseEntity(smileEntity, entityParser));
+            HttpEntity cborEntity = createBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+            assertEquals("value", RestHighLevelClient.parseEntity(cborEntity, entityParser));
+        }
+    }
+
+    private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
+        try (XContentBuilder builder = xContentBuilder) {
+            builder.startObject();
+            builder.field("field", "value");
+            builder.endObject();
+            return new ByteArrayEntity(builder.bytes().toBytesRef().bytes, contentType);
         }
     }
 
     public void testConvertExistsResponse() {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         RestStatus restStatus = randomBoolean() ? RestStatus.OK : randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                restStatus.getStatus(), restStatus.name()));
-        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         boolean result = RestHighLevelClient.convertExistsResponse(response);
         assertEquals(restStatus == RestStatus.OK, result);
     }
 
     public void testParseResponseException() throws IOException {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                    restStatus.getStatus(), restStatus.name()));
-            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
@@ -181,11 +202,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                    restStatus.getStatus(), restStatus.name()));
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
             httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                     ContentType.APPLICATION_JSON));
-            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
@@ -194,11 +214,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                    restStatus.getStatus(), restStatus.name()));
-            httpResponse.setEntity(new StringEntity("{\"error\":",
-                    ContentType.APPLICATION_JSON));
-            Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
             assertEquals("unable to parse response body", elasticsearchException.getMessage());
@@ -206,20 +224,186 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertSame(responseException, elasticsearchException.getCause());
             assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IOException.class));
         }
+        {
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
+            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals(restStatus, elasticsearchException.status());
+            assertSame(responseException, elasticsearchException.getCause());
+            assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));
+        }
+    }
+
+    public void testPerformRequestOnSuccess() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenReturn(mockResponse);
+        {
+            Integer result = restHighLevelClient.performRequest(mainRequest, requestConverter,
+                    response -> response.getStatusLine().getStatusCode(), Collections.emptySet());
+            assertEquals(restStatus.getStatus(), result.intValue());
+        }
+        {
+            IOException ioe = expectThrows(IOException.class, () -> restHighLevelClient.performRequest(mainRequest,
+                    requestConverter, response -> {throw new IllegalStateException();}, Collections.emptySet()));
+            assertEquals("unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
+                    "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
+        }
+    }
+
+    public void testPerformRequestOnResponseExceptionWithoutEntity() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
+        assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getCause());
+    }
+
+    public void testPerformRequestOnResponseExceptionWithEntity() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+                ContentType.APPLICATION_JSON));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
+        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+    }
+
+    public void testPerformRequestOnResponseExceptionWithBrokenEntity() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
+        assertEquals("unable to parse response body", elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getCause());
+        assertThat(elasticsearchException.getSuppressed()[0], instanceOf(JsonParseException.class));
+    }
+
+    public void testPerformRequestOnResponseExceptionWithBrokenEntity2() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
+        assertEquals("unable to parse response body", elasticsearchException.getMessage());
+        assertEquals(restStatus, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getCause());
+        assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));
+    }
+
+    public void testPerformRequestOnResponseExceptionWithIgnores() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        //although we got an exception, we turn it into a successful response because the status code was provided among ignores
+        assertEquals(Integer.valueOf(404), restHighLevelClient.performRequest(mainRequest, requestConverter,
+                response -> response.getStatusLine().getStatusCode(), Collections.singleton(404)));
+    }
+
+    public void testPerformRequestOnResponseExceptionWithIgnoresErrorNoBody() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> {throw new IllegalStateException();}, Collections.singleton(404)));
+        assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getCause());
+        assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
+    }
+
+    public void testPerformRequestOnResponseExceptionWithIgnoresErrorValidBody() throws IOException {
+        MainRequest mainRequest = new MainRequest();
+        Function<MainRequest, Request> requestConverter = request -> new Request("GET", "/", Collections.emptyMap(), null);
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}",
+                ContentType.APPLICATION_JSON));
+        Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(mockResponse);
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenThrow(responseException);
+        ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                        response -> {throw new IllegalStateException();}, Collections.singleton(404)));
+        assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
     public void testWrapResponseListenerOnSuccess() throws IOException {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
-        TrackingActionListener trackingActionListener = new TrackingActionListener();
-        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
-        RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                restStatus.getStatus(), restStatus.name()));
-        responseListener.onSuccess(new Response(requestLine, new HttpHost("localhost", 9200), httpResponse));
-        assertNull(trackingActionListener.exception.get());
-        assertEquals(restStatus.getStatus(), trackingActionListener.statusCode.get());
+        {
+            TrackingActionListener trackingActionListener = new TrackingActionListener();
+            ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                    response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
+            assertNull(trackingActionListener.exception.get());
+            assertEquals(restStatus.getStatus(), trackingActionListener.statusCode.get());
+        }
+        {
+            TrackingActionListener trackingActionListener = new TrackingActionListener();
+            ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                    response -> {throw new IllegalStateException();}, trackingActionListener, Collections.emptySet());
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
+            assertThat(trackingActionListener.exception.get(), instanceOf(IOException.class));
+            IOException ioe = (IOException) trackingActionListener.exception.get();
+            assertEquals("unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
+                    "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
+            assertThat(ioe.getCause(), instanceOf(IllegalStateException.class));
+        }
     }
 
     public void testWrapResponseListenerOnException() throws IOException {
@@ -232,15 +416,12 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithoutEntity() throws IOException {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
                 response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                restStatus.getStatus(), restStatus.name()));
-        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
         assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
@@ -251,17 +432,14 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithEntity() throws IOException {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
                 response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                restStatus.getStatus(), restStatus.name()));
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
         httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                 ContentType.APPLICATION_JSON));
-        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
         assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
@@ -272,26 +450,89 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithBrokenEntity() throws IOException {
-        ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
-        BasicRequestLine requestLine = new BasicRequestLine("GET", "/", protocolVersion);
+        {
+            TrackingActionListener trackingActionListener = new TrackingActionListener();
+            ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                    response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            responseListener.onFailure(responseException);
+            assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+            ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
+            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals(restStatus, elasticsearchException.status());
+            assertSame(responseException, elasticsearchException.getCause());
+            assertThat(elasticsearchException.getSuppressed()[0], instanceOf(JsonParseException.class));
+        }
+        {
+            TrackingActionListener trackingActionListener = new TrackingActionListener();
+            ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                    response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
+            RestStatus restStatus = randomFrom(RestStatus.values());
+            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+            ResponseException responseException = new ResponseException(response);
+            responseListener.onFailure(responseException);
+            assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+            ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
+            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals(restStatus, elasticsearchException.status());
+            assertSame(responseException, elasticsearchException.getCause());
+            assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));
+        }
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithIgnores() throws IOException {
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
-                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
-        RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(new BasicStatusLine(protocolVersion,
-                restStatus.getStatus(), restStatus.name()));
-        httpResponse.setEntity(new StringEntity("{\"error\":",
-                ContentType.APPLICATION_JSON));
-        Response response = new Response(requestLine, new HttpHost("localhost", 9200), httpResponse);
+                response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.singleton(404));
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(response);
+        responseListener.onFailure(responseException);
+        //although we got an exception, we turn it into a successful response because the status code was provided among ignores
+        assertNull(trackingActionListener.exception.get());
+        assertEquals(404, trackingActionListener.statusCode.get());
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithIgnoresErrorNoBody() throws IOException {
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        //response parsing throws exception while handling ignores. same as when GetResponse#fromXContent throws error when trying
+        //to parse a 404 response which contains an error rather than a valid document not found response.
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> { throw new IllegalStateException(); }, trackingActionListener, Collections.singleton(404));
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
         assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
-        assertEquals("unable to parse response body", elasticsearchException.getMessage());
-        assertThat(elasticsearchException.getCause(), instanceOf(IOException.class));
-        assertEquals(restStatus, elasticsearchException.status());
+        assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
-        assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IOException.class));
+        assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
+    }
+
+    public void testWrapResponseListenerOnResponseExceptionWithIgnoresErrorValidBody() throws IOException {
+        TrackingActionListener trackingActionListener = new TrackingActionListener();
+        //response parsing throws exception while handling ignores. same as when GetResponse#fromXContent throws error when trying
+        //to parse a 404 response which contains an error rather than a valid document not found response.
+        ResponseListener responseListener = RestHighLevelClient.wrapResponseListener(
+                response -> { throw new IllegalStateException(); }, trackingActionListener, Collections.singleton(404));
+        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}",
+                ContentType.APPLICATION_JSON));
+        Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
+        ResponseException responseException = new ResponseException(response);
+        responseListener.onFailure(responseException);
+        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
+        assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
+        assertSame(responseException, elasticsearchException.getSuppressed()[0]);
+        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {
@@ -326,7 +567,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
-    private static StatusLine newStatusLine(int statusCode) {
-        return new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
+    private static StatusLine newStatusLine(RestStatus restStatus) {
+        return new BasicStatusLine(HTTP_PROTOCOL, restStatus.getStatus(), restStatus.name());
     }
 }

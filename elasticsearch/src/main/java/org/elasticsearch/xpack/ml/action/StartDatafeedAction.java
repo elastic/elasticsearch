@@ -251,7 +251,7 @@ public class StartDatafeedAction
                 Request storedRequest = (Request) taskInProgress.getRequest();
                 return storedRequest.getDatafeedId().equals(request.getDatafeedId());
             };
-            if (persistentTasksInProgress.entriesExist(NAME, predicate)) {
+            if (persistentTasksInProgress.tasksExist(NAME, predicate)) {
                 throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
                         RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
             }

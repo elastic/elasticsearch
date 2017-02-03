@@ -327,7 +327,7 @@ public class MlMetadata implements MetaData.Custom {
                     StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
                     return storedRequest.getDatafeedId().equals(datafeedId);
                 };
-                if (persistentTasksInProgress.entriesExist(StartDatafeedAction.NAME, predicate)) {
+                if (persistentTasksInProgress.tasksExist(StartDatafeedAction.NAME, predicate)) {
                     String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
                             DatafeedState.STARTED);
                     throw ExceptionsHelper.conflictStatusException(msg);

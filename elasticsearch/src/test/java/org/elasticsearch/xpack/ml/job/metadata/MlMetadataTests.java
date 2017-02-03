@@ -196,7 +196,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         builder = new MlMetadata.Builder(result);
-        builder.removeDatafeed("datafeed1", new PersistentTasksInProgress(0, Collections.emptyList()));
+        builder.removeDatafeed("datafeed1", new PersistentTasksInProgress(0, Collections.emptyMap()));
         result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getState(), equalTo(JobState.CLOSED));
@@ -262,7 +262,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
         PersistentTasksInProgress.PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
                 new PersistentTasksInProgress.PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, null);
-        PersistentTasksInProgress tasksInProgress = new PersistentTasksInProgress(1, Collections.singletonList(taskInProgress));
+        PersistentTasksInProgress tasksInProgress =
+                new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,

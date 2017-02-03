@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.Task.Status;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -31,29 +31,37 @@ import java.util.stream.Collectors;
 public final class PersistentTasksInProgress extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
     public static final String TYPE = "persistent_tasks";
 
-    // TODO: Implement custom Diff for entries
-    private final List<PersistentTaskInProgress<?>> entries;
+    // TODO: Implement custom Diff for tasks
+    private final Map<Long, PersistentTaskInProgress<?>> tasks;
 
     private final long currentId;
 
-    public PersistentTasksInProgress(long currentId, List<PersistentTaskInProgress<?>> entries) {
+    public PersistentTasksInProgress(long currentId, Map<Long, PersistentTaskInProgress<?>> tasks) {
         this.currentId = currentId;
-        this.entries = entries;
+        this.tasks = tasks;
     }
 
-    public List<PersistentTaskInProgress<?>> entries() {
-        return this.entries;
+    public Collection<PersistentTaskInProgress<?>> tasks() {
+        return this.tasks.values();
     }
 
-    public Collection<PersistentTaskInProgress<?>> findEntries(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
-        return this.entries().stream()
+    public Map<Long, PersistentTaskInProgress<?>> taskMap() {
+        return this.tasks;
+    }
+
+    public PersistentTaskInProgress<?> getTask(long id) {
+        return this.tasks.get(id);
+    }
+
+    public Collection<PersistentTaskInProgress<?>> findTasks(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+        return this.tasks().stream()
                 .filter(p -> actionName.equals(p.getAction()))
                 .filter(predicate)
                 .collect(Collectors.toList());
     }
 
-    public boolean entriesExist(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
-        return this.entries().stream()
+    public boolean tasksExist(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+        return this.tasks().stream()
                 .filter(p -> actionName.equals(p.getAction()))
                 .anyMatch(predicate);
     }
@@ -64,16 +72,16 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
         if (o == null || getClass() != o.getClass()) return false;
         PersistentTasksInProgress that = (PersistentTasksInProgress) o;
         return currentId == that.currentId &&
-                Objects.equals(entries, that.entries);
+                Objects.equals(tasks, that.tasks);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entries, currentId);
+        return Objects.hash(tasks, currentId);
     }
 
     public long getNumberOfTasksOnNode(String nodeId, String action) {
-        return entries.stream().filter(task -> action.equals(task.action) && nodeId.equals(task.executorNode)).count();
+        return tasks.values().stream().filter(task -> action.equals(task.action) && nodeId.equals(task.executorNode)).count();
     }
 
     @Override
@@ -84,7 +92,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
     /**
      * A record that represents a single running persistent task
      */
-    public static class PersistentTaskInProgress<Request extends PersistentActionRequest> implements Writeable {
+    public static class PersistentTaskInProgress<Request extends PersistentActionRequest> implements Writeable, ToXContent {
         private final long id;
         private final long allocationId;
         private final String action;
@@ -183,6 +191,28 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
         public Status getStatus() {
             return status;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("uuid", id);
+                builder.field("action", action);
+                builder.field("request");
+                request.toXContent(builder, params);
+                if (status != null) {
+                    builder.field("status", status, params);
+                }
+                builder.field("executor_node", executorNode);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return false;
+        }
     }
 
     @Override
@@ -192,13 +222,15 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
 
     public PersistentTasksInProgress(StreamInput in) throws IOException {
         currentId = in.readLong();
-        entries = in.readList(PersistentTaskInProgress::new);
+        tasks = in.readMap(StreamInput::readLong, PersistentTaskInProgress::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(currentId);
-        out.writeList(entries);
+        out.writeMap(tasks, StreamOutput::writeLong, (stream, value) -> {
+            value.writeTo(stream);
+        });
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -214,25 +246,11 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field("current_id", currentId);
         builder.startArray("running_tasks");
-        for (PersistentTaskInProgress<?> entry : entries) {
-            toXContent(entry, builder, params);
+        for (PersistentTaskInProgress<?> entry : tasks.values()) {
+            entry.toXContent(builder, params);
         }
         builder.endArray();
         return builder;
     }
 
-    public void toXContent(PersistentTaskInProgress<?> entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field("uuid", entry.id);
-            builder.field("action", entry.action);
-            builder.field("request");
-            entry.request.toXContent(builder, params);
-            if (entry.status != null) {
-                builder.field("status", entry.status, params);
-            }
-            builder.field("executor_node", entry.executorNode);
-        }
-        builder.endObject();
-    }
 }

@@ -16,11 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,17 +56,13 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
             public ClusterState execute(ClusterState currentState) throws Exception {
                 final String executorNodeId = executorNode(action, currentState, request);
                 PersistentTasksInProgress tasksInProgress = currentState.custom(PersistentTasksInProgress.TYPE);
-                final List<PersistentTaskInProgress<?>> currentTasks = new ArrayList<>();
-                final long nextId;
+                long nextId;
                 if (tasksInProgress != null) {
                     nextId = tasksInProgress.getCurrentId() + 1;
-                    currentTasks.addAll(tasksInProgress.entries());
                 } else {
                     nextId = 1;
                 }
-                currentTasks.add(new PersistentTaskInProgress<>(nextId, action, request, executorNodeId));
-                ClusterState.Builder builder = ClusterState.builder(currentState);
-                return builder.putCustom(PersistentTasksInProgress.TYPE, new PersistentTasksInProgress(nextId, currentTasks)).build();
+                return createPersistentTask(currentState, new PersistentTaskInProgress<>(nextId, action, request, executorNodeId));
             }
 
             @Override
@@ -104,23 +101,18 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                     // Nothing to do, the task was already deleted
                     return currentState;
                 }
-
-                boolean found = false;
-                final List<PersistentTaskInProgress<?>> currentTasks = new ArrayList<>();
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.entries()) {
-                    if (taskInProgress.getId() == id) {
-                        assert found == false;
-                        found = true;
-                        if (failure != null) {
-                            // If the task failed - we need to restart it on another node, otherwise we just remove it
-                            String executorNode = executorNode(taskInProgress.getAction(), currentState, taskInProgress.getRequest());
-                            currentTasks.add(new PersistentTaskInProgress<>(taskInProgress, executorNode));
-                        }
-                    } else {
-                        currentTasks.add(taskInProgress);
+                if (failure != null) {
+                    // If the task failed - we need to restart it on another node, otherwise we just remove it
+                    PersistentTaskInProgress<?> taskInProgress = tasksInProgress.getTask(id);
+                    if (taskInProgress != null) {
+                        String executorNode = executorNode(taskInProgress.getAction(), currentState, taskInProgress.getRequest());
+                        return updatePersistentTask(currentState, new PersistentTaskInProgress<>(taskInProgress, executorNode));
                     }
+                    return currentState;
+                } else {
+                    return removePersistentTask(currentState, id);
                 }
-                return rebuildClusterStateIfNeeded(found, currentState, currentTasks);
+
             }
 
             @Override
@@ -151,19 +143,11 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                     // Nothing to do, the task no longer exists
                     return currentState;
                 }
-
-                boolean found = false;
-                final List<PersistentTaskInProgress<?>> currentTasks = new ArrayList<>();
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.entries()) {
-                    if (taskInProgress.getId() == id) {
-                        assert found == false;
-                        found = true;
-                        currentTasks.add(new PersistentTaskInProgress<>(taskInProgress, status));
-                    } else {
-                        currentTasks.add(taskInProgress);
-                    }
+                PersistentTaskInProgress<?> task = tasksInProgress.getTask(id);
+                if (task != null) {
+                    return updatePersistentTask(currentState, new PersistentTaskInProgress<>(task, status));
                 }
-                return rebuildClusterStateIfNeeded(found, currentState, currentTasks);
+                return currentState;
             }
 
             @Override
@@ -178,14 +162,40 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
         });
     }
 
-    private ClusterState rebuildClusterStateIfNeeded(boolean rebuild, ClusterState oldState,
-                                                     List<PersistentTaskInProgress<?>> currentTasks) {
-        if (rebuild) {
+    private ClusterState updatePersistentTask(ClusterState oldState, PersistentTaskInProgress<?> newTask) {
+        PersistentTasksInProgress oldTasks = oldState.custom(PersistentTasksInProgress.TYPE);
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        taskMap.putAll(oldTasks.taskMap());
+        taskMap.put(newTask.getId(), newTask);
+        ClusterState.Builder builder = ClusterState.builder(oldState);
+        PersistentTasksInProgress newTasks = new PersistentTasksInProgress(oldTasks.getCurrentId(), Collections.unmodifiableMap(taskMap));
+        return builder.putCustom(PersistentTasksInProgress.TYPE, newTasks).build();
+    }
+
+    private ClusterState createPersistentTask(ClusterState oldState, PersistentTaskInProgress<?> newTask) {
+        PersistentTasksInProgress oldTasks = oldState.custom(PersistentTasksInProgress.TYPE);
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        if (oldTasks != null) {
+            taskMap.putAll(oldTasks.taskMap());
+        }
+        taskMap.put(newTask.getId(), newTask);
+        ClusterState.Builder builder = ClusterState.builder(oldState);
+        PersistentTasksInProgress newTasks = new PersistentTasksInProgress(newTask.getId(), Collections.unmodifiableMap(taskMap));
+        return builder.putCustom(PersistentTasksInProgress.TYPE, newTasks).build();
+    }
+
+    private ClusterState removePersistentTask(ClusterState oldState, long taskId) {
+        PersistentTasksInProgress oldTasks = oldState.custom(PersistentTasksInProgress.TYPE);
+        if (oldTasks != null) {
+            Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
             ClusterState.Builder builder = ClusterState.builder(oldState);
-            PersistentTasksInProgress oldTasks = oldState.custom(PersistentTasksInProgress.TYPE);
-            PersistentTasksInProgress tasks = new PersistentTasksInProgress(oldTasks.getCurrentId(), currentTasks);
-            return builder.putCustom(PersistentTasksInProgress.TYPE, tasks).build();
+            taskMap.putAll(oldTasks.taskMap());
+            taskMap.remove(taskId);
+            PersistentTasksInProgress newTasks =
+                    new PersistentTasksInProgress(oldTasks.getCurrentId(), Collections.unmodifiableMap(taskMap));
+            return builder.putCustom(PersistentTasksInProgress.TYPE, newTasks).build();
         } else {
+            // no tasks - nothing to do
             return oldState;
         }
     }
@@ -213,7 +223,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 // We need to check if removed nodes were running any of the tasks and reassign them
                 boolean reassignmentRequired = false;
                 Set<String> removedNodes = event.nodesDelta().removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-                for (PersistentTaskInProgress<?> taskInProgress : tasks.entries()) {
+                for (PersistentTaskInProgress<?> taskInProgress : tasks.tasks()) {
                     if (taskInProgress.getExecutorNode() == null) {
                         // there is an unassigned task - we need to try assigning it
                         reassignmentRequired = true;
@@ -244,22 +254,12 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 DiscoveryNodes nodes = currentState.nodes();
                 if (tasks != null) {
                     // We need to check if removed nodes were running any of the tasks and reassign them
-                    for (PersistentTaskInProgress<?> task : tasks.entries()) {
+                    for (PersistentTaskInProgress<?> task : tasks.tasks()) {
                         if (task.getExecutorNode() == null || nodes.nodeExists(task.getExecutorNode()) == false) {
                             // there is an unassigned task - we need to try assigning it
                             String executorNode = executorNode(task.getAction(), currentState, task.getRequest());
                             if (Objects.equals(executorNode, task.getExecutorNode()) == false) {
-                                PersistentTasksInProgress tasksInProgress = newClusterState.custom(PersistentTasksInProgress.TYPE);
-                                final List<PersistentTaskInProgress<?>> currentTasks = new ArrayList<>();
-                                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.entries()) {
-                                    if (task.getId() == taskInProgress.getId()) {
-                                        currentTasks.add(new PersistentTaskInProgress<>(task, executorNode));
-                                    } else {
-                                        currentTasks.add(taskInProgress);
-                                    }
-                                }
-                                newClusterState = ClusterState.builder(newClusterState).putCustom(PersistentTasksInProgress.TYPE,
-                                        new PersistentTasksInProgress(tasksInProgress.getCurrentId(), currentTasks)).build();
+                                newClusterState = updatePersistentTask(newClusterState, new PersistentTaskInProgress<>(task, executorNode));
                             }
                         }
                     }

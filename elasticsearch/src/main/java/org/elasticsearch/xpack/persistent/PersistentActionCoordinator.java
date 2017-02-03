@@ -69,7 +69,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
             String localNodeId = event.state().getNodes().getLocalNodeId();
             Set<PersistentTaskId> notVisitedTasks = new HashSet<>(runningTasks.keySet());
             if (tasks != null) {
-                for (PersistentTaskInProgress<?> taskInProgress : tasks.entries()) {
+                for (PersistentTaskInProgress<?> taskInProgress : tasks.tasks()) {
                     if (localNodeId.equals(taskInProgress.getExecutorNode())) {
                         PersistentTaskId persistentTaskId = new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId());
                         RunningPersistentTask persistentTask = runningTasks.get(persistentTaskId);

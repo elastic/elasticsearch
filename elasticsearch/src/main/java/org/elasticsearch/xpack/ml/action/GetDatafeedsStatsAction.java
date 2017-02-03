@@ -269,7 +269,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             if (tasksInProgress != null) {
                 Predicate<PersistentTaskInProgress<?>> predicate = ALL.equals(request.getDatafeedId()) ? p -> true :
                         p -> request.getDatafeedId().equals(((StartDatafeedAction.Request) p.getRequest()).getDatafeedId());
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findEntries(StartDatafeedAction.NAME, predicate)) {
+                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findTasks(StartDatafeedAction.NAME, predicate)) {
                     StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
                     states.put(storedRequest.getDatafeedId(), DatafeedState.STARTED);
                 }

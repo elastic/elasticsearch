@@ -148,7 +148,7 @@ public class StopDatafeedAction
 
             PersistentTasksInProgress tasksInProgress = state.custom(PersistentTasksInProgress.TYPE);
             if (tasksInProgress != null) {
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findEntries(StartDatafeedAction.NAME, p -> true)) {
+                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findTasks(StartDatafeedAction.NAME, p -> true)) {
                     StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
                     if (storedRequest.getDatafeedId().equals(datafeedId)) {
                         RemovePersistentTaskAction.Request cancelTasksRequest = new RemovePersistentTaskAction.Request();

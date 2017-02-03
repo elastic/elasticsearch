@@ -17,15 +17,15 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.XPackSettings;
-
-import org.mockito.ArgumentCaptor;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -34,11 +34,12 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -394,7 +395,7 @@ public class SSLServiceTests extends ESTestCase {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
-            client.execute(new HttpGet("https://www.elastic.co/")).close();
+            privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
         }
     }
 
@@ -408,7 +409,7 @@ public class SSLServiceTests extends ESTestCase {
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
-            client.execute(new HttpGet("https://www.elastic.co/")).close();
+            privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
         }
     }
 
@@ -416,7 +417,7 @@ public class SSLServiceTests extends ESTestCase {
     public void testThatSSLIOSessionStrategyWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(Settings.EMPTY);
-        try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build()) {
+        try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
@@ -433,7 +434,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.password", "testclient")
                 .build();
         SSLIOSessionStrategy sslStrategy = new SSLService(settings, env).sslIOSessionStrategy(Settings.EMPTY);
-        try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build()) {
+        try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
@@ -459,6 +460,26 @@ public class SSLServiceTests extends ESTestCase {
         @Override
         public void cancelled() {
             fail("The request was cancelled for some reason");
+        }
+    }
+
+    private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>)
+                    () -> HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build());
+        } catch (PrivilegedActionException e) {
+            throw (Exception) e.getCause();
+        }
+    }
+
+    private static void privilegedConnect(CheckedRunnable<Exception> runnable) throws Exception {
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                runnable.run();
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            throw (Exception) e.getCause();
         }
     }
 

@@ -283,10 +283,11 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                 try {
                     Filter filter = createFilter(NETBIOS_NAME_FILTER_TEMPLATE, netBiosDomainName);
                     if (connection.getSSLSession() != null) {
-                        searchConnection = new LDAPConnection(connection.getSocketFactory(), options,
-                                connection.getConnectedAddress(), 636);
+                        searchConnection = LdapUtils.privilegedConnect(() -> new LDAPConnection(connection.getSocketFactory(), options,
+                                connection.getConnectedAddress(), 636));
                     } else {
-                        searchConnection = new LDAPConnection(options, connection.getConnectedAddress(), 389);
+                        searchConnection = LdapUtils.privilegedConnect(() ->
+                                new LDAPConnection(options, connection.getConnectedAddress(), 389));
                     }
                     searchConnection.bind(username, new String(password.internalChars()));
                     final LDAPConnection finalConnection = searchConnection;

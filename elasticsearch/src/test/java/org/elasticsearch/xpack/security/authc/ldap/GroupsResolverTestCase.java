@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -24,6 +25,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collection;
 import java.util.List;
 
@@ -77,9 +81,8 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
             connectionSettings = Settings.builder().put("keystore.path", keystore)
                     .put("keystore.password", "changeit").build();
         }
-
-        ldapConnection = new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options, ldapurl.getHost(),
-                ldapurl.getPort(), bindDN(), bindPassword());
+        ldapConnection = LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options,
+                ldapurl.getHost(), ldapurl.getPort(), bindDN(), bindPassword()));
     }
 
     @After

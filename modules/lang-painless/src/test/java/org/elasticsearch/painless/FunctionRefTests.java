@@ -22,7 +22,10 @@ package org.elasticsearch.painless;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.lang.invoke.LambdaConversionException;
+
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -208,7 +211,7 @@ public class FunctionRefTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.add(Integer::bogus); return l.get(0);");
         });
-        assertTrue(expected.getMessage().contains("Cannot convert function reference"));
+        assertThat(expected.getMessage(), containsString("Cannot convert function reference"));
     }
 
     public void testIncompatible() {
@@ -221,7 +224,7 @@ public class FunctionRefTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Optional.empty().orElseGet(String::startsWith);");
         });
-        assertTrue(expected.getMessage().contains("Unknown reference"));
+        assertThat(expected.getMessage(), containsString("Unknown reference"));
     }
     
     public void testWrongArityNotEnough() {
@@ -235,13 +238,38 @@ public class FunctionRefTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def y = Optional.empty(); return y.orElseGet(String::startsWith);");
         });
-        assertTrue(expected.getMessage().contains("Unknown reference"));
+        assertThat(expected.getMessage(), containsString("Unknown reference"));
     }
     
     public void testWrongArityNotEnoughDef() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
         });
-        assertTrue(expected.getMessage().contains("Unknown reference"));
+        assertThat(expected.getMessage(), containsString("Unknown reference"));
+    }
+
+    public void testReturnVoid() {
+        Throwable expected = expectScriptThrows(BootstrapMethodError.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
+        assertThat(expected.getCause().getMessage(),
+                containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+    }
+
+    public void testReturnVoidDef() {
+        Exception expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
+        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+
+        expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
+        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
+
+        expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
+        assertThat(expected.getMessage(), containsString("Type mismatch for lambda expected return: void is not convertible to long"));
     }
 }

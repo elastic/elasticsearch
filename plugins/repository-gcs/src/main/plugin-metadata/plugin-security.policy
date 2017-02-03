@@ -23,4 +23,7 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.net.URLPermission "http://www.googleapis.com/*", "*";
   permission java.net.URLPermission "https://www.googleapis.com/*", "*";
+
+  // gcs client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
 };

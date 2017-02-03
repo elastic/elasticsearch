@@ -398,10 +398,10 @@ public class TransportService extends AbstractLifecycleComponent {
         private ClusterName clusterName;
         private Version version;
 
-        public HandshakeResponse() {
+        HandshakeResponse() {
         }
 
-        public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
+        HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
             this.discoveryNode = discoveryNode;
             this.version = version;
             this.clusterName = clusterName;
@@ -1049,7 +1049,7 @@ public class TransportService extends AbstractLifecycleComponent {
         final TransportServiceAdapter adapter;
         final ThreadPool threadPool;
 
-        public DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId,
+        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId,
                                      TransportServiceAdapter adapter, ThreadPool threadPool) {
             this.logger = logger;
             this.localNode = localNode;

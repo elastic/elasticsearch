@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 public class NamedWriteableRegistryTests extends ESTestCase {
 
     private static class DummyNamedWriteable implements NamedWriteable {
-        public DummyNamedWriteable(StreamInput in) {}
+        DummyNamedWriteable(StreamInput in) {}
         @Override
         public String getWriteableName() {
             return "test";

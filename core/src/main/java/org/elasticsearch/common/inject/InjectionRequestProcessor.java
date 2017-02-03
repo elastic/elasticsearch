@@ -86,7 +86,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
         final StaticInjectionRequest request;
         List<SingleMemberInjector> memberInjectors;
 
-        public StaticInjection(InjectorImpl injector, StaticInjectionRequest request) {
+        StaticInjection(InjectorImpl injector, StaticInjectionRequest request) {
             this.injector = injector;
             this.source = request.getSource();
             this.request = request;

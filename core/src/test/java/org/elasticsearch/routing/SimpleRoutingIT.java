@@ -207,13 +207,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc("field", "value2").execute().actionGet();
+            client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").execute().actionGet();
             fail("update with missing routing when routing is required should fail");
         } catch(ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
-        client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting("0").setDoc("field", "value2").execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting("0").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
@@ -254,7 +254,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         {
             BulkResponse bulkResponse = client().prepareBulk().add(Requests.indexRequest(indexOrAlias()).type("type1").id("1")
-                .source("field", "value")).execute().actionGet();
+                .source(Requests.INDEX_CONTENT_TYPE, "field", "value")).execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -269,12 +269,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         {
             BulkResponse bulkResponse = client().prepareBulk().add(Requests.indexRequest(indexOrAlias()).type("type1").id("1").routing("0")
-                .source("field", "value")).execute().actionGet();
+                .source(Requests.INDEX_CONTENT_TYPE, "field", "value")).execute().actionGet();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1").doc("field", "value2"))
+            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1")
+                .doc(Requests.INDEX_CONTENT_TYPE, "field", "value2"))
                 .execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -289,7 +290,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1").doc("field", "value2")
+            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1")
+                .doc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .routing("0")).execute().actionGet();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
@@ -369,12 +371,12 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting("0")
-                .setDoc("field1", "value1").get();
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
         assertThat(updateResponse.getId(), equalTo("1"));
         assertThat(updateResponse.getVersion(), equalTo(2L));
 
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc("field1", "value1").get();
+            client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));

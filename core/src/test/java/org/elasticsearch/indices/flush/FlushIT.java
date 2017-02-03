@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -57,7 +58,7 @@ public class FlushIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
-                client().prepareIndex("test", "test").setSource("{}").get();
+                client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
             }
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
@@ -164,7 +165,7 @@ public class FlushIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (stop.get() == false) {
-                    client().prepareIndex().setIndex("test").setType("doc").setSource("{}").get();
+                    client().prepareIndex().setIndex("test").setType("doc").setSource("{}", XContentType.JSON).get();
                     numDocs.incrementAndGet();
                 }
             }

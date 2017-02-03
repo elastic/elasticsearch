@@ -229,7 +229,7 @@ GET /_search
                 "order" : "asc",
                 "unit" : "km",
 		"mode" : "min",
-		"distance_type" : "sloppy_arc"
+		"distance_type" : "arc"
             }
         }
     ],
@@ -244,7 +244,7 @@ GET /_search
 
 `distance_type`::
 
-    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
+    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 `mode`::
 

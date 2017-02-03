@@ -45,11 +45,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -179,21 +181,31 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * The settings to create the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml format).
+     * @deprecated use {@link #settings(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest settings(String source) {
         this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
     /**
-     * The settings to crete the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml format).
+     */
+    public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+        return this;
+    }
+
+    /**
+     * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -209,10 +221,23 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated use {@link #mapping(String, String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, String source) {
-        mappings.put(type, source);
-        return this;
+        XContentType xContentType = XContentFactory.xContentType(source);
+        return mapping(type, source, xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType The type of content contained within the source
+     */
+    public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
+        return mapping(type, new BytesArray(source), xContentType);
     }
 
     /**
@@ -234,12 +259,24 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
+        return mapping(type, source.bytes(), source.contentType());
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType the source content type
+     */
+    public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
         try {
-            mappings.put(type, source.string());
+            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
+            return this;
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
+            throw new UncheckedIOException("failed to convert source to json", e);
         }
-        return this;
     }
 
     /**
@@ -256,7 +293,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder.string());
+            return mapping(type, builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -280,7 +317,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(templateBuilder.bytes());
+            return source(templateBuilder.bytes(), templateBuilder.contentType());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to build json for template request", e);
         }
@@ -350,7 +387,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
+     * @deprecated use {@link #source(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest source(String templateSource) {
         return source(XContentHelper.convertToMap(XContentFactory.xContent(templateSource), templateSource, true));
     }
@@ -358,6 +397,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(byte[], XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source) {
         return source(source, 0, source.length);
     }
@@ -365,6 +413,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(byte[], int, int, XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
         return source(new BytesArray(source, offset, length));
     }
@@ -372,8 +429,24 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(BytesReference, XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(BytesReference source) {
         return source(XContentHelper.convertToMap(source, true).v2());
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
@@ -471,7 +544,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         settings = readSettingsFromStream(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            mappings.put(in.readString(), in.readString());
+            final String type = in.readString();
+            String mappingSource = in.readString();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to V_5_3_0 once backported
+                // we do not know the incoming type so convert it if needed
+                mappingSource =
+                    XContentHelper.convertToJson(new BytesArray(mappingSource), false, false, XContentFactory.xContentType(mappingSource));
+            }
+            mappings.put(type, mappingSource);
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {

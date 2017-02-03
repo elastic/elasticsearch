@@ -79,7 +79,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         private volatile boolean blocked = true;
 
-        public TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
+        TestTask(long id, String type, String action, String description, TaskId parentTaskId) {
             super(id, type, action, description, parentTaskId);
         }
 

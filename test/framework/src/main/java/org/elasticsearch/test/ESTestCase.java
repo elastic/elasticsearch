@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -295,7 +294,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private void ensureNoWarnings() throws IOException {
-        //Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+        //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
@@ -864,11 +863,22 @@ public abstract class ESTestCase extends LuceneTestCase {
      * internally should stay untouched.
      */
     public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
-        XContentParser parser = createParser(builder);
+        try (XContentParser parser = createParser(builder)) {
+            return shuffleXContent(parser, builder.isPrettyPrint(), exceptFieldNames);
+        }
+    }
+
+    /**
+     * Randomly shuffles the fields inside objects parsed using the {@link XContentParser} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
+    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
         // use ordered maps for reproducibility
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
-        if (builder.isPrettyPrint()) {
+        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+        if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }
         return xContentBuilder.map(shuffledMap);

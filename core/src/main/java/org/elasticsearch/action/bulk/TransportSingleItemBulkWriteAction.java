@@ -107,7 +107,8 @@ public abstract class TransportSingleItemBulkWriteAction<
     }
 
 
-    private ActionListener<BulkResponse> wrapBulkResponse(ActionListener<Response> listener) {
+    public static <Response extends ReplicationResponse & WriteResponse>
+    ActionListener<BulkResponse> wrapBulkResponse(ActionListener<Response> listener) {
         return ActionListener.wrap(bulkItemResponses -> {
             assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk request";
             BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];

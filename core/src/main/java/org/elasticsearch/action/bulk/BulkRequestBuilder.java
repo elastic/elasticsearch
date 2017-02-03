@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -97,7 +98,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     /**
      * Adds a framed data in binary format
+     * @deprecated use {@link #add(byte[], int, int, XContentType)}
      */
+    @Deprecated
     public BulkRequestBuilder add(byte[] data, int from, int length) throws Exception {
         request.add(data, from, length, null, null);
         return this;
@@ -106,8 +109,27 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     /**
      * Adds a framed data in binary format
      */
+    public BulkRequestBuilder add(byte[] data, int from, int length, XContentType xContentType) throws Exception {
+        request.add(data, from, length, null, null, xContentType);
+        return this;
+    }
+
+    /**
+     * Adds a framed data in binary format
+     * @deprecated use {@link #add(byte[], int, int, String, String, XContentType)}
+     */
+    @Deprecated
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
         request.add(data, from, length, defaultIndex, defaultType);
+        return this;
+    }
+
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
+                                  XContentType xContentType) throws Exception {
+        request.add(data, from, length, defaultIndex, defaultType, xContentType);
         return this;
     }
 

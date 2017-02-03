@@ -75,6 +75,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -203,7 +204,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String[] indexShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(indexShardActions);
 
-        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
+        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id")
+            .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         internalCluster().coordOnlyNodeClient().index(indexRequest).actionGet();
 
         clearInterceptedActions();
@@ -228,7 +230,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1");
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
@@ -242,7 +244,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert("field", "value").doc("field1", "value1");
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
 
@@ -275,7 +278,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         int numIndexRequests = iterations(1, 10);
         for (int i = 0; i < numIndexRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new IndexRequest(indexOrAlias, "type", "id").source("field", "value"));
+            bulkRequest.add(new IndexRequest(indexOrAlias, "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
             indices.add(indexOrAlias);
         }
         int numDeleteRequests = iterations(1, 10);
@@ -287,7 +290,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         int numUpdateRequests = iterations(1, 10);
         for (int i = 0; i < numUpdateRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1"));
+            bulkRequest.add(new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
             indices.add(indexOrAlias);
         }
 

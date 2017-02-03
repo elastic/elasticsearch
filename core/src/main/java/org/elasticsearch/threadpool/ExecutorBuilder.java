@@ -82,7 +82,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
         protected final String nodeName;
 
-        public ExecutorSettings(String nodeName) {
+        ExecutorSettings(String nodeName) {
             this.nodeName = nodeName;
         }
 

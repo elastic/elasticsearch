@@ -61,7 +61,7 @@ public class IndexStoreTests extends ESTestCase {
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
-        try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
+        try (Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);

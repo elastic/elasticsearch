@@ -106,7 +106,7 @@ class Checkpoint {
 
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new SimpleFSDirectory(path.getParent())) {
-            try (final IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 if (indexInput.length() == LEGACY_NON_CHECKSUMMED_FILE_LENGTH) {
                     // OLD unchecksummed file that was written < ES 5.0.0
                     return Checkpoint.readNonChecksummed(indexInput);
@@ -136,7 +136,7 @@ class Checkpoint {
             }
         };
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
-        try (final OutputStreamIndexOutput indexOutput =
+        try (OutputStreamIndexOutput indexOutput =
                  new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, FILE_SIZE)) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
             checkpoint.write(indexOutput);

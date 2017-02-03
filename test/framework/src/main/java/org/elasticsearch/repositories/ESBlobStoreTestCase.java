@@ -36,7 +36,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public abstract class ESBlobStoreTestCase extends ESTestCase {
 
     public void testContainerCreationAndDeletion() throws IOException {
-        try(final BlobStore store = newBlobStore()) {
+        try(BlobStore store = newBlobStore()) {
             final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
             final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
             byte[] data1 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));

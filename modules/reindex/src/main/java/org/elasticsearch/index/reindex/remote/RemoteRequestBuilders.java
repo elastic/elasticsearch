@@ -124,6 +124,8 @@ final class RemoteRequestBuilders {
 
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
+            } else {
+                entity.field("_source", true);
             }
 
             entity.endObject();
@@ -170,6 +172,22 @@ final class RemoteRequestBuilders {
     }
 
     static HttpEntity scrollEntity(String scroll) {
-        return new StringEntity(scroll, ContentType.TEXT_PLAIN);
+        try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+            return new StringEntity(entity.startObject()
+                .field("scroll_id", scroll)
+                .endObject().string(), ContentType.APPLICATION_JSON);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build scroll entity", e);
+        }
+    }
+
+    static HttpEntity clearScrollEntity(String scroll) {
+        try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+            return new StringEntity(entity.startObject()
+                .array("scroll_id", scroll)
+                .endObject().string(), ContentType.APPLICATION_JSON);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build clear scroll entity", e);
+        }
     }
 }

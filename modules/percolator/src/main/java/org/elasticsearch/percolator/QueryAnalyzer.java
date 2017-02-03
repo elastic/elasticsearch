@@ -380,7 +380,7 @@ public final class QueryAnalyzer {
 
         private final Query unsupportedQuery;
 
-        public UnsupportedQueryException(Query unsupportedQuery) {
+        UnsupportedQueryException(Query unsupportedQuery) {
             super(LoggerMessageFormat.format("no query terms can be extracted from query [{}]", unsupportedQuery));
             this.unsupportedQuery = unsupportedQuery;
         }

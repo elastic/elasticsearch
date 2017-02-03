@@ -153,6 +153,12 @@ public class RemovePluginCommandTests extends ESTestCase {
         }
     }
 
+    public void testMissingPluginName() throws Exception {
+        UserException e = expectThrows(UserException.class, () -> removePlugin(null, home));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertEquals("plugin name is required", e.getMessage());
+    }
+
     private String expectedConfigDirPreservedMessage(final Path configDir) {
         return "-> Preserving plugin config files [" + configDir + "] in case of upgrade, delete manually if not needed";
     }

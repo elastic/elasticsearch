@@ -276,7 +276,6 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     } else {
                         source = new StoredScriptSource(id.substring(0, split), parser.text(), Collections.emptyMap());
                     }
-
                     scripts.put(id, source);
 
                     id = null;

@@ -127,7 +127,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         builder.startObject();
         writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");

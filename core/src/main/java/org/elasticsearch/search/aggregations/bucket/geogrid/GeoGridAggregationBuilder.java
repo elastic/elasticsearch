@@ -212,7 +212,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         private final ValuesSource.GeoPoint valuesSource;
         private final int precision;
 
-        public CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
+        CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
             this.valuesSource = valuesSource;
             //different GeoPoints could map to the same or different geohash cells.
             this.precision = precision;

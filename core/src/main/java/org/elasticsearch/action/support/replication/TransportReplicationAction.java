@@ -575,7 +575,7 @@ public abstract class TransportReplicationAction<
         private class ResponseListener implements ActionListener<TransportResponse.Empty> {
             private final ReplicaResponse replicaResponse;
 
-            public ResponseListener(ReplicaResponse replicaResponse) {
+            ResponseListener(ReplicaResponse replicaResponse) {
                 this.replicaResponse = replicaResponse;
             }
 

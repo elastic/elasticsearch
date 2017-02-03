@@ -40,7 +40,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final DoubleHistogram state;
     private final boolean keyed;
 
-    public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
+    AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);

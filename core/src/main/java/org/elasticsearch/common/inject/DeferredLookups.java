@@ -34,7 +34,7 @@ class DeferredLookups implements Lookups {
     private final InjectorImpl injector;
     private final List<Element> lookups = new ArrayList<>();
 
-    public DeferredLookups(InjectorImpl injector) {
+    DeferredLookups(InjectorImpl injector) {
         this.injector = injector;
     }
 

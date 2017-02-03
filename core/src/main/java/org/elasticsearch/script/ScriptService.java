@@ -389,7 +389,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 request.content().length() + "] for script [" + request.id() + "]");
         }
 
-        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content());
+        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content(), request.xContentType());
 
         if (isLangSupported(source.getLang()) == false) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");

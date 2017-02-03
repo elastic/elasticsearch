@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.ml.action.UpdateJobStateAction.Request;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-public class UpdateJobStatusRequestTests extends AbstractStreamableTestCase<Request> {
+public class UpdateJobStateRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class JobStatusTests extends ESTestCase {
+public class JobStateTests extends ESTestCase {
 
-    public void testForString() {
+    public void testFromString() {
         assertEquals(JobState.fromString("closed"), JobState.CLOSED);
         assertEquals(JobState.fromString("closing"), JobState.CLOSING);
         assertEquals(JobState.fromString("failed"), JobState.FAILED);

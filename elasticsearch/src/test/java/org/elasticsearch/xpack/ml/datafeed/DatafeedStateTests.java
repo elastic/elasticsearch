@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class DatafeedStatusTests extends ESTestCase {
+public class DatafeedStateTests extends ESTestCase {
 
-    public void testForString() {
+    public void testFromString() {
         assertEquals(DatafeedState.fromString("started"), DatafeedState.STARTED);
         assertEquals(DatafeedState.fromString("stopped"), DatafeedState.STOPPED);
     }

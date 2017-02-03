@@ -196,7 +196,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         private String line;
         private Exception exception;
 
-        public PipeReaderServer(String pipeName) {
+        PipeReaderServer(String pipeName) {
             this.pipeName = pipeName;
         }
 
@@ -235,7 +235,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         private String line;
         private Exception exception;
 
-        public PipeWriterServer(String pipeName, String line) {
+        PipeWriterServer(String pipeName, String line) {
             this.pipeName = pipeName;
             this.line = line;
         }

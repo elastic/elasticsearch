@@ -1,8 +1,5 @@
 ---
 "Create user and role":
-  - skip:
-        version: " - 6.0.0"
-        reason: Temporary until test issue is resolved
   - do:
      cluster.health:
         wait_for_status: green

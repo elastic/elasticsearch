@@ -342,7 +342,7 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
         private final PersistentActionRegistry.PersistentActionHolder<?> holder;
         private final ActionListener<Empty> listener;
 
-        public Execution(PersistentActionRequest request, PersistentTask task, PersistentActionRegistry.PersistentActionHolder<?> holder,
+        Execution(PersistentActionRequest request, PersistentTask task, PersistentActionRegistry.PersistentActionHolder<?> holder,
                          ActionListener<Empty> listener) {
             this.request = request;
             this.task = task;
@@ -354,7 +354,7 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
     private class MockExecutor extends PersistentActionExecutor {
         private List<Execution> executions = new ArrayList<>();
 
-        public MockExecutor() {
+        MockExecutor() {
             super(null);
         }
 

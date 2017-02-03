@@ -20,62 +20,24 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class XContentParserUtilsTests extends ESTestCase {
-
-    private XContentType xContentType;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        xContentType = randomFrom(XContentType.values());
-    }
-
-    public void testEnsureFieldName() throws IOException {
-        ParsingException e = expectThrows(ParsingException.class, () -> {
-            XContentParser parser = createParser(createBuilder().startObject().endObject().bytes());
+    public void testEnsureExpectedToken() throws IOException {
+        final XContentParser.Token randomToken = randomFrom(XContentParser.Token.values());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}")) {
             // Parser current token is null
             assertNull(parser.currentToken());
-            XContentParserUtils.ensureFieldName(parser.currentToken(), parser::getTokenLocation);
-        });
-        assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [null]"));
-
-        e = expectThrows(ParsingException.class, () -> {
-            XContentParser parser = createParser(createBuilder().startObject().field("foo", "bar").endObject().bytes());
-            // Parser next token is a start object
-            XContentParserUtils.ensureFieldName(parser.nextToken(), parser::getTokenLocation);
-        });
-        assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [START_OBJECT]"));
-
-        e = expectThrows(ParsingException.class, () -> {
-            XContentParser parser = createParser(createBuilder().startObject().field("foo", "bar").endObject().bytes());
-            // Moves to start object
-            assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-            // Expected field name is "foo", not "test"
-            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), "test");
-        });
-        assertThat(e.getMessage(), equalTo("Failed to parse object: expecting field with name [test] but found [foo]"));
-
-        // Everything is fine
-        final String randomFieldName = randomAsciiOfLength(5);
-        XContentParser parser = createParser(createBuilder().startObject().field(randomFieldName, 0).endObject().bytes());
-        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        XContentParserUtils.ensureFieldName(parser, parser.nextToken(), randomFieldName);
-    }
-
-    private XContentBuilder createBuilder() throws IOException {
-        return XContentBuilder.builder(xContentType.xContent());
-    }
-
-    private XContentParser createParser(BytesReference bytes) throws IOException {
-        return xContentType.xContent().createParser(bytes);
+            ParsingException e = expectThrows(ParsingException.class,
+                    () -> ensureExpectedToken(randomToken, parser.currentToken(), parser::getTokenLocation));
+            assertEquals("Failed to parse object: expecting token of type [" + randomToken + "] but found [null]", e.getMessage());
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        }
     }
 }

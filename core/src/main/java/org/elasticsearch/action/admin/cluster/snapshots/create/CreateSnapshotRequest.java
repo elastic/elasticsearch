@@ -42,7 +42,7 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -288,15 +288,31 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
-     * Sets repository-specific snapshot settings in JSON, YAML or properties format
+     * Sets repository-specific snapshot settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
      * @return this request
+     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public CreateSnapshotRequest settings(String source) {
         this.settings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets repository-specific snapshot settings in JSON or YAML format
+     * <p>
+     * See repository documentation for more information.
+     *
+     * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
+     * @return this request
+     */
+    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -312,7 +328,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -366,14 +382,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

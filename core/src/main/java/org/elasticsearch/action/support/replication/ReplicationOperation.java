@@ -202,7 +202,7 @@ public class ReplicationOperation<
                         shard,
                         replicaRequest),
                     replicaException);
-                if (ignoreReplicaException(replicaException)) {
+                if (TransportActions.isShardNotAvailableException(replicaException)) {
                     decPendingAndFinishIfNeeded();
                 } else {
                     RestStatus restStatus = ExceptionsHelper.status(replicaException);
@@ -283,7 +283,7 @@ public class ReplicationOperation<
     }
 
     private void decPendingAndFinishIfNeeded() {
-        assert pendingActions.get() > 0;
+        assert pendingActions.get() > 0 : "pending action count goes below 0 for request [" + request + "]";
         if (pendingActions.decrementAndGet() == 0) {
             finish();
         }
@@ -313,30 +313,6 @@ public class ReplicationOperation<
             resultListener.onFailure(exception);
         }
     }
-
-
-    /**
-     * Should an exception be ignored when the operation is performed on the replica.
-     */
-    public static boolean ignoreReplicaException(Exception e) {
-        if (TransportActions.isShardNotAvailableException(e)) {
-            return true;
-        }
-        // on version conflict or document missing, it means
-        // that a new change has crept into the replica, and it's fine
-        if (isConflictException(e)) {
-            return true;
-        }
-        return false;
-    }
-
-    public static boolean isConflictException(Throwable t) {
-        final Throwable cause = ExceptionsHelper.unwrapCause(t);
-        // on version conflict or document missing, it means
-        // that a new change has crept into the replica, and it's fine
-        return cause instanceof VersionConflictEngineException;
-    }
-
 
     public interface Primary<
                 Request extends ReplicationRequest<Request>,

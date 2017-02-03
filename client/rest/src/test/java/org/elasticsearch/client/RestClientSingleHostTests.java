@@ -34,10 +34,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
@@ -56,7 +58,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -70,7 +71,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -98,11 +98,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void createRestClient() throws IOException {
         httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+                any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
                     @Override
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                        HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
+                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                         //return the desired status code or exception depending on the path
                         if (request.getURI().getPath().equals("/soe")) {
@@ -131,9 +133,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     }
                 });
 
-
-        int numHeaders = randomIntBetween(0, 3);
-        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
+        defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         httpHost = new HttpHost("localhost", 9200);
         failureListener = new HostsTrackingFailureListener();
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
@@ -160,7 +160,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
             verify(httpClient, times(++times)).<HttpResponse>execute(requestArgumentCaptor.capture(),
-                    any(HttpAsyncResponseConsumer.class), any(FutureCallback.class));
+                    any(HttpAsyncResponseConsumer.class), any(HttpClientContext.class), any(FutureCallback.class));
             HttpUriRequest actualRequest = (HttpUriRequest)requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());
@@ -220,23 +220,45 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testErrorStatusCodes() throws IOException {
         for (String method : getHttpMethods()) {
+            Set<Integer> expectedIgnores = new HashSet<>();
+            String ignoreParam = "";
+            if (HttpHead.METHOD_NAME.equals(method)) {
+                expectedIgnores.add(404);
+            }
+            if (randomBoolean()) {
+                int numIgnores = randomIntBetween(1, 3);
+                for (int i = 0; i < numIgnores; i++) {
+                    Integer code = randomFrom(getAllErrorStatusCodes());
+                    expectedIgnores.add(code);
+                    ignoreParam += code;
+                    if (i < numIgnores - 1) {
+                        ignoreParam += ",";
+                    }
+                }
+            }
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
-                    Response response = performRequest(method, "/" + errorStatusCode);
-                    if (method.equals("HEAD") && errorStatusCode == 404) {
-                        //no exception gets thrown although we got a 404
-                        assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    Map<String, String> params;
+                    if (ignoreParam.isEmpty()) {
+                        params = Collections.emptyMap();
+                    } else {
+                        params = Collections.singletonMap("ignore", ignoreParam);
+                    }
+                    Response response = performRequest(method, "/" + errorStatusCode, params);
+                    if (expectedIgnores.contains(errorStatusCode)) {
+                        //no exception gets thrown although we got an error status code, as it was configured to be ignored
+                        assertEquals(errorStatusCode, response.getStatusLine().getStatusCode());
                     } else {
                         fail("request should have failed");
                     }
                 } catch(ResponseException e) {
-                    if (method.equals("HEAD") && errorStatusCode == 404) {
+                    if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
-                    assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    assertEquals(errorStatusCode, e.getResponse().getStatusLine().getStatusCode());
                 }
-                if (errorStatusCode <= 500) {
+                if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
                     failureListener.assertCalled(httpHost);
@@ -339,50 +361,40 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
-            final int numHeaders = randomIntBetween(1, 5);
-            final Header[] headers = generateHeaders("Header", null, numHeaders);
-            final Map<String, List<String>> expectedHeaders = new HashMap<>();
-
-            addHeaders(expectedHeaders, defaultHeaders, headers);
-
+            final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, headers);
+                esResponse = restClient.performRequest(method, "/" + statusCode, requestHeaders);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
-            for (Header responseHeader : esResponse.getHeaders()) {
-                final String name = responseHeader.getName();
-                final String value = responseHeader.getValue();
-                final List<String> values = expectedHeaders.get(name);
-                assertNotNull("found response header [" + name + "] that wasn't originally sent: " + value, values);
-                assertTrue("found incorrect response header [" + name + "]: " + value, values.remove(value));
-
-                // we've collected them all
-                if (values.isEmpty()) {
-                    expectedHeaders.remove(name);
-                }
-            }
-            assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
+            assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
         }
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {
         String uriAsString = "/" + randomStatusCode(getRandom());
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
-        Map<String, String> params = Collections.emptyMap();
+        final Map<String, String> params = new HashMap<>();
         boolean hasParams = randomBoolean();
         if (hasParams) {
             int numParams = randomIntBetween(1, 3);
-            params = new HashMap<>(numParams);
             for (int i = 0; i < numParams; i++) {
                 String paramKey = "param-" + i;
                 String paramValue = randomAsciiOfLengthBetween(3, 10);
                 params.put(paramKey, paramValue);
                 uriBuilder.addParameter(paramKey, paramValue);
             }
+        }
+        if (randomBoolean()) {
+            //randomly add some ignore parameter, which doesn't get sent as part of the request
+            String ignore = Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
+            if (randomBoolean()) {
+                ignore += "," + Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
+            }
+            params.put("ignore", ignore);
         }
         URI uri = uriBuilder.build();
 
@@ -424,10 +436,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
 
         Header[] headers = new Header[0];
-        final int numHeaders = randomIntBetween(1, 5);
-        final Set<String> uniqueNames = new HashSet<>(numHeaders);
+        final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
-            headers = generateHeaders("Header", "Header-array", numHeaders);
+            headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             for (Header header : headers) {
                 request.addHeader(header);
                 uniqueNames.add(header.getName());
@@ -455,16 +466,25 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        switch(randomIntBetween(0, 2)) {
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
+    }
+
+    private Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
+        int methodSelector;
+        if (params.isEmpty()) {
+            methodSelector = randomIntBetween(0, 2);
+        } else {
+            methodSelector = randomIntBetween(1, 2);
+        }
+        switch(methodSelector) {
             case 0:
                 return restClient.performRequest(method, endpoint, headers);
             case 1:
-                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
+                return restClient.performRequest(method, endpoint, params, headers);
             case 2:
-                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
+                return restClient.performRequest(method, endpoint, params, (HttpEntity)null, headers);
             default:
                 throw new UnsupportedOperationException();
         }
     }
-
 }

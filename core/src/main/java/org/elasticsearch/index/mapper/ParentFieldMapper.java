@@ -114,7 +114,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, FIELDDATA)) {
+                } else if (FIELDDATA.match(fieldName)) {
                     // for bw compat only
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
                     if (fieldDataSettings.containsKey("loading")) {
@@ -122,7 +122,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode, "eager_global_ordinals"));
                     iterator.remove();
                 }
             }
@@ -152,7 +152,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         final String documentType;
 
-        public ParentFieldType() {
+        ParentFieldType() {
             documentType = null;
             setEagerGlobalOrdinals(true);
         }

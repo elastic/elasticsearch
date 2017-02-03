@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,16 +54,13 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
-    private static final ParseFieldMatcher parseFieldMatcher = new ParseFieldMatcher(Settings.EMPTY);
-
     public static final String BLOB_CODEC = "blob";
 
-    private static class BlobObj implements ToXContent, FromXContentBuilder<BlobObj> {
-        public static final BlobObj PROTO = new BlobObj("");
+    private static class BlobObj implements ToXContent {
 
         private final String text;
 
-        public BlobObj(String text) {
+        BlobObj(String text) {
             this.text = text;
         }
 
@@ -73,8 +68,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
             return text;
         }
 
-        @Override
-        public BlobObj fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        public static BlobObj fromXContent(XContentParser parser) throws IOException {
             String text = null;
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
@@ -114,9 +108,12 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        ChecksumBlobStoreFormat<BlobObj> checksumJSON = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.JSON);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, XContentType.SMILE);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILECompressed = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, true, XContentType.SMILE);
+        ChecksumBlobStoreFormat<BlobObj> checksumJSON = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, XContentType.SMILE);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILECompressed = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), true, XContentType.SMILE);
 
         // Write blobs in different formats
         checksumJSON.write(new BlobObj("checksum json"), blobContainer, "check-json");
@@ -139,8 +136,10 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
         }
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, false, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, true, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), false, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), true, randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormatComp.write(blobObj, blobContainer, "blob-comp");
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp");
@@ -154,7 +153,8 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
         String testString = randomAsciiOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         checksumFormat.write(blobObj, blobContainer, "test-path");
         assertEquals(checksumFormat.read(blobContainer, "test-path").getText(), testString);
         randomCorruption(blobContainer, "test-path");
@@ -188,7 +188,8 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
                 return builder;
             }
         };
-        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj.PROTO, parseFieldMatcher, randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
+        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
+            xContentRegistry(), randomBoolean(), randomBoolean() ? XContentType.SMILE : XContentType.JSON);
         ExecutorService threadPool = Executors.newFixedThreadPool(1);
         try {
             Future<Void> future = threadPool.submit(new Callable<Void>() {

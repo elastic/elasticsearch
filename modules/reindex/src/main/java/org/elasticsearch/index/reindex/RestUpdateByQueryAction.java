@@ -22,15 +22,11 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,11 +39,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
-
-    @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller,
-            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
-        super(settings, searchRequestParsers, clusterService, UpdateByQueryAction.INSTANCE);
+    public RestUpdateByQueryAction(Settings settings, RestController controller) {
+        super(settings, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
@@ -69,7 +62,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
-        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o, parseFieldMatcher)));
+        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o)));
 
         parseInternalRequest(internal, request, consumers);
 
@@ -78,7 +71,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @SuppressWarnings("unchecked")
-    static Script parseScript(Map<String, Object> config, ParseFieldMatcher parseFieldMatcher) {
+    private static Script parseScript(Map<String, Object> config) {
         String script = null;
         ScriptType type = null;
         String lang = DEFAULT_SCRIPT_LANG;
@@ -87,33 +80,33 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             Map.Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
-            if (parseFieldMatcher.match(parameterName, Script.LANG_PARSE_FIELD)) {
+            if (Script.LANG_PARSE_FIELD.match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     lang = (String) parameterValue;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, Script.PARAMS_PARSE_FIELD)) {
+            } else if (Script.PARAMS_PARSE_FIELD.match(parameterName)) {
                 if (parameterValue instanceof Map || parameterValue == null) {
                     params = (Map<String, Object>) parameterValue;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.INLINE.getParseField())) {
+            } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.INLINE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.FILE.getParseField())) {
+            } else if (ScriptType.FILE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.FILE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.STORED.getParseField())) {
+            } else if (ScriptType.STORED.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.STORED;

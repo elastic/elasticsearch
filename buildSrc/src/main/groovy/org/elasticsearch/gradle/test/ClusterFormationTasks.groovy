@@ -39,6 +39,7 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
@@ -91,6 +92,8 @@ class ClusterFormationTasks {
                 configureBwcPluginDependency("${task.name}_elasticsearchBwcPlugins", project, entry.getValue(),
                         project.configurations.elasticsearchBwcPlugins, config.bwcVersion)
             }
+            project.configurations.elasticsearchBwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
+            project.configurations.elasticsearchBwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
         }
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
@@ -268,12 +271,12 @@ class ClusterFormationTasks {
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
+                'node.name'                    : "node-" + node.nodeNum,
                 'pidfile'                      : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test',
-                'repositories.url.allowed_urls': 'http://snapshot.test*'
+                'node.attr.testattr'           : 'test'
         ]
         // we set min master nodes to the total number of nodes in the cluster and
         // basically skip initial state recovery to allow the cluster to form using a realistic master election

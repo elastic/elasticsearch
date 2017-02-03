@@ -202,7 +202,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
             roles.add(DiscoveryNode.Role.DATA);
         }
 
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress,attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 
     /**

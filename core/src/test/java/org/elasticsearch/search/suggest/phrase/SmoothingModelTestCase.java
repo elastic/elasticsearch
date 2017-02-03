@@ -30,7 +30,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,8 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -84,7 +81,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     protected abstract SmoothingModel createMutation(SmoothingModel original) throws IOException;
 
-    protected abstract SmoothingModel fromXContent(QueryParseContext context) throws IOException;
+    protected abstract SmoothingModel fromXContent(XContentParser parser) throws IOException;
 
     /**
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
@@ -99,9 +96,8 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
         XContentParser parser = createParser(shuffleXContent(contentBuilder));
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
-        SmoothingModel parsedModel = fromXContent(context);
+        SmoothingModel parsedModel = fromXContent(parser);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());

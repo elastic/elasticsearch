@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -44,15 +45,15 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        client().prepareIndex("test", "type1", "1").setSource(source("1", "test")).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON).execute().actionGet();
         try {
-            client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
+            client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON)
                     .setWaitForActiveShards(2) // wait for 2 active shard copies
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [BulkShardRequest to [test] containing [1] requests]"));
             // but really, all is well
         }
 
@@ -70,18 +71,18 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // this should work, since we now have two
-        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
+        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(2)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
 
         try {
-            client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
+            client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON)
                     .setWaitForActiveShards(ActiveShardCount.ALL)
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request: [BulkShardRequest to [test] containing [1] requests]"));
             // but really, all is well
         }
 
@@ -92,7 +93,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // this should work, since we now have all shards started
-        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
+        client().prepareIndex("test", "type1", "1").setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
     }

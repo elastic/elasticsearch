@@ -90,7 +90,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     static final class TypeFieldType extends StringFieldType {
         private boolean fielddata;
 
-        public TypeFieldType() {
+        TypeFieldType() {
             this.fielddata = false;
         }
 

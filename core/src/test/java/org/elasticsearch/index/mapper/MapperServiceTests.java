@@ -20,9 +20,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -49,7 +51,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String index = "test-index";
         String type = ".test-type";
         String field = "field";
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -62,7 +64,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String field = "field";
         String type = new String(new char[256]).replace("\0", "a");
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        MapperException e = expectThrows(MapperException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -91,7 +93,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     public void testIndexIntoDefaultMapping() throws Throwable {
         // 1. test implicit index creation
         ExecutionException e = expectThrows(ExecutionException.class, () -> {
-            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}").execute().get();
+            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}", XContentType.JSON).execute().get();
         });
         Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
         if (throwable instanceof IllegalArgumentException) {
@@ -166,6 +168,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
         // back compat
         assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
     public void testMergeWithMap() throws Throwable {
@@ -173,16 +176,16 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
+        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
         MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
-        mappings.put("type1", MapperService.parseMapping("{}"));
+        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
 
         e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
 
@@ -206,9 +209,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
-            .startObject("norms")
-            .field("enabled", false)
-            .endObject()
+            .field("norms", false)
             .endObject()
             .endObject().endObject().bytes());
 
@@ -230,16 +231,42 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", false)
                 .endObject().endObject().bytes());
 
-        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertFalse(indexService.mapperService().allEnabled()); // _default_ does not count
+        Exception e = expectThrows(MapperParsingException.class,
+                () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
+                        MergeReason.MAPPING_UPDATE, random().nextBoolean()));
+        assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
+    }
 
-        indexService.mapperService().merge("some_type", enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled());
+     public void testPartitionedConstraints() {
+        // partitioned index must have routing
+         IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("type", "{\"type\":{}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
 
-        indexService.mapperService().merge("other_type", disabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
+        // partitioned index cannot have parent/child relationships
+        IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareCreate("test-index")
+                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}")
+                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
+                    .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 4)
+                        .put("index.routing_partition_size", 2))
+                    .execute().actionGet();
+        });
+        assertTrue(parentException.getMessage(), parentException.getMessage().contains("cannot have a _parent field"));
+
+        // valid partitioned index
+        assertTrue(client().admin().indices().prepareCreate("test-index")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 4)
+                .put("index.routing_partition_size", 2))
+            .execute().actionGet().isAcknowledged());
     }
 }

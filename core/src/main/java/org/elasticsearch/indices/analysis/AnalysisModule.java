@@ -60,6 +60,7 @@ import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintTokenFilterFactory;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.FrenchAnalyzerProvider;
 import org.elasticsearch.index.analysis.FrenchStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.GalicianAnalyzerProvider;
@@ -170,8 +171,9 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
         analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry());
+            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry());
     }
 
     HunspellService getHunspellService() {
@@ -225,6 +227,7 @@ public final class AnalysisModule {
         tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
+        tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);
         tokenFilters.register("keep", requriesAnalysisSettings(KeepWordFilterFactory::new));
         tokenFilters.register("keep_types", requriesAnalysisSettings(KeepTypesFilterFactory::new));
         tokenFilters.register("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
@@ -332,6 +335,13 @@ public final class AnalysisModule {
         analyzers.register("fingerprint", FingerprintAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
         return analyzers;
+    }
+
+    private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
+        NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
+        // TODO: provide built-in normalizer providers?
+        // TODO: pluggability?
+        return normalizers;
     }
 
     private static <T> AnalysisModule.AnalysisProvider<T> requriesAnalysisSettings(AnalysisModule.AnalysisProvider<T> provider) {

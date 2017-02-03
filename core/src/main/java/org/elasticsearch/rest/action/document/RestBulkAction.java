@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +60,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    @Inject
     public RestBulkAction(Settings settings, RestController controller) {
         super(settings);
 
@@ -95,7 +93,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields,
-            defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex);
+            defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
@@ -108,9 +106,7 @@ public class RestBulkAction extends BaseRestHandler {
                 builder.field(Fields.ERRORS, response.hasFailures());
                 builder.startArray(Fields.ITEMS);
                 for (BulkItemResponse itemResponse : response) {
-                    builder.startObject();
                     itemResponse.toXContent(builder, request);
-                    builder.endObject();
                 }
                 builder.endArray();
 

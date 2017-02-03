@@ -97,7 +97,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source", "_all"), doc);
+        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
 
     public void testExplicitEnabled() throws Exception {
@@ -114,7 +114,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .bytes());
 
-        assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source", "_all"), doc);
+        assertFieldNames(set("field", "field.keyword", "_uid", "_type", "_version", "_seq_no", "_primary_term", "_source"), doc);
     }
 
     public void testDisabled() throws Exception {
@@ -175,7 +175,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         private static class DummyFieldType extends TermBasedFieldType {
 
-            public DummyFieldType() {
+            DummyFieldType() {
                 super();
             }
 
@@ -237,9 +237,11 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
         };
-        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+        MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.getIndexAnalyzers(),
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), mapperService,
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
+                queryShardContext);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDocument = mapper.parse("index", "type", "id", new BytesArray("{}"));

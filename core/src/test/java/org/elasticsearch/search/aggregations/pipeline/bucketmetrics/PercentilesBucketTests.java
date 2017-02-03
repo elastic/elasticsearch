@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -44,20 +42,17 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
     }
 
     public void testPercentsFromMixedArray() throws Exception {
-        String content = XContentFactory.jsonBuilder()
+        XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-                .field("buckets_path", "test")
-                .array("percents", 0, 20.0, 50, 75.99)
-            .endObject()
-            .string();
+                .startObject("name")
+                    .startObject("percentiles_bucket")
+                        .field("buckets_path", "test")
+                        .array("percents", 0, 20.0, 50, 75.99)
+                    .endObject()
+                .endObject()
+            .endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-        parser.nextToken(); // skip object start
-
-        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
-            .parse("test", parseContext);
+        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) parse(createParser(content));
 
         assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
     }

@@ -26,21 +26,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.common.io.FileTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.uri.URLRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,6 +53,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -60,27 +62,19 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
+    private static Path repoPath;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (randomBoolean()) {
-            // Configure using path.repo
-            return Settings.builder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put(Environment.PATH_REPO_SETTING.getKey(), getBwcIndicesPath())
-                    .build();
-        } else {
-            // Configure using url white list
-            try {
-                URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
-                return Settings.builder()
-                        .put(super.nodeSettings(nodeOrdinal))
-                        .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
-                        .build();
-            } catch (URISyntaxException ex) {
-                throw new IllegalArgumentException(ex);
-            }
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Environment.PATH_REPO_SETTING.getKey(), repoPath)
+            .build();
+    }
 
-        }
+    @BeforeClass
+    public static void repoSetup() throws IOException {
+        repoPath = createTempDir("repositories");
     }
 
     public void testRestoreOldSnapshots() throws Exception {
@@ -150,13 +144,14 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRepo(String prefix, String version, String repo) throws Exception {
-        Path repoFile = getBwcIndicesPath().resolve(prefix + "-" + version + ".zip");
-        URI repoFileUri = repoFile.toUri();
-        URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
+        Path repoFileFromBuild = getBwcIndicesPath().resolve(prefix + "-" + version + ".zip");
+        String repoFileName = repoFileFromBuild.getFileName().toString().split(".zip")[0];
+        Path fsRepoPath = repoPath.resolve(repoFileName);
+        FileTestUtils.unzip(repoFileFromBuild, fsRepoPath, null);
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)
-                .setType("url").setSettings(Settings.builder()
-                        .put("url", repoJarUri.toString())));
+            .setType(MockRepository.TYPE).setSettings(Settings.builder()
+                .put(FsRepository.REPOSITORIES_LOCATION_SETTING.getKey(), fsRepoPath.getParent().relativize(fsRepoPath).resolve("repo").toString())));
     }
 
     private void testOldSnapshot(String version, String repo, String snapshot) throws IOException {
@@ -189,7 +184,15 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         assertThat(template.patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
-        assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
+        assertThat(template.mappings().get("type1").string(),
+            anyOf(
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"false\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"0\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":0}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"off\"}}}"),
+                equalTo("{\"type1\":{\"_source\":{\"enabled\":\"no\"}}}")
+            ));
         assertThat(template.aliases().size(), equalTo(3));
         assertThat(template.aliases().get("alias1"), notNullValue());
         assertThat(template.aliases().get("alias2").filter().string(), containsString(version));

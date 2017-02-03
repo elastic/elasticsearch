@@ -21,10 +21,13 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
@@ -62,7 +65,14 @@ public final class AliasFilter implements Writeable {
         if (reparseAliases) {
             // we are processing a filter received from a 5.0 node - we need to reparse this on the executing node
             final IndexMetaData indexMetaData = context.getIndexSettings().getIndexMetaData();
-            return ShardSearchRequest.parseAliasFilter(context::newParseContext, indexMetaData, aliases);
+            /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
+             * of dependencies we pass in a function that can perform the parsing. */
+            CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
+                try (XContentParser parser = XContentFactory.xContent(bytes).createParser(context.getXContentRegistry(), bytes)) {
+                    return context.newParseContext(parser).parseInnerQueryBuilder();
+                }
+            };
+            return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases);
         }
         return filter;
     }
@@ -117,5 +127,14 @@ public final class AliasFilter implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(aliases, filter, reparseAliases);
+    }
+
+    @Override
+    public String toString() {
+        return "AliasFilter{" +
+            "aliases=" + Arrays.toString(aliases) +
+            ", filter=" + filter +
+            ", reparseAliases=" + reparseAliases +
+            '}';
     }
 }

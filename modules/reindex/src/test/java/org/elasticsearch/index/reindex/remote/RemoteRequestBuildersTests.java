@@ -152,20 +152,29 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(params, scroll == null ? not(hasKey("scroll")) : hasEntry("scroll", scroll.toString()));
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
-        assertThat(params, hasEntry("_source", "true"));
     }
 
     public void testInitialSearchEntity() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
         String query = "{\"match_all\":{}}";
-        HttpEntity entity = initialSearchEntity(new BytesArray(query));
+        HttpEntity entity = initialSearchEntity(searchRequest, new BytesArray(query));
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals("{\"query\":" + query + "}",
+        assertEquals("{\"query\":" + query + ",\"_source\":true}",
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+
+        // Source filtering is included if set up
+        searchRequest.source().fetchSource(new String[] {"in1", "in2"}, new String[] {"out"});
+        entity = initialSearchEntity(searchRequest, new BytesArray(query));
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertEquals("{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
                 Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
-        RuntimeException e = expectThrows(RuntimeException.class, () -> initialSearchEntity(new BytesArray("{}, \"trailing\": {}")));
+        RuntimeException e = expectThrows(RuntimeException.class,
+                () -> initialSearchEntity(searchRequest, new BytesArray("{}, \"trailing\": {}")));
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
-        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(new BytesArray("{")));
+        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(searchRequest, new BytesArray("{")));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
@@ -177,7 +186,8 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testScrollEntity() throws IOException {
         String scroll = randomAsciiOfLength(30);
         HttpEntity entity = scrollEntity(scroll);
-        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
-        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
+            containsString("\"" + scroll + "\""));
     }
 }

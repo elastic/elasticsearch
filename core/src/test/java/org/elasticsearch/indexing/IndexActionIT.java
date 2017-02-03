@@ -257,21 +257,7 @@ public class IndexActionIT extends ESIntegTestCase {
             }
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
-        assertThat(e.getRootCause().getMessage(), containsString("name cannot be empty string"));
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class); // uses index.version.created
-    }
-
-    public void testDocumentWithBlankFieldName2x() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_4);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("test1").setSettings(settings));
-        ensureGreen();
-
-        IndexResponse indexResponse = client().prepareIndex("test1", "type", "1").setSource("", "value1_2").execute().actionGet();
-        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        assertThat(e.getRootCause().getMessage(),
+                containsString("object field starting or ending with a [.] makes object resolution ambiguous: []"));
     }
 }

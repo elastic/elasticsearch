@@ -19,22 +19,21 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotShardsService;
+import org.elasticsearch.snapshots.SnapshotsService;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.repositories.uri.URLRepository;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -43,13 +42,12 @@ public class RepositoriesModule extends AbstractModule {
 
     private final Map<String, Repository.Factory> repositoryTypes;
 
-    public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins) {
+    public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins, NamedXContentRegistry namedXContentRegistry) {
         Map<String, Repository.Factory> factories = new HashMap<>();
-        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env));
-        factories.put(URLRepository.TYPE, (metadata) -> new URLRepository(metadata, env));
+        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env, namedXContentRegistry));
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env);
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env, namedXContentRegistry);
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Repository type [" + entry.getKey() + "] is already registered");

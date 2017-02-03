@@ -35,4 +35,7 @@ grant {
   permission javax.security.auth.AuthPermission "getSubject";
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+
+  // hdfs client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
 };

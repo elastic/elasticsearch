@@ -35,3 +35,48 @@ DeleteResponse response = client.prepareDelete("twitter", "tweet", "1")
         .setOperationThreaded(false)
         .get();
 --------------------------------------------------
+
+[[java-docs-delete-by-query]]
+=== Delete By Query API
+
+The delete by query API allows one to delete a given set of documents based on
+the result of a query:
+
+[source,java]
+--------------------------------------------------
+BulkIndexByScrollResponse response =
+    DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
+        .filter(QueryBuilders.matchQuery("gender", "male")) <1>
+        .source("persons")                                  <2>
+        .get();                                             <3>
+
+long deleted = response.getDeleted();                       <4>
+--------------------------------------------------
+<1> query
+<2> index
+<3> execute the operation
+<4> number of deleted documents
+
+As it can be a long running operation, if you wish to do it asynchronously, you can call `execute` instead of `get`
+and provide a listener like:
+
+[source,java]
+--------------------------------------------------
+DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
+    .filter(QueryBuilders.matchQuery("gender", "male"))                  <1>
+    .source("persons")                                                   <2>
+    .execute(new ActionListener<BulkIndexByScrollResponse>() {           <3>
+        @Override
+        public void onResponse(BulkIndexByScrollResponse response) {
+            long deleted = response.getDeleted();                        <4>
+        }
+        @Override
+        public void onFailure(Exception e) {
+            // Handle the exception
+        }
+    });
+--------------------------------------------------
+<1> query
+<2> index
+<3> listener
+<4> number of deleted documents

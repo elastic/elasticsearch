@@ -1,6 +1,8 @@
 [[mapping-all-field]]
 === `_all` field
 
+deprecated[6.0.0, `_all` may no longer be enabled for indices created in 6.0+, use a custom field and the mapping `copy_to` parameter]
+
 The `_all` field is a special _catch-all_ field which concatenates the values
 of all of the other fields into one big string, using space as a delimiter, which is then
 <<analysis,analyzed>> and indexed, but not stored.  This means that it can be
@@ -12,24 +14,37 @@ started with a new dataset. For instance:
 
 [source,js]
 --------------------------------
-PUT my_index/user/1 <1>
+PUT /my_index
+{
+  "mapping": {
+    "user": {
+      "_all": {
+        "enabled": true   <1>
+      }
+    }
+  }
+}
+
+PUT /my_index/user/1      <2>
 {
   "first_name":    "John",
   "last_name":     "Smith",
   "date_of_birth": "1970-10-24"
 }
 
-GET my_index/_search
+GET /my_index/_search
 {
   "query": {
     "match": {
-      "_all": "john smith new york"
+      "_all": "john smith 1970"
     }
   }
 }
 --------------------------------
+// TEST[skip:_all is no longer allowed]
 // CONSOLE
-<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
+<1> Enabling the `_all` field
+<2> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
 
 [NOTE]
 .All values treated as strings
@@ -56,15 +71,16 @@ and long fields (less relevant). For use cases where search relevance is
 important, it is better to query individual fields specifically.
 
 The `_all` field is not free: it requires extra CPU cycles and uses more disk
-space. If not needed, it can be completely <<disabling-all-field,disabled>> or
-customised on a <<include-in-all,per-field basis>>.
+space. For this reason, it is disabled by default. If not needed, it can be
+<<enabling-all-field,enabled>> or customised on a <<include-in-all,per-field
+basis>>.
 
 [[querying-all-field]]
 ==== Using the `_all` field in queries
 
 The <<query-dsl-query-string-query,`query_string`>> and
-<<query-dsl-simple-query-string-query,`simple_query_string`>> queries query
-the `_all` field by default, unless another field is specified:
+<<query-dsl-simple-query-string-query,`simple_query_string`>> queries query the
+`_all` field by default if it is enabled, unless another field is specified:
 
 [source,js]
 --------------------------------
@@ -88,15 +104,13 @@ GET _search?q=john+smith+new+york
 --------------------------------
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and
-<<query-dsl-term-query,`term`>> queries require you to specify
-the `_all` field explicitly, as per the
-<<mapping-all-field,first example>>.
+<<query-dsl-term-query,`term`>> queries require you to specify the `_all` field
+explicitly, as per the <<mapping-all-field,first example>>.
 
-[[disabling-all-field]]
-==== Disabling the `_all` field
+[[enabling-all-field]]
+==== Enabling the `_all` field
 
-The `_all` field can be completely disabled per-type by setting `enabled` to
-`false`:
+The `_all` field can be enabled per-type by setting `enabled` to `true`:
 
 [source,js]
 --------------------------------
@@ -108,23 +122,24 @@ PUT my_index
     },
     "type_2": { <2>
       "_all": {
-        "enabled": false
+        "enabled": true
       },
       "properties": {...}
     }
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[s/\.\.\.//]
+// TEST[skip:_all is no longer allowed]
+// CONSOLE
 
-<1> The `_all` field in `type_1` is enabled.
-<2> The `_all` field in `type_2` is completely disabled.
+<1> The `_all` field in `type_1` is disabled.
+<2> The `_all` field in `type_2` is enabled.
 
-If the `_all` field is disabled, then URI search requests and the
-`query_string` and `simple_query_string` queries will not be able to use it
-for queries (see <<querying-all-field>>).  You can configure them to use a
-different field with the `index.query.default_field` setting:
+If the `_all` field is enabled, then URI search requests and the `query_string`
+and `simple_query_string` queries can automatically use it for queries (see
+<<querying-all-field>>). You can configure them to use a different field with
+the `index.query.default_field` setting:
 
 [source,js]
 --------------------------------
@@ -132,9 +147,6 @@ PUT my_index
 {
   "mappings": {
     "my_type": {
-      "_all": {
-        "enabled": false <1>
-      },
       "properties": {
         "content": {
           "type": "text"
@@ -143,14 +155,13 @@ PUT my_index
     }
   },
   "settings": {
-    "index.query.default_field": "content" <2>
+    "index.query.default_field": "content" <1>
   }
 }
 --------------------------------
 // CONSOLE
 
-<1> The `_all` field is disabled for the `my_type` type.
-<2> The `query_string` query will default to querying the `content` field in this index.
+<1> The `query_string` query will default to querying the `content` field in this index.
 
 [[excluding-from-all]]
 ==== Excluding fields from `_all`
@@ -171,6 +182,7 @@ PUT myindex
 {
   "mappings": {
     "mytype": {
+      "_all": {"enabled": true},
       "properties": {
         "title": { <1>
           "type": "text",
@@ -184,6 +196,7 @@ PUT myindex
   }
 }
 --------------------------------
+// TEST[skip:_all is no longer allowed]
 // CONSOLE
 
 <1> When querying the `_all` field, words that originated in the
@@ -252,8 +265,8 @@ A field can only be used for <<search-request-highlighting,highlighting>>  if
 the original string value is available, either from the
 <<mapping-source-field,`_source`>>  field or as a stored field.
 
-The `_all` field is not present in the `_source` field and it is not stored by
-default, and so cannot be highlighted. There are two options. Either
+The `_all` field is not present in the `_source` field and it is not stored or
+enabled by default, and so cannot be highlighted. There are two options. Either
 <<all-field-store,store the `_all` field>> or highlight the
 <<all-highlight-fields,original fields>>.
 
@@ -270,6 +283,7 @@ PUT myindex
   "mappings": {
     "mytype": {
       "_all": {
+        "enabled": true,
         "store": true
       }
     }
@@ -296,11 +310,12 @@ GET _search
   }
 }
 --------------------------------
+// TEST[skip:_all is no longer allowed]
 // CONSOLE
 
-Of course, storing the `_all` field will use significantly more disk space
-and, because it is a combination of other fields, it may result in odd
-highlighting results.
+Of course, enabling and storing the `_all` field will use significantly more
+disk space and, because it is a combination of other fields, it may result in
+odd highlighting results.
 
 The `_all` field also accepts the `term_vector` and `index_options`
 parameters, allowing the use of the fast vector highlighter and the postings
@@ -317,7 +332,7 @@ PUT myindex
 {
   "mappings": {
     "mytype": {
-      "_all": {}
+      "_all": {"enabled": true}
     }
   }
 }
@@ -344,6 +359,7 @@ GET _search
   }
 }
 --------------------------------
+// TEST[skip:_all is no longer allowed]
 // CONSOLE
 
 <1> The query inspects the `_all` field to find matching documents.

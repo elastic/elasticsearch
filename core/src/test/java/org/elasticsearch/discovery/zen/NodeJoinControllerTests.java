@@ -117,8 +117,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
             DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY), new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
+            new ElectMasterService(Settings.EMPTY), Settings.EMPTY);
     }
 
     @After

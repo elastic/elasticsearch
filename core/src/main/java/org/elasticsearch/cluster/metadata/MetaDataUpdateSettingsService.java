@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,12 +67,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.clusterService.addListener(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
@@ -180,7 +184,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -214,7 +218,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             closeIndices
                     ));
                 }
-                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s",
                             skippedSettigns.getAsMap().keySet(),
@@ -290,6 +294,10 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         });
     }
 
+    private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
+        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
+    }
+
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
@@ -308,9 +316,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-
-        clusterService.submitStateUpdateTask("update-index-compatibility-versions", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        clusterService.submitStateUpdateTask("update-index-compatibility-versions",
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, wrapPreservingContext(listener)) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {

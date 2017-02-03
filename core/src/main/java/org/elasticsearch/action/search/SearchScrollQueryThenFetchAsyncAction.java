@@ -36,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -168,45 +169,50 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void executeFetchPhase() throws Exception {
         sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
-        AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
-
-        if (docIdsToLoad.asList().isEmpty()) {
+        if (sortedShardDocs.length == 0) {
             finishHim();
             return;
         }
 
-
+        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
         final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
             sortedShardDocs, queryResults.length());
-        final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
-        for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-            IntArrayList docIds = entry.value;
-            final QuerySearchResult querySearchResult = queryResults.get(entry.index);
-            ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-            ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
-            DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
-            searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
-                @Override
-                public void onResponse(FetchSearchResult result) {
-                    result.shardTarget(querySearchResult.shardTarget());
-                    fetchResults.set(entry.index, result);
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
+        final AtomicInteger counter = new AtomicInteger(docIdsToLoad.length);
+        for (int i = 0; i < docIdsToLoad.length; i++) {
+            final int index = i;
+            final IntArrayList docIds = docIdsToLoad[index];
+            if (docIds != null) {
+                final QuerySearchResult querySearchResult = queryResults.get(index);
+                ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
+                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
+                DiscoveryNode node = nodes.get(querySearchResult.shardTarget().getNodeId());
+                searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
+                    @Override
+                    public void onResponse(FetchSearchResult result) {
+                        result.shardTarget(querySearchResult.shardTarget());
+                        fetchResults.set(index, result);
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute fetch phase", t);
+                    @Override
+                    public void onFailure(Exception t) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Failed to execute fetch phase", t);
+                        }
+                        successfulOps.decrementAndGet();
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
                     }
-                    successfulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                });
+            } else {
+                // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
+                if (counter.decrementAndGet() == 0) {
+                    finishHim();
                 }
-            });
+            }
         }
     }
 

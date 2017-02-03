@@ -267,10 +267,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
-        public Settings() {
+        Settings() {
         }
 
-        public Settings(Settings other) {
+        Settings(Settings other) {
             this.lenient = other.lenient;
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;

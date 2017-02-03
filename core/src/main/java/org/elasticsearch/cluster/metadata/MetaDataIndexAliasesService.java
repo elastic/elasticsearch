@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -64,18 +65,17 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final MetaDataDeleteIndexService deleteIndexService;
 
+    private final NamedXContentRegistry xContentRegistry;
+
     @Inject
-    public MetaDataIndexAliasesService(
-        Settings settings,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        AliasValidator aliasValidator,
-        MetaDataDeleteIndexService deleteIndexService) {
+    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
+            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
         this.deleteIndexService = deleteIndexService;
+        this.xContentRegistry = xContentRegistry;
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
@@ -141,21 +141,18 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
                                     indexService = indicesService.createIndex(index, emptyList(), shardId -> {});
+                                    indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
-                                for (ObjectCursor<MappingMetaData> cursor : index.getMappings().values()) {
-                                    MappingMetaData mappingMetaData = cursor.value;
-                                    indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(),
-                                        MapperService.MergeReason.MAPPING_RECOVERY, false);
-                                }
-                                indicesToClose.add(index.getIndex());
+                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY, false);
                             }
                             indices.put(action.getIndex(), indexService);
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                         // timestamp
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L));
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L),
+                                xContentRegistry);
                     }
                 };
                 changed |= action.apply(newAliasValidator, metadata, index);

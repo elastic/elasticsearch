@@ -19,13 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -43,19 +41,17 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ConstructingObjectParserTests extends ESTestCase {
-    private static final ParseFieldMatcherSupplier MATCHER = () -> ParseFieldMatcher.STRICT;
-
     public void testNullDeclares() {
-        ConstructingObjectParser<Void, ParseFieldMatcherSupplier> objectParser = new ConstructingObjectParser<>("foo", a -> null);
+        ConstructingObjectParser<Void, Void> objectParser = new ConstructingObjectParser<>("foo", a -> null);
         Exception e = expectThrows(IllegalArgumentException.class,
                 () -> objectParser.declareField(null, (r, c) -> null, new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[consumer] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (ContextParser<ParseFieldMatcherSupplier, Object>) null,
+                (o, v) -> {}, (ContextParser<Void, Object>) null,
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (NoContextParser<Object>) null,
+                (o, v) -> {}, (CheckedFunction<XContentParser, Object, IOException>) null,
                 new ParseField("test"), ObjectParser.ValueType.STRING));
         assertEquals("[parser] is required", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
@@ -82,7 +78,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         builder = shuffleXContent(builder);
         BytesReference bytes = builder.bytes();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
-            HasCtorArguments parsed = randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER);
+            HasCtorArguments parsed = randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null);
             assertEquals(expected.animal, parsed.animal);
             assertEquals(expected.vegetable, parsed.vegetable);
             assertEquals(expected.mineral, parsed.mineral);
@@ -102,9 +98,9 @@ public class ConstructingObjectParserTests extends ESTestCase {
                   "{\n"
                 + "  \"mineral\": 1\n"
                 + "}");
-        ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> objectParser = randomBoolean() ? HasCtorArguments.PARSER
+        ConstructingObjectParser<HasCtorArguments, Void> objectParser = randomBoolean() ? HasCtorArguments.PARSER
                 : HasCtorArguments.PARSER_VEGETABLE_OPTIONAL;
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, MATCHER));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
         if (objectParser == HasCtorArguments.PARSER) {
             assertEquals("Required [animal, vegetable]", e.getMessage());
         } else {
@@ -117,7 +113,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 "{\n"
               + "  \"mineral\": 1\n"
               + "}");
-        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, MATCHER);
+        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
         assertEquals(1, parsed.mineral);
     }
 
@@ -128,7 +124,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"animal\": \"cat\"\n"
                 + "}");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> HasCtorArguments.PARSER.apply(parser, MATCHER));
+                () -> HasCtorArguments.PARSER.apply(parser, null));
         assertEquals("Required [vegetable]", e.getMessage());
     }
 
@@ -140,7 +136,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
               + "}");
         @SuppressWarnings("unchecked")
         HasCtorArguments parsed = randomFrom(HasCtorArguments.PARSER_VEGETABLE_OPTIONAL, HasCtorArguments.PARSER_ALL_OPTIONAL).apply(parser,
-                MATCHER);
+                null);
         assertEquals(1, parsed.mineral);
         assertEquals("cat", parsed.animal);
     }
@@ -153,7 +149,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "}");
         @SuppressWarnings("unchecked")
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> randomFrom(HasCtorArguments.PARSER, HasCtorArguments.PARSER_VEGETABLE_OPTIONAL).apply(parser, MATCHER));
+                () -> randomFrom(HasCtorArguments.PARSER, HasCtorArguments.PARSER_VEGETABLE_OPTIONAL).apply(parser, null));
         assertEquals("Required [animal]", e.getMessage());
     }
 
@@ -163,7 +159,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
               + "  \"mineral\": 1,\n"
               + "  \"vegetable\": 2\n"
               + "}");
-        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, MATCHER);
+        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
         assertEquals(1, parsed.mineral);
         assertEquals((Integer) 2, parsed.vegetable);
     }
@@ -176,7 +172,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"vegetable\": 1,\n"
                 + "  \"vegetable\": 2\n"
                 + "}");
-        Throwable e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER));
+        Throwable e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
         assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
         e = e.getCause();
         assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -190,7 +186,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"vegetable\": 2,\n"
                 + "  \"a\": \"supercalifragilisticexpialidocious\"\n"
                 + "}");
-        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER));
+        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
         assertEquals("[has_required_arguments] failed to parse field [a]", e.getMessage());
         assertEquals(4, e.getLineNumber());
         assertEquals("[a] must be less than 10 characters in length but was [supercalifragilisticexpialidocious]",
@@ -204,7 +200,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"animal\": \"cat\"\n,"
                 + "  \"vegetable\": 2\n"
                 + "}");
-        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER));
+        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
         assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
         assertEquals(4, e.getLineNumber());
         e = (ParsingException) e.getCause();
@@ -220,7 +216,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testConstructorArgsMustBeConfigured() throws IOException {
         class NoConstructorArgs {
         }
-        ConstructingObjectParser<NoConstructorArgs, ParseFieldMatcherSupplier> parser = new ConstructingObjectParser<>(
+        ConstructingObjectParser<NoConstructorArgs, Void> parser = new ConstructingObjectParser<>(
                 "constructor_args_required", (a) -> new NoConstructorArgs());
         try {
             parser.apply(createParser(JsonXContent.jsonXContent, "{}"), null);
@@ -237,7 +233,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testCalledOneTime() throws IOException {
         boolean ctorArgOptional = randomBoolean();
         class CalledOneTime {
-            public CalledOneTime(String yeah) {
+            CalledOneTime(String yeah) {
                 Matcher<String> yeahMatcher = equalTo("!");
                 if (ctorArgOptional) {
                     // either(yeahMatcher).or(nullValue) is broken by https://github.com/hamcrest/JavaHamcrest/issues/49
@@ -252,7 +248,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 fooSet = true;
             }
         }
-        ConstructingObjectParser<CalledOneTime, ParseFieldMatcherSupplier> parser = new ConstructingObjectParser<>("one_time_test",
+        ConstructingObjectParser<CalledOneTime, Void> parser = new ConstructingObjectParser<>("one_time_test",
                 (a) -> new CalledOneTime((String) a[0]));
         parser.declareString(CalledOneTime::setFoo, new ParseField("foo"));
         parser.declareString(ctorArgOptional ? optionalConstructorArg() : constructorArg(), new ParseField("yeah"));
@@ -263,7 +259,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
               + "  \"yeah\": \"!\",\n"
               + "  \"foo\": \"foo\"\n"
               + "}");
-        CalledOneTime result = parser.apply(xcontent, MATCHER);
+        CalledOneTime result = parser.apply(xcontent, null);
         assertTrue(result.fooSet);
 
         // and ctor arg second just in case
@@ -272,7 +268,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
               + "  \"foo\": \"foo\",\n"
               + "  \"yeah\": \"!\"\n"
               + "}");
-        result = parser.apply(xcontent, MATCHER);
+        result = parser.apply(xcontent, null);
         assertTrue(result.fooSet);
 
         if (ctorArgOptional) {
@@ -281,7 +277,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                     "{\n"
                   + "  \"foo\": \"foo\"\n"
                   + "}");
-            result = parser.apply(xcontent, MATCHER);
+            result = parser.apply(xcontent, null);
         }
         assertTrue(result.fooSet);
     }
@@ -294,14 +290,14 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "}");
         class TestStruct {
             public final String test;
-            public TestStruct(String test) {
+            TestStruct(String test) {
                 this.test = test;
             }
         }
-        ConstructingObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ConstructingObjectParser<>("foo", true, a ->
+        ConstructingObjectParser<TestStruct, Void> objectParser = new ConstructingObjectParser<>("foo", true, a ->
                 new TestStruct((String) a[0]));
         objectParser.declareString(constructorArg(), new ParseField("test"));
-        TestStruct s = objectParser.apply(parser, MATCHER);
+        TestStruct s = objectParser.apply(parser, null);
         assertEquals(s.test, "foo");
     }
 
@@ -317,7 +313,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         String c;
         boolean d;
 
-        public HasCtorArguments(@Nullable String animal, @Nullable Integer vegetable) {
+        HasCtorArguments(@Nullable String animal, @Nullable Integer vegetable) {
             this.animal = animal;
             this.vegetable = vegetable;
         }
@@ -380,17 +376,15 @@ public class ConstructingObjectParserTests extends ESTestCase {
          * It is normal just to declare a single PARSER but we use a couple of different parsers for testing so we have all of these. Don't
          * this this style is normal just because it is in the test.
          */
-        public static final ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> PARSER = buildParser(true, true);
-        public static final ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> PARSER_VEGETABLE_OPTIONAL = buildParser(
-                true, false);
-        public static final ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> PARSER_ALL_OPTIONAL = buildParser(false,
-                false);
-        public static final List<ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier>> ALL_PARSERS = unmodifiableList(
+        public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER = buildParser(true, true);
+        public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER_VEGETABLE_OPTIONAL = buildParser(true, false);
+        public static final ConstructingObjectParser<HasCtorArguments, Void> PARSER_ALL_OPTIONAL = buildParser(false, false);
+        public static final List<ConstructingObjectParser<HasCtorArguments, Void>> ALL_PARSERS = unmodifiableList(
                 Arrays.asList(PARSER, PARSER_VEGETABLE_OPTIONAL, PARSER_ALL_OPTIONAL));
 
-        private static ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> buildParser(boolean animalRequired,
+        private static ConstructingObjectParser<HasCtorArguments, Void> buildParser(boolean animalRequired,
                 boolean vegetableRequired) {
-            ConstructingObjectParser<HasCtorArguments, ParseFieldMatcherSupplier> parser = new ConstructingObjectParser<>(
+            ConstructingObjectParser<HasCtorArguments, Void> parser = new ConstructingObjectParser<>(
                     "has_required_arguments", a -> new HasCtorArguments((String) a[0], (Integer) a[1]));
             parser.declareString(animalRequired ? constructorArg() : optionalConstructorArg(), new ParseField("animal"));
             parser.declareInt(vegetableRequired ? constructorArg() : optionalConstructorArg(), new ParseField("vegetable"));

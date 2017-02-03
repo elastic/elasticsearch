@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,25 +32,27 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContent {
+public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
 
-    public static class AnalyzeToken implements Streamable, ToXContent {
+    public static class AnalyzeToken implements Streamable, ToXContentObject {
         private String term;
         private int startOffset;
         private int endOffset;
         private int position;
+        private int positionLength = 1;
         private Map<String, Object> attributes;
         private String type;
 
         AnalyzeToken() {
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, String type,
-                            Map<String, Object> attributes) {
+        public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
+                            String type, Map<String, Object> attributes) {
             this.term = term;
             this.position = position;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
+            this.positionLength = positionLength;
             this.type = type;
             this.attributes = attributes;
         }
@@ -71,6 +73,10 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return this.position;
         }
 
+        public int getPositionLength() {
+            return this.positionLength;
+        }
+
         public String getType() {
             return this.type;
         }
@@ -87,6 +93,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             builder.field(Fields.END_OFFSET, endOffset);
             builder.field(Fields.TYPE, type);
             builder.field(Fields.POSITION, position);
+            if (positionLength > 1) {
+                builder.field(Fields.POSITION_LENGTH, positionLength);
+            }
             if (attributes != null && !attributes.isEmpty()) {
                 for (Map.Entry<String, Object> entity : attributes.entrySet()) {
                     builder.field(entity.getKey(), entity.getValue());
@@ -108,6 +117,14 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                Integer len = in.readOptionalVInt();
+                if (len != null) {
+                    positionLength = len;
+                } else {
+                    positionLength = 1;
+                }
+            }
             type = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
                 attributes = (Map<String, Object>) in.readGenericValue();
@@ -120,6 +137,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
+            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
+            }
             out.writeOptionalString(type);
             if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
                 out.writeGenericValue(attributes);
@@ -154,6 +174,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (tokens != null) {
             builder.startArray(Fields.TOKENS);
             for (AnalyzeToken token : tokens) {
@@ -167,6 +188,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             detail.toXContent(builder, params);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 
@@ -206,6 +228,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         static final String END_OFFSET = "end_offset";
         static final String TYPE = "type";
         static final String POSITION = "position";
+        static final String POSITION_LENGTH = "positionLength";
         static final String DETAIL = "detail";
     }
 }

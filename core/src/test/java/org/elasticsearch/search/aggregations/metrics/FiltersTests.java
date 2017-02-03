@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -89,8 +87,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser,
-            ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", context);
         // The other bucket is disabled by default
         assertFalse(filters.otherBucket());
@@ -102,7 +99,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+        context = new QueryParseContext(parser);
         filters = FiltersAggregationBuilder.parse("agg_name", context);
         // but setting a key enables it automatically
         assertTrue(filters.otherBucket());
@@ -115,7 +112,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+        context = new QueryParseContext(parser);
         filters = FiltersAggregationBuilder.parse("agg_name", context);
         // unless the other bucket is explicitly disabled
         assertFalse(filters.otherBucket());

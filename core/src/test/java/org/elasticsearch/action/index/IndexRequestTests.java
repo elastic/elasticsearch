@@ -18,17 +18,24 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -83,19 +90,19 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexingRejectsLongIds() {
         String id = randomAsciiOfLength(511);
         IndexRequest request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(512);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(513);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
@@ -147,7 +154,52 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
                 ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
-                ",shards={\"_shards\":{\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}}]",
+                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
                 indexResponse.toString());
+    }
+
+    public void testIndexRequestXContentSerialization() throws IOException {
+        IndexRequest indexRequest = new IndexRequest("foo", "bar", "1");
+        indexRequest.source("{}", XContentType.JSON);
+        assertEquals(XContentType.JSON, indexRequest.getContentType());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        indexRequest.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        IndexRequest serialized = new IndexRequest();
+        serialized.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getContentType());
+        assertEquals(new BytesArray("{}"), serialized.source());
+    }
+
+    public void testIndexRequestXContentSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AAD////+AgQDZm9vAAAAAQNiYXIBATEAAAAAAnt9AP/////////9AAAA//////////8AAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            IndexRequest serialized = new IndexRequest();
+            serialized.readFrom(in);
+            assertEquals(XContentType.JSON, serialized.getContentType());
+            assertEquals("{}", serialized.source().utf8ToString());
+            // don't test writing to earlier versions since output differs due to no timestamp
+        }
+    }
+
+    // reindex makes use of index requests without a source so this needs to be handled
+    public void testSerializationOfEmptyRequestWorks() throws IOException {
+        IndexRequest request = new IndexRequest("index", "type");
+        assertNull(request.getContentType());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                IndexRequest serialized = new IndexRequest();
+                serialized.readFrom(in);
+                assertNull(request.getContentType());
+                assertEquals("index", request.index());
+                assertEquals("type", request.type());
+            }
+        }
     }
 }

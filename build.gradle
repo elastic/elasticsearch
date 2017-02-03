@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import java.nio.file.Path
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
@@ -29,8 +30,9 @@ subprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
+Path rootPath = rootDir.toPath()
 // setup pom license info, but only for artifacts that are part of elasticsearch
-configure(subprojects.findAll { it.path.startsWith(':x-plugins') == false }) {
+configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
@@ -204,6 +206,14 @@ allprojects {
       }
     }
   }
+
+  task cleanIdeaBuildDir(type: Delete) {
+    delete 'build-idea'
+  }
+  cleanIdeaBuildDir.setGroup("ide")
+  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
+
+  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
 }
 
 idea {

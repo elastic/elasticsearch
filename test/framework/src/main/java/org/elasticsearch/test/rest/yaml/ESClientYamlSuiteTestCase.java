@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
@@ -31,8 +32,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParser;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -54,6 +53,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -113,11 +113,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-            blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
-            }
             String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             ClientYamlSuiteRestSpec restSpec = null;
             FileSystem fileSystem = getFileSystem();
@@ -131,6 +126,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             validateSpec(restSpec);
             List<HttpHost> hosts = getClusterHosts();
             RestClient restClient = client();
+            Tuple<Version, Map<HttpHost, Version>> versionMapTuple = readVersionsFromInfo(restClient, hosts.size());
             Version esVersion;
             try {
                 Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
@@ -141,15 +137,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             } catch (ResponseException ex) {
                 if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
                     logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = readVersionsFromInfo(restClient, hosts.size());
+                    esVersion = versionMapTuple.v1();
                     logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
                 } else {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient = new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            ClientYamlTestClient clientYamlTestClient =
+                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, versionMapTuple.v2());
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            blacklistPathMatchers = new ArrayList<>();
+            for (String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
@@ -182,11 +184,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
         // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
         logger.info("Stash dump on failure [{}]",
-                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\t", "\t"));
+                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 
-    public static Iterable<Object[]> createParameters() throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> createParameters() throws IOException {
         List<ClientYamlTestCandidate> restTestCandidates = collectTestCandidates();
         List<Object[]> objects = new ArrayList<>();
         for (ClientYamlTestCandidate restTestCandidate : restTestCandidates) {
@@ -195,7 +197,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return objects;
     }
 
-    private static List<ClientYamlTestCandidate> collectTestCandidates() throws ClientYamlTestParseException, IOException {
+    private static List<ClientYamlTestCandidate> collectTestCandidates() throws IOException {
         List<ClientYamlTestCandidate> testCandidates = new ArrayList<>();
         FileSystem fileSystem = getFileSystem();
         // don't make a try-with, getFileSystem returns null
@@ -203,12 +205,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
             Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(fileSystem, DEFAULT_TESTS_PATH, paths);
-            ClientYamlTestSuiteParser restTestSuiteParser = new ClientYamlTestSuiteParser();
             //yaml suites are grouped by directory (effectively by api)
             for (String api : yamlSuites.keySet()) {
                 List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
                 for (Path yamlFile : yamlFiles) {
-                    ClientYamlTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                    ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
                     for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                         testCandidates.add(new ClientYamlTestCandidate(restTestSuite, testSection));
                     }
@@ -292,7 +293,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
-        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response, Version.CURRENT);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
         Version version = null;
@@ -315,12 +316,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private static Version readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
+    private static Tuple<Version, Map<HttpHost, Version>> readVersionsFromInfo(RestClient restClient, int numHosts) throws IOException {
         Version version = null;
+        Map<HttpHost, Version> hostVersionMap = new HashMap<>();
         for (int i = 0; i < numHosts; i++) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             Response response = restClient.performRequest("GET", "/");
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response, Version.CURRENT);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
                 throw new RuntimeException("elasticsearch version not found in the response");
@@ -331,8 +333,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             } else if (version.onOrAfter(currentVersion)) {
                 version = currentVersion;
             }
+            hostVersionMap.put(response.getHost(), currentVersion);
         }
-        return version;
+        return new Tuple<>(version, Collections.unmodifiableMap(hostVersionMap));
     }
 
     public void test() throws IOException {

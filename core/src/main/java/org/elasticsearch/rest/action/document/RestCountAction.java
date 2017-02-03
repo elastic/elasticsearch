@@ -19,18 +19,14 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -48,11 +44,7 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestCountAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
@@ -60,7 +52,6 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_count", this);
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -76,7 +67,7 @@ public class RestCountAction extends BaseRestHandler {
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {
-                searchSourceBuilder.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
+                searchSourceBuilder.query(RestActions.getQueryContent(parser));
             }
         });
         countRequest.routing(request.param("routing"));

@@ -27,8 +27,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -36,9 +37,12 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,12 +50,27 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
+    private ThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(NetworkModuleTests.class.getName());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-        public FakeHttpTransport() {
+        FakeHttpTransport() {
             super(null);
         }
         @Override
@@ -72,13 +91,11 @@ public class NetworkModuleTests extends ModuleTestCase {
         public HttpStats stats() {
             return null;
         }
-        @Override
-        public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {}
     }
 
 
     static class FakeRestHandler extends BaseRestHandler {
-        public FakeRestHandler() {
+        FakeRestHandler() {
             super(null);
         }
         @Override
@@ -86,7 +103,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
-        public FakeCatRestHandler() {
+        FakeCatRestHandler() {
             super(null);
         }
         @Override
@@ -137,7 +154,9 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NamedXContentRegistry xContentRegistry,
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -176,7 +195,9 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NamedXContentRegistry xContentRegistry,
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -208,7 +229,9 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NamedXContentRegistry xContentRegistry,
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -224,17 +247,37 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+        AtomicInteger called = new AtomicInteger(0);
 
         TransportInterceptor interceptor = new TransportInterceptor() {
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                            boolean forceExecution,
+                                                                                            TransportRequestHandler<T> actualHandler) {
+                called.incrementAndGet();
+                if ("foo/bar/boom".equals(action)) {
+                    assertTrue(forceExecution);
+                } else {
+                    assertFalse(forceExecution);
+                }
+                return actualHandler;
+            }
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                           ThreadContext threadContext) {
+                    assertNotNull(threadContext);
                     return Collections.singletonList(interceptor);
                 }
             });
 
         TransportInterceptor transportInterceptor = module.getTransportInterceptor();
+        assertEquals(0, called.get());
+        transportInterceptor.interceptHandler("foo/bar/boom", null, true, null);
+        assertEquals(1, called.get());
+        transportInterceptor.interceptHandler("foo/baz/boom", null, false, null);
+        assertEquals(2, called.get());
         assertTrue(transportInterceptor instanceof  NetworkModule.CompositeTransportInterceptor);
         assertEquals(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.size(), 1);
         assertSame(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.get(0), interceptor);
@@ -242,7 +285,9 @@ public class NetworkModuleTests extends ModuleTestCase {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                           ThreadContext threadContext) {
+                    assertNotNull(threadContext);
                     return Collections.singletonList(null);
                 }
             });
@@ -252,6 +297,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
-        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), null, null, null, null, null);
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null,
+            (a, b, c) -> {});
     }
 }

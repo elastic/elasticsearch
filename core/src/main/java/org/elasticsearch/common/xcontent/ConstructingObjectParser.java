@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -74,7 +73,7 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
@@ -236,7 +235,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     /**
      * The target of the {@linkplain ConstructingObjectParser}. One of these is built every time you call
-     * {@linkplain ConstructingObjectParser#apply(XContentParser, ParseFieldMatcherSupplier)} Note that it is not static so it inherits
+     * {@linkplain ConstructingObjectParser#apply(XContentParser, Object)} Note that it is not static so it inherits
      * {@linkplain ConstructingObjectParser}'s type parameters.
      */
     private class Target {
@@ -268,7 +267,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
          */
         private Value targetObject;
 
-        public Target(XContentParser parser) {
+        Target(XContentParser parser) {
             this.parser = parser;
         }
 
@@ -361,7 +360,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         final ParseField field;
         final boolean required;
 
-        public ConstructorArgInfo(ParseField field, boolean required) {
+        ConstructorArgInfo(ParseField field, boolean required) {
             this.field = field;
             this.required = required;
         }

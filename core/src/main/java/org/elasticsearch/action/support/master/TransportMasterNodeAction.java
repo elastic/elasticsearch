@@ -121,12 +121,12 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         public void start() {
-            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
-            doStart();
+            ClusterState state = clusterService.state();
+            this.observer = new ClusterStateObserver(state, clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
+            doStart(state);
         }
 
-        protected void doStart() {
-            final ClusterState clusterState = observer.observedState();
+        protected void doStart(ClusterState clusterState) {
             final Predicate<ClusterState> masterChangePredicate = MasterNodeChangePredicate.build(clusterState);
             final DiscoveryNodes nodes = clusterState.nodes();
             if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -160,7 +160,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         }
                     };
-                    taskManager.registerChildTask(task, nodes.getLocalNodeId());
                     threadPool.executor(executor).execute(new ActionRunnable(delegate) {
                         @Override
                         protected void doRun() throws Exception {
@@ -173,7 +172,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, masterChangePredicate);
                 } else {
-                    taskManager.registerChildTask(task, nodes.getMasterNode().getId());
                     transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::newResponse) {
                         @Override
                         public void handleException(final TransportException exp) {
@@ -197,7 +195,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        doStart();
+                        doStart(state);
                     }
 
                     @Override

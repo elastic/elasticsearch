@@ -8,24 +8,14 @@ including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter
 creates a "graph token stream" during processing.  For more information
-on this topic and it's various complexities, please read
-http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs!]
-by Michael McCandless.
+on this topic and its various complexities, please read the
+http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs] blog post.
 
 ["NOTE",id="synonym-graph-index-note"]
 ===============================
 This token filter is designed to be used as part of a search analyzer 
 only.  If you want to apply synonyms during indexing please use the 
 standard <<analysis-synonym-tokenfilter,synonym token filter>>.
-===============================
-
-["NOTE",id="synonym-graph-query-note"]
-===============================
-The graph token stream created by this token filter requires special
-query handling. Currently only the <<query-dsl-match-query, Match>> and 
-<<query-dsl-multi-match-query, Multi Match>> queries can do this.  Using 
-it with any other type of analyzed query will potentially result in 
-incorrect search results.
 ===============================
 
 Synonyms are configured using a configuration file.

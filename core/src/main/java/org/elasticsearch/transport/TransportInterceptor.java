@@ -34,6 +34,7 @@ public interface TransportInterceptor {
      * used instead of the passed in handler. By default the provided handler is returned.
      */
     default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                     boolean forceExecution,
                                                                                      TransportRequestHandler<T> actualHandler) {
         return actualHandler;
     }
@@ -54,8 +55,8 @@ public interface TransportInterceptor {
      * {@link #sendRequest(Transport.Connection, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
      */
     interface AsyncSender {
-        <T extends TransportResponse> void sendRequest(Transport.Connection connection, final String action,
-                                                       final TransportRequest request, final TransportRequestOptions options,
+        <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                       TransportRequest request, TransportRequestOptions options,
                                                        TransportResponseHandler<T> handler);
     }
 }

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -52,7 +53,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.GlobalCheckpointService;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -561,9 +562,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             shard.updateRoutingEntry(shardRouting);
             if (shardRouting.primary()) {
                 IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
-                Set<String> activeIds = indexShardRoutingTable.activeShards().stream().map(r -> r.allocationId().getId())
+                Set<String> activeIds = indexShardRoutingTable.activeShards().stream()
+                    // filter to shards that track seq# and should be taken into consideration for checkpoint tracking
+                    // shards on old nodes will go through a file based recovery which will also transfer seq# information.
+                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
+                    .map(r -> r.allocationId().getId())
                     .collect(Collectors.toSet());
-                Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards().stream().map(r -> r.allocationId().getId())
+                Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards().stream()
+                    .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))
+                    .map(r -> r.allocationId().getId())
                     .collect(Collectors.toSet());
                shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
             }
@@ -732,7 +739,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Notifies the service of the current allocation ids in the cluster state.
-         * See {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+         * See {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
          *
          * @param activeAllocationIds       the allocation ids of the currently active shard copies
          * @param initializingAllocationIds the allocation ids of the currently initializing shard copies

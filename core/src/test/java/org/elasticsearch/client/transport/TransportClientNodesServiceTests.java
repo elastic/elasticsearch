@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -143,6 +144,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         }
                     };
                 }
+            }, (addr) -> {
+                assert addr == null : "boundAddress: " + addr;
+                return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null);
             transportService.start();
             transportService.acceptIncomingRequests();
@@ -199,7 +203,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 iteration.transport.endConnectMode(); // stop transport from responding early
                 final CountDownLatch latch = new CountDownLatch(1);
                 final AtomicInteger finalFailures = new AtomicInteger();
@@ -281,7 +285,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testConnectedNodes() {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 assertThat(iteration.transportClientNodesService.connectedNodes().size(), lessThanOrEqualTo(iteration.listNodesCount));
                 for (DiscoveryNode discoveryNode : iteration.transportClientNodesService.connectedNodes()) {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));
@@ -303,7 +307,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     private void checkRemoveAddress(boolean sniff) {
         Object[] extraSettings = {TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff};
-        try(final TestIteration iteration = new TestIteration(extraSettings)) {
+        try(TestIteration iteration = new TestIteration(extraSettings)) {
             final TransportClientNodesService service = iteration.transportClientNodesService;
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount, service.connectedNodes().size());
             final TransportAddress addressToRemove = randomFrom(iteration.listNodeAddresses);

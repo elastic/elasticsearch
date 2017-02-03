@@ -54,7 +54,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class DateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder> {
-    public static final String NAME = InternalDateHistogram.TYPE.name();
+    public static final String NAME = "date_histogram";
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 
@@ -110,7 +110,7 @@ public class DateHistogramAggregationBuilder
 
         PARSER.declareLong(DateHistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
 
-        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, ExtendedBounds.PARSER::apply,
+        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
                 ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(DateHistogramAggregationBuilder::order, DateHistogramAggregationBuilder::parseOrder,
@@ -131,12 +131,12 @@ public class DateHistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, InternalDateHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
     }
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalDateHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         if (in.readBoolean()) {
             order = InternalOrder.Streams.readOrder(in);
         }
@@ -315,7 +315,7 @@ public class DateHistogramAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 
@@ -328,7 +328,7 @@ public class DateHistogramAggregationBuilder
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
     }
 

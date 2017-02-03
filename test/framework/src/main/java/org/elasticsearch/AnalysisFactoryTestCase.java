@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.ElisionTokenFilterFactory;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
@@ -82,6 +83,7 @@ import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StemmerOverrideTokenFilterFactory;
 import org.elasticsearch.index.analysis.StemmerTokenFilterFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TrimTokenFilterFactory;
@@ -240,12 +242,14 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          StemmerTokenFilterFactory.class)
         .put("synonym",                   SynonymTokenFilterFactory.class)
+        .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
         .put("trim",                      TrimTokenFilterFactory.class)
         .put("truncate",                  TruncateTokenFilterFactory.class)
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
         .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
+        .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
 

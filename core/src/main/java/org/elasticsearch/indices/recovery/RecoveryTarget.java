@@ -36,6 +36,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -55,6 +57,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -87,32 +92,28 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
+    // latch that can be used to blockingly wait for RecoveryTarget to be closed
+    private final CountDownLatch closedLatch = new CountDownLatch(1);
+
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
-        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId,
-            copyFrom.ensureClusterStateVersionCallback);
-    }
-
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback) {
-        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
-    }
     /**
-     * creates a new recovery target object that represents a recovery to the provided indexShard
+     * Creates a new recovery target object that represents a recovery to the provided shard.
      *
-     * @param indexShard local shard where we want to recover to
-     * @param sourceNode source node of the recovery where we recover from
-     * @param listener called when recovery is completed / failed
+     * @param indexShard                        local shard where we want to recover to
+     * @param sourceNode                        source node of the recovery where we recover from
+     * @param listener                          called when recovery is completed/failed
      * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
-     *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
-     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
+     *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
+     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                           CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveryTarget(final IndexShard indexShard,
+                   final DiscoveryNode sourceNode,
+                   final PeerRecoveryTargetService.RecoveryListener listener,
+                   final Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
-        this.cancellableThreads = cancellableThreads;
-        this.recoveryId = recoveryId;
+        this.cancellableThreads = new CancellableThreads();
+        this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
@@ -124,6 +125,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
+    }
+
+    /**
+     * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener.
+     *
+     * @return a copy of this recovery target
+     */
+    public RecoveryTarget retryCopy() {
+        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
     }
 
     public long recoveryId() {
@@ -147,7 +157,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return indexShard.recoveryState();
     }
 
-    public CancellableThreads CancellableThreads() {
+    public CancellableThreads cancellableThreads() {
         return cancellableThreads;
     }
 
@@ -177,19 +187,37 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     /**
-     * Closes the current recovery target and returns a
-     * clone to reset the ongoing recovery.
-     * Note: the returned target must be canceled, failed or finished
-     * in order to release all it's reference.
+     * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
+     * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    RecoveryTarget resetRecovery() throws IOException {
-        ensureRefCount();
+    boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
         if (finished.compareAndSet(false, true)) {
-            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-            decRef();
+            try {
+                logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
+                decRef();
+            }
+            try {
+                newTargetCancellableThreads.execute(closedLatch::await);
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                logger.trace("new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
+                    shardId, recoveryId);
+                return false;
+            }
+            RecoveryState.Stage stage = indexShard.recoveryState().getStage();
+            if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
+                // once primary relocation has moved past the finalization step, the relocation source can be moved to RELOCATED state
+                // and start indexing as primary into the target shard (see TransportReplicationAction). Resetting the target shard in this
+                // state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy existing
+                // documents indexed and acknowledged before the reset.
+                assert stage != RecoveryState.Stage.DONE : "recovery should not have completed when it's being reset";
+                throw new IllegalStateException("cannot reset recovery as previous attempt made it past finalization step");
+            }
+            indexShard.performRecoveryRestart();
+            return true;
         }
-        indexShard.performRecoveryRestart();
-        return new RecoveryTarget(this);
+        return false;
     }
 
     /**
@@ -197,7 +225,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
      * <p>
-     * if {@link #CancellableThreads()} was used, the threads will be interrupted.
+     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
      */
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
@@ -220,7 +248,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
-                listener.onRecoveryFailure(state(), e, sendShardFailure);
+                notifyListener(e, sendShardFailure);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
@@ -230,6 +258,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 }
             }
         }
+    }
+
+    public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
+        listener.onRecoveryFailure(state(), e, sendShardFailure);
     }
 
     /** mark the current recovery as done */
@@ -309,6 +341,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // free store. increment happens in constructor
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
+            closedLatch.countDown();
         }
     }
 

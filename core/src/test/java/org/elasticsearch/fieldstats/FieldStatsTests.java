@@ -614,59 +614,59 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     /**
      * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
      **/
-    private FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
+    public static FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
         int type = randomInt(5);
         switch (type) {
             case 0:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Long(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
+                    return new FieldStats.Long(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
                 }
             case 1:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Double(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
+                    return new FieldStats.Double(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
                 }
             case 2:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Date(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
+                    return new FieldStats.Date(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
                         new Date().getTime(), new Date().getTime());
                 }
             case 3:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Text(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    return new FieldStats.Text(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(),
                         new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
                 }
             case 4:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Ip(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    return new FieldStats.Ip(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(),
                         InetAddress.getByName("::1"), InetAddress.getByName("::1"));
                 }
             case 5:
                 if (withNullMinMax && randomBoolean()) {
-                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean());
+                    return new FieldStats.Ip(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean());
                 } else {
-                    return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                        randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    return new FieldStats.Ip(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomBoolean(), randomBoolean(),
                         InetAddress.getByName("1.2.3.4"), InetAddress.getByName("1.2.3.4"));
                 }
             default:

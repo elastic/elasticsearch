@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -42,7 +40,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,27 +65,26 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *     "payload" : STRING_ARRAY
      * }
      */
-    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, ParseFieldMatcherSupplier> TLP_PARSER =
-        new ObjectParser<>(SUGGESTION_NAME, null);
+    private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME, null);
     static {
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) -> {
+        PARSER.declareField((parser, completionSuggestionContext, context) -> {
                 if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                     if (parser.booleanValue()) {
                         completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
                     }
                 } else {
-                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser, context);
+                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
                 }
             },
             FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
-        TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
-            completionSuggestionContext.regexOptions = RegexOptions.parse(parser, context),
+        PARSER.declareField((parser, completionSuggestionContext, context) ->
+            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
-        TLP_PARSER.declareField((p, v, c) -> {
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
+        PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
+        PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
+        PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.copyCurrentStructure(p);
@@ -214,7 +210,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private static class InnerBuilder extends CompletionSuggestionBuilder {
         private String field;
 
-        public InnerBuilder() {
+        InnerBuilder() {
             super("_na_");
         }
 
@@ -233,17 +229,14 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
-                builder.field(CONTEXTS_FIELD.getPreferredName());
-                builder.copyCurrentStructure(contextParser);
-            }
+            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
         }
         return builder;
     }
 
-    static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static CompletionSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
-        TLP_PARSER.parse(parseContext.parser(), builder, parseContext);
+        PARSER.parse(parser, builder, null);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
@@ -270,7 +263,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(context.getXContentRegistry(),
+                        contextBytes)) {
                     if (type.hasContextMappings() && contextParser != null) {
                         ContextMappings contextMappings = type.getContextMappings();
                         contextParser.nextToken();

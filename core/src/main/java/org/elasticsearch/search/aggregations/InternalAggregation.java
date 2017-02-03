@@ -32,38 +32,12 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-    /**
-     * The aggregation type that holds all the string types that are associated with an aggregation:
-     * <ul>
-     *     <li>name - used as the parser type</li>
-     * </ul>
-     */
-    public static class Type {
-        private final String name;
-
-        public Type(String name) {
-            this.name = name;
-        }
-
-        /**
-         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
-         * aggregation's builder when serialized.
-         */
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
-
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
@@ -188,6 +162,47 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+    }
+
+    /**
+     * Opportunity for subclasses to the {@link #hashCode()} for this
+     * class.
+     **/
+    protected int doHashCode() {
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        InternalAggregation other = (InternalAggregation) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
+                Objects.equals(metaData, other.metaData) &&
+                doEquals(obj);
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    /**
+     * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
+     * method for this class.
+     *
+     * This method can safely cast <code>obj</code> to the subclass since the
+     * {@link #equals(Object)} method checks that <code>obj</code> is the same
+     * class as <code>this</code>
+     */
+    protected boolean doEquals(Object obj) {
+        return this == obj;
+    }
 
     /**
      * Common xcontent fields that are shared among addAggregation

@@ -30,16 +30,17 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -48,7 +49,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -58,9 +59,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -209,6 +208,9 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
         // install SM after natives, shutdown hooks, etc.
         try {
             Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
@@ -226,13 +228,38 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialEnvironment(boolean foreground, Path pidFile, Map<String, String> esSettings) {
+    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        final KeyStoreWrapper keystore;
+        try {
+            keystore = KeyStoreWrapper.load(initialEnv.configFile());
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+        if (keystore == null) {
+            return null; // no keystore
+        }
+
+        try {
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+        } catch (Exception e) {
+            throw new BootstrapException(e);
+        }
+        return keystore;
+    }
+
+
+    private static Environment createEnvironment(boolean foreground, Path pidFile,
+                                                 SecureSettings secureSettings, Settings initialSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
+        builder.put(initialSettings);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
     }
 
     private void start() throws NodeValidationException {
@@ -262,7 +289,7 @@ final class Bootstrap {
             final boolean foreground,
             final Path pidFile,
             final boolean quiet,
-            final Map<String, String> esSettings) throws BootstrapException, NodeValidationException, UserException {
+            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -272,7 +299,8 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialEnvironment(foreground, pidFile, esSettings);
+        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -309,6 +337,14 @@ final class Bootstrap {
                 new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
 
             INSTANCE.setup(true, environment);
+
+            /* TODO: close this once s3 repository doesn't try to read during repository construction
+            try {
+                // any secure settings must be read during node construction
+                IOUtils.close(keystore);
+            } catch (IOException e) {
+                throw new BootstrapException(e);
+            }*/
 
             INSTANCE.start();
 

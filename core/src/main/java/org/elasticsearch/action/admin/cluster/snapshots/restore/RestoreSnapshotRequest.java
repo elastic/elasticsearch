@@ -40,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -313,15 +313,31 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * Sets repository-specific restore settings in JSON, YAML or properties format
+     * Sets repository-specific restore settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
      * @return this request
+     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public RestoreSnapshotRequest settings(String source) {
         this.settings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets repository-specific restore settings in JSON or YAML format
+     * <p>
+     * See repository documentation for more information.
+     *
+     * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
+     * @return this request
+     */
+    public RestoreSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -337,7 +353,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -436,9 +452,19 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     /**
      * Sets settings that should be added/changed in all restored indices
+     * @deprecated use {@link #indexSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public RestoreSnapshotRequest indexSettings(String source) {
         this.indexSettings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(String source, XContentType xContentType) {
+        this.indexSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -449,7 +475,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            indexSettings(builder.string());
+            indexSettings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -481,16 +507,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
-                includeAliases = lenientNodeBooleanValue(entry.getValue());
+                includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

@@ -22,10 +22,8 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,8 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchScrollAction extends BaseRestHandler {
-
-    @Inject
     public RestSearchScrollAction(Settings settings, RestController controller) {
         super(settings);
 
@@ -61,23 +57,31 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        BytesReference body = request.contentOrSourceParam();
-        if (body.length() > 0) {
-            if (XContentFactory.xContentType(body) == null) {
-                if (scrollId == null) {
-                    scrollId = body.utf8ToString();
-                    searchScrollRequest.scrollId(scrollId);
+        request.withContentOrSourceParamParserOrNull(xContentParser -> {
+            if (xContentParser == null) {
+                if (request.hasContent()) {
+                    // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
+                    BytesReference body = request.getContentOrSourceParamOnly();
+                    if (scrollId == null) {
+                        String bodyScrollId = body.utf8ToString();
+                        searchScrollRequest.scrollId(bodyScrollId);
+                    }
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                try (XContentParser parser = request.contentOrSourceParamParser()) {
-                    buildFromContent(parser, searchScrollRequest);
+                try {
+                    buildFromContent(xContentParser, searchScrollRequest);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
             }
-        }
+        });
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean supportsPlainText() {
+        return true;
     }
 
     public static void buildFromContent(XContentParser parser, SearchScrollRequest searchScrollRequest) throws IOException {

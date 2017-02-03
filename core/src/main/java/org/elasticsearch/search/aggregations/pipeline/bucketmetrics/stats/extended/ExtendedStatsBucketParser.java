@@ -46,7 +46,7 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     @Override
     protected boolean token(XContentParser parser, QueryParseContext context, String field,
                             XContentParser.Token token, Map<String, Object> params) throws IOException {
-        if (context.getParseFieldMatcher().match(field, SIGMA) && token == XContentParser.Token.VALUE_NUMBER) {
+        if (SIGMA.match(field) && token == XContentParser.Token.VALUE_NUMBER) {
             params.put(SIGMA.getPreferredName(), parser.doubleValue());
             return true;
         }

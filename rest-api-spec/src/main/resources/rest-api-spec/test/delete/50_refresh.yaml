@@ -115,33 +115,33 @@
 "refresh=wait_for waits until changes are visible in search":
  - do:
       index:
-          index:   test_1
+          index:   delete_50_refresh_1
           type:    test
-          id:      1
+          id:      delete_50_refresh_id1
           body:    { foo: bar }
           refresh: true
  - is_true: forced_refresh
 
  - do:
       search:
-          index:   test_1
+          index:   delete_50_refresh_1
           type:    test
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: delete_50_refresh_id1 }}
  - match: { hits.total: 1 }
 
  - do:
      delete:
-         index:   test_1
+         index:   delete_50_refresh_1
          type:    test
-         id:      1
+         id:      delete_50_refresh_id1
          refresh: wait_for
  - is_false: forced_refresh
 
  - do:
       search:
-          index:   test_1
+          index:   delete_50_refresh_1
           type:    test
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: delete_50_refresh_id1 }}
  - match: { hits.total: 0 }

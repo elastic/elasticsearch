@@ -28,10 +28,9 @@ import org.elasticsearch.discovery.zen.PingContextProvider;
 import org.elasticsearch.discovery.zen.ZenPing;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 /**
  * A {@link ZenPing} implementation which returns results based on an static in-memory map. This allows pinging
@@ -62,7 +61,7 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
     }
 
     @Override
-    public void ping(PingListener listener, TimeValue timeout) {
+    public void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout) {
         logger.info("pinging using mock zen ping");
         synchronized (activeNodesPerCluster) {
             Set<MockZenPing> activeNodes = getActiveNodesForCurrentCluster();
@@ -76,11 +75,12 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
                 activeNodes = getActiveNodesForCurrentCluster();
             }
             lastDiscoveredPings = activeNodes;
-            List<PingResponse> responseList = activeNodes.stream()
+            PingCollection pingCollection = new PingCollection();
+            activeNodes.stream()
                 .filter(p -> p != this) // remove this as pings are not expected to return the local node
                 .map(MockZenPing::getPingResponse)
-                .collect(Collectors.toList());
-            listener.onPing(responseList);
+                .forEach(pingCollection::addPing);
+            resultsConsumer.accept(pingCollection);
         }
     }
 

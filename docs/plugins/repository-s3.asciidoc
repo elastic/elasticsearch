@@ -125,9 +125,11 @@ The available values are:
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API

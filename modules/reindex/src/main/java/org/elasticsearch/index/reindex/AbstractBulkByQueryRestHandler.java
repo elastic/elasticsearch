@@ -21,32 +21,31 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends GenericAction<Request, BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
-                                             ClusterService clusterService, A action) {
-        super(settings, searchRequestParsers, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
+        super(settings, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -65,8 +64,7 @@ public abstract class AbstractBulkByQueryRestHandler<
              * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
              * really hurts not to close if by some miracle we have to. */
             try {
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher,
-                        searchRequestParser);
+                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParser);
             } finally {
                 IOUtils.close(searchRequestParser);
             }
@@ -109,7 +107,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             }
 
             try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                return parser.contentType().xContent().createParser(builder.map(body).bytes());
+                return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
             }
         } finally {
             parser.close();

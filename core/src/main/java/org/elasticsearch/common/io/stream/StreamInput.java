@@ -214,9 +214,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a long stored in variable-length format.  Reads between one and
-     * nine bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * Reads a long stored in variable-length format. Reads between one and ten bytes. Smaller values take fewer bytes. Negative numbers
+     * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
      */
     public long readVLong() throws IOException {
         byte b = readByte();
@@ -260,8 +259,16 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
-        return i | ((b & 0x7FL) << 56);
+        i |= ((b & 0x7FL) << 56);
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = readByte();
+        if (b != 0 && b != 1) {
+            throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(i));
+        }
+        i |= ((long) b) << 63;
+        return i;
     }
 
     public long readZLong() throws IOException {
@@ -815,6 +822,22 @@ public abstract class StreamInput extends InputStream {
      */
     @Nullable
     public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
+     * from other source, so it's not read from the stream. The name is used for looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+     *
+     * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
+     * have a compelling reason to use this method instead.
+     */
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
+                                                           @SuppressWarnings("unused") String name) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 

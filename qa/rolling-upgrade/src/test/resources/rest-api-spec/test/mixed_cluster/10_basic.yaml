@@ -27,6 +27,13 @@
           - '{"f1": "v5_mixed", "f2": 9}'
 
  - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d10
+       body: {"f1": "v6_mixed", "f2": 10}
+
+ - do:
      indices.flush:
         index: test_index
 
@@ -34,4 +41,128 @@
      search:
         index: test_index
 
- - match: { hits.total: 10 } # 5 docs from old cluster, 5 docs from mixed cluster
+ - match: { hits.total: 11 } # 5 docs from old cluster, 6 docs from mixed cluster
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d10
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 10 }
+
+---
+"Verify custom cluster metadata still exists during upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+---
+"Test rolling upgrade for stored scripts between the old namespace and the new namespace":
+  - skip:
+      version: " - 6.0.0"
+      reason: test fails when using bwc version 5.3.0-SNAPSHOT
+      features: warnings
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+
+  - do:
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "match_all": {
+            }
+          }
+        }
+  - match: { hits.total: 3 }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "greater"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "greater" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value > 1.0" }
+
+  - do:
+      warnings:
+        - 'specifying lang [painless] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying lang [expression] as part of the url path is deprecated'
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "expression"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      warnings:
+        - 'specifying the field [lang] for executing stored scripts is deprecated; use only the field [stored] to specify an <id>'
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater",
+                "lang": "painless"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value",
+                "lang": "painless"
+              }
+            },
+            "script_expressions": {
+              "script": {
+                "stored": "value",
+                "lang": "expression"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }
+  - match: { hits.hits.0.fields.script_expressions.0: 2.0 }
+  - match: { hits.hits.1.fields.script_expressions.0: 3.0 }

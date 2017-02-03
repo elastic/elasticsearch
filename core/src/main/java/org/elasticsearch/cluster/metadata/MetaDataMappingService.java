@@ -26,9 +26,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -63,8 +64,8 @@ public class MetaDataMappingService extends AbstractComponent {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    final ClusterStateTaskExecutor<RefreshTask> refreshExecutor = new RefreshTaskExecutor();
-    final ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> putMappingExecutor = new PutMappingExecutor();
+    final RefreshTaskExecutor refreshExecutor = new RefreshTaskExecutor();
+    final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
 
 
     @Inject
@@ -91,9 +92,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
         @Override
-        public BatchResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
+        public ClusterTasksResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
             ClusterState newClusterState = executeRefresh(currentState, tasks);
-            return BatchResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
+            return ClusterTasksResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
         }
     }
 
@@ -146,10 +147,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), shardId -> {});
                 removeIndex = true;
-                for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
-                    // don't apply the default mapping, it has been applied when the mapping was created
-                    indexService.mapperService().merge(metaData.value.type(), metaData.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
-                }
+                indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
             }
 
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
@@ -213,10 +211,10 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                        List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
+                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
+            ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {
@@ -226,10 +224,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
-                                for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                    mapperService.merge(mapping.value.type(), mapping.value.source(),
-                                        MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
-                                }
+                                mapperService.merge(indexMetaData, MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -313,7 +308,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

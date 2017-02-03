@@ -236,12 +236,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 

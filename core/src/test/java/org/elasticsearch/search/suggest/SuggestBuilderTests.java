@@ -19,17 +19,14 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
@@ -48,7 +45,7 @@ public class SuggestBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static Suggesters suggesters;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * Setup for the whole base test class.
@@ -57,13 +54,13 @@ public class SuggestBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        suggesters = searchModule.getSuggesters();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() {
         namedWriteableRegistry = null;
-        suggesters = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -78,8 +75,7 @@ public class SuggestBuilderTests extends ESTestCase {
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(xContentBuilder);
-            QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
-            SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
+            SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(parser);
             assertNotSame(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder.hashCode(), secondSuggestBuilder.hashCode());
@@ -161,4 +157,8 @@ public class SuggestBuilderTests extends ESTestCase {
         }
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
 }

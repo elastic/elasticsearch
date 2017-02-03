@@ -27,15 +27,13 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -63,7 +61,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -103,7 +100,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends SettingCommand {
+class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
@@ -189,18 +186,17 @@ class InstallPluginCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
         boolean isBatch = options.has(batchOption) || System.console() == null;
-        execute(terminal, pluginId, isBatch, settings);
+        execute(terminal, pluginId, isBatch, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+    void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
         if (pluginId == null) {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
             terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
@@ -292,7 +288,7 @@ class InstallPluginCommand extends SettingCommand {
         private int width = 50;
         private final boolean enabled;
 
-        public TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
+        TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
             super(is, expectedTotalSize);
             this.terminal = terminal;
             this.enabled = expectedTotalSize > 0;
@@ -419,6 +415,18 @@ class InstallPluginCommand extends SettingCommand {
     private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+
+        // checking for existing version of the plugin
+        final Path destination = env.pluginsFile().resolve(info.getName());
+        if (Files.exists(destination)) {
+            final String message = String.format(
+                Locale.ROOT,
+                "plugin directory [%s] already exists; if you need to update the plugin, uninstall it first using command 'remove %s'",
+                destination.toAbsolutePath(),
+                info.getName());
+            throw new UserException(ExitCodes.CONFIG, message);
+        }
+
         terminal.println(VERBOSE, info.toString());
 
         // don't let user install plugin as a module...
@@ -472,14 +480,7 @@ class InstallPluginCommand extends SettingCommand {
 
         try {
             PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
-
             final Path destination = env.pluginsFile().resolve(info.getName());
-            if (Files.exists(destination)) {
-                throw new UserException(
-                    ExitCodes.USAGE,
-                    "plugin directory " + destination.toAbsolutePath() +
-                        " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
-            }
 
             Path tmpBinDir = tmpRoot.resolve("bin");
             if (Files.exists(tmpBinDir)) {

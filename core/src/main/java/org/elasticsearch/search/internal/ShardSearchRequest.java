@@ -22,14 +22,12 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -97,7 +95,7 @@ public interface ShardSearchRequest {
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    static QueryBuilder parseAliasFilter(Function<XContentParser, QueryParseContext> contextFactory,
+    static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
@@ -109,10 +107,7 @@ public interface ShardSearchRequest {
                 return null;
             }
             try {
-                byte[] filterSource = alias.filter().uncompressed();
-                try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                    return contextFactory.apply(parser).parseInnerQueryBuilder();
-                }
+                return filterParser.apply(alias.filter().uncompressed());
             } catch (IOException ex) {
                 throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
             }
@@ -128,19 +123,19 @@ public interface ShardSearchRequest {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BoolQueryBuilder combined = new BoolQueryBuilder();
             for (String aliasName : aliasNames) {
-            AliasMetaData alias = aliases.get(aliasName);
-            if (alias == null) {
-                // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                throw new InvalidAliasNameException(index, aliasNames[0],
-                    "Unknown alias name was passed to alias Filter");
-            }
-            QueryBuilder parsedFilter = parserFunction.apply(alias);
-            if (parsedFilter != null) {
-                combined.should(parsedFilter);
-            } else {
-                // The filter might be null only if filter was removed after filteringAliases was called
-                return null;
-            }
+                AliasMetaData alias = aliases.get(aliasName);
+                if (alias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(index, aliasNames[0],
+                        "Unknown alias name was passed to alias Filter");
+                }
+                QueryBuilder parsedFilter = parserFunction.apply(alias);
+                if (parsedFilter != null) {
+                    combined.should(parsedFilter);
+                } else {
+                    // The filter might be null only if filter was removed after filteringAliases was called
+                    return null;
+                }
             }
             return combined;
         }

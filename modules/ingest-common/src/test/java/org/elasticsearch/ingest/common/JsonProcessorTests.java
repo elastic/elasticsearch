@@ -60,9 +60,9 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("com.fasterxml.jackson.core.JsonParseException: Unrecognized token" +
-            " 'invalid': was expecting ('true', 'false' or 'null')\n" +
-            " at [Source: invalid json; line: 1, column: 8]"));
+        assertThat(exception.getCause().getCause().getMessage(), equalTo("Unrecognized token"
+                + " 'invalid': was expecting ('true', 'false' or 'null')\n"
+                + " at [Source: invalid json; line: 1, column: 8]"));
     }
 
     public void testFieldMissing() {

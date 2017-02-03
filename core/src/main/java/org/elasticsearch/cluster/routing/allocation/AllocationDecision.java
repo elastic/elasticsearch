@@ -40,7 +40,7 @@ public enum AllocationDecision implements Writeable {
     /**
      * The allocation attempt was throttled for the shard.
      */
-    THROTTLE((byte) 1),
+    THROTTLED((byte) 1),
     /**
      * The shard cannot be allocated, which can happen for any number of reasons,
      * including the allocation deciders gave a NO decision for allocating.
@@ -56,12 +56,12 @@ public enum AllocationDecision implements Writeable {
      * Waiting on getting shard data from all nodes before making a decision
      * about where to allocate the shard.
      */
-    FETCH_PENDING((byte) 4),
+    AWAITING_INFO((byte) 4),
     /**
      * The allocation decision has been delayed waiting for a replica with a shard copy
      * that left the cluster to rejoin.
      */
-    DELAYED_ALLOCATION((byte) 5),
+    ALLOCATION_DELAYED((byte) 5),
     /**
      * The shard was denied allocation because there were no valid shard copies
      * found for it amongst the nodes in the cluster.
@@ -90,15 +90,15 @@ public enum AllocationDecision implements Writeable {
             case 0:
                 return YES;
             case 1:
-                return THROTTLE;
+                return THROTTLED;
             case 2:
                 return NO;
             case 3:
                 return WORSE_BALANCE;
             case 4:
-                return FETCH_PENDING;
+                return AWAITING_INFO;
             case 5:
-                return DELAYED_ALLOCATION;
+                return ALLOCATION_DELAYED;
             case 6:
                 return NO_VALID_SHARD_COPY;
             case 7:
@@ -117,11 +117,11 @@ public enum AllocationDecision implements Writeable {
         } else {
             switch (allocationStatus) {
                 case DECIDERS_THROTTLED:
-                    return THROTTLE;
+                    return THROTTLED;
                 case FETCHING_SHARD_DATA:
-                    return FETCH_PENDING;
+                    return AWAITING_INFO;
                 case DELAYED_ALLOCATION:
-                    return DELAYED_ALLOCATION;
+                    return ALLOCATION_DELAYED;
                 case NO_VALID_SHARD_COPY:
                     return NO_VALID_SHARD_COPY;
                 case NO_ATTEMPT:
@@ -141,7 +141,7 @@ public enum AllocationDecision implements Writeable {
             case YES:
                 return YES;
             case THROTTLE:
-                return THROTTLE;
+                return THROTTLED;
             default:
                 assert type == Decision.Type.NO;
                 return NO;

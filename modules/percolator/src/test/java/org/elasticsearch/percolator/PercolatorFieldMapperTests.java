@@ -332,12 +332,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(typeName)
             .startObject("properties").startObject(fieldName).field("type", "percolator").field("index", "no").endObject().endObject()
             .endObject().endObject().string();
-        try {
-            mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
-            fail("MapperParsingException expected");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true));
+        assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
 
     // multiple percolator fields are allowed in the mapping, but only one field can be used at index time.
@@ -445,6 +442,53 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 }
         );
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/22355
+    public void testVerifyRangeQueryWithNullBounds() throws Exception {
+        addQueryMapping();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now").to(null))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from(null).to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+
+        // No validation failures:
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from("2016-01-01").to(null))
+                .endObject().bytes());
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from(null).to("2016-01-01"))
+                .endObject().bytes());
     }
 
     public void testUnsupportedQueries() {
@@ -521,7 +565,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
@@ -548,7 +592,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();

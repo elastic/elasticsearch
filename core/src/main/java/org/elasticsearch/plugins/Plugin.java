@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
@@ -39,6 +33,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -46,11 +42,15 @@ import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -102,11 +102,10 @@ public abstract class Plugin implements Closeable {
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
      * @param scriptService A service to allow running scripts on the local node
-     * @param searchRequestParsers Parsers for search requests which may be used to templatize search requests
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               SearchRequestParsers searchRequestParsers) {
+                                               NamedXContentRegistry xContentRegistry) {
         return Collections.emptyList();
     }
 
@@ -123,6 +122,14 @@ public abstract class Plugin implements Closeable {
      * @see NamedWriteableRegistry
      */
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns parsers for named objects this plugin will parse from {@link XContentParser#namedObject(Class, String, Object)}.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Collections.emptyList();
     }
 

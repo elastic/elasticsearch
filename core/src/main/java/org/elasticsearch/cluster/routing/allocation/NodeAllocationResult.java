@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -48,14 +49,15 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     @Nullable
     private final ShardStoreInfo shardStoreInfo;
     private final AllocationDecision nodeDecision;
+    @Nullable
     private final Decision canAllocateDecision;
     private final int weightRanking;
 
-    public NodeAllocationResult(DiscoveryNode node, ShardStoreInfo shardStoreInfo, Decision decision) {
+    public NodeAllocationResult(DiscoveryNode node, ShardStoreInfo shardStoreInfo, @Nullable Decision decision) {
         this.node = node;
         this.shardStoreInfo = shardStoreInfo;
         this.canAllocateDecision = decision;
-        this.nodeDecision = AllocationDecision.fromDecisionType(canAllocateDecision.type());
+        this.nodeDecision = decision != null ? AllocationDecision.fromDecisionType(canAllocateDecision.type()) : AllocationDecision.NO;
         this.weightRanking = 0;
     }
 
@@ -78,7 +80,11 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
-        canAllocateDecision = Decision.readFrom(in);
+        if (in.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
+            canAllocateDecision = Decision.readFrom(in);
+        } else {
+            canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
+        }
         nodeDecision = AllocationDecision.readFrom(in);
         weightRanking = in.readVInt();
     }
@@ -87,7 +93,15 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
-        canAllocateDecision.writeTo(out);
+        if (out.getVersion().before(Version.V_5_2_1_UNRELEASED)) {
+            if (canAllocateDecision == null) {
+                Decision.NO.writeTo(out);
+            } else {
+                canAllocateDecision.writeTo(out);
+            }
+        } else {
+            out.writeOptionalWriteable(canAllocateDecision);
+        }
         nodeDecision.writeTo(out);
         out.writeVInt(weightRanking);
     }
@@ -108,8 +122,11 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
     }
 
     /**
-     * The decision details for allocating to this node.
+     * The decision details for allocating to this node.  Returns {@code null} if
+     * no allocation decision was taken on the node; in this case, {@link #getNodeDecision()}
+     * will return {@link AllocationDecision#NO}.
      */
+    @Nullable
     public Decision getCanAllocateDecision() {
         return canAllocateDecision;
     }
@@ -153,7 +170,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
             if (isWeightRanked()) {
                 builder.field("weight_ranking", getWeightRanking());
             }
-            if (canAllocateDecision.getDecisions().isEmpty() == false) {
+            if (canAllocateDecision != null && canAllocateDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("deciders");
                 canAllocateDecision.toXContent(builder, params);
                 builder.endArray();
@@ -234,6 +251,15 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
             return matchingBytes;
         }
 
+        /**
+         * Gets the store exception when trying to read the store, if there was an error.  If
+         * there was no error, returns {@code null}.
+         */
+        @Nullable
+        public Exception getStoreException() {
+            return storeException;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(inSync);
@@ -248,7 +274,12 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
             {
                 if (matchingBytes < 0) {
                     // dealing with a primary shard
-                    builder.field("in_sync", inSync);
+                    if (allocationId == null && storeException == null) {
+                        // there was no information we could obtain of any shard data on the node
+                        builder.field("found", false);
+                    } else {
+                        builder.field("in_sync", inSync);
+                    }
                 }
                 if (allocationId != null) {
                     builder.field("allocation_id", allocationId);
@@ -262,7 +293,7 @@ public class NodeAllocationResult implements ToXContent, Writeable, Comparable<N
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");
-                    ElasticsearchException.toXContent(builder, params, storeException);
+                    ElasticsearchException.generateThrowableXContent(builder, params, storeException);
                     builder.endObject();
                 }
             }

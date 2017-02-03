@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.MembershipAction;
@@ -55,6 +57,7 @@ import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
@@ -82,8 +85,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -479,8 +480,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.index:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE,org.elasticsearch.cluster.service:TRACE,"
-        + "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.indices.cluster:TRACE")
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,discovery:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -492,6 +494,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(),  randomBoolean() ? "5s" : "200ms")
             ));
         ensureGreen();
 
@@ -528,7 +531,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexResponse response =
-                                    client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
+                                    client.prepareIndex("test", "type", id).setSource("{}", XContentType.JSON).setTimeout(timeout).get(timeout);
                                 assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
@@ -587,17 +590,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 ensureGreen("test");
 
                 logger.info("validating successful docs");
-                for (String node : nodes) {
-                    try {
-                        logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
-                        for (String id : ackedDocs.keySet()) {
-                            assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                assertBusy(() -> {
+                    for (String node : nodes) {
+                        try {
+                            logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
+                            for (String id : ackedDocs.keySet()) {
+                                assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
+                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                            }
+                        } catch (AssertionError | NoShardAvailableActionException e) {
+                            throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                         }
-                    } catch (AssertionError e) {
-                        throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                     }
-                }
+                }, 30, TimeUnit.SECONDS);
 
                 logger.info("done validating (iteration [{}])", iter);
             }
@@ -1118,7 +1123,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc")
+                .setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
         SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, random());

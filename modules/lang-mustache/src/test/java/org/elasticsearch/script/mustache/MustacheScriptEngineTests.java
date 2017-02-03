@@ -19,8 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
-
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -87,7 +85,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "\"params\":{\"template\":\"all\"}"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        Script script = Script.parse(parser);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
@@ -103,7 +101,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "  }"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        Script script = Script.parse(parser);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());

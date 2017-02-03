@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -45,6 +44,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuilder<AB>> extends ESTestCase {
 
@@ -62,11 +62,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     private NamedWriteableRegistry namedWriteableRegistry;
-
-    protected AggregatorParsers aggParsers;
-    protected IndicesQueriesRegistry queriesRegistry;
-    protected ParseFieldMatcher parseFieldMatcher;
-
+    private NamedXContentRegistry xContentRegistry;
     protected abstract AB createTestAggregatorBuilder();
 
     /**
@@ -85,15 +81,18 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        queriesRegistry = searchModule.getQueryParserRegistry();
-        aggParsers = searchModule.getSearchRequestParsers().aggParsers;
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        parseFieldMatcher = ParseFieldMatcher.STRICT;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     /**
@@ -111,29 +110,27 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = createParser(shuffled);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(testAgg.name, parser.currentName());
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(testAgg.type.name(), parser.currentName());
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregationBuilder newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
-        assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
-        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
-        assertNotNull(newAgg);
+        AggregationBuilder newAgg = parse(parser);
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
     }
 
+    protected AggregationBuilder parse(XContentParser parser) throws IOException {
+        QueryParseContext parseContext = new QueryParseContext(parser);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parseContext);
+        assertThat(parsed.getAggregatorFactories(), hasSize(1));
+        assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
+        AggregationBuilder newAgg = parsed.getAggregatorFactories().get(0);
+        assertNull(parser.nextToken());
+        assertNotNull(newAgg);
+        return newAgg;
+    }
+
     /**
      * Test serialization and deserialization of the test AggregatorFactory.
      */
-
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {

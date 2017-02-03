@@ -141,7 +141,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         private final SearchContext context;
         private final long tookInNanos;
 
-        public SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
+        SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
             this.context = context;
             this.tookInNanos = tookInNanos;
         }

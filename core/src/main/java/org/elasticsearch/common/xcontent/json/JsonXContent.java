@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -79,32 +80,32 @@ public class JsonXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(new FastStringReader(content)));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
-    public XContentParser createParser(InputStream is) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(is));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(byte[] data) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(data));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(data));
     }
 
     @Override
-    public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(data, offset, length));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(BytesReference bytes) throws IOException {
-        return createParser(bytes.streamInput());
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
+        return createParser(xContentRegistry, bytes.streamInput());
     }
 
     @Override
-    public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(reader));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(reader));
     }
 }

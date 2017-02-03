@@ -52,7 +52,7 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBooleanExact(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
     }
 
     /**
@@ -83,31 +83,31 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(String content) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(InputStream is) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(byte[] data) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(byte[] data, int offset, int length) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(BytesReference bytes) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
      */
-    XContentParser createParser(Reader reader) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException;
 
 }

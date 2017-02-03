@@ -19,13 +19,16 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,7 +54,7 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("false", clientSettings.get("node.ingest"));
         assertEquals("false", clientSettings.get("node.local_storage"));
         assertEquals("3707202549613653169", clientSettings.get("node.id.seed")); // should be fixed by the parent id and tribe name
-        assertEquals(9, clientSettings.getAsMap().size());
+        assertEquals(9, clientSettings.size());
     }
 
     public void testEnvironmentSettings() {
@@ -185,13 +188,16 @@ public class TribeServiceTests extends ESTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new MergableCustomMetaData1(data);
+        public String getWriteableName() {
+            return TYPE;
         }
 
-        @Override
-        public String type() {
-            return TYPE;
+        public static MergableCustomMetaData1 readFrom(StreamInput in) throws IOException {
+            return readFrom(MergableCustomMetaData1::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
         }
 
         @Override
@@ -214,14 +220,18 @@ public class TribeServiceTests extends ESTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new MergableCustomMetaData2(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
+
+        public static MergableCustomMetaData2 readFrom(StreamInput in) throws IOException {
+            return readFrom(MergableCustomMetaData2::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
 
         @Override
         public EnumSet<MetaData.XContentContext> context() {

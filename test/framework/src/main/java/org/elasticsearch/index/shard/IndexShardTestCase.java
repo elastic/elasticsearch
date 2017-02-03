@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
@@ -30,7 +29,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,6 +41,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -67,6 +67,7 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -75,6 +76,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -262,10 +264,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
-            MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), indexSettings.getSettings());
-            for (ObjectObjectCursor<String, MappingMetaData> typeMapping : indexMetaData.getMappings()) {
-                mapperService.merge(typeMapping.key, typeMapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
-            }
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
+                    indexSettings.getSettings());
+            mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             final IndexEventListener indexEventListener = new IndexEventListener() {
             };
@@ -368,7 +369,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     private DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), EnumSet.allOf(DiscoveryNode.Role.class),
+            Version.CURRENT);
     }
 
     /** recovers a replica from the given primary **/
@@ -380,30 +382,45 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Recovers a replica from the give primary, allow the user to supply a custom recovery target.
-     * A typical usage of a custome recovery target is to assert things in the various stages of recovery
-     *
-     * @param markAsRecovering set to false if you have already marked the replica as recovering
+     * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
+     * target is to assert things in the various stages of recovery.
+     * @param replica                the recovery target shard
+     * @param primary                the recovery source shard
+     * @param targetSupplier         supplies an instance of {@link RecoveryTarget}
+     * @param markAsRecovering       set to {@code false} if the replica is marked as recovering
      */
-    protected void recoverReplica(IndexShard replica, IndexShard primary,
-                                  BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-                                  boolean markAsRecovering)
-        throws IOException {
+    protected final void recoverReplica(final IndexShard replica,
+                                        final IndexShard primary,
+                                        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                        final boolean markAsRecovering) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
-            replica.markAsRecovering("remote",
-                new RecoveryState(replica.routingEntry(), pNode, rNode));
+            replica.markAsRecovering("remote", new RecoveryState(replica.routingEntry(), pNode, rNode));
         } else {
             assertEquals(replica.state(), IndexShardState.RECOVERING);
         }
         replica.prepareForIndexRecovery();
-        RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-            getMetadataSnapshotOrEmpty(replica), false, 0);
-        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {
-        },
-            (int) ByteSizeUnit.MB.toKB(1), logger);
+        final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
+
+        final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
+        final long startingSeqNo;
+        if (snapshot.size() > 0) {
+            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        final StartRecoveryRequest request =
+            new StartRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, startingSeqNo);
+        final RecoverySourceHandler recovery = new RecoverySourceHandler(
+            primary,
+            recoveryTarget,
+            request,
+            () -> 0L,
+            e -> () -> {},
+            (int) ByteSizeUnit.MB.toBytes(1),
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
@@ -452,29 +469,35 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");
     }
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) {
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
+        return indexDoc(shard, type, id, source, XContentType.JSON);
+    }
+
+    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType) throws IOException {
         final Engine.Index index;
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
+                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                    xContentType),
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false);
         } else {
             index = shard.prepareIndexOnReplica(
-                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
+                SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source),
+                    xContentType),
                 randomInt(1 << 10), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);
         return index;
     }
 
-    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) {
+    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) throws IOException {
         final Engine.Delete delete;
         if (shard.routingEntry().primary()) {
             delete = shard.prepareDeleteOnPrimary(type, id, Versions.MATCH_ANY, VersionType.INTERNAL);

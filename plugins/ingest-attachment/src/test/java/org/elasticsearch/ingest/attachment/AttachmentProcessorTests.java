@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -30,14 +31,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -52,7 +56,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -85,7 +89,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", selectedProperties, 10000);
+            "target_field", selectedProperties, 10000, false);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
@@ -197,6 +201,40 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
+    }
+
+    public void testNullValueWithIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            Collections.singletonMap("source_field", null));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
+    public void testNonExistentWithIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
+    public void testNullWithoutIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            Collections.singletonMap("source_field", null));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, false);
+        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
+    }
+
+    public void testNonExistentWithoutIgnoreMissing() throws Exception {
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", null, 10, false);
+        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {

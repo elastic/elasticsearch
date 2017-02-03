@@ -22,10 +22,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -151,5 +153,33 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof DoubleTerms) {
+                return agg.doReduce(aggregations, reduceContext);
+            }
+        }
+        return super.doReduce(aggregations, reduceContext);
+    }
+
+    /**
+     * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
+     */
+    static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
+        List<Terms.Bucket> buckets = longTerms.getBuckets();
+        List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
+        for (Terms.Bucket bucket : buckets) {
+            newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),
+                bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
+                longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
+        }
+        return new DoubleTerms(longTerms.getName(), longTerms.order, longTerms.requiredSize,
+            longTerms.minDocCount, longTerms.pipelineAggregators(),
+            longTerms.metaData, longTerms.format, longTerms.shardSize,
+            longTerms.showTermDocCountError, longTerms.otherDocCount,
+            newBuckets, longTerms.docCountError);
     }
 }

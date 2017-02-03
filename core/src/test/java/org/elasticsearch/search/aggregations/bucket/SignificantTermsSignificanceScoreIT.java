@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -305,7 +306,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings)
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
                 .addMapping("doc", "text", "type=keyword", CLASS_FIELD, "type=keyword"));
         String[] cat1v1 = {"constant", "one"};
         String[] cat1v2 = {"constant", "uno"};

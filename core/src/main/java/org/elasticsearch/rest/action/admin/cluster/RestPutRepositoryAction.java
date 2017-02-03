@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,8 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Registers repositories
  */
 public class RestPutRepositoryAction extends BaseRestHandler {
-
-    @Inject
     public RestPutRepositoryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/_snapshot/{repository}", this);

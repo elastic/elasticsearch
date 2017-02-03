@@ -60,7 +60,7 @@ class def -> java.lang.Object {
 
 #### Painless debugging API
 
-class Debug -> org.elasticsearch.painless.Debug extends Object {
+class Debug -> org.elasticsearch.painless.api.Debug extends Object {
   void explain(Object)
 }
 
@@ -82,6 +82,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsear
   long getValue()
   List getValues()
   org.joda.time.ReadableDateTime getDate()
+  List getDates()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
@@ -111,6 +112,26 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elastic
 class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elasticsearch.index.fielddata.ScriptDocValues$Booleans extends List,Collection,Iterable,Object {
   Boolean get(int)
   boolean getValue()
+  List getValues()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs -> org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs extends List,Collection,Iterable,Object {
+  BytesRef get(int)
+  BytesRef getValue()
+  List getValues()
+}
+
+class BytesRef -> org.apache.lucene.util.BytesRef extends Object {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues -> org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues extends List,Collection,Iterable,Object {
+  String get(int)
+  String getValue()
   List getValues()
 }
 

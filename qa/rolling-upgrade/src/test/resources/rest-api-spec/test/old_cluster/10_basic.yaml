@@ -32,3 +32,147 @@
         index: test_index
 
  - match: { hits.total: 5 }
+
+---
+"Add stuff to cluster state so that we can verify that it remains to exist during and after the rolling upgrade":
+  - do:
+      snapshot.create_repository:
+        repository: my_repo
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test"
+  - match: { "acknowledged": true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+            ]
+          }
+  - match: { "acknowledged": true }
+
+---
+"Test rolling upgrade for stored scripts between the old namespace and the new namespace":
+  - skip:
+      version: " - 6.0.0"
+      reason: test fails when using bwc version 5.3.0-SNAPSHOT
+      features: warnings
+
+  - do:
+     indices.create:
+        index: stored_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value1", "num": 1.0}'
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value2", "num": 2.0}'
+          - '{"index": {"_index": "stored_index", "_type": "test"}}'
+          - '{"value": "value3", "num": 3.0}'
+
+  - do:
+     indices.flush:
+        index: stored_index
+
+  - do:
+      put_script:
+        id: "greater"
+        lang: "painless"
+        body: {
+          "script": "doc['num'].value > 1.0"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "value"
+        lang: "painless"
+        body: {
+          "script": "doc['num'].value"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "value"
+        lang: "expression"
+        body: {
+          "script": "doc['num'].value"
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        id: "greater"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "greater" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value > 1.0" }
+
+  - do:
+      get_script:
+        id: "value"
+        lang: "painless"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "painless"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      get_script:
+        id: "value"
+        lang: "expression"
+  - match: { "found": true }
+  - match: { "_id": "value" }
+  - match: { "lang": "expression"}
+  - match: { "script": "doc['num'].value" }
+
+  - do:
+      search:
+        index: stored_index
+        body: {
+          "query": {
+            "script": {
+              "script": {
+                "stored": "greater",
+                "lang": "painless"
+              }
+            }
+          },
+          "script_fields": {
+            "script_painless": {
+              "script": {
+                "stored": "value",
+                "lang": "painless"
+              }
+            },
+            "script_expressions": {
+              "script": {
+                "stored": "value",
+                "lang": "expression"
+              }
+            }
+          },
+          "sort": {
+            "num": {
+              "order": "asc"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0.fields.script_painless.0: 2.0 }
+  - match: { hits.hits.1.fields.script_painless.0: 3.0 }
+  - match: { hits.hits.0.fields.script_expressions.0: 2.0 }
+  - match: { hits.hits.1.fields.script_expressions.0: 3.0 }

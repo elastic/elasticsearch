@@ -88,7 +88,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
                             String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
                             return allocation.decision(Decision.NO, NAME,
                                 "the shard cannot be allocated on host %s [%s], where it already exists on node [%s]; " +
-                                    "set [%s] to false to allow multiple nodes on the same host to hold the same shard copies",
+                                    "set cluster setting [%s] to false to allow multiple nodes on the same host to hold the same " +
+                                    "shard copies",
                                 hostType, host, node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
                         }
                     }

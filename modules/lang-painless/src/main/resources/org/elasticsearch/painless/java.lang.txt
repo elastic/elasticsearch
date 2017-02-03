@@ -756,6 +756,8 @@ class String -> java.lang.String extends CharSequence,Comparable,Object {
   boolean contentEquals(CharSequence)
   String copyValueOf(char[])
   String copyValueOf(char[],int,int)
+  String decodeBase64*()
+  String encodeBase64*()
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[])
@@ -1101,4 +1103,3 @@ class UnsupportedOperationException -> java.lang.UnsupportedOperationException e
   UnsupportedOperationException <init>()
   UnsupportedOperationException <init>(String)
 }
-

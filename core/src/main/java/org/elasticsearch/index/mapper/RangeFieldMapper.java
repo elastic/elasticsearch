@@ -166,7 +166,7 @@ public class RangeFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
                             + "] field types.");
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
@@ -405,12 +405,14 @@ public class RangeFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().format().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()) == false))) {
             builder.field("format", fieldType().dateTimeFormatter().format());
         }
-        if (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != Locale.ROOT)) {
+        if (fieldType().rangeType == RangeType.DATE
+                && (includeDefaults || (fieldType().dateTimeFormatter() != null
+                && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {
@@ -728,8 +730,8 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
                 ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
                 QueryShardContext context) {
-            Number lower = from == null ? minValue() : numberType.parse(from);
-            Number upper = to == null ? maxValue() : numberType.parse(to);
+            Number lower = from == null ? minValue() : numberType.parse(from, false);
+            Number upper = to == null ? maxValue() : numberType.parse(to, false);
             if (relation == ShapeRelation.WITHIN) {
                 return withinQuery(field, lower, upper, includeFrom, includeTo);
             } else if (relation == ShapeRelation.CONTAINS) {

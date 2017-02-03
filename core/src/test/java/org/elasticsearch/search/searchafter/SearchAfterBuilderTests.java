@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.searchafter;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -28,14 +27,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,22 +37,6 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class SearchAfterBuilderTests extends ESTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
-
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        indicesQueriesRegistry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
-    }
 
     private static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);
@@ -154,7 +131,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        return SearchAfterBuilder.fromXContent(parser, null);
+        return SearchAfterBuilder.fromXContent(parser);
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
@@ -189,11 +166,10 @@ public class SearchAfterBuilderTests extends ESTestCase {
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
             XContentParser parser = createParser(shuffleXContent(builder));
-            new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser, null);
+            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
             assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());

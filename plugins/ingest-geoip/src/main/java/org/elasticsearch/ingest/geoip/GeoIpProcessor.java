@@ -50,6 +50,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
@@ -63,18 +64,32 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final String targetField;
     private final DatabaseReader dbReader;
     private final Set<Property> properties;
+    private final boolean ignoreMissing;
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties) throws IOException {
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties,
+                   boolean ignoreMissing) throws IOException {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.dbReader = dbReader;
         this.properties = properties;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String ip = ingestDocument.getFieldValue(field, String.class);
+        String ip = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
+
+        if (ip == null && ignoreMissing) {
+            return;
+        } else if (ip == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
+        }
+
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
@@ -124,10 +139,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
         CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () -> {
             try {
                 return dbReader.city(ipAddress);
@@ -202,10 +214,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        SpecialPermission.check();
         CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () -> {
             try {
                 return dbReader.country(ipAddress);
@@ -268,6 +277,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);
             if (databaseReader == null) {
@@ -298,7 +308,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
 
-            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
+            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties, ignoreMissing);
         }
     }
 
@@ -307,7 +317,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     // it with an unchecked exception.
     private static final class AddressNotFoundRuntimeException extends RuntimeException {
 
-        public AddressNotFoundRuntimeException(Throwable cause) {
+        AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);
         }
     }

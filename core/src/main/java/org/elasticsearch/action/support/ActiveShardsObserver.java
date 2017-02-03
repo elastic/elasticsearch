@@ -69,9 +69,10 @@ public class ActiveShardsObserver extends AbstractComponent {
             return;
         }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        if (activeShardCount.enoughShardsActive(observer.observedState(), indexName)) {
-                onResult.accept(true);
+        final ClusterState state = clusterService.state();
+        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
+        if (activeShardCount.enoughShardsActive(state, indexName)) {
+            onResult.accept(true);
         } else {
             final Predicate<ClusterState> shardsAllocatedPredicate = newState -> activeShardCount.enoughShardsActive(newState, indexName);
 

@@ -13,6 +13,8 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
+include::bucket/adjacency-matrix-aggregation.asciidoc[]
+
 include::bucket/children-aggregation.asciidoc[]
 
 include::bucket/datehistogram-aggregation.asciidoc[]

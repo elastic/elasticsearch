@@ -61,10 +61,9 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     static MockTerminal removePlugin(String name, Path home) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand().execute(terminal, name, settings);
+        new RemovePluginCommand().execute(terminal, name, env);
         return terminal;
     }
 
@@ -152,6 +151,12 @@ public class RemovePluginCommandTests extends ESTestCase {
                     reader.readLine());
             assertNull(reader.readLine());
         }
+    }
+
+    public void testMissingPluginName() throws Exception {
+        UserException e = expectThrows(UserException.class, () -> removePlugin(null, home));
+        assertEquals(ExitCodes.USAGE, e.exitCode);
+        assertEquals("plugin name is required", e.getMessage());
     }
 
     private String expectedConfigDirPreservedMessage(final Path configDir) {

@@ -20,13 +20,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -37,22 +35,22 @@ import java.util.function.LongSupplier;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
-public class QueryRewriteContext implements ParseFieldMatcherSupplier {
+public class QueryRewriteContext {
     protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final NamedXContentRegistry xContentRegistry;
     protected final Client client;
     protected final IndexReader reader;
     protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-                               IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
-                               LongSupplier nowInMillis) {
+            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
+            LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.reader = reader;
         this.nowInMillis = nowInMillis;
@@ -87,17 +85,18 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return reader;
     }
 
-    @Override
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return this.indexSettings.getParseFieldMatcher();
+    /**
+     * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
+     */
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
     }
 
     /**
-     * Returns a new {@link QueryParseContext} that wraps the provided parser, using the ParseFieldMatcher settings that
-     * are configured in the index settings. The default script language will always default to Painless.
+     * Returns a new {@link QueryParseContext} that wraps the provided parser.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(parser);
     }
 
     public long nowInMillis() {
@@ -108,6 +107,4 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
         return (BytesReference) executable.run();
     }
-
-
 }

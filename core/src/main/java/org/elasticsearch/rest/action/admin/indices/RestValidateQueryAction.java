@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -27,12 +26,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -50,11 +45,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestValidateQueryAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestValidateQueryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
@@ -62,7 +53,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_validate/query", this);
         controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
         controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -77,7 +67,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser != null) {
-                    validateQueryRequest.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
+                    validateQueryRequest.query(RestActions.getQueryContent(parser));
                 } else if (request.hasParam("q")) {
                     validateQueryRequest.query(RestActions.urlParamsToQueryBuilder(request));
                 }

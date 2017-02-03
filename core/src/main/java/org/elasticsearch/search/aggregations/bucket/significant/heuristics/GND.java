@@ -119,7 +119,7 @@ public class GND extends NXYSignificanceHeuristic {
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (context.getParseFieldMatcher().match(parser.currentName(), BACKGROUND_IS_SUPERSET)) {
+                if (BACKGROUND_IS_SUPERSET.match(parser.currentName())) {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {

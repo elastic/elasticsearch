@@ -38,7 +38,7 @@ public class DynamicTemplate implements ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 
-    public static enum MatchType {
+    public enum MatchType {
         SIMPLE {
             @Override
             public boolean matches(String pattern, String value) {
@@ -152,7 +152,7 @@ public class DynamicTemplate implements ToXContent {
                     return v;
                 }
             }
-            throw new IllegalArgumentException("No xcontent type matched on [" + value + "], possible values are "
+            throw new IllegalArgumentException("No field type matched on [" + value + "], possible values are "
                     + Arrays.toString(values()));
         }
 
@@ -208,6 +208,8 @@ public class DynamicTemplate implements ToXContent {
                 if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
                     throw e;
                 } else {
+                    DEPRECATION_LOGGER.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
+                            + e.getMessage());
                     // this template is on an unknown type so it will never match anything
                     // null indicates that the template should be ignored
                     return null;

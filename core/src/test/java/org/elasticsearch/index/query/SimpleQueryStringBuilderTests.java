@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -58,9 +59,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
-        }
-        if (randomBoolean()) {
-            result.lenient(randomBoolean());
         }
         if (randomBoolean()) {
             result.minimumShouldMatch(randomMinimumShouldMatch());
@@ -214,9 +212,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // the remaining tests requires either a mapping that we register with types in base test setup
         if (getCurrentTypes().length > 0) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, instanceOf(TermQuery.class));
-            TermQuery termQuery = (TermQuery) luceneQuery;
-            assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
+            assertThat(luceneQuery, instanceOf(BooleanQuery.class));
         }
     }
 
@@ -259,7 +255,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             if (ms.allEnabled()) {
                 assertTermQuery(query, MetaData.ALL, queryBuilder.value());
             } else {
-                assertThat(query.getClass(), equalTo(MatchNoDocsQuery.class));
+                assertThat(query.getClass(), anyOf(equalTo(BooleanQuery.class), equalTo(MatchNoDocsQuery.class)));
             }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "

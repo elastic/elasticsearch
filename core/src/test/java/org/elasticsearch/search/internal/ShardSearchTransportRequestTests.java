@@ -23,8 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -48,7 +48,6 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -163,9 +162,12 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     }
 
     public QueryBuilder aliasFilter(IndexMetaData indexMetaData, String... aliasNames) {
-        Function<XContentParser, QueryParseContext> contextFactory = (p) -> new QueryParseContext(queriesRegistry,
-            p, new ParseFieldMatcher(Settings.EMPTY));
-        return ShardSearchRequest.parseAliasFilter(contextFactory, indexMetaData, aliasNames);
+        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
+            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry(), bytes)) {
+                return new QueryParseContext(parser).parseInnerQueryBuilder();
+            }
+        };
+        return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliasNames);
     }
 
     // BWC test for changes from #20916
@@ -196,9 +198,9 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 .putAlias(AliasMetaData.newAliasMetaDataBuilder("UjLlLkjwWh").filter("{\"term\" : {\"foo\" : \"bar1\"}}"))
                 .putAlias(AliasMetaData.newAliasMetaDataBuilder("uBpgtwuqDG").filter("{\"term\" : {\"foo\" : \"bar2\"}}"));
             IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
-            final long nowInMillis = randomPositiveLong();
+            final long nowInMillis = randomNonNegativeLong();
             QueryShardContext context = new QueryShardContext(
-                0, indexSettings, null, null, null, null, null, queriesRegistry, null, null, () -> nowInMillis);
+                0, indexSettings, null, null, null, null, null, xContentRegistry(), null, null, () -> nowInMillis);
             readRequest.rewrite(context);
             QueryBuilder queryBuilder = readRequest.filteringAliases();
             assertEquals(queryBuilder, QueryBuilders.boolQuery()

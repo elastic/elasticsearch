@@ -178,6 +178,9 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
                 case "eu-west-1":
                     endpoint = "ec2.eu-west-1.amazonaws.com";
                     break;
+                case "eu-west-2":
+                    endpoint = "ec2.eu-west-2.amazonaws.com";
+                    break;
                 case "eu-central":
                 case "eu-central-1":
                     endpoint = "ec2.eu-central-1.amazonaws.com";
@@ -189,6 +192,10 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
                 case "cn-north":
                 case "cn-north-1":
                     endpoint = "ec2.cn-north-1.amazonaws.com.cn";
+                    break;
+                case "ca-central":
+                case "ca-central-1":
+                    endpoint = "ec2.ca-central-1.amazonaws.com";
                     break;
                 default:
                     throw new IllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");

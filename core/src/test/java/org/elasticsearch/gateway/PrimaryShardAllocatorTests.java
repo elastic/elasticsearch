@@ -74,6 +74,16 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private final DiscoveryNode node3 = newNode("node3");
     private TestAllocator testAllocator;
 
+
+    /**
+     * needed due to random usage of {@link IndexMetaData#INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING}. removed once
+     * shadow replicas are removed.
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     @Before
     public void buildTestAllocator() {
         this.testAllocator = new TestAllocator();
@@ -754,7 +764,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
         private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data;
 
-        public TestAllocator() {
+        TestAllocator() {
             super(Settings.EMPTY);
         }
 

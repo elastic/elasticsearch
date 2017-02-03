@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -102,7 +103,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(store.pipelines.size(), is(0));
 
         PipelineConfiguration pipeline = new PipelineConfiguration(
-            "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}")
+            "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
@@ -123,7 +124,7 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
         // add a new pipeline:
-        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(previousClusterState, clusterState);
@@ -134,7 +135,8 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(0));
 
         // overwrite existing pipeline:
-        putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
+        putRequest =
+            new PutPipelineRequest(id, new BytesArray("{\"processors\": [], \"description\": \"_description\"}"), XContentType.JSON);
         previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(previousClusterState, clusterState);
@@ -151,7 +153,8 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"description\": \"empty processors\"}"));
+        PutPipelineRequest putRequest =
+            new PutPipelineRequest(id, new BytesArray("{\"description\": \"empty processors\"}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
         try {
@@ -166,7 +169,7 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testDelete() {
         PipelineConfiguration config = new PipelineConfiguration(
-            "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}")
+            "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
@@ -192,13 +195,84 @@ public class PipelineStoreTests extends ESTestCase {
         }
     }
 
+    public void testDeleteUsingWildcard() {
+        HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
+        BytesArray definition = new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"
+        );
+        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
+        pipelines.put("p2", new PipelineConfiguration("p2", definition, XContentType.JSON));
+        pipelines.put("q1", new PipelineConfiguration("q1", definition, XContentType.JSON));
+        IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), notNullValue());
+        assertThat(store.get("p2"), notNullValue());
+        assertThat(store.get("q1"), notNullValue());
+
+        // Delete pipeline matching wildcard
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("p*");
+        previousClusterState = clusterState;
+        clusterState = store.innerDelete(deleteRequest, clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), nullValue());
+        assertThat(store.get("p2"), nullValue());
+        assertThat(store.get("q1"), notNullValue());
+
+        // Exception if we used name which does not exist
+        try {
+            store.innerDelete(new DeletePipelineRequest("unknown"), clusterState);
+            fail("exception expected");
+        } catch (ResourceNotFoundException e) {
+            assertThat(e.getMessage(), equalTo("pipeline [unknown] is missing"));
+        }
+
+        // match all wildcard works on last remaining pipeline
+        DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest("*");
+        previousClusterState = clusterState;
+        clusterState = store.innerDelete(matchAllDeleteRequest, clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), nullValue());
+        assertThat(store.get("p2"), nullValue());
+        assertThat(store.get("q1"), nullValue());
+
+        // match all wildcard does not throw exception if none match
+        store.innerDelete(matchAllDeleteRequest, clusterState);
+    }
+
+    public void testDeleteWithExistingUnmatchedPipelines() {
+        HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
+        BytesArray definition = new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"
+        );
+        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
+        IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), notNullValue());
+
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("z*");
+        try {
+            store.innerDelete(deleteRequest, clusterState);
+            fail("exception expected");
+        } catch (ResourceNotFoundException e) {
+            assertThat(e.getMessage(), equalTo("pipeline [z*] is missing"));
+        }
+    }
+
     public void testGetPipelines() {
         Map<String, PipelineConfiguration> configs = new HashMap<>();
         configs.put("_id1", new PipelineConfiguration(
-            "_id1", new BytesArray("{\"processors\": []}")
+            "_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON
         ));
         configs.put("_id2", new PipelineConfiguration(
-            "_id2", new BytesArray("{\"processors\": []}")
+            "_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON
         ));
 
         assertThat(store.innerGetPipelines(null, "_id1").isEmpty(), is(true));
@@ -240,7 +314,7 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
         PutPipelineRequest putRequest = new PutPipelineRequest(id,
-                new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+                new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(previousClusterState, clusterState);
@@ -261,7 +335,8 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testValidate() throws Exception {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"));
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"),
+            XContentType.JSON);
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
@@ -284,7 +359,7 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testValidateNoIngestInfo() throws Exception {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
         try {
             store.validatePipeline(Collections.emptyMap(), putRequest);
             fail("exception expected");

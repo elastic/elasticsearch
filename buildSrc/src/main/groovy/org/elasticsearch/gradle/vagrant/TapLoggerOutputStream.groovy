@@ -20,10 +20,9 @@ package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
 import groovy.transform.PackageScope
+import org.elasticsearch.gradle.ProgressLogger
 import org.gradle.api.GradleScriptException
 import org.gradle.api.logging.Logger
-import org.gradle.logging.ProgressLogger
-import org.gradle.logging.ProgressLoggerFactory
 
 import java.util.regex.Matcher
 
@@ -49,7 +48,7 @@ public class TapLoggerOutputStream extends LoggingOutputStream {
 
     TapLoggerOutputStream(Map args) {
         logger = args.logger
-        progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
+        progressLogger = new ProgressLogger(args.factory.newOperation(VagrantLoggerOutputStream))
         progressLogger.setDescription("TAP output for `${args.command}`")
     }
 

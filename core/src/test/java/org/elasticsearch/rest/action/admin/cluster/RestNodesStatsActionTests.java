@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -43,14 +44,14 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestNodesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null));
+        action = new RestNodesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null));
     }
 
     public void testUnrecognizedMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomAsciiOfLength(64);
         params.put("metric", metric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -60,7 +61,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
     public void testUnrecognizedMetricDidYouMean() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "os,transprot,unrecognized");
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -75,7 +76,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomSubsetOf(1, RestNodesStatsAction.METRICS.keySet()).get(0);
         params.put("metric", "_all," + metric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -87,7 +88,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         params.put("metric", "indices");
         final String indexMetric = randomAsciiOfLength(64);
         params.put("index_metric", indexMetric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -98,7 +99,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "indices");
         params.put("index_metric", "indexing,stroe,unrecognized");
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -116,7 +117,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         params.put("metric", randomSubsetOf(1, metrics).get(0));
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);
         params.put("index_metric", indexMetric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -131,7 +132,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         params.put("metric", "_all");
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);
         params.put("index_metric", indexMetric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));

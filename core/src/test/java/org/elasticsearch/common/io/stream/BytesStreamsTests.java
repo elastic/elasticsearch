@@ -21,7 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -33,6 +33,7 @@ import org.joda.time.DateTimeZone;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -530,7 +531,7 @@ public class BytesStreamsTests extends ESTestCase {
             this.field2 = field2;
         }
 
-        public TestNamedWriteable(StreamInput in) throws IOException {
+        TestNamedWriteable(StreamInput in) throws IOException {
             field1 = in.readString();
             field2 = in.readString();
         }
@@ -612,9 +613,9 @@ public class BytesStreamsTests extends ESTestCase {
 
         private boolean value;
 
-        public TestStreamable() { }
+        TestStreamable() { }
 
-        public TestStreamable(boolean value) {
+        TestStreamable(boolean value) {
             this.value = value;
         }
 
@@ -777,5 +778,38 @@ public class BytesStreamsTests extends ESTestCase {
                 assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
             }
         }
+    }
+
+    public void testVInt() throws IOException {
+        final int value = randomInt();
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeVInt(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readVInt());
+    }
+
+    public void testVLong() throws IOException {
+        final long value = randomLong();
+        {
+            // Read works for positive and negative numbers
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
+            StreamInput input = output.bytes().streamInput();
+            assertEquals(value, input.readVLong());
+        }
+        if (value < 0) {
+            // Write doesn't work for negative numbers
+            BytesStreamOutput output = new BytesStreamOutput();
+            Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
+            assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
+        }
+
+        assertTrue("If we're not compatible with 5.1.1 we can drop the assertion below",
+                Version.CURRENT.minimumCompatibilityVersion().onOrBefore(Version.V_5_1_1_UNRELEASED));
+        /* Read -1 as serialized by a version of Elasticsearch that supported writing negative numbers with writeVLong. Note that this
+         * should be the same test as the first case (when value is negative) but we've kept some bytes so no matter what we do to
+         * writeVLong in the future we can be sure we can read bytes as written by Elasticsearch before 5.1.2 */
+        StreamInput in = new BytesArray(Base64.getDecoder().decode("////////////AQAAAAAAAA==")).streamInput();
+        assertEquals(-1, in.readVLong());
     }
 }

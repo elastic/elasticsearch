@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -60,13 +57,11 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
     }
 
     private boolean needsScores(IndexService index, String agg) throws IOException {
-        AggregatorParsers parser = getInstanceFromNode(SearchRequestParsers.class).aggParsers;
-        IndicesQueriesRegistry queriesRegistry = getInstanceFromNode(IndicesQueriesRegistry.class);
         XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, aggParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(aggParser);
         aggParser.nextToken();
         SearchContext context = createSearchContext(index);
-        final AggregatorFactories factories = parser.parseAggregators(parseContext).build(context, null);
+        final AggregatorFactories factories = AggregatorFactories.parseAggregators(parseContext).build(context, null);
         final Aggregator[] aggregators = factories.createTopLevelAggregators();
         assertEquals(1, aggregators.length);
         return aggregators[0].needsScores();

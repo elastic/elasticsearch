@@ -21,69 +21,44 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
-
-    private final SearchPhaseController searchPhaseController;
+final class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
     SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                   Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                   Function<String, Transport.Connection> nodeIdToConnection,
                                    Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                    SearchPhaseController searchPhaseController, Executor executor,
                                    SearchRequest request, ActionListener<SearchResponse> listener,
                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
                                    SearchTask task) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, concreteIndexBoosts, executor,
+        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
-        this.searchPhaseController = searchPhaseController;
-
     }
 
     @Override
-    protected String firstPhaseName() {
+    protected String initialPhaseName() {
         return "query_fetch";
     }
 
     @Override
-    protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,
+    protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
                                          ActionListener<QueryFetchSearchResult> listener) {
-        searchTransportService.sendExecuteFetch(node, request, task, listener);
+        searchTransportService.sendExecuteFetch(connection, request, task, listener);
     }
 
     @Override
-    protected void moveToSecondPhase() throws Exception {
-        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
-            @Override
-            public void doRun() throws IOException {
-                final boolean isScrollRequest = request.scroll() != null;
-                sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
-                    firstResults);
-                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
-                    buildTookInMillis(), buildShardFailures()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
-                }
-                super.onFailure(failure);
-            }
-        });
+    protected CheckedRunnable<Exception> getNextPhase(AtomicArray<QueryFetchSearchResult> initialResults) {
+        return () -> sendResponseAsync("fetch", searchPhaseController, null, initialResults, initialResults);
     }
 }

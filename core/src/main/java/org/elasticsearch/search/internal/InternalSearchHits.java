@@ -22,14 +22,20 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.search.internal.InternalSearchHit.readSearchHit;
 
 public class InternalSearchHits implements SearchHits {
@@ -132,6 +138,44 @@ public class InternalSearchHits implements SearchHits {
         return builder;
     }
 
+    public static InternalSearchHits fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        }
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = null;
+        List<InternalSearchHit> hits = new ArrayList<>();
+        long totalHits = 0;
+        float maxScore = 0f;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (Fields.TOTAL.equals(currentFieldName)) {
+                    totalHits = parser.longValue();
+                } else if (Fields.MAX_SCORE.equals(currentFieldName)) {
+                    maxScore = parser.floatValue();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                if (Fields.MAX_SCORE.equals(currentFieldName)) {
+                    maxScore = Float.NaN; // NaN gets rendered as null-field
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    hits.add(InternalSearchHit.fromXContent(parser));
+                }
+            }
+        }
+        InternalSearchHits internalSearchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits,
+                maxScore);
+        return internalSearchHits;
+    }
+
 
     public static InternalSearchHits readSearchHits(StreamInput in) throws IOException {
         InternalSearchHits hits = new InternalSearchHits();
@@ -164,5 +208,21 @@ public class InternalSearchHits implements SearchHits {
                 hit.writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalSearchHits other = (InternalSearchHits) obj;
+        return Objects.equals(totalHits, other.totalHits)
+                && Objects.equals(maxScore, other.maxScore)
+                && Arrays.equals(hits, other.hits);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits));
     }
 }

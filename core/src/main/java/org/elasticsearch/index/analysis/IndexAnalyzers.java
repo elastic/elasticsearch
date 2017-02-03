@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * IndexAnalyzers contains a name to analyzer mapping for a specific index.
@@ -38,15 +39,18 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     private final NamedAnalyzer defaultSearchAnalyzer;
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
     private final Map<String, NamedAnalyzer> analyzers;
+    private final Map<String, NamedAnalyzer> normalizers;
     private final IndexSettings indexSettings;
 
     public IndexAnalyzers(IndexSettings indexSettings, NamedAnalyzer defaultIndexAnalyzer, NamedAnalyzer defaultSearchAnalyzer,
-                          NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers) {
+                          NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers,
+                          Map<String, NamedAnalyzer> normalizers) {
         super(indexSettings);
         this.defaultIndexAnalyzer = defaultIndexAnalyzer;
         this.defaultSearchAnalyzer = defaultSearchAnalyzer;
         this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
         this.analyzers = analyzers;
+        this.normalizers = normalizers;
         this.indexSettings = indexSettings;
     }
 
@@ -57,6 +61,12 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         return analyzers.get(name);
     }
 
+    /**
+     * Returns a normalizer mapped to the given name or <code>null</code> if not present
+     */
+    public NamedAnalyzer getNormalizer(String name) {
+        return normalizers.get(name);
+    }
 
     /**
      * Returns the default index analyzer for this index
@@ -81,7 +91,7 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
 
     @Override
     public void close() throws IOException {
-       IOUtils.close(() -> analyzers.values().stream()
+       IOUtils.close(() -> Stream.concat(analyzers.values().stream(), normalizers.values().stream())
            .filter(a -> a.scope() == AnalyzerScope.INDEX)
            .iterator());
     }

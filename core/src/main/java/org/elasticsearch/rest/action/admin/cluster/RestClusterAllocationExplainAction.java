@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,8 +42,6 @@ import java.io.IOException;
  * Class handling cluster allocation explanation at the REST level
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterAllocationExplainAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/allocation/explain", this);
@@ -70,10 +67,12 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
             req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
+            final boolean humanReadable = request.paramAsBoolean("human", false);
             return channel ->
                     client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
+                    builder.humanReadable(humanReadable);
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

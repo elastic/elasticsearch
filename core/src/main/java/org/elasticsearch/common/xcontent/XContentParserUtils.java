@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
@@ -36,31 +37,16 @@ public final class XContentParserUtils {
     }
 
     /**
-     * Makes sure that current token is of type {@link XContentParser.Token#FIELD_NAME}
-     *
-     * @return the token
-     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME}
-     */
-    public static Token ensureFieldName(Token token, Supplier<XContentLocation> location) throws IOException {
-        return ensureType(Token.FIELD_NAME, token, location);
-    }
-
-    /**
      * Makes sure that current token is of type {@link XContentParser.Token#FIELD_NAME} and the the field name is equal to the provided one
-     *
-     * @return the token
-     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME} or is not equal to the given
-     *                          field name
+     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME} or is not equal to the given field name
      */
-    public static Token ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
-        Token t = ensureType(Token.FIELD_NAME, token, parser::getTokenLocation);
-
-        String current = parser.currentName() != null ? parser.currentName() : "<null>";
-        if (current.equals(fieldName) == false) {
+    public static void ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
+        ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+        String currentName = parser.currentName();
+        if (currentName.equals(fieldName) == false) {
             String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
-            throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, fieldName, current));
+            throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, fieldName, currentName));
         }
-        return t;
     }
 
     /**
@@ -72,16 +58,53 @@ public final class XContentParserUtils {
     }
 
     /**
-     * Makes sure that current token is of the expected type
+     * @throws ParsingException with a "unknown token found" reason
+     */
+    public static void throwUnknownToken(XContentParser.Token token, XContentLocation location) {
+        String message = "Failed to parse object: unexpected token [%s] found";
+        throw new ParsingException(location, String.format(Locale.ROOT, message, token));
+    }
+
+    /**
+     * Makes sure that provided token is of the expected type
      *
-     * @return the token
      * @throws ParsingException if the token is not equal to the expected type
      */
-    private static Token ensureType(Token expected, Token current, Supplier<XContentLocation> location) {
-        if (current != expected) {
+    public static void ensureExpectedToken(Token expected, Token actual, Supplier<XContentLocation> location) {
+        if (actual != expected) {
             String message = "Failed to parse object: expecting token of type [%s] but found [%s]";
-            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, current));
+            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, actual));
         }
-        return current;
+    }
+
+    /**
+     * Parse the current token depending on its token type. The following token types will be
+     * parsed by the corresponding parser methods:
+     * <ul>
+     *    <li>XContentParser.Token.VALUE_STRING: parser.text()</li>
+     *    <li>XContentParser.Token.VALUE_NUMBER: parser.numberValue()</li>
+     *    <li>XContentParser.Token.VALUE_BOOLEAN: parser.booleanValue()</li>
+     *    <li>XContentParser.Token.VALUE_EMBEDDED_OBJECT: parser.binaryValue()</li>
+     * </ul>
+     *
+     * @throws ParsingException if the token none of the allowed values
+     */
+    public static Object parseStoredFieldsValue(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        Object value = null;
+        if (token == XContentParser.Token.VALUE_STRING) {
+            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            value = parser.text();
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            value = parser.numberValue();
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            value = parser.booleanValue();
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+            value = new BytesArray(parser.binaryValue());
+        } else {
+            throwUnknownToken(token, parser.getTokenLocation());
+        }
+        return value;
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -171,8 +172,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool);
             transportService = new TransportService(settings,
                     new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
-                            new NamedWriteableRegistry(Collections.emptyList()), new NetworkService(settings, Collections.emptyList())),
-                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null) {
+                        new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                        new NetworkService(settings, Collections.emptyList())),
+                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {

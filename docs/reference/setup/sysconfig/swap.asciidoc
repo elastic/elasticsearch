@@ -92,7 +92,7 @@ via `System Properties → Advanced → Performance → Advanced → Virtual mem
 [[swappiness]]
 ==== Configure `swappiness`
 
-The second option available on Linux systems is to ensure that the sysctl value
+Another option available on Linux systems is to ensure that the sysctl value
 `vm.swappiness` is set to `1`. This reduces the kernel's tendency to swap and
 should not lead to swapping under normal circumstances, while still allowing
 the whole system to swap in emergency conditions.

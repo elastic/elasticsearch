@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,8 +40,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetSourceAction extends BaseRestHandler {
-
-    @Inject
     public RestGetSourceAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
@@ -69,7 +66,7 @@ public class RestGetSourceAction extends BaseRestHandler {
                 client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(GetResponse response) throws Exception {
-                        XContentBuilder builder = channel.newBuilder(response.getSourceInternal(), false);
+                        XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
                         if (response.isSourceEmpty()) { // check if doc source (or doc itself) is missing
                             return new BytesRestResponse(NOT_FOUND, builder);
                         } else {

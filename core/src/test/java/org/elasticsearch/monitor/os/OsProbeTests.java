@@ -41,7 +41,7 @@ public class OsProbeTests extends ESTestCase {
 
     public void testOsInfo() {
         int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
-        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+        long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
         OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());
@@ -195,7 +195,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
             @Override
-            protected boolean areCgroupStatsAvailable() {
+            boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
 

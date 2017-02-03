@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,7 +44,7 @@ public class ScriptTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
-                Script actualScript = Script.parse(parser, ParseFieldMatcher.STRICT);
+                Script actualScript = Script.parse(parser);
                 assertThat(actualScript, equalTo(expectedScript));
             }
         }
@@ -79,10 +78,9 @@ public class ScriptTests extends ESTestCase {
         }
         return new Script(
             scriptType,
-            randomFrom("_lang1", "_lang2", "_lang3"),
+            scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : Collections.emptyMap(),
+            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : null,
             params
         );
     }

@@ -6,7 +6,6 @@
   },
   "mappings" : {
     "_default_" : {
-      "_all" : {"enabled" : true, "norms" : false},
       "dynamic_templates" : [ {
         "message_field" : {
           "path_match" : "message",

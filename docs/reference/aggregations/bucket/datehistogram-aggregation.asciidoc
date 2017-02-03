@@ -200,7 +200,7 @@ second document falls into the bucket for 1 October 2015:
 
 The `offset` parameter is used to change the start value of each bucket by the
 specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
-an hour, or `1M` for a month. See <<time-units>> for more possible time
+an hour, or `1d` for a day. See <<time-units>> for more possible time
 duration options.
 
 For instance, when using an interval of `day`, each bucket runs from midnight

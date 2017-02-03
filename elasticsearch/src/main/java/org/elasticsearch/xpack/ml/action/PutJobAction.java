@@ -63,7 +63,6 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         }
 
         private Job job;
-        private boolean overwrite;
 
         public Request(Job job) {
             this.job = job;
@@ -76,14 +75,6 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             return job;
         }
 
-        public boolean isOverwrite() {
-            return overwrite;
-        }
-
-        public void setOverwrite(boolean overwrite) {
-            this.overwrite = overwrite;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -93,14 +84,12 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             job = new Job(in);
-            overwrite = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             job.writeTo(out);
-            out.writeBoolean(overwrite);
         }
 
         @Override
@@ -114,13 +103,12 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return overwrite == request.overwrite &&
-                    Objects.equals(job, request.job);
+            return Objects.equals(job, request.job);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(job, overwrite);
+            return Objects.hash(job);
         }
 
         @Override

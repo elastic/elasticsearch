@@ -31,8 +31,6 @@ public class RestPutJobAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser);
-        boolean overwrite = restRequest.paramAsBoolean("overwrite", false);
-        putJobRequest.setOverwrite(overwrite);
         return channel -> client.execute(PutJobAction.INSTANCE, putJobRequest, new RestToXContentListener<>(channel));
     }
 

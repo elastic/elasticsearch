@@ -9,10 +9,6 @@
           "type": "string",
           "required": true,
           "description": "The ID of the job to create"
-        },
-        "overwrite": {
-          "type": "boolean",
-          "description": "Overwrite an existing job"
         }
       }
     },

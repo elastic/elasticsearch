@@ -22,6 +22,7 @@ package org.elasticsearch.mapper.attachments;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.DirectoryStream;
@@ -37,16 +38,22 @@ import java.nio.file.Path;
 public class TikaDocTests extends ESTestCase {
 
     /** some test files from tika test suite, zipped up */
-    static final String TIKA_FILES = "/org/elasticsearch/index/mapper/attachment/test/tika-files.zip";
+    static final String TIKA_FILES = "/org/elasticsearch/index/mapper/attachment/test/tika-files/";
 
     public void testFiles() throws Exception {
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(TIKA_FILES), tmp);
+        logger.debug("unzipping all tika sample files");
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(PathUtils.get(getClass().getResource(TIKA_FILES).toURI()))) {
+            for (Path doc : stream) {
+                String filename = doc.getFileName().toString();
+                TestUtil.unzip(getClass().getResourceAsStream(TIKA_FILES + filename), tmp);
+            }
+        }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
             for (Path doc : stream) {
-              logger.debug("parsing: {}", doc);
-              assertParseable(doc);
+                logger.debug("parsing: {}", doc);
+                assertParseable(doc);
             }
         }
     }

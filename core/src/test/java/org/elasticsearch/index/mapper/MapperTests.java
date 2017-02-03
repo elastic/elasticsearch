@@ -21,8 +21,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class MapperTests extends ESTestCase {
 
@@ -39,5 +45,37 @@ public class MapperTests extends ESTestCase {
         NullPointerException e = expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
     }
 
+    public void testExceptionForIncludeInAll() throws IOException {
+        XContentBuilder mapping = createMappingWithIncludeInAll();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+
+        final MapperService currentMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings);
+        Exception e = expectThrows(MapperParsingException.class, () ->
+                currentMapperService.parse("type", new CompressedXContent(mapping.string()), true));
+        assertEquals("[include_in_all] is not allowed for indices created on or after version 6.0.0 as [_all] is deprecated. " +
+                        "As a replacement, you can use an [copy_to] on mapping fields to create your own catch all field.",
+                e.getMessage());
+
+        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_3_0_UNRELEASED).build();
+
+        // Create the mapping service with an older index creation version
+        final MapperService oldMapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings);
+        // Should not throw an exception now
+        oldMapperService.parse("type", new CompressedXContent(mapping.string()), true);
+    }
+
+    private static XContentBuilder createMappingWithIncludeInAll() throws IOException {
+        return jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("a")
+                .field("type", "text")
+                .field("include_in_all", randomBoolean())
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+    }
 
 }

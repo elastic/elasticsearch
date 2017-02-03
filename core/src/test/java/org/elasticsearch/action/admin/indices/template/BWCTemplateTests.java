@@ -45,12 +45,4 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
         client().prepareIndex("winlogbeat-foo", "doc", "1").setSource("message", "foo").get();
         assertWarnings("Deprecated field [template] used, replaced by [index_patterns]");
     }
-
-    public void testLogstashTemplatesBWC() throws Exception {
-        byte[] ls5x = copyToBytesFromClasspath("/org/elasticsearch/action/admin/indices/template/logstash-5.0.template.json");
-        client().admin().indices().preparePutTemplate("logstash-5x").setSource(ls5x, XContentType.JSON).get();
-        client().prepareIndex("logstash-foo", "doc", "1").setSource("message", "foo").get();
-        assertWarnings("Deprecated field [template] used, replaced by [index_patterns]");
-    }
-
 }

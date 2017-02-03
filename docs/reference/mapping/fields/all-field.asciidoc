@@ -71,9 +71,8 @@ and long fields (less relevant). For use cases where search relevance is
 important, it is better to query individual fields specifically.
 
 The `_all` field is not free: it requires extra CPU cycles and uses more disk
-space. For this reason, it is disabled by default. If not needed, it can be
-<<enabling-all-field,enabled>> or customised on a <<include-in-all,per-field
-basis>>.
+space. For this reason, it is disabled by default. If needed, it can be
+<<enabling-all-field,enabled>>.
 
 [[querying-all-field]]
 ==== Using the `_all` field in queries
@@ -162,13 +161,6 @@ PUT my_index
 // CONSOLE
 
 <1> The `query_string` query will default to querying the `content` field in this index.
-
-[[excluding-from-all]]
-==== Excluding fields from `_all`
-
-Individual fields can be included or excluded from the `_all` field with the
-<<include-in-all,`include_in_all`>> setting.
-
 
 [[all-field-and-boosting]]
 ==== Index boosting and the `_all` field

@@ -133,12 +133,21 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
+    public void testSlowLogSearchContextPrinterSourceToLog() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, 0);
+        assertThat(p.toString(), not(containsString("source[")));
+    }
+
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
+        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, Integer.MAX_VALUE);
         assertThat(p.toString(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.toString(), not(containsString("\n")));

@@ -43,12 +43,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final Map<BytesRef,VersionValue> old;
 
-        public Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
+        Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
            this.current = current;
            this.old = old;
         }
 
-        public Maps() {
+        Maps() {
             this(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(),
                  ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
         }

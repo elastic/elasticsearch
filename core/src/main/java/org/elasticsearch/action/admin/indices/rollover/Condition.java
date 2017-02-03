@@ -47,7 +47,7 @@ public abstract class Condition<T> implements NamedWriteable {
         this.name = name;
     }
 
-    public abstract Result evaluate(final Stats stats);
+    public abstract Result evaluate(Stats stats);
 
     @Override
     public final String toString() {

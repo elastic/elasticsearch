@@ -154,7 +154,7 @@ final class SystemCallFilter {
         public short   len;           // number of filters
         public Pointer filter;        // filters
 
-        public SockFProg(SockFilter filters[]) {
+        SockFProg(SockFilter filters[]) {
             len = (short) filters.length;
             // serialize struct sock_filter * explicitly, its less confusing than the JNA magic we would need
             Memory filter = new Memory(len * 8);

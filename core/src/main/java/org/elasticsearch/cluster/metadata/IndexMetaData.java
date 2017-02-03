@@ -139,7 +139,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
     public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
 
-    public static enum State {
+    public enum State {
         OPEN((byte) 0),
         CLOSE((byte) 1);
 
@@ -620,7 +620,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
 
-        public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
+        IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
             version = after.version;
             routingNumShards = after.routingNumShards;
@@ -634,7 +634,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
         }
 
-        public IndexMetaDataDiff(StreamInput in) throws IOException {
+        IndexMetaDataDiff(StreamInput in) throws IOException {
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();

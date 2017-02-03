@@ -317,7 +317,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     // it with an unchecked exception.
     private static final class AddressNotFoundRuntimeException extends RuntimeException {
 
-        public AddressNotFoundRuntimeException(Throwable cause) {
+        AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);
         }
     }

@@ -41,7 +41,7 @@ final class LocalShardSnapshot implements Closeable {
     private final IndexCommit indexCommit;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public LocalShardSnapshot(IndexShard shard) {
+    LocalShardSnapshot(IndexShard shard) {
         this.shard = shard;
         store = shard.store();
         store.incRef();

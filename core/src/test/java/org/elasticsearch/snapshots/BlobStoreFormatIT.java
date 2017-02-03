@@ -60,7 +60,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
         private final String text;
 
-        public BlobObj(String text) {
+        BlobObj(String text) {
             this.text = text;
         }
 

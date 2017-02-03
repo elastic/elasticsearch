@@ -197,7 +197,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        public SearchFreeContextRequest() {
+        SearchFreeContextRequest() {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {

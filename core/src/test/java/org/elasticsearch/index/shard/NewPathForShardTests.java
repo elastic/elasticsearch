@@ -76,7 +76,7 @@ public class NewPathForShardTests extends ESTestCase {
     /** Mock file system that fakes usable space for each FileStore */
     static class MockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
 
-        public MockUsableSpaceFileSystemProvider(FileSystem inner) {
+        MockUsableSpaceFileSystemProvider(FileSystem inner) {
             super("mockusablespace://", inner);
             final List<FileStore> fileStores = new ArrayList<>();
             fileStores.add(aFileStore);
@@ -99,7 +99,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         private final String desc;
 
-        public MockFileStore(String desc) {
+        MockFileStore(String desc) {
             this.desc = desc;
         }
 

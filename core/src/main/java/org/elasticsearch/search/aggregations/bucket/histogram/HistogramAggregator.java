@@ -61,7 +61,7 @@ class HistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    public HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
             InternalOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context, Aggregator parent,

@@ -374,7 +374,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
         private volatile Runnable cancellationListener = null;
 
-        public CancellableTaskHolder(CancellableTask task) {
+        CancellableTaskHolder(CancellableTask task) {
             this.task = task;
         }
 

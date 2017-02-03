@@ -188,7 +188,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
         
-        public BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+        BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }

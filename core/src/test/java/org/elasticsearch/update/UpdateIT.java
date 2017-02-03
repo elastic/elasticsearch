@@ -886,7 +886,7 @@ public class UpdateIT extends ESIntegTestCase {
             private final Semaphore updateRequestsOutstanding = new Semaphore(maxUpdateRequests);
             private final Semaphore deleteRequestsOutstanding = new Semaphore(maxDeleteRequests);
 
-            public UpdateThread(int numberOfIds, int updatesPerId) {
+            UpdateThread(int numberOfIds, int updatesPerId) {
                 this.numberOfIds = numberOfIds;
                 this.updatesPerId = updatesPerId;
             }
@@ -894,7 +894,7 @@ public class UpdateIT extends ESIntegTestCase {
             final class UpdateListener implements ActionListener<UpdateResponse> {
                 int id;
 
-                public UpdateListener(int id) {
+                UpdateListener(int id) {
                     this.id = id;
                 }
 
@@ -916,7 +916,7 @@ public class UpdateIT extends ESIntegTestCase {
             final class DeleteListener implements ActionListener<DeleteResponse> {
                 int id;
 
-                public DeleteListener(int id) {
+                DeleteListener(int id) {
                     this.id = id;
                 }
 

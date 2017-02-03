@@ -461,7 +461,7 @@ public class RestTable {
         private final String column;
         private final boolean reverse;
 
-        public ColumnOrderElement(String column, boolean reverse) {
+        ColumnOrderElement(String column, boolean reverse) {
             this.column = column;
             this.reverse = reverse;
         }

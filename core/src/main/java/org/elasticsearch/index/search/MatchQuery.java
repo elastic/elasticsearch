@@ -53,7 +53,7 @@ import java.util.List;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable {
+    public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -69,7 +69,7 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private Type(int ordinal) {
+        Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -89,13 +89,13 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable {
+    public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private ZeroTermsQuery(int ordinal) {
+        ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -301,7 +301,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }

@@ -41,7 +41,7 @@ public class DynamicTemplate implements ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 
-    public static enum MatchType {
+    public enum MatchType {
         SIMPLE {
             @Override
             public boolean matches(String pattern, String value) {

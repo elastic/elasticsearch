@@ -161,7 +161,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public CustomNetty3HttpServerTransport(Settings settings) {
+        CustomNetty3HttpServerTransport(Settings settings) {
             super(settings, Netty3HttpServerPipeliningTests.this.networkService,
                 Netty3HttpServerPipeliningTests.this.bigArrays, Netty3HttpServerPipeliningTests.this.threadPool, xContentRegistry()
                 , (request, channel, context) -> {});
@@ -185,7 +185,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public CustomHttpChannelPipelineFactory(Netty3HttpServerTransport transport, ExecutorService executorService,
+        CustomHttpChannelPipelineFactory(Netty3HttpServerTransport transport, ExecutorService executorService,
                                                 ThreadContext threadContext) {
             super(transport, randomBoolean(), threadContext);
             this.executorService = executorService;
@@ -203,7 +203,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public PossiblySlowUpstreamHandler(ExecutorService executorService) {
+        PossiblySlowUpstreamHandler(ExecutorService executorService) {
             this.executorService = executorService;
         }
 
@@ -224,7 +224,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
         private ChannelHandlerContext ctx;
         private MessageEvent e;
 
-        public PossiblySlowRunnable(ChannelHandlerContext ctx, MessageEvent e) {
+        PossiblySlowRunnable(ChannelHandlerContext ctx, MessageEvent e) {
             this.ctx = ctx;
             this.e = e;
         }

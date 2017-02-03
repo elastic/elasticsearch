@@ -157,7 +157,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     static final class AllFieldType extends StringFieldType {
 
-        public AllFieldType() {
+        AllFieldType() {
         }
 
         protected AllFieldType(AllFieldType ref) {

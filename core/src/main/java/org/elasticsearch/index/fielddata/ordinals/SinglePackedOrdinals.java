@@ -69,7 +69,7 @@ public class SinglePackedOrdinals extends Ordinals {
         private final PackedInts.Reader reader;
         private final ValuesHolder values;
 
-        public Docs(SinglePackedOrdinals parent, ValuesHolder values) {
+        Docs(SinglePackedOrdinals parent, ValuesHolder values) {
             this.maxOrd = parent.valueCount;
             this.reader = parent.reader;
             this.values = values;

@@ -106,7 +106,7 @@ public class LegacyInMemoryGeoBoundingBoxQuery extends Query {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
 
-        public Meridian180GeoBoundingBoxBits(int maxDoc, MultiGeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
+        Meridian180GeoBoundingBoxBits(int maxDoc, MultiGeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
             this.maxDoc = maxDoc;
             this.values = values;
             this.topLeft = topLeft;
@@ -139,7 +139,7 @@ public class LegacyInMemoryGeoBoundingBoxQuery extends Query {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
 
-        public GeoBoundingBoxBits(int maxDoc, MultiGeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
+        GeoBoundingBoxBits(int maxDoc, MultiGeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
             this.maxDoc = maxDoc;
             this.values = values;
             this.topLeft = topLeft;

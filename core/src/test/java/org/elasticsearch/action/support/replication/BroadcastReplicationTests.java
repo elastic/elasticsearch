@@ -198,7 +198,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, BasicReplicationRequest, ReplicationResponse> {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections.newConcurrentSet();
 
-        public TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+        TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                               TransportReplicationAction replicatedBroadcastShardAction) {
             super("test-broadcast-replication-action", DummyBroadcastRequest::new, settings, threadPool, clusterService, transportService,

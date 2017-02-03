@@ -165,7 +165,7 @@ public class MultiMatchQuery extends MatchQuery {
     final class CrossFieldsQueryBuilder extends QueryBuilder {
         private FieldAndFieldType[] blendedFields;
 
-        public CrossFieldsQueryBuilder(float tieBreaker) {
+        CrossFieldsQueryBuilder(float tieBreaker) {
             super(false, tieBreaker);
         }
 

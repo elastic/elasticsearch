@@ -50,7 +50,7 @@ public abstract class GeoPointArrayLegacyAtomicFieldData extends AbstractAtomicG
         private final Ordinals ordinals;
         private final int maxDoc;
 
-        public WithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals ordinals, int maxDoc) {
+        WithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals ordinals, int maxDoc) {
             super();
             this.lon = lon;
             this.lat = lat;

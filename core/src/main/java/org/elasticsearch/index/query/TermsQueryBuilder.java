@@ -252,7 +252,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
         if (allStrings) {
             final BytesRefBuilder builder = new BytesRefBuilder();
-            try (final BytesStreamOutput bytesOut = new BytesStreamOutput()) {
+            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
                 final int[] endOffsets = new int[list.size()];
                 int i = 0;
                 for (Object o : list) {

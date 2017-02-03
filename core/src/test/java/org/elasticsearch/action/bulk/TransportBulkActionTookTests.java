@@ -199,7 +199,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        public Resolver(Settings settings) {
+        Resolver(Settings settings) {
             super(settings);
         }
 
@@ -211,7 +211,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class TestTransportBulkAction extends TransportBulkAction {
 
-        public TestTransportBulkAction(
+        TestTransportBulkAction(
                 Settings settings,
                 ThreadPool threadPool,
                 TransportService transportService,
@@ -250,7 +250,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class TestTransportCreateIndexAction extends TransportCreateIndexAction {
 
-        public TestTransportCreateIndexAction(
+        TestTransportCreateIndexAction(
                 Settings settings,
                 TransportService transportService,
                 ClusterService clusterService,

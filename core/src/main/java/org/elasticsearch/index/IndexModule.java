@@ -319,7 +319,7 @@ public final class IndexModule {
         /**
          * Returns a new IndexSearcherWrapper. This method is called once per index per node
          */
-        IndexSearcherWrapper newWrapper(final IndexService indexService);
+        IndexSearcherWrapper newWrapper(IndexService indexService);
     }
 
     public IndexService newIndexService(NodeEnvironment environment, NamedXContentRegistry xContentRegistry,

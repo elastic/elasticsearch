@@ -280,7 +280,7 @@ public class CompositeTestCluster extends TestCluster {
 
     private final class ExternalClient extends FilterClient {
 
-        public ExternalClient() {
+        ExternalClient() {
             super(internalClient());
         }
 

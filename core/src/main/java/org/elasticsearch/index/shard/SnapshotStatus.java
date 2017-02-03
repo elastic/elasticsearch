@@ -24,7 +24,7 @@ package org.elasticsearch.index.shard;
  */
 public class SnapshotStatus {
 
-    public static enum Stage {
+    public enum Stage {
         NONE,
         INDEX,
         TRANSLOG,

@@ -68,7 +68,7 @@ public class FsService extends AbstractComponent {
 
         private final FsInfo initialValue;
 
-        public FsInfoCache(TimeValue interval, FsInfo initialValue) {
+        FsInfoCache(TimeValue interval, FsInfo initialValue) {
             super(interval, initialValue);
             this.initialValue = initialValue;
         }

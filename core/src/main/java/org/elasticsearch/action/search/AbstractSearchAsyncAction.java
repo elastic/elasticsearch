@@ -429,7 +429,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         private final SearchPhaseController searchPhaseController;
         private final AtomicArray<QuerySearchResultProvider> queryResults;
 
-        public FetchPhase(AtomicArray<QuerySearchResultProvider> queryResults,
+        FetchPhase(AtomicArray<QuerySearchResultProvider> queryResults,
                            SearchPhaseController searchPhaseController) {
             this.fetchResults = new AtomicArray<>(queryResults.length());
             this.searchPhaseController = searchPhaseController;

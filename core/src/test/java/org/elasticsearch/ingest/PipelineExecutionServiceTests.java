@@ -438,7 +438,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         private final IngestDocument ingestDocument;
 
-        public IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
+        IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
             this.ingestDocument = new IngestDocument(index, type, id, null, null, null, null, source);
         }
 

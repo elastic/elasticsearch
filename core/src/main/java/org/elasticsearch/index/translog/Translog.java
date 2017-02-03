@@ -443,7 +443,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
      * Snapshots are fixed in time and will not be updated with future operations.

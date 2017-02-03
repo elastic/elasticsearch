@@ -41,7 +41,7 @@ public enum PercentilesMethod implements Writeable {
 
     private final ParseField parseField;
 
-    private PercentilesMethod(String name, String... deprecatedNames) {
+    PercentilesMethod(String name, String... deprecatedNames) {
         this.parseField = new ParseField(name, deprecatedNames);
     }
 

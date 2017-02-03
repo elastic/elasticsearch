@@ -124,7 +124,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
-            try (final Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
+            try (Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
                 ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                     cache.remove(reader.getCoreCacheKey());
                 });
@@ -207,7 +207,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         private final String field;
         private final AtomicInteger closeCalls;
 
-        public FieldMaskingReader(String field, DirectoryReader in, AtomicInteger closeCalls) throws IOException {
+        FieldMaskingReader(String field, DirectoryReader in, AtomicInteger closeCalls) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -239,7 +239,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
 
         private final boolean hideDelegate;
 
-        public BrokenWrapper(DirectoryReader in, boolean hideDelegate) throws IOException {
+        BrokenWrapper(DirectoryReader in, boolean hideDelegate) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {

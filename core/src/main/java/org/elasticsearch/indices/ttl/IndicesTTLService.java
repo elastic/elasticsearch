@@ -115,7 +115,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
         private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
 
-        public PurgerThread(String name, TimeValue interval) {
+        PurgerThread(String name, TimeValue interval) {
             super(name);
             setDaemon(true);
             this.notifier = new Notifier(interval);
@@ -227,7 +227,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
         public final long version;
         public final String routing;
 
-        public DocToPurge(String type, String id, long version, String routing) {
+        DocToPurge(String type, String id, long version, String routing) {
             this.type = type;
             this.id = id;
             this.version = version;
@@ -240,7 +240,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
         private List<DocToPurge> docsToPurge = new ArrayList<>();
         private NumericDocValues versions;
 
-        public ExpiredDocsCollector() {
+        ExpiredDocsCollector() {
         }
 
         @Override
@@ -320,7 +320,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
         private final Condition condition = lock.newCondition();
         private volatile TimeValue timeout;
 
-        public Notifier(TimeValue timeout) {
+        Notifier(TimeValue timeout) {
             assert timeout != null;
             this.timeout = timeout;
         }

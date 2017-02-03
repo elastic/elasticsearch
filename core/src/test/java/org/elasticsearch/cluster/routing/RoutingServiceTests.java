@@ -48,7 +48,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
 
         private AtomicBoolean rerouted = new AtomicBoolean();
 
-        public TestRoutingService() {
+        TestRoutingService() {
             super(Settings.EMPTY, null, null);
         }
 

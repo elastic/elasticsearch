@@ -522,7 +522,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
         private final ContextMapping.Context ctx;
 
-        public SuggestField(String name, ContextMapping.Context ctx,
+        SuggestField(String name, ContextMapping.Context ctx,
                             String value, MappedFieldType type, BytesRef payload,
                             CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
             super(name, value, type);

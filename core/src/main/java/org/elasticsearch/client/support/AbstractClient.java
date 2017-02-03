@@ -403,7 +403,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         doExecute(action, request, listener);
     }
 
-    protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener);
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -674,7 +674,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         private final ClusterAdmin clusterAdmin;
         private final IndicesAdmin indicesAdmin;
 
-        public Admin(ElasticsearchClient client) {
+        Admin(ElasticsearchClient client) {
             this.clusterAdmin = new ClusterAdmin(client);
             this.indicesAdmin = new IndicesAdmin(client);
         }
@@ -694,7 +694,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public ClusterAdmin(ElasticsearchClient client) {
+        ClusterAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 
@@ -1210,7 +1210,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public IndicesAdmin(ElasticsearchClient client) {
+        IndicesAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 

@@ -70,7 +70,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
         private final String indexName;
         private final String typeName;
 
-        public TransportBulkRequestExecutor(TransportClient client, String indexName, String typeName) {
+        TransportBulkRequestExecutor(TransportClient client, String indexName, String typeName) {
             this.client = client;
             this.indexName = indexName;
             this.typeName = typeName;

@@ -1449,7 +1449,7 @@ public class IndexShardTests extends IndexShardTestCase {
     private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
         private final String indexName;
 
-        public RestoreOnlyRepository(String indexName) {
+        RestoreOnlyRepository(String indexName) {
             super(Settings.EMPTY);
             this.indexName = indexName;
         }

@@ -204,7 +204,7 @@ final class BootstrapChecks {
 
     static class OsXFileDescriptorCheck extends FileDescriptorCheck {
 
-        public OsXFileDescriptorCheck() {
+        OsXFileDescriptorCheck() {
             // see constant OPEN_MAX defined in
             // /usr/include/sys/syslimits.h on OS X and its use in JVM
             // initialization in int os:init_2(void) defined in the JVM
@@ -255,7 +255,7 @@ final class BootstrapChecks {
 
         private final boolean mlockallSet;
 
-        public MlockallCheck(final boolean mlockAllSet) {
+        MlockallCheck(final boolean mlockAllSet) {
             this.mlockallSet = mlockAllSet;
         }
 
@@ -356,7 +356,7 @@ final class BootstrapChecks {
         // visible for testing
         long getMaxMapCount(Logger logger) {
             final Path path = getProcSysVmMaxMapCountPath();
-            try (final BufferedReader bufferedReader = getBufferedReader(path)) {
+            try (BufferedReader bufferedReader = getBufferedReader(path)) {
                 final String rawProcSysVmMaxMapCount = readProcSysVmMaxMapCount(bufferedReader);
                 if (rawProcSysVmMaxMapCount != null) {
                     try {

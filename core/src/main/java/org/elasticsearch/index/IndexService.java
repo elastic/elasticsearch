@@ -510,7 +510,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         private final boolean ownsShard;
         private final Closeable[] toClose;
 
-        public StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
+        StoreCloseListener(ShardId shardId, boolean ownsShard, Closeable... toClose) {
             this.shardId = shardId;
             this.ownsShard = ownsShard;
             this.toClose = toClose;
@@ -565,7 +565,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final class FieldDataCacheListener implements IndexFieldDataCache.Listener {
         final IndexService indexService;
 
-        public FieldDataCacheListener(IndexService indexService) {
+        FieldDataCacheListener(IndexService indexService) {
             this.indexService = indexService;
         }
 

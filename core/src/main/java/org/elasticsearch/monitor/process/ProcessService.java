@@ -57,7 +57,7 @@ public final class ProcessService extends AbstractComponent {
     }
 
     private class ProcessStatsCache extends SingleObjectCache<ProcessStats> {
-        public ProcessStatsCache(TimeValue interval, ProcessStats initValue) {
+        ProcessStatsCache(TimeValue interval, ProcessStats initValue) {
             super(interval, initValue);
         }
 

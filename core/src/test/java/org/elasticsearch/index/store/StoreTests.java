@@ -468,11 +468,11 @@ public class StoreTests extends ESTestCase {
         private final Directory dir;
         private final Random random;
 
-        public LuceneManagedDirectoryService(Random random) {
+        LuceneManagedDirectoryService(Random random) {
             this(random, true);
         }
 
-        public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
+        LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
             dir = StoreTests.newDirectory(random);
             this.random = random;

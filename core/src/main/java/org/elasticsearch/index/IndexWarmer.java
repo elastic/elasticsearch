@@ -113,7 +113,7 @@ public final class IndexWarmer extends AbstractComponent {
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;
-        public FieldDataWarmer(Executor executor) {
+        FieldDataWarmer(Executor executor) {
             this.executor = executor;
         }
 

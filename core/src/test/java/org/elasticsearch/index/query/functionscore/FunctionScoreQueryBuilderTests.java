@@ -769,13 +769,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     static class RandomScoreFunctionBuilderWithFixedSeed extends RandomScoreFunctionBuilder {
         public static final String NAME = "random_with_fixed_seed";
 
-        public RandomScoreFunctionBuilderWithFixedSeed() {
+        RandomScoreFunctionBuilderWithFixedSeed() {
         }
 
         /**
          * Read from a stream.
          */
-        public RandomScoreFunctionBuilderWithFixedSeed(StreamInput in) throws IOException {
+        RandomScoreFunctionBuilderWithFixedSeed(StreamInput in) throws IOException {
             super(in);
         }
 

@@ -205,7 +205,7 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
             private final OrderedUpstreamMessageEvent oue;
             private final int subSequence;
 
-            public ChunkWriter(final ChannelHandlerContext ctx, final MessageEvent e, final String uri,
+            ChunkWriter(final ChannelHandlerContext ctx, final MessageEvent e, final String uri,
                                final OrderedUpstreamMessageEvent oue, final int subSequence) {
                 this.ctx = ctx;
                 this.e = e;

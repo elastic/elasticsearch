@@ -106,7 +106,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     static final class AttachmentFieldType extends MappedFieldType {
-        public AttachmentFieldType() {}
+        AttachmentFieldType() {}
 
         protected AttachmentFieldType(AttachmentMapper.AttachmentFieldType ref) {
             super(ref);

@@ -207,7 +207,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     static class OtherFakeFieldType extends TermBasedFieldType {
-        public OtherFakeFieldType() {
+        OtherFakeFieldType() {
         }
 
         protected OtherFakeFieldType(OtherFakeFieldType ref) {

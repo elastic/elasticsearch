@@ -149,7 +149,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         Bits a;
         Bits b;
 
-        public BitsIntersector(Bits a, Bits b) {
+        BitsIntersector(Bits a, Bits b) {
             super();
             this.a = a;
             this.b = b;

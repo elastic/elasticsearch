@@ -160,7 +160,7 @@ public class EsExecutors {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
 
-        public EsThreadFactory(String namePrefix) {
+        EsThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() :
@@ -188,7 +188,7 @@ public class EsExecutors {
 
         ThreadPoolExecutor executor;
 
-        public ExecutorScalingQueue() {
+        ExecutorScalingQueue() {
         }
 
         @Override

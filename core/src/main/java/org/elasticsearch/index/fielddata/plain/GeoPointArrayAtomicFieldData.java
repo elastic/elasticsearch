@@ -49,7 +49,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
         private final Ordinals ordinals;
         private final int maxDoc;
 
-        public WithOrdinals(LongArray indexedPoints, Ordinals ordinals, int maxDoc) {
+        WithOrdinals(LongArray indexedPoints, Ordinals ordinals, int maxDoc) {
             super();
             this.indexedPoints = indexedPoints;
             this.ordinals = ordinals;

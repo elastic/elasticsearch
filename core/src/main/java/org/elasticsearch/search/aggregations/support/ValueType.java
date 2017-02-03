@@ -98,7 +98,7 @@ public enum ValueType implements Writeable {
     private final byte id;
     private String preferredName;
 
-    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;

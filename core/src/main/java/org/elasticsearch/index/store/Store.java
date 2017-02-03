@@ -841,7 +841,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Logger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 final long length;
                 try {
                     length = in.length();
@@ -1177,11 +1177,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private final byte[] checksum = new byte[8];
         private long verifiedPosition = 0;
 
-        public VerifyingIndexInput(IndexInput input) {
+        VerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
 
-        public VerifyingIndexInput(IndexInput input, Checksum digest) {
+        VerifyingIndexInput(IndexInput input, Checksum digest) {
             super("VerifyingIndexInput(" + input + ")");
             this.input = input;
             this.digest = digest;
@@ -1350,7 +1350,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private final Directory directory;
         private final DirectoryService directoryService;
 
-        public StoreStatsCache(TimeValue refreshInterval, Directory directory, DirectoryService directoryService) throws IOException {
+        StoreStatsCache(TimeValue refreshInterval, Directory directory, DirectoryService directoryService) throws IOException {
             super(refreshInterval, new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos()));
             this.directory = directory;
             this.directoryService = directoryService;

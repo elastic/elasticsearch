@@ -513,7 +513,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final List<NodeGatewayStartedShards> orderedAllocationCandidates;
         final int allocationsFound;
 
-        public NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
+        NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
             this.orderedAllocationCandidates = orderedAllocationCandidates;
             this.allocationsFound = allocationsFound;
         }
@@ -524,7 +524,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final List<DecidedNode> throttleNodeShards;
         final List<DecidedNode> noNodeShards;
 
-        public NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
+        NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
             this.yesNodeShards = yesNodeShards;
             this.throttleNodeShards = throttleNodeShards;
             this.noNodeShards = noNodeShards;

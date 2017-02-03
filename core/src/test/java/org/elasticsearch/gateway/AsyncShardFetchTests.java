@@ -235,7 +235,7 @@ public class AsyncShardFetchTests extends ESTestCase {
             private final CountDownLatch executeLatch = new CountDownLatch(1);
             private final CountDownLatch waitLatch = new CountDownLatch(1);
 
-            public Entry(Response response, Throwable failure) {
+            Entry(Response response, Throwable failure) {
                 this.response = response;
                 this.failure = failure;
             }
@@ -245,7 +245,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         private final Map<String, Entry> simulations = new ConcurrentHashMap<>();
         private AtomicInteger reroute = new AtomicInteger();
 
-        public TestFetch(ThreadPool threadPool) {
+        TestFetch(ThreadPool threadPool) {
             super(Loggers.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), null);
             this.threadPool = threadPool;
         }
@@ -308,7 +308,7 @@ public class AsyncShardFetchTests extends ESTestCase {
 
     static class Response extends BaseNodeResponse {
 
-        public Response(DiscoveryNode node) {
+        Response(DiscoveryNode node) {
             super(node);
         }
     }

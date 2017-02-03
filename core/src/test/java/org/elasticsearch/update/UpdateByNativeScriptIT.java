@@ -93,7 +93,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         private Map<String, Object> params;
         private Map<String, Object> vars = new HashMap<>(2);
 
-        public CustomScript(Map<String, Object> params) {
+        CustomScript(Map<String, Object> params) {
             this.params = params;
         }
 

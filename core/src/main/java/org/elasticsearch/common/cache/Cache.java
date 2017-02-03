@@ -166,7 +166,7 @@ public class Cache<K, V> {
         Entry<K, V> after;
         State state = State.NEW;
 
-        public Entry(K key, V value, long writeTime) {
+        Entry(K key, V value, long writeTime) {
             this.key = key;
             this.value = value;
             this.writeTime = this.accessTime = writeTime;

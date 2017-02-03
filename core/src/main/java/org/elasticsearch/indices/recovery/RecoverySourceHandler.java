@@ -548,7 +548,7 @@ public class RecoverySourceHandler {
             ArrayUtil.timSort(files, (a, b) -> Long.compare(a.length(), b.length())); // send smallest first
             for (int i = 0; i < files.length; i++) {
                 final StoreFileMetaData md = files[i];
-                try (final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
+                try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {
                     // it's fine that we are only having the indexInput in the try/with block. The copy methods handles
                     // exceptions during close correctly and doesn't hide the original exception.
                     Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));

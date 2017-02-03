@@ -38,7 +38,7 @@ public class ScriptScoreFunction extends ScoreFunction {
         protected int docid;
         protected float score;
 
-        public CannedScorer() {
+        CannedScorer() {
             super(null);
         }
 

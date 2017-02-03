@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class ShardPathTests extends ESTestCase {
     public void testLoadShardPath() throws IOException {
-        try (final NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "0xDEADBEEF")
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
             Settings settings = builder.build();
@@ -56,7 +56,7 @@ public class ShardPathTests extends ESTestCase {
     }
 
     public void testFailLoadShardPathOnMultiState() throws IOException {
-        try (final NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             final String indexUUID = "0xDEADBEEF";
             Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, indexUUID)
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
@@ -73,7 +73,7 @@ public class ShardPathTests extends ESTestCase {
     }
 
     public void testFailLoadShardPathIndexUUIDMissmatch() throws IOException {
-        try (final NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foobar")
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
             Settings settings = builder.build();
@@ -129,7 +129,7 @@ public class ShardPathTests extends ESTestCase {
             indexSettings = indexSettingsBuilder.build();
             nodeSettings = Settings.EMPTY;
         }
-        try (final NodeEnvironment env = newNodeEnvironment(nodeSettings)) {
+        try (NodeEnvironment env = newNodeEnvironment(nodeSettings)) {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);

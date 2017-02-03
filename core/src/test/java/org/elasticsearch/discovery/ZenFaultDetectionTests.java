@@ -306,7 +306,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         private final Set<Tuple<DiscoveryNode, Long>> completedPings = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final CountDownLatch waitForPings;
 
-        public PingProbe(int minCompletedPings) {
+        PingProbe(int minCompletedPings) {
             this.waitForPings = new CountDownLatch(minCompletedPings);
         }
 

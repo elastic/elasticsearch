@@ -48,7 +48,7 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         final Logger logger;
         final BlockingClusterStatePublishResponseHandler handler;
 
-        public PublishResponder(boolean fail, DiscoveryNode node, CyclicBarrier barrier, Logger logger, BlockingClusterStatePublishResponseHandler handler) {
+        PublishResponder(boolean fail, DiscoveryNode node, CyclicBarrier barrier, Logger logger, BlockingClusterStatePublishResponseHandler handler) {
             this.fail = fail;
 
             this.node = node;

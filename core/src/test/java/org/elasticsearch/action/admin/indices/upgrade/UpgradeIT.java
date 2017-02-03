@@ -173,7 +173,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         public final int toUpgradeBytes;
         public final int toUpgradeBytesAncient;
 
-        public UpgradeStatus(String indexName, int totalBytes, int toUpgradeBytes, int toUpgradeBytesAncient) {
+        UpgradeStatus(String indexName, int totalBytes, int toUpgradeBytes, int toUpgradeBytesAncient) {
             this.indexName = indexName;
             this.totalBytes = totalBytes;
             this.toUpgradeBytes = toUpgradeBytes;

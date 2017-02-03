@@ -64,7 +64,7 @@ public class CommitPoint {
         }
     }
 
-    public static enum Type {
+    public enum Type {
         GENERATED,
         SAVED
     }

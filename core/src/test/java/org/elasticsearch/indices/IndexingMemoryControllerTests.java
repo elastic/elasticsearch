@@ -65,7 +65,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         // Shards that are currently throttled
         final Set<IndexShard> throttled = new HashSet<>();
 
-        public MockController(Settings settings) {
+        MockController(Settings settings) {
             super(Settings.builder()
                             .put("indices.memory.interval", "200h") // disable it
                             .put(settings)

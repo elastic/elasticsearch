@@ -1860,7 +1860,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
         private final String masterNodeName;
 
-        public MasterNodePredicate(String masterNodeName) {
+        MasterNodePredicate(String masterNodeName) {
             this.masterNodeName = masterNodeName;
         }
 
@@ -1951,8 +1951,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class NodeNamePredicate implements Predicate<Settings> {
         private final HashSet<String> nodeNames;
 
-
-        public NodeNamePredicate(HashSet<String> nodeNames) {
+        NodeNamePredicate(HashSet<String> nodeNames) {
             this.nodeNames = nodeNames;
         }
 

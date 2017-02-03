@@ -382,7 +382,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregationBuilder(StreamInput in) throws IOException {
+        TestPipelineAggregationBuilder(StreamInput in) throws IOException {
             super(in, "test");
         }
 
@@ -427,7 +427,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregator(StreamInput in) throws IOException {
+        TestPipelineAggregator(StreamInput in) throws IOException {
             super(in);
         }
         @Override

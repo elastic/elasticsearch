@@ -236,7 +236,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         private final AtomicInteger awaitingResponses;
         private final AtomicInteger activeCopies;
 
-        public ShardActiveResponseHandler(ShardId shardId, long clusterStateVersion, int expectedActiveCopies) {
+        ShardActiveResponseHandler(ShardId shardId, long clusterStateVersion, int expectedActiveCopies) {
             this.shardId = shardId;
             this.expectedActiveCopies = expectedActiveCopies;
             this.clusterStateVersion = clusterStateVersion;
@@ -399,7 +399,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         private String indexUUID;
         private ShardId shardId;
 
-        public ShardActiveRequest() {
+        ShardActiveRequest() {
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {

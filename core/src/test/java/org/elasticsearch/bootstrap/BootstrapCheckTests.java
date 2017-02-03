@@ -251,7 +251,7 @@ public class BootstrapCheckTests extends ESTestCase {
             private final boolean isMemoryLocked;
             private final boolean shouldFail;
 
-            public MlockallCheckTestCase(final boolean mlockallSet, final boolean isMemoryLocked, final boolean shouldFail) {
+            MlockallCheckTestCase(final boolean mlockallSet, final boolean isMemoryLocked, final boolean shouldFail) {
                 this.mlockallSet = mlockallSet;
                 this.isMemoryLocked = isMemoryLocked;
                 this.shouldFail = shouldFail;

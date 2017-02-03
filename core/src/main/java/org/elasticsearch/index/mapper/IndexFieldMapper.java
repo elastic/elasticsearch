@@ -95,7 +95,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     static final class IndexFieldType extends MappedFieldType {
 
-        public IndexFieldType() {}
+        IndexFieldType() {}
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);

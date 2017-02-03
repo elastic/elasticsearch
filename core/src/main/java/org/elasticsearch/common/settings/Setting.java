@@ -562,7 +562,7 @@ public class Setting<T> extends ToXContentToBytes {
         private final Logger logger;
         private final Consumer<T> accept;
 
-        public Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             this.accept = accept;

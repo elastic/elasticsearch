@@ -121,7 +121,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         private FieldsConsumer delegatesFieldsConsumer;
         private FieldsConsumer suggestFieldsConsumer;
 
-        public CompletionFieldsConsumer(SegmentWriteState state) throws IOException {
+        CompletionFieldsConsumer(SegmentWriteState state) throws IOException {
             this.delegatesFieldsConsumer = delegatePostingsFormat.fieldsConsumer(state);
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexOutput output = null;
@@ -163,7 +163,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         private final LookupFactory lookupFactory;
         private final int version;
 
-        public CompletionFieldsProducer(SegmentReadState state) throws IOException {
+        CompletionFieldsProducer(SegmentReadState state) throws IOException {
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexInput input = state.directory.openInput(suggestFSTFile, state.context);
             if (state.segmentInfo.getVersion().onOrAfter(Version.LUCENE_6_2_0)) {

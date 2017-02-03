@@ -30,7 +30,7 @@ interface PayloadProcessor {
 
     void parsePayload(BytesRef payload, SuggestPayload ref) throws IOException;
 
-    static class SuggestPayload {
+    class SuggestPayload {
         final BytesRefBuilder payload = new BytesRefBuilder();
         long weight = 0;
         final BytesRefBuilder surfaceForm = new BytesRefBuilder();

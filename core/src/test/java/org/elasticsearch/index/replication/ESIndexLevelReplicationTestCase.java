@@ -238,7 +238,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private final ReplicationGroup replicationGroup;
 
-        public IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
+        IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
             super(request, new PrimaryRef(replicationGroup), listener, true, new ReplicasRef(replicationGroup),
                 () -> null, logger, "indexing");
             this.replicationGroup = replicationGroup;
@@ -340,7 +340,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final IndexRequest replicaRequest;
         final IndexResponse finalResponse;
 
-        public IndexingResult(IndexRequest replicaRequest, IndexResponse finalResponse) {
+        IndexingResult(IndexRequest replicaRequest, IndexResponse finalResponse) {
             this.replicaRequest = replicaRequest;
             this.finalResponse = finalResponse;
         }

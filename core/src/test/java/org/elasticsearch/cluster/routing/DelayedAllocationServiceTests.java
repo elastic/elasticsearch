@@ -466,7 +466,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
-        public TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+        TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                           AllocationService allocationService) {
             super(settings, threadPool, clusterService, allocationService);
         }

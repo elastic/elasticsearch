@@ -34,7 +34,7 @@ public enum SpatialStrategy implements Writeable {
 
     private final String strategyName;
 
-    private SpatialStrategy(String strategyName) {
+    SpatialStrategy(String strategyName) {
         this.strategyName = strategyName;
     }
 

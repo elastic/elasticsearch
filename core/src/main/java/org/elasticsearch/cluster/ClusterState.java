@@ -713,7 +713,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        public ClusterStateDiff(ClusterState before, ClusterState after) {
+        ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
             toUuid = after.stateUUID;
             toVersion = after.version;
@@ -725,7 +725,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
-        public ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
+        ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();

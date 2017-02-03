@@ -178,7 +178,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
-            public SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
                 super(doc, key, context, score);
             }
 
@@ -222,7 +222,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
-            public SuggestDocPriorityQueue(int maxSize) {
+            SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);
             }
 
@@ -254,7 +254,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        public TopDocumentsCollector(int num) {
+        TopDocumentsCollector(int num) {
             super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);

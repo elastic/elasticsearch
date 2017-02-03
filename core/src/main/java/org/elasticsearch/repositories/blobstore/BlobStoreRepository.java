@@ -1059,11 +1059,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         protected final Version version;
 
-        public Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+        Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
             this(snapshotId, version, indexId, shardId, shardId);
         }
 
-        public Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
+        Context(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
             this.version = version;
             this.shardId = shardId;
@@ -1272,7 +1272,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param indexId        the id of the index being snapshotted
          * @param snapshotStatus snapshot status to report progress
          */
-        public SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus) {
+        SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, indexId, shard.shardId());
             this.snapshotStatus = snapshotStatus;
             this.store = shard.store();
@@ -1475,7 +1475,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private class AbortableInputStream extends FilterInputStream {
             private final String fileName;
 
-            public AbortableInputStream(InputStream delegate, String fileName) {
+            AbortableInputStream(InputStream delegate, String fileName) {
                 super(delegate);
                 this.fileName = fileName;
             }
@@ -1513,7 +1513,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // we have a hash - check if our repo has a hash too otherwise we have
                 // to calculate it.
                 // we might have multiple parts even though the file is small... make sure we read all of it.
-                try (final InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
+                try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
                     BytesRefBuilder builder = new BytesRefBuilder();
                     Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
                     BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
@@ -1531,7 +1531,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final BlobContainer container;
         private final BlobStoreIndexShardSnapshot.FileInfo info;
 
-        public PartSliceStream(BlobContainer container, BlobStoreIndexShardSnapshot.FileInfo info) {
+        PartSliceStream(BlobContainer container, BlobStoreIndexShardSnapshot.FileInfo info) {
             super(info.numberOfParts());
             this.info = info;
             this.container = container;
@@ -1561,7 +1561,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param snapshotShardId shard in the snapshot that data should be restored from
          * @param recoveryState   recovery state to report progress
          */
-        public RestoreContext(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        RestoreContext(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, indexId, shard.shardId(), snapshotShardId);
             this.recoveryState = recoveryState;
             this.targetShard = shard;
@@ -1723,7 +1723,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
+                try (IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while ((length = stream.read(buffer)) > 0) {

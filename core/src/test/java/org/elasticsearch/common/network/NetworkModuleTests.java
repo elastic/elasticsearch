@@ -71,13 +71,13 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeTransport extends AssertingLocalTransport {
-        public FakeTransport() {
+        FakeTransport() {
             super(null, null, null, null);
         }
     }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-        public FakeHttpTransport() {
+        FakeHttpTransport() {
             super(null);
         }
         @Override
@@ -102,7 +102,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
 
     static class FakeRestHandler extends BaseRestHandler {
-        public FakeRestHandler() {
+        FakeRestHandler() {
             super(null);
         }
         @Override
@@ -110,7 +110,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
-        public FakeCatRestHandler() {
+        FakeCatRestHandler() {
             super(null);
         }
         @Override

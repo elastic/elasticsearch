@@ -405,7 +405,7 @@ public class ReplicationOperationTests extends ESTestCase {
             private final Request request;
             private ShardInfo shardInfo;
 
-            public Result(Request request) {
+            Result(Request request) {
                 this.request = request;
             }
 
@@ -483,12 +483,12 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
-        public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
+        TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
             this(request, primary, listener, true, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
         }
 
-        public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
+        TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
                 Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
             super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);

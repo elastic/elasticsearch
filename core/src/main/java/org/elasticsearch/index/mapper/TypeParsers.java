@@ -48,6 +48,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class TypeParsers {
 
+    protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(TypeParsers.class));
+
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
@@ -254,6 +256,8 @@ public class TypeParsers {
                     throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field ["
                         + name + "] which is within a multi field.");
                 } else {
+                    deprecationLogger.deprecated("field [include_in_all] is deprecated, as [_all] is deprecated, " +
+                                    "and will be disallowed in 6.0, use [copy_to] instead.");
                     builder.includeInAll(nodeBooleanValue(name, "include_in_all", propNode));
                 }
                 iterator.remove();

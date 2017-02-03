@@ -238,7 +238,9 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
         assertFalse(((TextFieldMapper) field).includeInAll());
-        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]",
+                "field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed " +
+                        "in 6.0, use [copy_to] instead.");
     }
 
     public void testUpgradeKeywordIncludeInAll() throws IOException {
@@ -252,7 +254,9 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(KeywordFieldMapper.class));
         assertTrue(((KeywordFieldMapper) field).includeInAll());
-        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]",
+                "field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testUpgradeRandomMapping() throws IOException {

@@ -228,6 +228,8 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
         fields = doc.rootDoc().getFields("_all");
         assertEquals(0, fields.length);
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testNullValue() throws IOException {

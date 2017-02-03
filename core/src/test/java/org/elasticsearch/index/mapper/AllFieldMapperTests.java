@@ -91,6 +91,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testAllMappersNoBoost() throws Exception {
@@ -111,6 +113,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testAllMappersTermQuery() throws Exception {
@@ -130,6 +134,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
@@ -149,6 +155,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         AllFieldMapper mapper = docMapper.allFieldMapper();
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
@@ -166,6 +174,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null),
                 Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
         }
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     // #6187: if no fields were boosted, we shouldn't use AllTokenStream
@@ -182,6 +192,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null),
                 Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
         }
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testSimpleAllMappersWithReparse() throws Exception {
@@ -208,6 +220,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                     Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
             }
         }
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testSimpleAllMappersWithStore() throws Exception {
@@ -223,6 +237,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fields[i].stringValue(), equalTo(expected[i]));
             assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
         }
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
 
@@ -243,6 +259,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fields[i].stringValue(), equalTo(expected[i]));
             assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
         }
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testRandom() throws Exception {
@@ -355,6 +373,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         Document doc = docMapper.parse("test", "test", "1", builder.bytes()).rootDoc();
         IndexableField[] fields = doc.getFields("_all");
         assertThat(fields.length, equalTo(0));
+        assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
+                        " in 6.0, use [copy_to] instead.");
     }
 
     public void testMultiField_defaults() throws IOException {

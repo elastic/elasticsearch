@@ -38,7 +38,6 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
-import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
@@ -166,8 +165,8 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureCreateKeyStoreTask(taskName(task, node, 'createKeystore'), project, setup, node)
-        setup = configureAddKeyStoreTask(task, project, setup, node)
+        setup = configureCreateKeyStoreTask(taskName(task, node, 'createKeyStore'), project, setup, node)
+        setup = configureAddKeyStoreTasks(task, project, setup, node)
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
@@ -319,25 +318,21 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to add to keystore */
-    static Task configureAddKeyStoreTask(Task parent, Project project, Task setup, NodeInfo node) {
+    static Task configureAddKeyStoreTasks(Task parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keyStoreKVs
         File esKeyStoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
-        List ks = ["l", "m", "n"]
-//        List<Task> tasks = []
-//        Task createKeyStore = project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
-        Task t1 = setup
-        for (String k in ks) {
-            Task t = project.tasks.create(name: taskName(parent, node, 'addToKeyStore' + k), type: LoggedExec, dependsOn: t1) {
-                commandLine esKeyStoreUtil, 'add', k, '-x'
+        Task parentTask = setup
+        for (Map.Entry<String, String> entry in kvs) {
+            String key = entry.getKey()
+            Task t = project.tasks.create(name: taskName(parent, node, 'addToKeyStore#' + key), type: LoggedExec, dependsOn: parentTask) {
+                commandLine esKeyStoreUtil, 'add', key, '-x'
             }
             t.doFirst {
-                standardInput = new ByteArrayInputStream("value".getBytes(StandardCharsets.UTF_8))
+                standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
             }
-            t1 = t;
-//                tasks.add(t)
-//            }
+            parentTask = t
         }
-        return t1
+        return parentTask
     }
 
     static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {

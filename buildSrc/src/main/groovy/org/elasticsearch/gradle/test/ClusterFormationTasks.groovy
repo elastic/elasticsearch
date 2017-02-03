@@ -319,7 +319,7 @@ class ClusterFormationTasks {
 
     /** Adds a task to add to keystore */
     static Task configureAddKeyStoreTasks(Task parent, Project project, Task setup, NodeInfo node) {
-        Map kvs = node.config.keyStoreKVs
+        Map kvs = node.config.keyStoreSetting
         File esKeyStoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task parentTask = setup
         for (Map.Entry<String, String> entry in kvs) {

@@ -76,6 +76,10 @@
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
         },
+        "prefixed_name": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
+        },
         "q": {
           "type" : "string",
           "description" : "Query in the Lucene query string syntax"

@@ -622,7 +622,7 @@ class ClusterFormationTasks {
         return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
-            ext.pid = "${-> node.pidFile.getText('UTF-8').trim()}"
+            ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
             File jps
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 jps = getJpsExecutableByName(project, "jps.exe")

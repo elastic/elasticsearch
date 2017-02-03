@@ -136,7 +136,6 @@ class ClusterConfiguration {
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
-
     @Input
     void systemProperty(String property, String value) {
         systemProperties.put(property, value)

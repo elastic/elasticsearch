@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import java.util.regex.Matcher
 import org.elasticsearch.gradle.LoggedExec
 
 /**
@@ -43,9 +44,20 @@ task createWorktree(type: LoggedExec) {
   commandLine = ['git', 'worktree', 'add', '--detach', worktreeDir, '5.x']
 }
 
+task findRemote(type: LoggedExec) {
+  commandLine = ['git', 'remote', '-v']
+  doLast {
+    output.toString('UTF-8').eachLine {
+      if (it.contains("elastic/elasticsearch.git (fetch)")) {
+        project.ext.gitRemote = it.split('\\t')[0]
+      }
+    }
+  } 
+}
+
 task updateWorktree(type: LoggedExec) {
-  dependsOn createWorktree
-  commandLine = ['git', 'pull', 'origin', '5.x']
+  dependsOn createWorktree, findRemote
+  commandLine = ['git', 'pull', "${-> project.ext.gitRemote}", '5.x']
   workingDir = worktreeDir
 }
 
@@ -57,5 +69,25 @@ task buildVersion5x(type: LoggedExec) {
 
 artifacts {
   'default' file: file("${worktreeDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip"), name: 'elasticsearch', type: 'zip', builtBy: buildVersion5x
+}
+
+gradle.taskGraph.whenReady {
+  if (it.hasTask(createWorktree)) {
+    ByteArrayOutputStream output = new ByteArrayOutputStream()
+    exec {
+      commandLine = ['git', '--version']
+      standardOutput = output
+    }
+    String versionOutput = output.toString('UTF-8')
+    Matcher version = versionOutput =~ /git version ((\d+)\.(\d+)\.\d+)/
+    if (version.find() == false) {
+      throw new GradleException("Could not parse git version from [${versionOutput}]")
+    }
+    int major = version.group(2).toInteger()
+    int minor = version.group(3).toInteger()
+    if (major < 2 || major == 2 && minor < 5) {
+      throw new GradleException("Git version 2.5 or greater needed for worktree by bwc-zip, found ${version.group(1)}")
+    }
+  }  
 }
 

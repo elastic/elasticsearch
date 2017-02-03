@@ -19,6 +19,9 @@
 
 package org.elasticsearch.http;
 
+import java.io.IOException;
+import java.util.Collections;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -28,9 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.io.IOException;
-import java.util.Collections;
-
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -54,14 +55,12 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
     }
 
     public void testThatErrorTraceParamReturns400() throws IOException {
-        try {
-            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
-            fail("request should have failed");
-        } catch(ResponseException e) {
-            Response response = e.getResponse();
-            assertThat(response.getHeader("Content-Type"), is("application/json"));
-            assertThat(EntityUtils.toString(e.getResponse().getEntity()), is("{\"error\":\"error traces in responses are disabled.\"}"));
-            assertThat(response.getStatusLine().getStatusCode(), is(400));
-        }
+        ResponseException e = expectThrows(ResponseException.class, () ->
+            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true")));
+
+        Response response = e.getResponse();
+        assertThat(response.getHeader("Content-Type"), is("application/json"));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("\"error\":\"error traces in responses are disabled.\""));
+        assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
 }

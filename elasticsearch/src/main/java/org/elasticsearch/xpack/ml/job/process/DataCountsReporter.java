@@ -252,8 +252,7 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
 
 
     /**
-     * Report the the status now regardless of whether or
-     * not we are at a reporting boundary.
+     * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
     public void finishReporting() {
         dataCountsPersister.persistDataCounts(jobId, runningTotalStats(), new LoggingActionListener());

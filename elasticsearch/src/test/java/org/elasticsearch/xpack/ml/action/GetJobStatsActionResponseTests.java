@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
@@ -38,9 +38,9 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();
             }
-            JobStatus jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
+            JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
 
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobStatus);
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState);
             jobStatsList.add(jobStats);
         }
 

@@ -47,14 +47,14 @@ setup:
   - do:
       xpack.ml.get_datafeed_stats:
         datafeed_id: "datafeed-1"
-  - match: { datafeeds.0.status: STARTED }
+  - match: { datafeeds.0.state: STARTED }
   - do:
       xpack.ml.stop_datafeed:
         "datafeed_id": "datafeed-1"
   - do:
       xpack.ml.get_datafeed_stats:
         datafeed_id: "datafeed-1"
-  - match: { datafeeds.0.status: STOPPED }
+  - match: { datafeeds.0.state: STOPPED }
 ---
 "Test start non existing datafeed":
     - do:
@@ -71,7 +71,7 @@ setup:
           "datafeed_id": "datafeed-1"
           "start": 0
     - do:
-        catch: /cannot start datafeed, expected job status \[OPENED\], but got \[CLOSED\]/
+        catch: /cannot start datafeed, expected job state \[OPENED\], but got \[CLOSED\]/
         xpack.ml.start_datafeed:
           "datafeed_id": "datafeed-1"
           "start": 0
@@ -92,7 +92,7 @@ setup:
         "start": 0
 
   - do:
-      catch: /datafeed already started, expected datafeed status \[STOPPED\], but got \[STARTED\]/
+      catch: /datafeed already started, expected datafeed state \[STOPPED\], but got \[STARTED\]/
       xpack.ml.start_datafeed:
         "datafeed_id": "datafeed-1"
         "start": 0
@@ -111,6 +111,6 @@ setup:
       xpack.ml.stop_datafeed:
         "datafeed_id": "datafeed-1"
   - do:
-      catch: /datafeed already stopped, expected datafeed status \[STARTED\], but got \[STOPPED\]/
+      catch: /datafeed already stopped, expected datafeed state \[STARTED\], but got \[STOPPED\]/
       xpack.ml.stop_datafeed:
         "datafeed_id": "datafeed-1"

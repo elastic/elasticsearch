@@ -28,10 +28,10 @@ import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.JobStatusObserver;
+import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -191,7 +191,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobStatusObserver observer;
+        private final JobStateObserver observer;
         private final ClusterService clusterService;
         private final InternalOpenJobAction.TransportAction internalOpenJobAction;
 
@@ -201,7 +201,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                                ClusterService clusterService, InternalOpenJobAction.TransportAction internalOpenJobAction) {
             super(settings, OpenJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
-            this.observer = new JobStatusObserver(threadPool, clusterService);
+            this.observer = new JobStateObserver(threadPool, clusterService);
             this.internalOpenJobAction = internalOpenJobAction;
         }
 
@@ -216,7 +216,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             InternalOpenJobAction.Request internalRequest = new InternalOpenJobAction.Request(request.jobId);
             internalRequest.setIgnoreDowntime(internalRequest.isIgnoreDowntime());
             internalOpenJobAction.execute(internalRequest, LoggingTaskListener.instance());
-            observer.waitForStatus(request.getJobId(), request.openTimeout, JobStatus.OPENED, e -> {
+            observer.waitForState(request.getJobId(), request.openTimeout, JobState.OPENED, e -> {
                 if (e != null) {
                     listener.onFailure(e);
                 } else {
@@ -226,12 +226,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         /**
-         * Fail fast before trying to update the job status on master node if the job doesn't exist or its status
+         * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
          * is not what it should be.
          */
         public static void validate(MlMetadata mlMetadata, String jobId) {
             MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
-            builder.updateStatus(jobId, JobStatus.OPENING, null);
+            builder.updateState(jobId, JobState.OPENING, null);
         }
     }
 }

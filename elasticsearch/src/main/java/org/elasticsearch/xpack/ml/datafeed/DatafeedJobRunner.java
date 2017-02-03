@@ -75,7 +75,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         }, handler);
     }
 
-    // Important: Holder must be created and assigned to DatafeedTask before setting status to started,
+    // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {

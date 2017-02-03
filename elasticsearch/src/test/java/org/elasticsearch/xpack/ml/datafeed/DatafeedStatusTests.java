@@ -10,13 +10,13 @@ import org.elasticsearch.test.ESTestCase;
 public class DatafeedStatusTests extends ESTestCase {
 
     public void testForString() {
-        assertEquals(DatafeedStatus.fromString("started"), DatafeedStatus.STARTED);
-        assertEquals(DatafeedStatus.fromString("stopped"), DatafeedStatus.STOPPED);
+        assertEquals(DatafeedState.fromString("started"), DatafeedState.STARTED);
+        assertEquals(DatafeedState.fromString("stopped"), DatafeedState.STOPPED);
     }
 
     public void testValidOrdinals() {
-        assertEquals(0, DatafeedStatus.STARTED.ordinal());
-        assertEquals(1, DatafeedStatus.STOPPED.ordinal());
+        assertEquals(0, DatafeedState.STARTED.ordinal());
+        assertEquals(1, DatafeedState.STOPPED.ordinal());
     }
 
 }

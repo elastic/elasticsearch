@@ -23,12 +23,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -90,7 +90,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+            assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data-*"));
@@ -109,7 +109,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
 
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
-            assertThat(response.getResponse().results().get(0).getDatafeedStatus(), equalTo(DatafeedStatus.STOPPED));
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         });
     }
 
@@ -130,7 +130,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(statsResponse.getResponse().results().get(0).getStatus(), JobStatus.OPENED);
+            assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
@@ -171,7 +171,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
-            assertThat(response.getResponse().results().get(0).getDatafeedStatus(), equalTo(DatafeedStatus.STOPPED));
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         });
     }
 
@@ -255,7 +255,7 @@ public class DatafeedJobsIT extends ESIntegTestCase {
                 try {
                     GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
                     GetDatafeedsStatsAction.Response r = client.execute(GetDatafeedsStatsAction.INSTANCE, request).get();
-                    assertThat(r.getResponse().results().get(0).getDatafeedStatus(), equalTo(DatafeedStatus.STOPPED));
+                    assertThat(r.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
                 } catch (InterruptedException | ExecutionException e) {
                     throw new RuntimeException(e);
                 }

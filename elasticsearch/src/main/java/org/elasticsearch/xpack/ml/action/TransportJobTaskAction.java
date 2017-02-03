@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
@@ -78,9 +78,9 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
                 String jobId = jobIdFromRequest.apply(request);
                 jobManager.getJobOrThrowIfUnknown(jobId);
                 Allocation allocation = jobManager.getJobAllocation(jobId);
-                if (allocation.getStatus() != JobStatus.OPENED) {
-                    throw new ElasticsearchStatusException("job [" + jobId + "] status is [" + allocation.getStatus() +
-                            "], but must be [" + JobStatus.OPENED + "] to perform requested action", RestStatus.CONFLICT);
+                if (allocation.getState() != JobState.OPENED) {
+                    throw new ElasticsearchStatusException("job [" + jobId + "] state is [" + allocation.getState() +
+                            "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT);
                 } else {
                     throw new IllegalStateException("No errors or response");
                 }

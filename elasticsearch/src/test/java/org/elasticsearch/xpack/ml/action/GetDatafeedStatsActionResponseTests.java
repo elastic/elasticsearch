@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;
@@ -24,9 +24,9 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         List<Response.DatafeedStats> datafeedStatsList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String datafeedId = randomAsciiOfLength(10);
-            DatafeedStatus datafeedStatus = randomFrom(DatafeedStatus.values());
+            DatafeedState datafeedState = randomFrom(DatafeedState.values());
 
-            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedStatus);
+            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState);
             datafeedStatsList.add(datafeedStats);
         }
 

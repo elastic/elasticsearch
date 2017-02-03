@@ -38,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -288,7 +288,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
             Allocation allocation = jobManager.getJobAllocation(request.getJobId());
-            if (job.count() > 0 && allocation.getStatus().equals(JobStatus.CLOSED) == false) {
+            if (job.count() > 0 && allocation.getState().equals(JobState.CLOSED) == false) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 

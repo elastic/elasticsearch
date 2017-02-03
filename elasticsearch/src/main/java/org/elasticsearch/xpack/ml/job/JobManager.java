@@ -21,11 +21,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
@@ -214,9 +214,9 @@ public class JobManager extends AbstractComponent {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         logger.debug("Deleting job '" + jobId + "'");
 
-        // Step 3. Listen for the Cluster State status change
-        //         Chain acknowledged status onto original actionListener
-        CheckedConsumer<Boolean, Exception> deleteStatusConsumer =  jobDeleted -> {
+        // Step 3. Listen for the Cluster State job state change
+        //         Chain acknowledged state onto original actionListener
+        CheckedConsumer<Boolean, Exception> deleteStateConsumer =  jobDeleted -> {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted.");
                 actionListener.onResponse(new DeleteJobAction.Response(true));
@@ -228,10 +228,10 @@ public class JobManager extends AbstractComponent {
 
 
         // Step 2. Listen for the Deleted Index response
-        //         If successful, delete from cluster state and chain onto deleteStatusListener
+        //         If successful, delete from cluster state and chain onto deleteStateListener
         CheckedConsumer<Boolean, Exception> deleteIndexConsumer = response -> {
             clusterService.submitStateUpdateTask("delete-job-" + jobId,
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(deleteStatusConsumer, actionListener::onFailure)) {
+                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(deleteStateConsumer, actionListener::onFailure)) {
 
                 @Override
                 protected Boolean newResponse(boolean acknowledged) {
@@ -249,12 +249,12 @@ public class JobManager extends AbstractComponent {
         // Step 1. Update the CS to DELETING
         //         If successful, attempt to delete the physical index and chain
         //         onto deleteIndexConsumer
-        CheckedConsumer<UpdateJobStatusAction.Response, Exception> updateConsumer = response -> {
-            // Sucessfully updated the status to DELETING, begin actually deleting
+        CheckedConsumer<UpdateJobStateAction.Response, Exception> updateConsumer = response -> {
+            // Sucessfully updated the state to DELETING, begin actually deleting
             if (response.isAcknowledged()) {
-                logger.info("Job [" + jobId + "] set to [" + JobStatus.DELETING + "]");
+                logger.info("Job [" + jobId + "] set to [" + JobState.DELETING + "]");
             } else {
-                logger.warn("Job [" + jobId + "] change to [" + JobStatus.DELETING + "] was not acknowledged.");
+                logger.warn("Job [" + jobId + "] change to [" + JobState.DELETING + "] was not acknowledged.");
             }
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
@@ -282,8 +282,8 @@ public class JobManager extends AbstractComponent {
             }));
         };
 
-        UpdateJobStatusAction.Request updateStatusListener = new UpdateJobStatusAction.Request(jobId, JobStatus.DELETING);
-        setJobStatus(updateStatusListener, ActionListener.wrap(updateConsumer, actionListener::onFailure));
+        UpdateJobStateAction.Request updateStateListener = new UpdateJobStateAction.Request(jobId, JobState.DELETING);
+        setJobState(updateStateListener, ActionListener.wrap(updateConsumer, actionListener::onFailure));
 
     }
 
@@ -339,22 +339,22 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    public void setJobStatus(UpdateJobStatusAction.Request request, ActionListener<UpdateJobStatusAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("set-job-status-" + request.getStatus() + "-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<UpdateJobStatusAction.Response>(request, actionListener) {
+    public void setJobState(UpdateJobStateAction.Request request, ActionListener<UpdateJobStateAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("set-job-state-" + request.getState() + "-" + request.getJobId(),
+                new AckedClusterStateUpdateTask<UpdateJobStateAction.Response>(request, actionListener) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
-                        builder.updateStatus(request.getJobId(), request.getStatus(), request.getReason());
+                        builder.updateState(request.getJobId(), request.getState(), request.getReason());
                         return ClusterState.builder(currentState)
                                 .metaData(MetaData.builder(currentState.metaData()).putCustom(MlMetadata.TYPE, builder.build()))
                                 .build();
                     }
 
                     @Override
-                    protected UpdateJobStatusAction.Response newResponse(boolean acknowledged) {
-                        return new UpdateJobStatusAction.Response(acknowledged);
+                    protected UpdateJobStateAction.Response newResponse(boolean acknowledged) {
+                        return new UpdateJobStateAction.Response(acknowledged);
                     }
                 });
     }

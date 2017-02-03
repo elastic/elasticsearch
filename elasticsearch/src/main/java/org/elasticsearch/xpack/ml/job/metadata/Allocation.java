@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,8 +24,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     private static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     private static final ParseField JOB_ID_FIELD = new ParseField("job_id");
     private static final ParseField IGNORE_DOWNTIME_FIELD = new ParseField("ignore_downtime");
-    public static final ParseField STATUS = new ParseField("status");
-    public static final ParseField STATUS_REASON = new ParseField("status_reason");
+    public static final ParseField STATE = new ParseField("state");
+    public static final ParseField STATE_REASON = new ParseField("state_reason");
 
     static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("allocation", Builder::new);
 
@@ -33,30 +33,30 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         PARSER.declareString(Builder::setNodeId, NODE_ID_FIELD);
         PARSER.declareString(Builder::setJobId, JOB_ID_FIELD);
         PARSER.declareBoolean(Builder::setIgnoreDowntime, IGNORE_DOWNTIME_FIELD);
-        PARSER.declareField(Builder::setStatus, (p, c) -> JobStatus.fromString(p.text()), STATUS, ObjectParser.ValueType.STRING);
-        PARSER.declareString(Builder::setStatusReason, STATUS_REASON);
+        PARSER.declareField(Builder::setState, (p, c) -> JobState.fromString(p.text()), STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(Builder::setStateReason, STATE_REASON);
     }
 
     private final String nodeId;
     private final String jobId;
     private final boolean ignoreDowntime;
-    private final JobStatus status;
-    private final String statusReason;
+    private final JobState state;
+    private final String stateReason;
 
-    public Allocation(String nodeId, String jobId, boolean ignoreDowntime, JobStatus status, String statusReason) {
+    public Allocation(String nodeId, String jobId, boolean ignoreDowntime, JobState state, String stateReason) {
         this.nodeId = nodeId;
         this.jobId = jobId;
         this.ignoreDowntime = ignoreDowntime;
-        this.status = status;
-        this.statusReason = statusReason;
+        this.state = state;
+        this.stateReason = stateReason;
     }
 
     public Allocation(StreamInput in) throws IOException {
         this.nodeId = in.readOptionalString();
         this.jobId = in.readString();
         this.ignoreDowntime = in.readBoolean();
-        this.status = JobStatus.fromStream(in);
-        this.statusReason = in.readOptionalString();
+        this.state = JobState.fromStream(in);
+        this.stateReason = in.readOptionalString();
     }
 
     public String getNodeId() {
@@ -70,18 +70,18 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     /**
      * @return Whether to ignore downtime at startup.
      *
-     * When the job status is set to STARTED, to ignoreDowntime will be set to false.
+     * When the job state is set to STARTED, to ignoreDowntime will be set to false.
      */
     public boolean isIgnoreDowntime() {
         return ignoreDowntime;
     }
 
-    public JobStatus getStatus() {
-        return status;
+    public JobState getState() {
+        return state;
     }
 
-    public String getStatusReason() {
-        return statusReason;
+    public String getStateReason() {
+        return stateReason;
     }
 
     @Override
@@ -89,8 +89,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         out.writeOptionalString(nodeId);
         out.writeString(jobId);
         out.writeBoolean(ignoreDowntime);
-        status.writeTo(out);
-        out.writeOptionalString(statusReason);
+        state.writeTo(out);
+        out.writeOptionalString(stateReason);
     }
 
     @Override
@@ -101,9 +101,9 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         }
         builder.field(JOB_ID_FIELD.getPreferredName(), jobId);
         builder.field(IGNORE_DOWNTIME_FIELD.getPreferredName(), ignoreDowntime);
-        builder.field(STATUS.getPreferredName(), status);
-        if (statusReason != null) {
-            builder.field(STATUS_REASON.getPreferredName(), statusReason);
+        builder.field(STATE.getPreferredName(), state);
+        if (stateReason != null) {
+            builder.field(STATE_REASON.getPreferredName(), stateReason);
         }
         builder.endObject();
         return builder;
@@ -117,13 +117,13 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         return Objects.equals(nodeId, that.nodeId) &&
                 Objects.equals(jobId, that.jobId) &&
                 Objects.equals(ignoreDowntime, that.ignoreDowntime) &&
-                Objects.equals(status, that.status) &&
-                Objects.equals(statusReason, that.statusReason);
+                Objects.equals(state, that.state) &&
+                Objects.equals(stateReason, that.stateReason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, jobId, ignoreDowntime, status, statusReason);
+        return Objects.hash(nodeId, jobId, ignoreDowntime, state, stateReason);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -137,8 +137,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         private String nodeId;
         private String jobId;
         private boolean ignoreDowntime;
-        private JobStatus status;
-        private String statusReason;
+        private JobState state;
+        private String stateReason;
 
         public Builder() {
         }
@@ -151,8 +151,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.nodeId = allocation.nodeId;
             this.jobId = allocation.jobId;
             this.ignoreDowntime  = allocation.ignoreDowntime;
-            this.status = allocation.status;
-            this.statusReason = allocation.statusReason;
+            this.state = allocation.state;
+            this.stateReason = allocation.stateReason;
         }
 
         public void setNodeId(String nodeId) {
@@ -168,19 +168,19 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         }
 
         @SuppressWarnings("incomplete-switch")
-        public void setStatus(JobStatus newStatus) {
-            if (this.status != null) {
-                switch (newStatus) {
+        public void setState(JobState newState) {
+            if (this.state != null) {
+                switch (newState) {
                     case CLOSING:
-                        if (this.status != JobStatus.OPENED) {
-                            throw new IllegalArgumentException("[" + jobId + "] expected status [" + JobStatus.OPENED
-                                    + "], but got [" + status +"]");
+                        if (this.state != JobState.OPENED) {
+                            throw new IllegalArgumentException("[" + jobId + "] expected state [" + JobState.OPENED
+                                    + "], but got [" + state +"]");
                         }
                         break;
                     case OPENING:
-                        if (this.status.isAnyOf(JobStatus.CLOSED, JobStatus.FAILED) == false) {
-                            throw new IllegalArgumentException("[" + jobId + "] expected status [" + JobStatus.CLOSED
-                                    + "] or [" + JobStatus.FAILED + "], but got [" + status +"]");
+                        if (this.state.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
+                            throw new IllegalArgumentException("[" + jobId + "] expected state [" + JobState.CLOSED
+                                    + "] or [" + JobState.FAILED + "], but got [" + state +"]");
                         }
                         break;
                     case OPENED:
@@ -189,15 +189,15 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
                 }
             }
 
-            this.status = newStatus;
+            this.state = newState;
         }
 
-        public void setStatusReason(String statusReason) {
-            this.statusReason = statusReason;
+        public void setStateReason(String stateReason) {
+            this.stateReason = stateReason;
         }
 
         public Allocation build() {
-            return new Allocation(nodeId, jobId, ignoreDowntime, status, statusReason);
+            return new Allocation(nodeId, jobId, ignoreDowntime, state, stateReason);
         }
 
     }

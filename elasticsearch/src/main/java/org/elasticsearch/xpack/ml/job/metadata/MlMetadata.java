@@ -26,9 +26,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
@@ -265,7 +265,7 @@ public class MlMetadata implements MetaData.Custom {
             Allocation allocation = allocations.get(job.getId());
             if (allocation == null) {
                 Allocation.Builder builder = new Allocation.Builder(job);
-                builder.setStatus(JobStatus.CLOSED);
+                builder.setState(JobState.CLOSED);
                 allocations.put(job.getId(), builder.build());
             }
             return this;
@@ -286,9 +286,9 @@ public class MlMetadata implements MetaData.Custom {
 
             Allocation previousAllocation = this.allocations.remove(jobId);
             if (previousAllocation != null) {
-                if (!previousAllocation.getStatus().equals(JobStatus.DELETING)) {
+                if (!previousAllocation.getState().equals(JobState.DELETING)) {
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because it is in ["
-                            + previousAllocation.getStatus() + "] state. Must be in [" + JobStatus.DELETING + "] state.");
+                            + previousAllocation.getState() + "] state. Must be in [" + JobState.DELETING + "] state.");
                 }
             } else {
                 throw new ResourceNotFoundException("No Cluster State found for job [" + jobId + "]");
@@ -329,7 +329,7 @@ public class MlMetadata implements MetaData.Custom {
                 };
                 if (persistentTasksInProgress.entriesExist(StartDatafeedAction.NAME, predicate)) {
                     String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
-                            DatafeedStatus.STARTED);
+                            DatafeedState.STARTED);
                     throw ExceptionsHelper.conflictStatusException(msg);
                 }
             }
@@ -379,18 +379,18 @@ public class MlMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder updateStatus(String jobId, JobStatus jobStatus, @Nullable String reason) {
+        public Builder updateState(String jobId, JobState jobState, @Nullable String reason) {
             if (jobs.containsKey(jobId) == false) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
 
             Allocation previous = allocations.get(jobId);
             if (previous == null) {
-                throw new IllegalStateException("[" + jobId + "] no allocation exist to update the status to [" + jobStatus + "]");
+                throw new IllegalStateException("[" + jobId + "] no allocation exist to update the state to [" + jobState + "]");
             }
 
-            // Cannot update the status to DELETING if there are datafeeds attached
-            if (jobStatus.equals(JobStatus.DELETING)) {
+            // Cannot update the state to DELETING if there are datafeeds attached
+            if (jobState.equals(JobState.DELETING)) {
                 Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
                 if (datafeed.isPresent()) {
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
@@ -398,22 +398,22 @@ public class MlMetadata implements MetaData.Custom {
                 }
             }
 
-            if (previous.getStatus().equals(JobStatus.DELETING)) {
+            if (previous.getState().equals(JobState.DELETING)) {
                 // If we're already Deleting there's nothing to do
-                if (jobStatus.equals(JobStatus.DELETING)) {
+                if (jobState.equals(JobState.DELETING)) {
                     return this;
                 }
 
                 // Once a job goes into Deleting, it cannot be changed
-                throw new ElasticsearchStatusException("Cannot change status of job [" + jobId + "] to [" + jobStatus + "] because " +
-                        "it is currently in [" + JobStatus.DELETING + "] status.", RestStatus.CONFLICT);
+                throw new ElasticsearchStatusException("Cannot change state of job [" + jobId + "] to [" + jobState + "] because " +
+                        "it is currently in [" + JobState.DELETING + "] state.", RestStatus.CONFLICT);
             }
             Allocation.Builder builder = new Allocation.Builder(previous);
-            builder.setStatus(jobStatus);
+            builder.setState(jobState);
             if (reason != null) {
-                builder.setStatusReason(reason);
+                builder.setStateReason(reason);
             }
-            if (previous.getStatus() != jobStatus && jobStatus == JobStatus.CLOSED) {
+            if (previous.getState() != jobState && jobState == JobState.CLOSED) {
                 Job.Builder job = new Job.Builder(this.jobs.get(jobId));
                 job.setFinishedTime(new Date());
                 this.jobs.put(job.getId(), job.build());

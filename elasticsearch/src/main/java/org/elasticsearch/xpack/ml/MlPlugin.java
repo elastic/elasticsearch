@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
@@ -298,7 +298,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
                 new ActionHandler<>(InternalOpenJobAction.INSTANCE, InternalOpenJobAction.TransportAction.class),
-                new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
+                new ActionHandler<>(UpdateJobStateAction.INSTANCE, UpdateJobStateAction.TransportAction.class),
                 new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),

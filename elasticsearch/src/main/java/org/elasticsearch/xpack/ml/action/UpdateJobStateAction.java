@@ -25,22 +25,22 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobStatusAction
-        extends Action<UpdateJobStatusAction.Request, UpdateJobStatusAction.Response, UpdateJobStatusAction.RequestBuilder> {
+public class UpdateJobStateAction
+        extends Action<UpdateJobStateAction.Request, UpdateJobStateAction.Response, UpdateJobStateAction.RequestBuilder> {
 
-    public static final UpdateJobStatusAction INSTANCE = new UpdateJobStatusAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/status/update";
+    public static final UpdateJobStateAction INSTANCE = new UpdateJobStateAction();
+    public static final String NAME = "cluster:admin/ml/anomaly_detectors/state/update";
 
-    private UpdateJobStatusAction() {
+    private UpdateJobStateAction() {
         super(NAME);
     }
 
@@ -57,12 +57,12 @@ public class UpdateJobStatusAction
     public static class Request extends AcknowledgedRequest<Request> {
 
         private String jobId;
-        private JobStatus status;
+        private JobState state;
         private String reason;
 
-        public Request(String jobId, JobStatus status) {
+        public Request(String jobId, JobState state) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            this.status = ExceptionsHelper.requireNonNull(status, Allocation.STATUS.getPreferredName());
+            this.state = ExceptionsHelper.requireNonNull(state, Allocation.STATE.getPreferredName());
         }
 
         Request() {}
@@ -75,12 +75,12 @@ public class UpdateJobStatusAction
             this.jobId = jobId;
         }
 
-        public JobStatus getStatus() {
-            return status;
+        public JobState getState() {
+            return state;
         }
 
-        public void setStatus(JobStatus status) {
-            this.status = status;
+        public void setState(JobState state) {
+            this.state = state;
         }
 
         public String getReason() {
@@ -100,7 +100,7 @@ public class UpdateJobStatusAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            status = JobStatus.fromStream(in);
+            state = JobState.fromStream(in);
             reason = in.readOptionalString();
         }
 
@@ -108,13 +108,13 @@ public class UpdateJobStatusAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            status.writeTo(out);
+            state.writeTo(out);
             out.writeOptionalString(reason);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, status);
+            return Objects.hash(jobId, state);
         }
 
         @Override
@@ -125,14 +125,14 @@ public class UpdateJobStatusAction
             if (obj == null || obj.getClass() != getClass()) {
                 return false;
             }
-            UpdateJobStatusAction.Request other = (UpdateJobStatusAction.Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(status, other.status);
+            UpdateJobStateAction.Request other = (UpdateJobStateAction.Request) obj;
+            return Objects.equals(jobId, other.jobId) && Objects.equals(state, other.state);
         }
     }
 
     static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, UpdateJobStatusAction action) {
+        public RequestBuilder(ElasticsearchClient client, UpdateJobStateAction action) {
             super(client, action, new Request());
         }
     }
@@ -166,7 +166,7 @@ public class UpdateJobStatusAction
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                 JobManager jobManager) {
-            super(settings, UpdateJobStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(settings, UpdateJobStateAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
         }
@@ -183,7 +183,7 @@ public class UpdateJobStatusAction
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.setJobStatus(request, listener);
+            jobManager.setJobState(request, listener);
         }
 
         @Override

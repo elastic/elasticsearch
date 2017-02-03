@@ -35,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -61,7 +61,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
-    private static final String STATUS = "status";
+    private static final String STATE = "state";
 
     private GetJobsStatsAction() {
         super(NAME);
@@ -151,20 +151,20 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             private DataCounts dataCounts;
             @Nullable
             private ModelSizeStats modelSizeStats;
-            private JobStatus status;
+            private JobState state;
 
-            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobStatus status) {
+            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
-                this.status = Objects.requireNonNull(status);
+                this.state = Objects.requireNonNull(state);
             }
 
             JobStats(StreamInput in) throws IOException {
                 jobId = in.readString();
                 dataCounts = new DataCounts(in);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
-                status = JobStatus.fromStream(in);
+                state = JobState.fromStream(in);
             }
 
             public String getJobid() {
@@ -179,8 +179,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return modelSizeStats;
             }
 
-            public JobStatus getStatus() {
-                return status;
+            public JobState getState() {
+                return state;
             }
 
             @Override
@@ -191,7 +191,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (modelSizeStats != null) {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
-                builder.field(STATUS, status);
+                builder.field(STATE, state);
                 builder.endObject();
 
                 return builder;
@@ -202,12 +202,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 out.writeString(jobId);
                 dataCounts.writeTo(out);
                 out.writeOptionalWriteable(modelSizeStats);
-                status.writeTo(out);
+                state.writeTo(out);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, status);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, state);
             }
 
             @Override
@@ -222,7 +222,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return Objects.equals(jobId, other.jobId)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
-                        && Objects.equals(this.status, other.status);
+                        && Objects.equals(this.state, other.state);
             }
         }
 
@@ -348,8 +348,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(request.getJobId());
             if (stats.isPresent()) {
-                JobStatus jobStatus = mlMetadata.getAllocations().get(request.jobId).getStatus();
-                Response.JobStats jobStats = new Response.JobStats(request.jobId, stats.get().v1(), stats.get().v2(), jobStatus);
+                JobState jobState = mlMetadata.getAllocations().get(request.jobId).getState();
+                Response.JobStats jobStats = new Response.JobStats(request.jobId, stats.get().v1(), stats.get().v2(), jobState);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             } else {
                 listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
@@ -372,8 +372,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 int slot = i;
                 String jobId = jobIds.get(i);
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                    JobStatus jobStatus = mlMetadata.getAllocations().get(jobId).getStatus();
-                    jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobStatus));
+                    JobState jobState = mlMetadata.getAllocations().get(jobId).getState();
+                    jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobState));
                     if (counter.decrementAndGet() == 0) {
                         List<Response.JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList().stream()

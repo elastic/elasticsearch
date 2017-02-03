@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
@@ -59,11 +59,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 builder.putJob(job, false);
             }
             if (randomBoolean()) {
-                builder.updateStatus(job.getId(), JobStatus.OPENING, randomBoolean() ? "first reason" : null);
+                builder.updateState(job.getId(), JobState.OPENING, randomBoolean() ? "first reason" : null);
                 if (randomBoolean()) {
-                    builder.updateStatus(job.getId(), JobStatus.OPENED, randomBoolean() ? "second reason" : null);
+                    builder.updateState(job.getId(), JobState.OPENED, randomBoolean() ? "second reason" : null);
                     if (randomBoolean()) {
-                        builder.updateStatus(job.getId(), JobStatus.CLOSING, randomBoolean() ? "third reason" : null);
+                        builder.updateState(job.getId(), JobState.CLOSING, randomBoolean() ? "third reason" : null);
                     }
                 }
             }
@@ -105,10 +105,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
-        assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("1").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("1"), nullValue());
         assertThat(result.getJobs().get("2"), sameInstance(job2));
-        assertThat(result.getAllocations().get("2").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("2").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("2"), nullValue());
 
         builder = new MlMetadata.Builder(result);
@@ -132,13 +132,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
-        assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("1").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
         builder = new MlMetadata.Builder(result);
-        builder.updateStatus("1", JobStatus.DELETING, null);
+        builder.updateState("1", JobState.DELETING, null);
         assertThat(result.getJobs().get("1"), sameInstance(job1));
-        assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("1").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
         builder.deleteJob("1");
@@ -152,12 +152,12 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         Job job1 = buildJobBuilder("1").build();
         MlMetadata.Builder builder1 = new MlMetadata.Builder();
         builder1.putJob(job1, false);
-        builder1.updateStatus("1", JobStatus.OPENING, null);
-        builder1.updateStatus("1", JobStatus.OPENED, null);
+        builder1.updateState("1", JobState.OPENING, null);
+        builder1.updateState("1", JobState.OPENED, null);
 
         MlMetadata result = builder1.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
-        assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.OPENED));
+        assertThat(result.getAllocations().get("1").getState(), equalTo(JobState.OPENED));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
@@ -192,14 +192,14 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
-        assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("foo").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         builder = new MlMetadata.Builder(result);
         builder.removeDatafeed("datafeed1", new PersistentTasksInProgress(0, Collections.emptyList()));
         result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
-        assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getAllocations().get("foo").getState(), equalTo(JobState.CLOSED));
         assertThat(result.getDatafeeds().get("datafeed1"), nullValue());
     }
 
@@ -251,12 +251,12 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
         builder.putDatafeed(datafeedConfig1);
-        builder.updateStatus("foo", JobStatus.OPENING, null);
-        builder.updateStatus("foo", JobStatus.OPENED, null);
+        builder.updateState("foo", JobState.OPENING, null);
+        builder.updateState("foo", JobState.OPENED, null);
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
-        assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.OPENED));
+        assertThat(result.getAllocations().get("foo").getState(), equalTo(JobState.OPENED));
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
@@ -273,20 +273,20 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     public void testUpdateAllocation_setFinishedTime() {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(buildJobBuilder("my_job_id").build(), false);
-        builder.updateStatus("my_job_id", JobStatus.OPENING, null);
+        builder.updateState("my_job_id", JobState.OPENING, null);
 
-        builder.updateStatus("my_job_id", JobStatus.OPENED, null);
+        builder.updateState("my_job_id", JobState.OPENED, null);
         MlMetadata mlMetadata = builder.build();
         assertThat(mlMetadata.getJobs().get("my_job_id").getFinishedTime(), nullValue());
 
-        builder.updateStatus("my_job_id", JobStatus.CLOSED, null);
+        builder.updateState("my_job_id", JobState.CLOSED, null);
         mlMetadata = builder.build();
         assertThat(mlMetadata.getJobs().get("my_job_id").getFinishedTime(), notNullValue());
     }
 
-    public void testUpdateStatus_failBecauseJobDoesNotExist() {
+    public void testUpdateState_failBecauseJobDoesNotExist() {
         MlMetadata.Builder builder = new MlMetadata.Builder();
-        expectThrows(ResourceNotFoundException.class, () -> builder.updateStatus("missing-job", JobStatus.CLOSED, "for testting"));
+        expectThrows(ResourceNotFoundException.class, () -> builder.updateState("missing-job", JobState.CLOSED, "for testting"));
     }
 
     public void testSetIgnoreDowntime_failBecauseJobDoesNotExist() {

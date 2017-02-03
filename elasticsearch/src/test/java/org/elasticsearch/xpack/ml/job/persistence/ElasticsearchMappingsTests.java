@@ -101,7 +101,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         // These are not reserved because they're analyzed strings, i.e. the
         // same type as user-specified fields
         overridden.add(Job.DESCRIPTION.getPreferredName());
-        overridden.add(Allocation.STATUS.getPreferredName());
+        overridden.add(Allocation.STATE.getPreferredName());
         overridden.add(ModelSnapshot.DESCRIPTION.getPreferredName());
 
         Set<String> expected = new HashSet<>();

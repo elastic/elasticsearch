@@ -15,21 +15,21 @@ import java.util.Locale;
 
 /**
  * Jobs whether running or complete are in one of these states.
- * When a job is created it is initialised in to the status closed
+ * When a job is created it is initialised in to the state closed
  * i.e. it is not running.
  */
-public enum JobStatus implements Writeable {
+public enum JobState implements Writeable {
 
     CLOSING, CLOSED, OPENING, OPENED, FAILED, DELETING;
 
-    public static JobStatus fromString(String name) {
+    public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static JobStatus fromStream(StreamInput in) throws IOException {
+    public static JobState fromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum JobStatus {\n ordinal [" + ordinal + "]");
+            throw new IOException("Unknown public enum JobState {\n ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
     }
@@ -40,9 +40,9 @@ public enum JobStatus implements Writeable {
     }
 
     /**
-     * @return {@code true} if status matches any of the given {@code candidates}
+     * @return {@code true} if state matches any of the given {@code candidates}
      */
-    public boolean isAnyOf(JobStatus... candidates) {
+    public boolean isAnyOf(JobState... candidates) {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
 }

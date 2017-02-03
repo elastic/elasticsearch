@@ -13,14 +13,14 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -91,7 +91,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobResultsPersister = mock(JobResultsPersister.class);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
-        givenAllocationWithStatus(JobStatus.OPENED);
+        givenAllocationWithState(JobState.OPENED);
 
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
@@ -123,8 +123,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob("foo", false, e -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess("foo"));
-        UpdateJobStatusAction.Request expectedRequest = new UpdateJobStatusAction.Request("foo", JobStatus.OPENED);
-        verify(client).execute(eq(UpdateJobStatusAction.INSTANCE), eq(expectedRequest), any());
+        UpdateJobStateAction.Request expectedRequest = new UpdateJobStateAction.Request("foo", JobState.OPENED);
+        verify(client).execute(eq(UpdateJobStateAction.INSTANCE), eq(expectedRequest), any());
     }
 
     public void testOpenJob_exceedMaxNumJobs() {
@@ -284,14 +284,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertFalse(manager.jobHasActiveAutodetectProcess("bar"));
     }
 
-    public void testProcessData_GivenStatusNotStarted() throws IOException {
+    public void testProcessData_GivenStateNotOpened() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         when(communicator.writeToJob(any(), any())).thenReturn(new DataCounts("foo"));
         AutodetectProcessManager manager = createManager(communicator);
 
-        Job job = createJobDetails("foo");
-
-        givenAllocationWithStatus(JobStatus.OPENED);
+        givenAllocationWithState(JobState.OPENED);
 
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", false, e -> {});
@@ -325,9 +323,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(autodetectProcess, times(1)).close();
     }
 
-    private void givenAllocationWithStatus(JobStatus status) {
+    private void givenAllocationWithState(JobState state) {
         Allocation.Builder allocation = new Allocation.Builder();
-        allocation.setStatus(status);
+        allocation.setState(state);
         when(jobManager.getJobAllocation("foo")).thenReturn(allocation.build());
     }
 

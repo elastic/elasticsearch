@@ -10,30 +10,30 @@ import org.elasticsearch.test.ESTestCase;
 public class JobStatusTests extends ESTestCase {
 
     public void testForString() {
-        assertEquals(JobStatus.fromString("closed"), JobStatus.CLOSED);
-        assertEquals(JobStatus.fromString("closing"), JobStatus.CLOSING);
-        assertEquals(JobStatus.fromString("failed"), JobStatus.FAILED);
-        assertEquals(JobStatus.fromString("opening"), JobStatus.OPENING);
-        assertEquals(JobStatus.fromString("opened"), JobStatus.OPENED);
+        assertEquals(JobState.fromString("closed"), JobState.CLOSED);
+        assertEquals(JobState.fromString("closing"), JobState.CLOSING);
+        assertEquals(JobState.fromString("failed"), JobState.FAILED);
+        assertEquals(JobState.fromString("opening"), JobState.OPENING);
+        assertEquals(JobState.fromString("opened"), JobState.OPENED);
     }
 
     public void testValidOrdinals() {
-        assertEquals(0, JobStatus.CLOSING.ordinal());
-        assertEquals(1, JobStatus.CLOSED.ordinal());
-        assertEquals(2, JobStatus.OPENING.ordinal());
-        assertEquals(3, JobStatus.OPENED.ordinal());
-        assertEquals(4, JobStatus.FAILED.ordinal());
+        assertEquals(0, JobState.CLOSING.ordinal());
+        assertEquals(1, JobState.CLOSED.ordinal());
+        assertEquals(2, JobState.OPENING.ordinal());
+        assertEquals(3, JobState.OPENED.ordinal());
+        assertEquals(4, JobState.FAILED.ordinal());
     }
 
     public void testIsAnyOf() {
-        assertFalse(JobStatus.OPENED.isAnyOf());
-        assertFalse(JobStatus.OPENED.isAnyOf(JobStatus.CLOSED, JobStatus.CLOSING, JobStatus.FAILED,
-                JobStatus.OPENING));
-        assertFalse(JobStatus.CLOSED.isAnyOf(JobStatus.CLOSING, JobStatus.FAILED, JobStatus.OPENING, JobStatus.OPENED));
+        assertFalse(JobState.OPENED.isAnyOf());
+        assertFalse(JobState.OPENED.isAnyOf(JobState.CLOSED, JobState.CLOSING, JobState.FAILED,
+                JobState.OPENING));
+        assertFalse(JobState.CLOSED.isAnyOf(JobState.CLOSING, JobState.FAILED, JobState.OPENING, JobState.OPENED));
 
-        assertTrue(JobStatus.OPENED.isAnyOf(JobStatus.OPENED));
-        assertTrue(JobStatus.OPENED.isAnyOf(JobStatus.OPENED, JobStatus.CLOSED));
-        assertTrue(JobStatus.CLOSING.isAnyOf(JobStatus.CLOSED, JobStatus.CLOSING));
-        assertTrue(JobStatus.CLOSED.isAnyOf(JobStatus.CLOSED, JobStatus.CLOSING));
+        assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED));
+        assertTrue(JobState.OPENED.isAnyOf(JobState.OPENED, JobState.CLOSED));
+        assertTrue(JobState.CLOSING.isAnyOf(JobState.CLOSED, JobState.CLOSING));
+        assertTrue(JobState.CLOSED.isAnyOf(JobState.CLOSED, JobState.CLOSING));
     }
 }

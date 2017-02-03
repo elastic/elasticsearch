@@ -34,11 +34,11 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.JobStatusObserver;
+import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -182,7 +182,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final ClusterService clusterService;
-        private final JobStatusObserver jobStatusObserver;
+        private final JobStateObserver jobStateObserver;
         private final TransportListTasksAction listTasksAction;
         private final TransportCancelTasksAction cancelTasksAction;
 
@@ -193,7 +193,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                                TransportListTasksAction listTasksAction) {
             super(settings, CloseJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
-            this.jobStatusObserver = new JobStatusObserver(threadPool, clusterService);
+            this.jobStateObserver = new JobStateObserver(threadPool, clusterService);
             this.cancelTasksAction = cancelTasksAction;
             this.listTasksAction = listTasksAction;
         }
@@ -214,7 +214,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                         cancelTasksRequest.setTaskId(taskInfo.getTaskId());
                         cancelTasksAction.execute(cancelTasksRequest, ActionListener.wrap(
                             cancelTasksResponse -> {
-                                jobStatusObserver.waitForStatus(request.jobId, request.closeTimeout, JobStatus.CLOSED,
+                                jobStateObserver.waitForState(request.jobId, request.closeTimeout, JobState.CLOSED,
                                     e -> {
                                         if (e != null) {
                                             listener.onFailure(e);
@@ -239,9 +239,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 throw ExceptionsHelper.missingJobException(jobId);
             }
 
-            if (allocation.getStatus() != JobStatus.OPENED) {
-                throw new ElasticsearchStatusException("job not opened, expected job status [{}], but got [{}]",
-                        RestStatus.CONFLICT, JobStatus.OPENED, allocation.getStatus());
+            if (allocation.getState() != JobState.OPENED) {
+                throw new ElasticsearchStatusException("job not opened, expected job state [{}], but got [{}]",
+                        RestStatus.CONFLICT, JobState.OPENED, allocation.getState());
             }
         }
     }

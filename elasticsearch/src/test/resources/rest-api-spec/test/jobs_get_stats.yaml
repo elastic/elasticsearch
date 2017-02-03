@@ -76,7 +76,7 @@ setup:
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
   - match: { jobs.0.model_size_stats.model_bytes: 0 }
-  - match: { jobs.0.status: OPENED }
+  - match: { jobs.0.state: OPENED }
 
 ---
 "Test get job stats for closed job":
@@ -101,7 +101,7 @@ setup:
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
   - gt: { jobs.0.model_size_stats.model_bytes: 0 }
-  - match: { jobs.0.status: CLOSED }
+  - match: { jobs.0.state: CLOSED }
 
 ---
 "Test get job stats of datafeed job that has not received and data":
@@ -112,7 +112,7 @@ setup:
   - match: { jobs.0.job_id : datafeed-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - match: { jobs.0.model_size_stats.model_bytes : 0 }
-  - match: { jobs.0.status: OPENED }
+  - match: { jobs.0.state: OPENED }
 
 ---
 "Test get all job stats explicitly":

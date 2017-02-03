@@ -12,18 +12,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum DatafeedStatus implements Writeable {
+public enum DatafeedState implements Writeable {
 
     STARTED, STOPPED;
 
-    public static DatafeedStatus fromString(String name) {
+    public static DatafeedState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static DatafeedStatus fromStream(StreamInput in) throws IOException {
+    public static DatafeedState fromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum DatafeedStatus {\n ordinal [" + ordinal + "]");
+            throw new IOException("Unknown public enum DatafeedState ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
     }

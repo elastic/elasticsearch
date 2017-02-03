@@ -12,29 +12,29 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public class JobStatusObserver {
+public class JobStateObserver {
 
-    private static final Logger LOGGER = Loggers.getLogger(JobStatusObserver.class);
+    private static final Logger LOGGER = Loggers.getLogger(JobStateObserver.class);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    public JobStatusObserver(ThreadPool threadPool, ClusterService clusterService) {
+    public JobStateObserver(ThreadPool threadPool, ClusterService clusterService) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
     }
 
-    public void waitForStatus(String jobId, TimeValue waitTimeout, JobStatus expectedStatus, Consumer<Exception> handler) {
+    public void waitForState(String jobId, TimeValue waitTimeout, JobState expectedState, Consumer<Exception> handler) {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());
-        JobStatusPredicate jobStatusPredicate = new JobStatusPredicate(jobId, expectedStatus);
+        JobStatePredicate jobStatePredicate = new JobStatePredicate(jobId, expectedState);
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -43,32 +43,32 @@ public class JobStatusObserver {
 
             @Override
             public void onClusterServiceClose() {
-                Exception e = new IllegalArgumentException("Cluster service closed while waiting for job status to change to ["
-                        + expectedStatus + "]");
+                Exception e = new IllegalArgumentException("Cluster service closed while waiting for job state to change to ["
+                        + expectedState + "]");
                 handler.accept(new IllegalStateException(e));
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                if (jobStatusPredicate.test(clusterService.state())) {
+                if (jobStatePredicate.test(clusterService.state())) {
                     handler.accept(null);
                 } else {
-                    Exception e = new IllegalArgumentException("Timeout expired while waiting for job status to change to ["
-                            + expectedStatus + "]");
+                    Exception e = new IllegalArgumentException("Timeout expired while waiting for job state to change to ["
+                            + expectedState + "]");
                     handler.accept(e);
                 }
             }
-        }, jobStatusPredicate, waitTimeout);
+        }, jobStatePredicate, waitTimeout);
     }
 
-    private static class JobStatusPredicate implements Predicate<ClusterState> {
+    private static class JobStatePredicate implements Predicate<ClusterState> {
 
         private final String jobId;
-        private final JobStatus expectedStatus;
+        private final JobState expectedState;
 
-        JobStatusPredicate(String jobId, JobStatus expectedStatus) {
+        JobStatePredicate(String jobId, JobState expectedState) {
             this.jobId = jobId;
-            this.expectedStatus = expectedStatus;
+            this.expectedState = expectedState;
         }
 
         @Override
@@ -77,7 +77,7 @@ public class JobStatusObserver {
             if (metadata != null) {
                 Allocation allocation = metadata.getAllocations().get(jobId);
                 if (allocation != null) {
-                    return allocation.getStatus() == expectedStatus;
+                    return allocation.getState() == expectedState;
                 }
             }
             return false;

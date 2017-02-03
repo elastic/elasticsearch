@@ -28,7 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -158,8 +158,8 @@ public class StopDatafeedAction
                     }
                 }
             }
-            listener.onFailure(new ElasticsearchStatusException("datafeed already stopped, expected datafeed status [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedStatus.STARTED, DatafeedStatus.STOPPED));
+            listener.onFailure(new ElasticsearchStatusException("datafeed already stopped, expected datafeed state [{}], but got [{}]",
+                    RestStatus.CONFLICT, DatafeedState.STARTED, DatafeedState.STOPPED));
         }
 
         @Override

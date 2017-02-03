@@ -16,10 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -121,14 +121,14 @@ public class AutodetectProcessManager extends AbstractComponent {
      */
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
         Allocation allocation = jobManager.getJobAllocation(jobId);
-        if (allocation.getStatus() != JobStatus.OPENED) {
-            throw new IllegalArgumentException("job [" + jobId + "] status is [" + allocation.getStatus() + "], but must be ["
-                    + JobStatus.OPENED + "] for processing data");
+        if (allocation.getState() != JobState.OPENED) {
+            throw new IllegalArgumentException("job [" + jobId + "] state is [" + allocation.getState() + "], but must be ["
+                    + JobState.OPENED + "] for processing data");
         }
 
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            throw new IllegalStateException("job [" +  jobId + "] with status [" + allocation.getStatus() + "] hasn't been started");
+            throw new IllegalStateException("job [" +  jobId + "] with state [" + allocation.getState() + "] hasn't been started");
         }
         try {
             return communicator.writeToJob(input, params);
@@ -193,7 +193,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                     logger.error(msg);
                     throw ExceptionsHelper.serverError(msg, ioe);
                 }
-                setJobStatus(jobId, JobStatus.OPENED);
+                setJobState(jobId, JobState.OPENED);
                 return communicator;
             });
         }, handler);
@@ -290,7 +290,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         try {
             communicator.close();
-            setJobStatus(jobId, JobStatus.CLOSED);
+            setJobState(jobId, JobState.CLOSED);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
@@ -313,28 +313,28 @@ public class AutodetectProcessManager extends AbstractComponent {
         return Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now());
     }
 
-    private void setJobStatus(String jobId, JobStatus status) {
-        UpdateJobStatusAction.Request request = new UpdateJobStatusAction.Request(jobId, status);
-        client.execute(UpdateJobStatusAction.INSTANCE, request, new ActionListener<UpdateJobStatusAction.Response>() {
+    private void setJobState(String jobId, JobState state) {
+        UpdateJobStateAction.Request request = new UpdateJobStateAction.Request(jobId, state);
+        client.execute(UpdateJobStateAction.INSTANCE, request, new ActionListener<UpdateJobStateAction.Response>() {
             @Override
-            public void onResponse(UpdateJobStatusAction.Response response) {
+            public void onResponse(UpdateJobStateAction.Response response) {
                 if (response.isAcknowledged()) {
-                    logger.info("Successfully set job status to [{}] for job [{}]", status, jobId);
+                    logger.info("Successfully set job state to [{}] for job [{}]", state, jobId);
                 } else {
-                    logger.info("Changing job status to [{}] for job [{}] wasn't acked", status, jobId);
+                    logger.info("Changing job state to [{}] for job [{}] wasn't acked", state, jobId);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Could not set job status to [" + status + "] for job [" + jobId +"]", e);
+                logger.error("Could not set job state to [" + state + "] for job [" + jobId +"]", e);
             }
         });
     }
 
-    public void setJobStatus(String jobId, JobStatus status, Consumer<Void> handler, Consumer<Exception> errorHandler) {
-        UpdateJobStatusAction.Request request = new UpdateJobStatusAction.Request(jobId, status);
-        client.execute(UpdateJobStatusAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
+    public void setJobState(String jobId, JobState state, Consumer<Void> handler, Consumer<Exception> errorHandler) {
+        UpdateJobStateAction.Request request = new UpdateJobStateAction.Request(jobId, state);
+        client.execute(UpdateJobStateAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {

@@ -32,9 +32,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedStatus;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -253,8 +253,8 @@ public class StartDatafeedAction
                 return storedRequest.getDatafeedId().equals(request.getDatafeedId());
             };
             if (persistentTasksInProgress.entriesExist(NAME, predicate)) {
-                throw new ElasticsearchStatusException("datafeed already started, expected datafeed status [{}], but got [{}]",
-                        RestStatus.CONFLICT, DatafeedStatus.STOPPED, DatafeedStatus.STARTED);
+                throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
+                        RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
             }
         }
 
@@ -284,9 +284,9 @@ public class StartDatafeedAction
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
         Allocation allocation = mlMetadata.getAllocations().get(datafeed.getJobId());
-        if (allocation.getStatus() != JobStatus.OPENED) {
-            throw new ElasticsearchStatusException("cannot start datafeed, expected job status [{}], but got [{}]",
-                    RestStatus.CONFLICT, JobStatus.OPENED, allocation.getStatus());
+        if (allocation.getState() != JobState.OPENED) {
+            throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
+                    RestStatus.CONFLICT, JobState.OPENED, allocation.getState());
         }
         DatafeedJobValidator.validate(datafeed, job);
     }

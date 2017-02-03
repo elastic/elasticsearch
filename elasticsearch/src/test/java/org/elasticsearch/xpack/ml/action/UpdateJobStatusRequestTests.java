@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.xpack.ml.action.UpdateJobStatusAction.Request;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.action.UpdateJobStateAction.Request;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class UpdateJobStatusRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20), randomFrom(JobStatus.values()));
+        return new Request(randomAsciiOfLengthBetween(1, 20), randomFrom(JobState.values()));
     }
 
     @Override

@@ -53,7 +53,7 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
                 .build();
         e = expectThrows(ElasticsearchStatusException.class,
                 () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2));
-        assertThat(e.getMessage(), equalTo("cannot start datafeed, expected job status [OPENED], but got [CLOSED]"));
+        assertThat(e.getMessage(), equalTo("cannot start datafeed, expected job state [OPENED], but got [CLOSED]"));
     }
 
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 public class InternalOpenJobAction extends Action<InternalOpenJobAction.Request, InternalOpenJobAction.Response,
@@ -114,7 +114,7 @@ public class InternalOpenJobAction extends Action<InternalOpenJobAction.Request,
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             JobTask jobTask = (JobTask) task;
-            autodetectProcessManager.setJobStatus(request.getJobId(), JobStatus.OPENING, aVoid -> {
+            autodetectProcessManager.setJobState(request.getJobId(), JobState.OPENING, aVoid -> {
                 jobTask.cancelHandler = () -> autodetectProcessManager.closeJob(request.getJobId());
                 autodetectProcessManager.openJob(request.getJobId(), request.isIgnoreDowntime(), e -> {
                     if (e == null) {

@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobStatus;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -116,7 +116,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         MlMetadata mlMetadata = new MlMetadata.Builder()
                 .putJob(job, false)
                 .putDatafeed(datafeedConfig)
-                .updateStatus("foo", JobStatus.OPENED, null)
+                .updateState("foo", JobState.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
@@ -155,7 +155,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         MlMetadata mlMetadata = new MlMetadata.Builder()
                 .putJob(job, false)
                 .putDatafeed(datafeedConfig)
-                .updateStatus("foo", JobStatus.OPENED, null)
+                .updateState("foo", JobState.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
@@ -184,7 +184,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         MlMetadata mlMetadata = new MlMetadata.Builder()
                 .putJob(job, false)
                 .putDatafeed(datafeedConfig)
-                .updateStatus("foo", JobStatus.OPENED, null)
+                .updateState("foo", JobState.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))

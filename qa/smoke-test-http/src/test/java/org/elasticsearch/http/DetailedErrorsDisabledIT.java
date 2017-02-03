@@ -60,7 +60,8 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
 
         Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), is("application/json"));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("\"error\":\"error traces in responses are disabled.\""));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()),
+                   containsString("\"error\":\"error traces in responses are disabled.\""));
         assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
 }

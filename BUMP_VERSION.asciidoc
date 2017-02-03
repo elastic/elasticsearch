@@ -164,13 +164,13 @@ your general python working environment.  Execute these commands from the root o
 
 [source,sh]
 -------------------------------------
-  pip install virtualenv      # if you don't already have virtualenv
-  virtualenv venv             # this will create a directory `venv` in your repository dir
-  brew install python3        # if you don't already have python3, or whatever command is appropriate to install python3 on your OS
-  virtualenv -p python3 venv  # set the virtual environment to use python3
-  source venv/bin/activate    # starts up the virtual environment
-  pip install requests        # install the requests package in the virtual environment
-  pip install elasticsearch   # install the Elasticsearch client
+  pip install virtualenv          # if you don't already have virtualenv
+  virtualenv {path_to_venv}/venv  # this will create a directory `venv` at the specified path
+  brew install python3            # if you don't already have python3, or whatever command is appropriate to install python3 on your OS
+  virtualenv -p python3 venv      # set the virtual environment to use python3
+  source venv/bin/activate        # starts up the virtual environment
+  pip install requests            # install the requests package in the virtual environment
+  pip install elasticsearch       # install the Elasticsearch client
 -------------------------------------
 
 - Get the distribution of the newly released Elasticsearch version (5.2.0 in our scenario) and
@@ -191,14 +191,6 @@ your general python working environment.  Execute these commands from the root o
 This will generate the bwc artifacts for 5.2.0 and put them in `core/src/test/resources/indices/bwc`,
 alongside the other bwc indices.
 
-- Shutdown your virtual Python environment:
-
-[source,sh]
--------------------------------------
-  deactivate          # deactives the virtual python environment
-  rm -rf venv         # deletes the `venv` directory created above
--------------------------------------
-
 === Generate the X-Pack bwc index
 
 Generate the X-Pack bwc index for the just released 5.2.0:
@@ -214,7 +206,15 @@ Generate the X-Pack bwc index for the just released 5.2.0:
 
 [source,sh]
 -------------------------------------
-  python3 dev-tools/create_bwc_indexex.py 5.2.0
+  python dev-tools/create_bwc_indexex.py 5.2.0
+-------------------------------------
+
+- Shutdown your virtual Python environment:
+
+[source,sh]
+-------------------------------------
+  deactivate                  # deactives the virtual python environment
+  rm -rf {path_to_venv}/venv  # deletes the `venv` directory created above
 -------------------------------------
 
 - Commit the bwc index to the repository and push it to Github

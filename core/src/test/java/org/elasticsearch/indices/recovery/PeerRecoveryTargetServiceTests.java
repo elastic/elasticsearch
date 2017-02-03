@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -43,7 +44,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             long seqNo = 0;
             for (int i = 0; i < docs; i++) {
                 Engine.Index indexOp = replica.prepareIndexOnReplica(
-                    SourceToParse.source(SourceToParse.Origin.REPLICA, index, "type", "doc_" + i, new BytesArray("{}")),
+                    SourceToParse.source(SourceToParse.Origin.REPLICA, index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
                     seqNo++, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                 replica.index(indexOp);
                 if (rarely()) {

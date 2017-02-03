@@ -47,7 +47,7 @@ final class DocumentParser {
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
 
-    public DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
+    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
@@ -154,6 +154,7 @@ final class DocumentParser {
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
             update
         ).parent(source.parent());
     }

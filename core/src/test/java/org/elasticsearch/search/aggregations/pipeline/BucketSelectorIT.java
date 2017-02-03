@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -434,7 +435,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .setId("my_script")
                 .setLang(CustomScriptPlugin.NAME)
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setContent(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")));
+                .setContent(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }"),
+                    XContentType.JSON));
 
         Script script = new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", Collections.emptyMap());
 

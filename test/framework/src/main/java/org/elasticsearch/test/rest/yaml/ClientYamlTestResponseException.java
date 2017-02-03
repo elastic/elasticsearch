@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.ResponseException;
 
 import java.io.IOException;
@@ -32,10 +33,10 @@ public class ClientYamlTestResponseException extends IOException {
     private final ClientYamlTestResponse restTestResponse;
     private final ResponseException responseException;
 
-    ClientYamlTestResponseException(ResponseException responseException) throws IOException {
+    ClientYamlTestResponseException(ResponseException responseException, Version version) throws IOException {
         super(responseException);
         this.responseException = responseException;
-        this.restTestResponse = new ClientYamlTestResponse(responseException.getResponse());
+        this.restTestResponse = new ClientYamlTestResponse(responseException.getResponse(), version);
     }
 
     /**

@@ -20,12 +20,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -316,5 +318,24 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         ThrowingRunnable runnable = () -> parser.parse("type", new CompressedXContent(mapping.string()));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("should not define a dateTimeFormatter"));
+    }
+
+    public void testSerializeDefaults() throws Exception {
+        for (String type : TYPES) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
+                .endObject().endObject().string();
+
+            DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            String got = builder.endObject().string();
+
+            // if type is date_range we check that the mapper contains the default format and locale
+            // otherwise it should not contain a locale or format
+            assertTrue(got, got.contains("\"format\":\"strict_date_optional_time||epoch_millis\"") == type.equals("date_range"));
+            assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
+        }
     }
 }

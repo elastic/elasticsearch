@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -91,7 +92,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
             if (i > 0) {
-                client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
+                client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}", XContentType.JSON).get();
             }
         }
         refresh();
@@ -422,9 +423,9 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type", "field1", "type=keyword").get());
 
-        client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}").execute().actionGet();
-        client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}").execute().actionGet();
-        client().prepareIndex("test", "post", "3").setSource("{\"field1\":\"value3\"}").execute().actionGet();
+        client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).execute().actionGet();
+        client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).execute().actionGet();
+        client().prepareIndex("test", "post", "3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).execute().actionGet();
         refresh();
         SearchResponse result = client().prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true)
                 .addSort("field1", SortOrder.ASC).execute().actionGet();

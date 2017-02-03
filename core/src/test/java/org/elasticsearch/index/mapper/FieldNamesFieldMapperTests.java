@@ -175,7 +175,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         private static class DummyFieldType extends TermBasedFieldType {
 
-            public DummyFieldType() {
+            DummyFieldType() {
                 super();
             }
 

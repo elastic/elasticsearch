@@ -418,7 +418,7 @@ public class IndexModuleTests extends ESTestCase {
         private final String key;
 
 
-        public TestSimilarity(String key) {
+        TestSimilarity(String key) {
             if (key == null) {
                 throw new AssertionError("key is null");
             }

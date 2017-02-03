@@ -221,7 +221,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         final long bytesUsed;
         final IndexShard shard;
 
-        public ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
+        ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
             this.bytesUsed = bytesUsed;
             this.shard = shard;
         }

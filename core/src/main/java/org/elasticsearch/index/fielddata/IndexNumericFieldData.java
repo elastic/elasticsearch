@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericFieldData> {
 
-    public static enum NumericType {
+    enum NumericType {
         BOOLEAN(false),
         BYTE(false),
         SHORT(false),
@@ -33,7 +33,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
 
         private final boolean floatingPoint;
 
-        private NumericType(boolean floatingPoint) {
+        NumericType(boolean floatingPoint) {
             this.floatingPoint = floatingPoint;
         }
 

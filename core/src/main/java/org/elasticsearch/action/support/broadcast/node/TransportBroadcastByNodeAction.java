@@ -522,10 +522,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected List<BroadcastShardOperationFailedException> exceptions;
         protected List<ShardOperationResult> results;
 
-        public NodeResponse() {
+        NodeResponse() {
         }
 
-        public NodeResponse(String nodeId,
+        NodeResponse(String nodeId,
                             int totalShards,
                             List<ShardOperationResult> results,
                             List<BroadcastShardOperationFailedException> exceptions) {

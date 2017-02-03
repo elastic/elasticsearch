@@ -382,7 +382,7 @@ public class ActionModule extends AbstractModule {
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
         class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
-            public ActionRegistry() {
+            ActionRegistry() {
                 super("action");
             }
 

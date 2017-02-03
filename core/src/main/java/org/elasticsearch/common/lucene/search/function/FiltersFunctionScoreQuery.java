@@ -156,7 +156,7 @@ public class FiltersFunctionScoreQuery extends Query {
         final Weight[] filterWeights;
         final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
+        CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
             this.filterWeights = filterWeights;

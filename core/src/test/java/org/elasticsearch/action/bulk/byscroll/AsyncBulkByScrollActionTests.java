@@ -68,6 +68,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
@@ -388,7 +389,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
-        hit.setSource(new BytesArray("{}"));
+        hit.setSource(new BytesArray("{}"), XContentType.JSON);
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
         simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 0, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
@@ -662,7 +663,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
-        public DummyAsyncBulkByScrollAction() {
+        DummyAsyncBulkByScrollAction() {
             super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
                     client.threadPool(), testRequest, null, null, listener);
         }
@@ -690,7 +691,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
-        public DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
@@ -728,7 +729,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         private int searchesToReject = 0;
         private int scrollsToReject = 0;
 
-        public MyMockClient(Client in) {
+        MyMockClient(Client in) {
             super(in);
         }
 
@@ -855,7 +856,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         private final Request request;
         private final ActionListener<Response> listener;
 
-        public RequestAndListener(Request request, ActionListener<Response> listener) {
+        RequestAndListener(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
         }

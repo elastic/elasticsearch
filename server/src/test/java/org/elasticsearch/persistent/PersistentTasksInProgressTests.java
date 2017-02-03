@@ -27,16 +27,16 @@ import org.elasticsearch.persistent.PersistentTasksInProgress.PersistentTaskInPr
 import org.elasticsearch.persistent.TestPersistentActionPlugin.Status;
 import org.elasticsearch.persistent.TestPersistentActionPlugin.TestPersistentAction;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class PersistentTasksInProgressTests extends AbstractWireSerializingTestCase<PersistentTasksInProgress> {
 
     @Override
     protected PersistentTasksInProgress createTestInstance() {
         int numberOfTasks = randomInt(10);
-        List<PersistentTaskInProgress<?>> entries = new ArrayList<>();
+        Map<Long, PersistentTaskInProgress<?>> entries = new HashMap<>();
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTaskInProgress<?> taskInProgress = new PersistentTaskInProgress<>(
                     randomLong(), randomAsciiOfLength(10), new TestPersistentActionPlugin.TestRequest(randomAsciiOfLength(10)),
@@ -45,7 +45,7 @@ public class PersistentTasksInProgressTests extends AbstractWireSerializingTestC
                 // From time to time update status
                 taskInProgress = new PersistentTaskInProgress<>(taskInProgress, new Status(randomAsciiOfLength(10)));
             }
-            entries.add(taskInProgress);
+            entries.put(taskInProgress.getId(), taskInProgress);
         }
         return new PersistentTasksInProgress(randomLong(), entries);
     }

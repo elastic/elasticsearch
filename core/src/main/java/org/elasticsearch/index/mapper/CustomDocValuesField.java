@@ -39,7 +39,7 @@ abstract class CustomDocValuesField implements IndexableField {
 
     private final String name;
 
-    public CustomDocValuesField(String  name) {
+    CustomDocValuesField(String  name) {
         this.name = name;
     }
 

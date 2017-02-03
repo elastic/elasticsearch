@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class SignificanceHeuristicTests extends ESTestCase {
     static class SignificantTermsTestSearchContext extends TestSearchContext {
 
-        public SignificantTermsTestSearchContext() {
+        SignificantTermsTestSearchContext() {
             super(null);
         }
 

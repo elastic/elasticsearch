@@ -447,7 +447,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private final CreateSnapshotListener userCreateSnapshotListener;
         private final Exception e;
 
-        public CleanupAfterErrorListener(SnapshotsInProgress.Entry snapshot, boolean snapshotCreated, CreateSnapshotListener userCreateSnapshotListener, Exception e) {
+        CleanupAfterErrorListener(SnapshotsInProgress.Entry snapshot, boolean snapshotCreated, CreateSnapshotListener userCreateSnapshotListener, Exception e) {
             this.snapshot = snapshot;
             this.snapshotCreated = snapshotCreated;
             this.userCreateSnapshotListener = userCreateSnapshotListener;

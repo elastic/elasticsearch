@@ -374,7 +374,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final class BufferedChannelOutputStream extends BufferedOutputStream {
 
-        public BufferedChannelOutputStream(OutputStream out, int size) throws IOException {
+        BufferedChannelOutputStream(OutputStream out, int size) throws IOException {
             super(out, size);
         }
 

@@ -517,7 +517,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         private final CountDownLatch corruptionCount;
 
-        public RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
+        RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
             super(transport);
             this.corruptionCount = corruptionCount;
         }

@@ -53,7 +53,7 @@ interface HttpAsyncResponseConsumerFactory {
 
         private final int bufferLimit;
 
-        public HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
+        HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
             this.bufferLimit = bufferLimitBytes;
         }
 

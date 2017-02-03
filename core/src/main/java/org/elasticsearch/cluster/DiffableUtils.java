@@ -166,7 +166,7 @@ public final class DiffableUtils {
             super(in, keySerializer, valueSerializer);
         }
 
-        public JdkMapDiff(Map<K, T> before, Map<K, T> after,
+        JdkMapDiff(Map<K, T> before, Map<K, T> after,
                           KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;
@@ -298,7 +298,7 @@ public final class DiffableUtils {
             super(in, keySerializer, valueSerializer);
         }
 
-        public ImmutableOpenIntMapDiff(ImmutableOpenIntMap<T> before, ImmutableOpenIntMap<T> after,
+        ImmutableOpenIntMapDiff(ImmutableOpenIntMap<T> before, ImmutableOpenIntMap<T> after,
                                        KeySerializer<Integer> keySerializer, ValueSerializer<Integer, T> valueSerializer) {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;

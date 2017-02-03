@@ -139,6 +139,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
+            toolVersion = 7.5
         }
         for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)

@@ -392,7 +392,7 @@ public long ramBytesUsed() {
     final BytesRefBuilder spare = new BytesRefBuilder();
     private char sepLabel;
 
-    public EscapingTokenStreamToAutomaton(char sepLabel) {
+    EscapingTokenStreamToAutomaton(char sepLabel) {
       this.sepLabel = sepLabel;
     }
 
@@ -432,7 +432,7 @@ public long ramBytesUsed() {
 
     private final boolean hasPayloads;
 
-    public AnalyzingComparator(boolean hasPayloads) {
+    AnalyzingComparator(boolean hasPayloads) {
       this.hasPayloads = hasPayloads;
     }
 
@@ -1114,7 +1114,7 @@ public long ramBytesUsed() {
             BytesRef payload;
             long weight;
 
-            public SurfaceFormAndPayload(BytesRef payload, long cost) {
+            SurfaceFormAndPayload(BytesRef payload, long cost) {
                 super();
                 this.payload = payload;
                 this.weight = cost;

@@ -88,7 +88,7 @@ public class GeoDistanceRangeAggregatorFactory
         private final DistanceUnit units;
         private final org.elasticsearch.common.geo.GeoPoint origin;
 
-        public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
+        DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
                 org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
             this.source = source;
             // even if the geo points are unique, there's no guarantee the

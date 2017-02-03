@@ -15,6 +15,7 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
+  'distribution:bwc-zip',
   'distribution:zip',
   'distribution:tar',
   'distribution:deb',

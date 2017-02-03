@@ -66,7 +66,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   // the finalizer task follow the original task immediately. To work around this,
   // we make the mustRunAfter the finalizer task itself.
   // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
-  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' && it.name != 'bwc-zip' }) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
       distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
@@ -100,7 +100,8 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-subprojects {
+configure(subprojects.findAll { it.name != 'bwc-zip' }) {
+
   /*****************************************************************************
    *                            Rest test config                               *
    *****************************************************************************/

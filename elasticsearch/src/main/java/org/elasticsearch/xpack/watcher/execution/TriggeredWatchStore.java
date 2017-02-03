@@ -74,7 +74,13 @@ public class TriggeredWatchStore extends AbstractComponent {
         try {
             IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
             if (indexMetaData != null) {
-                return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    logger.debug("triggered watch index [{}] is marked as closed, watcher cannot be started",
+                            indexMetaData.getIndex().getName());
+                    return false;
+                } else {
+                    return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+                }
             }
         } catch (IllegalStateException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", INDEX_NAME), e);

@@ -357,6 +357,19 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         verifyZeroInteractions(clientProxy);
     }
 
+    // this is a special condition that could lead to an NPE in earlier versions
+    public void testTriggeredWatchesIndexIsClosed() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStore.INDEX_NAME)
+                .settings(indexSettings)
+                .state(IndexMetaData.State.CLOSE));
+        csBuilder.metaData(metaDataBuilder);
+
+        assertThat(triggeredWatchStore.validate(csBuilder.build()), is(false));
+    }
+
     private RefreshResponse mockRefreshResponse(int total, int successful) {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getTotalShards()).thenReturn(total);

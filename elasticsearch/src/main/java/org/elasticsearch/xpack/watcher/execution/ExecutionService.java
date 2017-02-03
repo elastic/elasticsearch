@@ -109,15 +109,28 @@ public final class ExecutionService extends AbstractComponent {
 
     public boolean validate(ClusterState state) {
         boolean triggeredWatchStoreReady = triggeredWatchStore.validate(state);
-        try {
-            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
-            if (indexMetaData != null) {
-                return triggeredWatchStoreReady && state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-            }
-        } catch (Exception e) {
+        if (triggeredWatchStoreReady == false) {
             return false;
         }
-        return triggeredWatchStoreReady;
+
+        try {
+            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
+            // no watch index yet means we are good to go
+            if (indexMetaData == null) {
+                return true;
+            } else {
+                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    logger.debug("watch index [{}] is marked as closed, watcher cannot be started",
+                            indexMetaData.getIndex().getName());
+                    return false;
+                } else {
+                    return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+                }
+            }
+        } catch (IllegalStateException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", Watch.INDEX), e);
+            return false;
+        }
     }
 
     public void stop() {

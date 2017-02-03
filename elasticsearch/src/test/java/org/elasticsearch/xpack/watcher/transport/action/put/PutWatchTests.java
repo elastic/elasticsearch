@@ -22,8 +22,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testPut() throws Exception {
-        ensureWatcherStarted();
-
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5m")));
 
@@ -45,7 +43,6 @@ public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testPutNoTrigger() throws Exception {
-        ensureWatcherStarted();
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .input(simpleInput())

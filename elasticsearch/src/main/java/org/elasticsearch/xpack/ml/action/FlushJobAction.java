@@ -187,7 +187,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, FlushJobAction action) {
+        RequestBuilder(ElasticsearchClient client, FlushJobAction action) {
             super(client, action, new Request());
         }
     }

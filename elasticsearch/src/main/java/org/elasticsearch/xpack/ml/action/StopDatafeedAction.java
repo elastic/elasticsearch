@@ -111,7 +111,7 @@ public class StopDatafeedAction
 
     static class RequestBuilder extends ActionRequestBuilder<Request, RemovePersistentTaskAction.Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, StopDatafeedAction action) {
+        RequestBuilder(ElasticsearchClient client, StopDatafeedAction action) {
             super(client, action, new Request());
         }
     }

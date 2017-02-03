@@ -18,7 +18,7 @@ import java.io.IOException;
 
 class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
 
-    public BatchedBucketsIterator(Client client, String jobId) {
+    BatchedBucketsIterator(Client client, String jobId) {
         super(client, jobId, Bucket.RESULT_TYPE_VALUE);
     }
 

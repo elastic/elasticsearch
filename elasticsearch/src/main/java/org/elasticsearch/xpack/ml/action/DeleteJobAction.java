@@ -114,7 +114,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
     static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, DeleteJobAction action) {
+        RequestBuilder(ElasticsearchClient client, DeleteJobAction action) {
             super(client, action, new Request());
         }
     }

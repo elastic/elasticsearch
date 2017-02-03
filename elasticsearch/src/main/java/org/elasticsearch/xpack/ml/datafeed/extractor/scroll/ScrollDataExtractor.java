@@ -47,7 +47,7 @@ class ScrollDataExtractor implements DataExtractor {
     private boolean hasNext;
     private Long timestampOnCancel;
 
-    public ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext) {
+    ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.hasNext = true;

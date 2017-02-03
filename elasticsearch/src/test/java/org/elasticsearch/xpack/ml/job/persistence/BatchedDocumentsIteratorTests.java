@@ -188,7 +188,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     private static class TestIterator extends BatchedDocumentsIterator<String> {
-        public TestIterator(Client client, String jobId) {
+        TestIterator(Client client, String jobId) {
             super(client, jobId);
         }
 

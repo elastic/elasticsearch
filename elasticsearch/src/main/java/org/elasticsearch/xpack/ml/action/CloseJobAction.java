@@ -125,7 +125,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
+        RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
             super(client, action, new Request());
         }
     }

@@ -23,7 +23,7 @@ class ScrollDataExtractorContext {
     final long start;
     final long end;
 
-    public ScrollDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indexes, List<String> types,
+    ScrollDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indexes, List<String> types,
                                       QueryBuilder query, List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize,
                                       long start, long end) {
         this.jobId = Objects.requireNonNull(jobId);

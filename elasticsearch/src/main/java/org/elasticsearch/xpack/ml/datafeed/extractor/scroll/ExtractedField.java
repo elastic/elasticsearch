@@ -50,7 +50,7 @@ abstract class ExtractedField {
 
     private static class FromFields extends ExtractedField {
 
-        public FromFields(String name, ExtractionMethod extractionMethod) {
+        FromFields(String name, ExtractionMethod extractionMethod) {
             super(name, extractionMethod);
         }
 
@@ -69,7 +69,7 @@ abstract class ExtractedField {
 
         private String[] namePath;
 
-        public FromSource(String name, ExtractionMethod extractionMethod) {
+        FromSource(String name, ExtractionMethod extractionMethod) {
             super(name, extractionMethod);
             namePath = name.split("\\.");
         }

@@ -422,11 +422,11 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
 
     static class TestTaskResponse implements Writeable {
 
-        public TestTaskResponse() {
+        TestTaskResponse() {
 
         }
 
-        public TestTaskResponse(StreamInput in) throws IOException {
+        TestTaskResponse(StreamInput in) throws IOException {
             in.readBoolean();
         }
 

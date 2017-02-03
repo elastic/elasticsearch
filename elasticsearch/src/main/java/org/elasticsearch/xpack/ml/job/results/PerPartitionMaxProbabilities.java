@@ -132,7 +132,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     private final class DoubleMaxBox {
         private double value = 0.0;
 
-        public DoubleMaxBox() {
+        DoubleMaxBox() {
         }
 
         public void accept(double d) {

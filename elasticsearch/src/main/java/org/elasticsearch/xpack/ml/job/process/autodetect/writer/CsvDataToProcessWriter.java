@@ -52,7 +52,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      */
     private static final int MAX_LINES_PER_RECORD = 10000;
 
-    public CsvDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
+    CsvDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
                                   DataDescription dataDescription, AnalysisConfig analysisConfig,
                                   DataCountsReporter dataCountsReporter) {
         super(includeControlField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);

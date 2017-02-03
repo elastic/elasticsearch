@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import java.io.IOException;
 
 class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
-    public BatchedInfluencersIterator(Client client, String jobId) {
+    BatchedInfluencersIterator(Client client, String jobId) {
         super(client, jobId, Influencer.RESULT_TYPE_VALUE);
     }
 

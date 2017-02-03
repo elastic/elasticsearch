@@ -62,7 +62,7 @@ public class InternalOpenJobAction extends Action<InternalOpenJobAction.Request,
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, InternalOpenJobAction action) {
+        RequestBuilder(ElasticsearchClient client, InternalOpenJobAction action) {
             super(client, action, new Request());
         }
     }

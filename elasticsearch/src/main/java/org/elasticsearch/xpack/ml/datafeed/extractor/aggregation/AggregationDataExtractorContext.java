@@ -22,7 +22,7 @@ class AggregationDataExtractorContext {
     final long start;
     final long end;
 
-    public AggregationDataExtractorContext(String jobId, String timeField, List<String> indexes, List<String> types, QueryBuilder query,
+    AggregationDataExtractorContext(String jobId, String timeField, List<String> indexes, List<String> types, QueryBuilder query,
                                            AggregatorFactories.Builder aggs, long start, long end) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);

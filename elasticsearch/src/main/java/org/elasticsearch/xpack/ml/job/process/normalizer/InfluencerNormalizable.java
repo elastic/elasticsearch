@@ -14,7 +14,7 @@ import java.util.Objects;
 class InfluencerNormalizable extends AbstractLeafNormalizable {
     private final Influencer influencer;
 
-    public InfluencerNormalizable(Influencer influencer, String indexName) {
+    InfluencerNormalizable(Influencer influencer, String indexName) {
         super(indexName);
         this.influencer = Objects.requireNonNull(influencer);
     }

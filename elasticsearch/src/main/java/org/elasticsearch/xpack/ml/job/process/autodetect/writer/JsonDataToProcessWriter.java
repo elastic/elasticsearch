@@ -33,7 +33,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private static final Logger LOGGER = Loggers.getLogger(JsonDataToProcessWriter.class);
 
-    public JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess, DataDescription dataDescription,
+    JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess, DataDescription dataDescription,
                                    AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter) {
         super(includeControlField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }

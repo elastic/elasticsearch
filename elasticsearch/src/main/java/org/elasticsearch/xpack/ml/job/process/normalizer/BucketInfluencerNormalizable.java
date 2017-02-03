@@ -15,7 +15,7 @@ import java.util.Objects;
 class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
     private final BucketInfluencer bucketInfluencer;
 
-    public BucketInfluencerNormalizable(BucketInfluencer influencer, String indexName) {
+    BucketInfluencerNormalizable(BucketInfluencer influencer, String indexName) {
         super(indexName);
         bucketInfluencer = Objects.requireNonNull(influencer);
     }

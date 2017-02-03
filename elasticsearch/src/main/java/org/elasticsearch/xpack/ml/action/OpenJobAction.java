@@ -136,7 +136,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
+        RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());
         }
     }

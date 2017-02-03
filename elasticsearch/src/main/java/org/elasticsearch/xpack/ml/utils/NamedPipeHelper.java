@@ -278,7 +278,7 @@ public class NamedPipeHelper {
 
         private final Path file;
 
-        public PrivilegedInputPipeOpener(Path file) {
+        PrivilegedInputPipeOpener(Path file) {
             this.file = file;
         }
 
@@ -300,7 +300,7 @@ public class NamedPipeHelper {
 
         private final Path file;
 
-        public PrivilegedOutputPipeOpener(Path file) {
+        PrivilegedOutputPipeOpener(Path file) {
             this.file = file;
         }
 

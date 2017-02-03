@@ -30,7 +30,7 @@ class AggregationToJsonProcessor implements Releasable {
     private final XContentBuilder jsonBuilder;
     private final Map<String, Object> keyValuePairs;
 
-    public AggregationToJsonProcessor(OutputStream outputStream) throws IOException {
+    AggregationToJsonProcessor(OutputStream outputStream) throws IOException {
         jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
         keyValuePairs = new LinkedHashMap<>();
     }

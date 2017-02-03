@@ -18,7 +18,7 @@ import java.io.IOException;
 
 class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
-    public BatchedRecordsIterator(Client client, String jobId) {
+    BatchedRecordsIterator(Client client, String jobId) {
         super(client, jobId, AnomalyRecord.RESULT_TYPE_VALUE);
     }
 

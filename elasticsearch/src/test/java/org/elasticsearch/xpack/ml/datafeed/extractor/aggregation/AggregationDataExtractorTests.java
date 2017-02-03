@@ -57,7 +57,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
         private SearchResponse nextResponse;
 
-        public TestDataExtractor(long start, long end) {
+        TestDataExtractor(long start, long end) {
             super(client, createContext(start, end));
         }
 

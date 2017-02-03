@@ -19,7 +19,7 @@ class SearchHitToJsonProcessor implements Releasable {
     private final ExtractedFields fields;
     private final XContentBuilder jsonBuilder;
 
-    public SearchHitToJsonProcessor(ExtractedFields fields, OutputStream outputStream) throws IOException {
+    SearchHitToJsonProcessor(ExtractedFields fields, OutputStream outputStream) throws IOException {
         this.fields = Objects.requireNonNull(fields);
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }

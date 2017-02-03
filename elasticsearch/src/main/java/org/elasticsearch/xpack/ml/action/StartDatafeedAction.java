@@ -189,7 +189,7 @@ public class StartDatafeedAction
 
     static class RequestBuilder extends ActionRequestBuilder<Request, PersistentActionResponse, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
+        RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
             super(client, action, new Request());
         }
     }

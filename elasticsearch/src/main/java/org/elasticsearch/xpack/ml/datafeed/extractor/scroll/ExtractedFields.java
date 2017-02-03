@@ -22,7 +22,7 @@ class ExtractedFields {
     private final ExtractedField timeField;
     private final List<ExtractedField> allFields;
 
-    public ExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
+    ExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
         if (!allFields.contains(timeField)) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }

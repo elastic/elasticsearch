@@ -15,7 +15,7 @@ import java.util.Objects;
 class RecordNormalizable extends AbstractLeafNormalizable {
     private final AnomalyRecord record;
 
-    public RecordNormalizable(AnomalyRecord record, String indexName) {
+    RecordNormalizable(AnomalyRecord record, String indexName) {
         super(indexName);
         this.record = Objects.requireNonNull(record);
     }

@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
     private static final int MAX_MUTATIONS = 50;
-    private static final int MAX_ATTEMPTS = 10;
+    private static final int MAX_ATTEMPTS = 50;
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
@@ -82,9 +82,8 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                             throw new RuntimeException(
                                     "Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!");
                         }
-                        logger.info(
-                                "Caught expected version conflict trying to perform mutation number {} with version {}. Retrying.",
-                                i, get.getVersion());
+                        logger.info("Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
+                                + "on attempt [{}]. Retrying.", i, get.getVersion(), attempts);
                         get = client().prepareGet("test", "test", "test").get();
                     }
                 }

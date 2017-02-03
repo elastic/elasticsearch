@@ -178,7 +178,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     static class IndexSearcherWrapper extends IndexSearcher {
 
-        public IndexSearcherWrapper(DocumentSubsetDirectoryReader r) {
+        IndexSearcherWrapper(DocumentSubsetDirectoryReader r) {
             super(r);
         }
 

@@ -72,7 +72,7 @@ public class HasherBenchmark {
         final MeanMetric hash = new MeanMetric();
         final MeanMetric verify = new MeanMetric();
 
-        public Metrics(Hasher hasher) {
+        Metrics(Hasher hasher) {
             this.name = hasher.name();
         }
 

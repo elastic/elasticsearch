@@ -241,7 +241,7 @@ public class HttpExporterTests extends ESTestCase {
         when(response.getEntity()).thenReturn(entity);
         when(client.performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class))).thenReturn(response);
 
-        try (final Sniffer sniffer = HttpExporter.createSniffer(config, client, listener)) {
+        try (Sniffer sniffer = HttpExporter.createSniffer(config, client, listener)) {
             assertThat(sniffer, not(nullValue()));
 
             verify(listener).setSniffer(sniffer);
@@ -365,7 +365,7 @@ public class HttpExporterTests extends ESTestCase {
         final ResolversRegistry resolvers = mock(ResolversRegistry.class);
         final HttpResource resource = new MockHttpResource(exporterName(), true, PublishableHttpResource.CheckResponse.ERROR, false);
 
-        try (final HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
             verify(listener).setResource(resource);
 
             assertThat(exporter.openBulk(), nullValue());
@@ -381,7 +381,7 @@ public class HttpExporterTests extends ESTestCase {
         // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
         final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
 
-        try (final HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
             verify(listener).setResource(resource);
 
             final HttpExportBulk bulk = exporter.openBulk();

@@ -171,7 +171,7 @@ public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent 
         @Nullable private final Condition condition;
         @Nullable private final Transform transform;
 
-        public TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod,
+        TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod,
                                  @Nullable Condition condition, @Nullable Transform transform) {
             this.id = id;
             this.throttlePeriod = throttlePeriod;

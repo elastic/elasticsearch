@@ -140,7 +140,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param client The REST client to make the request(s).
      * @return Never {@code null}.
      */
-    protected abstract CheckResponse doCheck(final RestClient client);
+    protected abstract CheckResponse doCheck(RestClient client);
 
     /**
      * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint.
@@ -235,7 +235,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param client The REST client to make the request(s).
      * @return {@code true} if it exists.
      */
-    protected abstract boolean doPublish(final RestClient client);
+    protected abstract boolean doPublish(RestClient client);
 
     /**
      * Upload the {@code resourceName} to the {@code resourceBasePath} endpoint.

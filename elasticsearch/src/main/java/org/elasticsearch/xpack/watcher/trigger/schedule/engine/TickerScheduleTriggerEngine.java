@@ -103,7 +103,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
         private volatile long scheduledTime;
 
-        public ActiveSchedule(String name, Schedule schedule, long startTime) {
+        ActiveSchedule(String name, Schedule schedule, long startTime) {
             this.name = name;
             this.schedule = schedule;
             this.startTime = startTime;
@@ -130,7 +130,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         private volatile boolean active = true;
         private final CountDownLatch closeLatch = new CountDownLatch(1);
 
-        public Ticker() {
+        Ticker() {
             super("ticker-schedule-trigger-engine");
             setDaemon(true);
             start();

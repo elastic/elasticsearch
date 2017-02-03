@@ -31,7 +31,7 @@ abstract class ExpirationCallback {
          * @param max       earliest relative time to execute before license expiry
          * @param frequency interval between execution
          */
-        public Pre(TimeValue min, TimeValue max, TimeValue frequency) {
+        Pre(TimeValue min, TimeValue max, TimeValue frequency) {
             super(Orientation.PRE, min, max, frequency);
         }
     }
@@ -50,7 +50,7 @@ abstract class ExpirationCallback {
          * @param max       latest relative time to execute after license expiry
          * @param frequency interval between execution
          */
-        public Post(TimeValue min, TimeValue max, TimeValue frequency) {
+        Post(TimeValue min, TimeValue max, TimeValue frequency) {
             super(Orientation.POST, min, max, frequency);
         }
     }

@@ -22,7 +22,7 @@ class Field implements MessageElement {
     final String value;
     final boolean isShort;
 
-    public Field(String title, String value, boolean isShort) {
+    Field(String title, String value, boolean isShort) {
         this.title = title;
         this.value = value;
         this.isShort = isShort;
@@ -63,7 +63,7 @@ class Field implements MessageElement {
         final TextTemplate value;
         final Boolean isShort;
 
-        public Template(TextTemplate title, TextTemplate value, Boolean isShort) {
+        Template(TextTemplate title, TextTemplate value, Boolean isShort) {
             this.title = title;
             this.value = value;
             this.isShort = isShort;

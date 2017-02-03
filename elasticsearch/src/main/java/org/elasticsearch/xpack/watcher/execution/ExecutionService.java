@@ -487,7 +487,7 @@ public final class ExecutionService extends AbstractComponent {
 
     private static final class StartupExecutionContext extends TriggeredExecutionContext {
 
-        public StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
             super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
         }
 

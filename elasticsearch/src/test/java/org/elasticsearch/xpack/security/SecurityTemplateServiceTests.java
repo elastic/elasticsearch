@@ -381,21 +381,21 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     }
 
     private static class TestPutMappingResponse extends PutMappingResponse {
-        public TestPutMappingResponse(boolean acknowledged) {
+        TestPutMappingResponse(boolean acknowledged) {
             super(acknowledged);
         }
 
-        public TestPutMappingResponse() {
+        TestPutMappingResponse() {
             super();
         }
     }
 
     private static class TestPutIndexTemplateResponse extends PutIndexTemplateResponse {
-        public TestPutIndexTemplateResponse(boolean acknowledged) {
+        TestPutIndexTemplateResponse(boolean acknowledged) {
             super(acknowledged);
         }
 
-        public TestPutIndexTemplateResponse() {
+        TestPutIndexTemplateResponse() {
             super();
         }
     }

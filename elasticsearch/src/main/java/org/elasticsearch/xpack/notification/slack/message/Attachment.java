@@ -157,7 +157,7 @@ public class Attachment implements MessageElement {
         final TextTemplate imageUrl;
         final TextTemplate thumbUrl;
 
-        public Template(TextTemplate fallback, TextTemplate color, TextTemplate pretext, TextTemplate authorName,
+        Template(TextTemplate fallback, TextTemplate color, TextTemplate pretext, TextTemplate authorName,
                         TextTemplate authorLink, TextTemplate authorIcon, TextTemplate title, TextTemplate titleLink,
                         TextTemplate text, Field.Template[] fields, TextTemplate imageUrl, TextTemplate thumbUrl) {
 

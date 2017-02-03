@@ -134,7 +134,7 @@ public class WatcherScheduleEngineBenchmark {
                     .put("node.data", false)
                     .build();
             try (Node node = new MockNode(settings, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
-                try (final Client client = node.client()) {
+                try (Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();

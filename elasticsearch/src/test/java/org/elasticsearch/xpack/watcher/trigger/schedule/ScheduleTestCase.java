@@ -362,7 +362,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
         int hour;
         int minute;
 
-        public HourAndMinute(int hour, int minute) {
+        HourAndMinute(int hour, int minute) {
             this.hour = hour;
             this.minute = minute;
         }

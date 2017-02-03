@@ -134,7 +134,7 @@ public class ExpirationCallbackTests extends ESTestCase {
 
     private static class NoopPostExpirationCallback extends ExpirationCallback.Post {
 
-        public NoopPostExpirationCallback(TimeValue min, TimeValue max, TimeValue frequency) {
+        NoopPostExpirationCallback(TimeValue min, TimeValue max, TimeValue frequency) {
             super(min, max, frequency);
         }
 
@@ -144,7 +144,7 @@ public class ExpirationCallbackTests extends ESTestCase {
 
     private static class NoopPreExpirationCallback extends ExpirationCallback.Pre {
 
-        public NoopPreExpirationCallback(TimeValue min, TimeValue max, TimeValue frequency) {
+        NoopPreExpirationCallback(TimeValue min, TimeValue max, TimeValue frequency) {
             super(min, max, frequency);
         }
 

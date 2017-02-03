@@ -32,7 +32,7 @@ final class XPackExtensionPolicy extends Policy {
      * @param basePolicy The base policy
      * @param extensions Extra code source extension's policy
      */
-    public XPackExtensionPolicy(Policy basePolicy, Map<String, Policy> extensions) {
+    XPackExtensionPolicy(Policy basePolicy, Map<String, Policy> extensions) {
         this.basePolicy = basePolicy;
         this.extensions = extensions;
         xpackURL = XPackExtensionPolicy.class.getProtectionDomain().getCodeSource().getLocation();

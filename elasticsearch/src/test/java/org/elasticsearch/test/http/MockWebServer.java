@@ -137,7 +137,7 @@ public class MockWebServer implements Closeable {
 
         private final boolean needClientAuth;
 
-        public CustomHttpsConfigurator(SSLContext sslContext, boolean needClientAuth) {
+        CustomHttpsConfigurator(SSLContext sslContext, boolean needClientAuth) {
             super(sslContext);
             this.needClientAuth = needClientAuth;
         }

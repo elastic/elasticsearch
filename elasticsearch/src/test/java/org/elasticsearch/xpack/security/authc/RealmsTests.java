@@ -419,7 +419,7 @@ public class RealmsTests extends ESTestCase {
 
     static class DummyRealm extends Realm {
 
-        public DummyRealm(String type, RealmConfig config) {
+        DummyRealm(String type, RealmConfig config) {
             super(type, config);
         }
 

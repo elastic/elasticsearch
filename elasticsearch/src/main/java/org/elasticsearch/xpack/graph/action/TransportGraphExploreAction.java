@@ -64,7 +64,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     static class VertexPriorityQueue extends PriorityQueue<Vertex> {
 
-        public VertexPriorityQueue(int maxSize) {
+        VertexPriorityQueue(int maxSize) {
             super(maxSize);
         }
 

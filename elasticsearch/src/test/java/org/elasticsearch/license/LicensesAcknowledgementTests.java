@@ -42,7 +42,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         private final LicensesStatus expectedStatus;
         private final boolean expectAckMessages;
 
-        public AssertingLicensesUpdateResponse(boolean expectedAcknowledgement, LicensesStatus expectedStatus,
+        AssertingLicensesUpdateResponse(boolean expectedAcknowledgement, LicensesStatus expectedStatus,
                                                boolean expectAckMessages) {
             this.expectedAcknowledgement = expectedAcknowledgement;
             this.expectedStatus = expectedStatus;

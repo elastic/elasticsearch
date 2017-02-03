@@ -180,7 +180,7 @@ public class Account {
         final Smtp smtp;
         final EmailDefaults defaults;
 
-        public Config(String name, Settings settings) {
+        Config(String name, Settings settings) {
             this.name = name;
             profile = Profile.resolve(settings.get("profile"), Profile.STANDARD);
             defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
@@ -203,7 +203,7 @@ public class Account {
             final char[] password;
             final Properties properties;
 
-            public Smtp(Settings settings) {
+            Smtp(Settings settings) {
                 host = settings.get("host", settings.get("localaddress", settings.get("local_address")));
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
@@ -275,7 +275,7 @@ public class Account {
             final Email.AddressList bcc;
             final String subject;
 
-            public EmailDefaults(String accountName, Settings settings) {
+            EmailDefaults(String accountName, Settings settings) {
                 try {
                     from = Email.Address.parse(settings, Email.Field.FROM.getPreferredName());
                     replyTo = Email.AddressList.parse(settings, Email.Field.REPLY_TO.getPreferredName());

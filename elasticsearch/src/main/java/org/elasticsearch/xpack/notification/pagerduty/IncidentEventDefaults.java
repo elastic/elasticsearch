@@ -42,7 +42,7 @@ public class IncidentEventDefaults {
             final String href;
             final String text;
 
-            public LinkDefaults(Settings settings) {
+            LinkDefaults(Settings settings) {
                 href = settings.get(IncidentEventContext.XField.HREF.getPreferredName(), null);
                 text = settings.get(IncidentEventContext.XField.TEXT.getPreferredName(), null);
             }
@@ -68,7 +68,7 @@ public class IncidentEventDefaults {
             final String src;
             final String alt;
 
-            public ImageDefaults(Settings settings) {
+            ImageDefaults(Settings settings) {
                 href = settings.get(IncidentEventContext.XField.HREF.getPreferredName(), null);
                 src = settings.get(IncidentEventContext.XField.SRC.getPreferredName(), null);
                 alt = settings.get(IncidentEventContext.XField.ALT.getPreferredName(), null);

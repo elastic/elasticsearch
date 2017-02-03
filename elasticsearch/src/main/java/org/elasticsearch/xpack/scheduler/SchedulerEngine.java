@@ -148,7 +148,7 @@ public class SchedulerEngine {
         private volatile ScheduledFuture<?> future;
         private volatile long scheduledTime;
 
-        public ActiveSchedule(String name, Schedule schedule, long startTime) {
+        ActiveSchedule(String name, Schedule schedule, long startTime) {
             this.name = name;
             this.schedule = schedule;
             this.startTime = startTime;

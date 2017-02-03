@@ -134,7 +134,7 @@ public class IntegrationAccount extends HipChatAccount {
         @Nullable final Color color;
         @Nullable final Boolean notify;
 
-        public Defaults(Settings settings) {
+        Defaults(Settings settings) {
             this.format = Format.resolve(settings, DEFAULT_FORMAT_SETTING, null);
             this.color = Color.resolve(settings, DEFAULT_COLOR_SETTING, null);
             this.notify = settings.getAsBoolean(DEFAULT_NOTIFY_SETTING, null);

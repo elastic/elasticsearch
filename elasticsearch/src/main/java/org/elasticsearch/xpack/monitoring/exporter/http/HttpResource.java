@@ -167,6 +167,6 @@ public abstract class HttpResource {
      * @param client The REST client to make the request(s).
      * @return {@code true} if the resource is available for use. {@code false} to stop.
      */
-    protected abstract boolean doCheckAndPublish(final RestClient client);
+    protected abstract boolean doCheckAndPublish(RestClient client);
 
 }

@@ -527,7 +527,7 @@ public class WatchTests extends ESTestCase {
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-        public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry, Clock clock) {
+        ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry, Clock clock) {
             super(settings, registry, clock);
         }
 

@@ -276,7 +276,7 @@ public class ExportersTests extends ESTestCase {
     }
 
     static class TestExporter extends Exporter {
-        public TestExporter(Config config) {
+        TestExporter(Config config) {
             super(config);
         }
 
@@ -319,7 +319,7 @@ public class ExportersTests extends ESTestCase {
         private static final AtomicInteger count = new AtomicInteger(0);
         private List<CountingBulk> bulks = new CopyOnWriteArrayList<>();
 
-        public CountingExporter(Config config) {
+        CountingExporter(Config config) {
             super(config);
         }
 
@@ -347,7 +347,7 @@ public class ExportersTests extends ESTestCase {
 
         private final AtomicInteger count = new AtomicInteger();
 
-        public CountingBulk(String name) {
+        CountingBulk(String name) {
             super(name);
         }
 

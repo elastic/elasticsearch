@@ -56,7 +56,7 @@ class HttpExportBulk extends ExportBulk {
      */
     private byte[] payload = null;
 
-    public HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
+    HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
                           final ResolversRegistry registry) {
         super(name);
 
@@ -69,7 +69,7 @@ class HttpExportBulk extends ExportBulk {
     public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
         try {
             if (docs != null && docs.isEmpty() == false) {
-                try (final BytesStreamOutput payload = new BytesStreamOutput()) {
+                try (BytesStreamOutput payload = new BytesStreamOutput()) {
                     for (MonitoringDoc monitoringDoc : docs) {
                         // any failure caused by an individual doc will be written as an empty byte[], thus not impacting the rest
                         payload.write(toBulkBytes(monitoringDoc));
@@ -108,7 +108,7 @@ class HttpExportBulk extends ExportBulk {
         final XContentType xContentType = XContentType.JSON;
         final XContent xContent = xContentType.xContent();
 
-        try (final BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             MonitoringIndexNameResolver<MonitoringDoc> resolver = registry.getResolver(doc);
 
             if (resolver != null) {

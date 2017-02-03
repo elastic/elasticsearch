@@ -128,7 +128,7 @@ public class V1Account extends HipChatAccount {
         @Nullable final Color color;
         @Nullable final Boolean notify;
 
-        public Defaults(Settings settings) {
+        Defaults(Settings settings) {
             this.rooms = settings.getAsArray(DEFAULT_ROOM_SETTING, null);
             this.from = settings.get(DEFAULT_FROM_SETTING);
             this.format = Format.resolve(settings, DEFAULT_FORMAT_SETTING, null);

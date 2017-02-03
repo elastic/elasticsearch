@@ -301,7 +301,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
      */
     class UpperCaseTextTemplateEngine extends TextTemplateEngine {
 
-        public UpperCaseTextTemplateEngine() {
+        UpperCaseTextTemplateEngine() {
             super(Settings.EMPTY, mock(ScriptService.class));
         }
 

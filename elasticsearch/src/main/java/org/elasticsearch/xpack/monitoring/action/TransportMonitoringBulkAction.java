@@ -53,7 +53,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         private final Exporters exportService;
         private final ClusterService clusterService;
 
-        public AsyncAction(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener,
+        AsyncAction(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener,
                            Exporters exportService, ClusterService clusterService) {
             this.request = request;
             this.listener = listener;

@@ -177,7 +177,7 @@ public abstract class Attachment extends BodyPartSource {
             private final String contentType;
             private final Provider<InputStream> source;
 
-            public StreamDataSource(String name, String contentType, Provider<InputStream> source) {
+            StreamDataSource(String name, String contentType, Provider<InputStream> source) {
                 this.name = name;
                 this.contentType = contentType;
                 this.source = source;

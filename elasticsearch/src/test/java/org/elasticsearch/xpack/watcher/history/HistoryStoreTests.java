@@ -156,7 +156,7 @@ public class HistoryStoreTests extends ESTestCase {
         private String username;
         private String password;
 
-        public IndexRequestNoPasswordMatcher(String username, String password) {
+        IndexRequestNoPasswordMatcher(String username, String password) {
             this.username = username;
             this.password = password;
         }

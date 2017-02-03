@@ -49,7 +49,7 @@ class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements
 
     private License license;
 
-    public LicensesMetaData(License license) {
+    LicensesMetaData(License license) {
         this.license = license;
     }
 
@@ -131,7 +131,7 @@ class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements
         }
     }
 
-    public LicensesMetaData(StreamInput streamInput) throws IOException {
+    LicensesMetaData(StreamInput streamInput) throws IOException {
         if (streamInput.readBoolean()) {
             license = License.readLicense(streamInput);
         } else {

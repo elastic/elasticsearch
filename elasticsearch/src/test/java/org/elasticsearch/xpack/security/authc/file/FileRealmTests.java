@@ -224,13 +224,13 @@ public class FileRealmTests extends ESTestCase {
     }
 
     static class UserPasswdStore extends FileUserPasswdStore {
-        public UserPasswdStore(RealmConfig config) {
+        UserPasswdStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }
     }
 
     static class UserRolesStore extends FileUserRolesStore {
-        public UserRolesStore(RealmConfig config) {
+        UserRolesStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }
     }

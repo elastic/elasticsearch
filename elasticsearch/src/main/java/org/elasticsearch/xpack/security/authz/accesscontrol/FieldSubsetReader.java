@@ -321,7 +321,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
      */
     class FieldFilterFields extends FilterFields {
 
-        public FieldFilterFields(Fields in) {
+        FieldFilterFields(Fields in) {
             super(in);
         }
 

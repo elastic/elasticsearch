@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -54,7 +53,7 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
      * */
     EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
 
-    static RankedListQualityMetric fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
+    static RankedListQualityMetric fromXContent(XContentParser parser) throws IOException {
         RankedListQualityMetric rc;
         Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
@@ -65,13 +64,13 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
         // TODO maybe switch to using a plugable registry later?
         switch (metricName) {
         case Precision.NAME:
-            rc = Precision.fromXContent(parser, context);
+            rc = Precision.fromXContent(parser);
             break;
         case ReciprocalRank.NAME:
-            rc = ReciprocalRank.fromXContent(parser, context);
+            rc = ReciprocalRank.fromXContent(parser);
             break;
         case DiscountedCumulativeGain.NAME:
-            rc = DiscountedCumulativeGain.fromXContent(parser, context);
+            rc = DiscountedCumulativeGain.fromXContent(parser);
             break;
         default:
             throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);

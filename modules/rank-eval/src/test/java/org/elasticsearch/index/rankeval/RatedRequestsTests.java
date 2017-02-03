@@ -19,21 +19,19 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -44,36 +42,38 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 
 public class RatedRequestsTests extends ESTestCase {
 
-    private static SearchModule searchModule;
-    private static SearchRequestParsers searchRequestParsers;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
     * setup for the whole base test class
     */
     @BeforeClass
-    public static void init() throws IOException {
-        AggregatorParsers aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"),
-                new ParseFieldRegistry<>("aggregation_pipes"));
-        searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        IndicesQueriesRegistry queriesRegistry = searchModule.getQueryParserRegistry();
-        Suggesters suggesters = searchModule.getSuggesters();
-        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters, null);
+    public static void init() {
+        xContentRegistry = new NamedXContentRegistry(Stream.of(
+                new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents().stream()
+                ).flatMap(Function.identity()).collect(toList()));
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        searchModule = null;
-        searchRequestParsers = null;
+        xContentRegistry = null;
     }
 
-    public static RatedRequest createTestItem(List<String> indices, List<String> types) {
-        String requestId = randomAsciiOfLength(50);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
 
+    public static RatedRequest createTestItem(List<String> indices, List<String> types, boolean forceRequest) {
+        String requestId = randomAsciiOfLength(50);
 
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int size = randomIntBetween(0, 2);
@@ -83,15 +83,15 @@ public class RatedRequestsTests extends ESTestCase {
 
         Map<String, Object> params = new HashMap<>();
         SearchSourceBuilder testRequest = null;
-        if (randomBoolean()) {
+        if (randomBoolean() || forceRequest) {
+            testRequest = new SearchSourceBuilder();
+            testRequest.size(randomInt());
+            testRequest.query(new MatchAllQueryBuilder());
+        } else {
             int randomSize = randomIntBetween(1, 10);
             for (int i = 0; i < randomSize; i++) {
                 params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
             }
-        } else {
-            testRequest = new SearchSourceBuilder();
-            testRequest.size(randomInt());
-            testRequest.query(new MatchAllQueryBuilder());
         }
 
         List<String> summaryFields = new ArrayList<>();
@@ -100,7 +100,7 @@ public class RatedRequestsTests extends ESTestCase {
             summaryFields.add(randomAsciiOfLength(5));
         }
 
-        RatedRequest ratedRequest = null; 
+        RatedRequest ratedRequest = null;
         if (params.size() == 0) {
             ratedRequest = new RatedRequest(requestId, ratedDocs, testRequest);
             ratedRequest.setIndices(indices);
@@ -112,8 +112,6 @@ public class RatedRequestsTests extends ESTestCase {
             ratedRequest.setTypes(types);
             ratedRequest.setSummaryFields(summaryFields);
         }
-
-
         return ratedRequest;
     }
 
@@ -130,22 +128,24 @@ public class RatedRequestsTests extends ESTestCase {
             types.add(randomAsciiOfLengthBetween(0, 50));
         }
 
-        RatedRequest testItem = createTestItem(indices, types);
-        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
-        itemParser.nextToken();
+        RatedRequest testItem = createTestItem(indices, types, randomBoolean());
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        try (XContentParser itemParser = createParser(shuffled)) {
+            itemParser.nextToken();
 
-        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
-        RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers, null);
-
-        RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
-        parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
-        parsedItem.setTypes(types); // IRL these come from URL parameters - see RestRankEvalAction
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser);
+            parsedItem.setIndices(indices); // IRL these come from URL
+                                            // parameters - see
+                                            // RestRankEvalAction
+            parsedItem.setTypes(types); // IRL these come from URL parameters -
+                                        // see RestRankEvalAction
+            assertNotSame(testItem, parsedItem);
+            assertEquals(testItem, parsedItem);
+            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
     }
-    
+
     public void testSerialization() throws IOException {
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
@@ -159,7 +159,7 @@ public class RatedRequestsTests extends ESTestCase {
             types.add(randomAsciiOfLengthBetween(0, 50));
         }
 
-        RatedRequest original = createTestItem(indices, types);
+        RatedRequest original = createTestItem(indices, types, randomBoolean());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
@@ -183,7 +183,7 @@ public class RatedRequestsTests extends ESTestCase {
             types.add(randomAsciiOfLengthBetween(0, 50));
         }
 
-        RatedRequest testItem = createTestItem(indices, types);
+        RatedRequest testItem = createTestItem(indices, types, randomBoolean());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
@@ -270,19 +270,19 @@ public class RatedRequestsTests extends ESTestCase {
                 "Found duplicate rated document key [{ \"_index\" : \"index1\", \"_type\" : \"type1\", \"_id\" : \"id1\"}]",
                 ex.getMessage());
     }
-    
+
     public void testNullSummaryFieldsTreatment() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
         RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder());
         expectThrows(IllegalArgumentException.class, () -> request.setSummaryFields(null));
     }
-    
+
     public void testNullParamsTreatment() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
         RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), null, null);
         assertNotNull(request.getParams());
     }
-    
+
     public void testSettingParamsAndRequestThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
         Map<String, Object> params = new HashMap<>();
@@ -290,7 +290,7 @@ public class RatedRequestsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class,
                 () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), params, null));
     }
-    
+
     public void testSettingNeitherParamsNorRequestThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, null));
@@ -304,7 +304,7 @@ public class RatedRequestsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class,
                 () -> new RatedRequest("id", ratedDocs, null, params, null));
     }
-    
+
     public void testSettingTemplateIdAndRequestThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
         expectThrows(IllegalArgumentException.class,
@@ -338,23 +338,21 @@ public class RatedRequestsTests extends ESTestCase {
          + "        {\"_type\": \"testtype\", \"_index\": \"test\", \"_id\": \"2\", \"rating\" : 0 }, "
          + "        {\"_id\": \"3\", \"_index\": \"test\", \"_type\": \"testtype\", \"rating\" : 1 }]\n"
          + "}";
-        XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
-        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
-        RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers, null);
-        RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
-        assertEquals("my_qa_query", specification.getId());
-        assertNotNull(specification.getTestRequest());
-        List<RatedDocument> ratedDocs = specification.getRatedDocs();
-        assertEquals(3, ratedDocs.size());
-        for (int i = 0; i < 3; i++) {
-            assertEquals("" + (i + 1), ratedDocs.get(i).getDocID());
-            assertEquals("test", ratedDocs.get(i).getIndex());
-            assertEquals("testtype", ratedDocs.get(i).getType());
-            if (i == 1) {
-                assertEquals(0, ratedDocs.get(i).getRating());
-            } else {
-                assertEquals(1, ratedDocs.get(i).getRating());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
+            RatedRequest specification = RatedRequest.fromXContent(parser);
+            assertEquals("my_qa_query", specification.getId());
+            assertNotNull(specification.getTestRequest());
+            List<RatedDocument> ratedDocs = specification.getRatedDocs();
+            assertEquals(3, ratedDocs.size());
+            for (int i = 0; i < 3; i++) {
+                assertEquals("" + (i + 1), ratedDocs.get(i).getDocID());
+                assertEquals("test", ratedDocs.get(i).getIndex());
+                assertEquals("testtype", ratedDocs.get(i).getType());
+                if (i == 1) {
+                    assertEquals(0, ratedDocs.get(i).getRating());
+                } else {
+                    assertEquals(1, ratedDocs.get(i).getRating());
+                }
             }
         }
     }

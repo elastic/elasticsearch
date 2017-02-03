@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.search.SearchHit;
@@ -124,13 +127,16 @@ public class ReciprocalRankTests extends ESTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         ReciprocalRank testItem = createTestItem();
-        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
-        itemParser.nextToken();
-        itemParser.nextToken();
-        ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        try (XContentParser itemParser = createParser(shuffled)) {
+            itemParser.nextToken();
+            itemParser.nextToken();
+            ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser);
+            assertNotSame(testItem, parsedItem);
+            assertEquals(testItem, parsedItem);
+            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
     }
 
     /**
@@ -145,7 +151,7 @@ public class ReciprocalRankTests extends ESTestCase {
         }
         return hits;
     }
-    
+
     private ReciprocalRank createTestItem() {
         ReciprocalRank testItem = new ReciprocalRank();
         testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));

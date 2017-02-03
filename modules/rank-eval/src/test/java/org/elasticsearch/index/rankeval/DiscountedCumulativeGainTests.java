@@ -19,10 +19,13 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -192,10 +195,11 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          + "   \"unknown_doc_rating\": 2,\n"
          + "   \"normalize\": true\n"
          + "}";
-        XContentParser parser = XContentFactory.xContent(xContent).createParser(xContent);
-        DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
-        assertEquals(2, dcgAt.getUnknownDocRating().intValue());
-        assertEquals(true, dcgAt.getNormalize());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser);
+            assertEquals(2, dcgAt.getUnknownDocRating().intValue());
+            assertEquals(true, dcgAt.getNormalize());
+        }
     }
 
     public static DiscountedCumulativeGain createTestItem() {
@@ -206,15 +210,18 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
     public void testXContentRoundtrip() throws IOException {
         DiscountedCumulativeGain testItem = createTestItem();
-        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
-        itemParser.nextToken();
-        itemParser.nextToken();
-        DiscountedCumulativeGain parsedItem = DiscountedCumulativeGain.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        try (XContentParser itemParser = createParser(shuffled)) {
+            itemParser.nextToken();
+            itemParser.nextToken();
+            DiscountedCumulativeGain parsedItem = DiscountedCumulativeGain.fromXContent(itemParser);
+            assertNotSame(testItem, parsedItem);
+            assertEquals(testItem, parsedItem);
+            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
     }
-    
+
     public void testSerialization() throws IOException {
         DiscountedCumulativeGain original = createTestItem();
         DiscountedCumulativeGain deserialized = RankEvalTestHelper.copy(original, DiscountedCumulativeGain::new);

@@ -21,16 +21,12 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -154,18 +150,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
  * */
 public class RestRankEvalAction extends BaseRestHandler {
-    private SearchRequestParsers searchRequestParsers;
-    private ScriptService scriptService;
+    //private ScriptService scriptService;
 
-    @Inject
-    public RestRankEvalAction(
-            Settings settings, 
-            RestController controller, 
-            SearchRequestParsers searchRequestParsers, 
-            ScriptService scriptService) {
+    public RestRankEvalAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
-        this.scriptService = scriptService;
         controller.registerHandler(GET, "/_rank_eval", this);
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
@@ -178,21 +166,17 @@ public class RestRankEvalAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-            // TODO can we get rid of aggregators parsers and suggesters?
-            parseRankEvalRequest(rankEvalRequest, request,
-                    new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers, scriptService));
+            parseRankEvalRequest(rankEvalRequest, request, parser);
         }
         return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
                 new RestToXContentListener<RankEvalResponse>(channel));
     }
 
-    public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)
-            throws IOException {
+    private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = null;
-        spec = RankEvalSpec.parse(context.parser(), context);
+        spec = RankEvalSpec.parse(parser);
         for (RatedRequest specification : spec.getRatedRequests()) {
             specification.setIndices(indices);
             specification.setTypes(types);

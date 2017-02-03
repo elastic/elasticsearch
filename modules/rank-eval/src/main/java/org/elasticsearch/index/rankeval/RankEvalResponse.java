@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.Map;
  *
  **/
 //TODO instead of just returning averages over complete results, think of other statistics, micro avg, macro avg, partial results
-public class RankEvalResponse extends ActionResponse implements ToXContent {
+public class RankEvalResponse extends ActionResponse implements ToXContentObject {
     /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
@@ -113,6 +113,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject("rank_eval");
         builder.field("quality_level", qualityLevel);
         builder.startObject("details");
@@ -123,9 +124,10 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.startObject("failures");
         for (String key : failures.keySet()) {
             builder.startObject(key);
-            ElasticsearchException.renderException(builder, params, failures.get(key));
+            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
             builder.endObject();
         }
+        builder.endObject();
         builder.endObject();
         builder.endObject();
         return builder;

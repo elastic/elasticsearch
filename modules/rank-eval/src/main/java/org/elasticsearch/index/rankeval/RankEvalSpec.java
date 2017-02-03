@@ -133,7 +133,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public Map<String, Script> getTemplates() {
         return this.templates;
     }
-    
+
     /** Returns the max concurrent searches allowed. */
     public int getMaxConcurrentSearches() {
         return this.maxConcurrentSearches;
@@ -149,43 +149,35 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalSpec, RankEvalContext> PARSER =
+    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER =
             new ConstructingObjectParser<>("rank_eval",
             a -> new RankEvalSpec((Collection<RatedRequest>) a[0], (RankedListQualityMetric) a[1], (Collection<ScriptWithId>) a[2]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            try {
-                return RatedRequest.fromXContent(p, c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
+                return RatedRequest.fromXContent(p);
         } , REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
-                return RankedListQualityMetric.fromXContent(p, c);
+                return RankedListQualityMetric.fromXContent(p);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
         } , METRIC_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            try {
-                return ScriptWithId.fromXContent(p, c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
+                return ScriptWithId.fromXContent(p);
         }, TEMPLATES_FIELD);
         PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
     }
 
-    public static RankEvalSpec parse(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.apply(parser, context);
+    public static RankEvalSpec parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
-    
+
     public static class ScriptWithId {
         private Script script;
         private String id;
-        
+
         private static final ParseField TEMPLATE_FIELD = new ParseField("template");
         private static final ParseField TEMPLATE_ID_FIELD = new ParseField("id");
 
@@ -194,18 +186,18 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             this.script = script;
         }
 
-        private static final ConstructingObjectParser<ScriptWithId, RankEvalContext> PARSER =
+        private static final ConstructingObjectParser<ScriptWithId, Void> PARSER =
                 new ConstructingObjectParser<>("script_with_id", a -> new ScriptWithId((String) a[0], (Script) a[1]));
 
-        public static ScriptWithId fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-            return PARSER.apply(parser, context);
+        public static ScriptWithId fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TEMPLATE_ID_FIELD);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
                 try {
-                    return Script.parse(p, c.getParseFieldMatcher(), "mustache");
+                    return Script.parse(p, "mustache");
                 } catch (IOException ex) {
                     throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
                 }

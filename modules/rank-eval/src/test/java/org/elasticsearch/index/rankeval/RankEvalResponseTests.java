@@ -78,9 +78,7 @@ public class RankEvalResponseTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             builder.prettyPrint();
         }
-        builder.startObject();
         randomResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         // TODO check the correctness of the output
     }
 }

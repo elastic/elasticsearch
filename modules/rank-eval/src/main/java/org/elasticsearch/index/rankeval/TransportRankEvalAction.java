@@ -29,15 +29,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -47,11 +47,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 
 /**
  * Instances of this class execute a collection of search intents (read: user supplied query parameters) against a set of
@@ -66,17 +68,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
     private Client client;
     private ScriptService scriptService;
-    private SearchRequestParsers searchRequestParsers;
     Queue<RequestTask> taskQueue = new ConcurrentLinkedQueue<>();
-    
+    private NamedXContentRegistry namedXContentRegistry;
+
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
+            ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
         super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 RankEvalRequest::new);
-        this.searchRequestParsers = searchRequestParsers;
         this.scriptService = scriptService;
+        this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
     }
 
@@ -92,8 +94,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         Map<String, CompiledScript> scriptsWithoutParams = new HashMap<>();
         for (Entry<String, Script> entry : qualityTask.getTemplates().entrySet()) {
              scriptsWithoutParams.put(
-                     entry.getKey(), 
-                     scriptService.compile(entry.getValue(), ScriptContext.Standard.SEARCH, new HashMap<>()));
+                     entry.getKey(),
+                     scriptService.compile(entry.getValue(), ScriptContext.Standard.SEARCH));
         }
 
         for (RatedRequest ratedRequest : ratedRequests) {
@@ -104,11 +106,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
                 CompiledScript compiled = scriptsWithoutParams.get(templateId);
-                String resolvedRequest = ((BytesReference) (scriptService.executable(compiled, params).run())).utf8ToString();
-                try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
-                    QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, subParser, parseFieldMatcher);
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,
-                            searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                BytesReference resolvedRequest = (BytesReference) (scriptService.executable(compiled, params).run());
+                try (XContentParser subParser = createParser(namedXContentRegistry, resolvedRequest, XContentType.JSON)) {
+                    QueryParseContext parseContext = new QueryParseContext(subParser);
+                    ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext);
                 } catch (IOException e) {
                     listener.onFailure(e);
                 }
@@ -142,13 +143,13 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private class RequestTask {
         public SearchRequest request;
         public RankEvalActionListener searchListener;
-        
-        public RequestTask(SearchRequest request, RankEvalActionListener listener) {
+
+        RequestTask(SearchRequest request, RankEvalActionListener listener) {
             this.request = request;
             this.searchListener = listener;
         }
     }
-    
+
     public class RankEvalActionListener implements ActionListener<SearchResponse> {
 
         private ActionListener<RankEvalResponse> listener;

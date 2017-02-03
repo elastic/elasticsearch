@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -117,15 +116,15 @@ public class ReciprocalRank implements RankedListQualityMetric {
     }
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
-    private static final ObjectParser<ReciprocalRank, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(
+    private static final ObjectParser<ReciprocalRank, Void> PARSER = new ObjectParser<>(
             "reciprocal_rank", () -> new ReciprocalRank());
 
     static {
         PARSER.declareInt(ReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
     }
 
-    public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
-        return PARSER.apply(parser, matcher);
+    public static ReciprocalRank fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -38,13 +41,16 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testXContentParsing() throws IOException {
         RatedDocument testItem = createRatedDocument();
-        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
-        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        try (XContentParser itemParser = createParser(shuffled)) {
+            RatedDocument parsedItem = RatedDocument.fromXContent(itemParser);
+            assertNotSame(testItem, parsedItem);
+            assertEquals(testItem, parsedItem);
+            assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
     }
-    
+
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
         RatedDocument deserialized = RankEvalTestHelper.copy(original, RatedDocument::new);

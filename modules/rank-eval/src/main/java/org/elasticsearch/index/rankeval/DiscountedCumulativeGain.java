@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -141,7 +140,7 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
 
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ObjectParser<DiscountedCumulativeGain, ParseFieldMatcherSupplier> PARSER =
+    private static final ObjectParser<DiscountedCumulativeGain, Void> PARSER =
             new ObjectParser<>("dcg_at", () -> new DiscountedCumulativeGain());
 
     static {
@@ -149,8 +148,8 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
         PARSER.declareInt(DiscountedCumulativeGain::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
     }
 
-    public static DiscountedCumulativeGain fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
-        return PARSER.apply(parser, matcher);
+    public static DiscountedCumulativeGain fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -25,13 +25,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,17 +37,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class RankEvalTestHelper {
-
-    public static XContentParser roundtrip(ToXContent testItem) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(ESTestCase.randomFrom(XContentType.values()));
-        if (ESTestCase.randomBoolean()) {
-            builder.prettyPrint();
-        }
-        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
-        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
-        return itemParser;
-    }
 
     public static <T> void testHashCodeAndEquals(T testItem, T mutation, T secondCopy) {
         assertFalse("testItem is equal to null", testItem.equals(null));

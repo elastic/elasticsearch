@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -49,7 +48,7 @@ public class Precision implements RankedListQualityMetric {
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
-    private static final ObjectParser<Precision, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Precision::new);
+    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME, Precision::new);
 
     /**
      * This setting controls how unlabeled documents in the search hits are
@@ -118,8 +117,8 @@ public class Precision implements RankedListQualityMetric {
         return ignoreUnlabeled;
     }
 
-    public static Precision fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
-        return PARSER.apply(parser, matcher);
+    public static Precision fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     /** Compute precisionAtN based on provided relevant document IDs.

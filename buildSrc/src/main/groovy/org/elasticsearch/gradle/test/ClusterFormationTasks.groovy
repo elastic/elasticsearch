@@ -241,12 +241,12 @@ class ClusterFormationTasks {
                 File rpmDatabase = new File(node.baseDir, 'rpm-database')
                 File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
                 /* Delay reading the location of the rpm file until task execution */
-                Object rpm = "${-> configuration.singleFile}"
+                Object rpm = "${ -> configuration.singleFile}"
                 extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
                     commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
-                            '--dbpath', rpmDatabase,
-                            '--relocate', "/=${rpmExtracted}",
-                            '-i', rpm
+                        '--dbpath', rpmDatabase,
+                        '--relocate', "/=${rpmExtracted}",
+                        '-i', rpm
                     doFirst {
                         rpmDatabase.deleteDir()
                         rpmExtracted.deleteDir()
@@ -256,7 +256,7 @@ class ClusterFormationTasks {
             case 'deb':
                 /* Delay reading the location of the deb file until task execution */
                 File debExtracted = new File(node.baseDir, 'deb-extracted')
-                Object deb = "${-> configuration.singleFile}"
+                Object deb = "${ -> configuration.singleFile}"
                 extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
                     commandLine 'dpkg-deb', '-x', deb, debExtracted
                     doFirst {
@@ -273,13 +273,13 @@ class ClusterFormationTasks {
     /** Adds a task to write elasticsearch.yml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
-                'cluster.name'      : node.clusterName,
-                'node.name'         : "node-" + node.nodeNum,
-                'pidfile'           : node.pidFile,
-                'path.repo'         : "${node.sharedDir}/repo",
-                'path.shared_data'  : "${node.sharedDir}/",
+                'cluster.name'                 : node.clusterName,
+                'node.name'                    : "node-" + node.nodeNum,
+                'pidfile'                      : node.pidFile,
+                'path.repo'                    : "${node.sharedDir}/repo",
+                'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr': 'test'
+                'node.attr.testattr'           : 'test'
         ]
         // we set min master nodes to the total number of nodes in the cluster and
         // basically skip initial state recovery to allow the cluster to form using a realistic master election
@@ -291,7 +291,7 @@ class ClusterFormationTasks {
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
-        esConfig['transport.tcp.port'] = node.config.transportPort
+        esConfig['transport.tcp.port'] =  node.config.transportPort
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
@@ -317,7 +317,7 @@ class ClusterFormationTasks {
         }
     }
 
-    /** Adds a task to add to keystore */
+    /** Adds tasks to add to keystore */
     static Task configureAddKeyStoreTasks(Task parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keyStoreSetting
         File esKeyStoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
@@ -342,7 +342,7 @@ class ClusterFormationTasks {
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         File configDir = new File(node.homeDir, 'config')
         copyConfig.into(configDir) // copy must always have a general dest dir, even though we don't use it
-        for (Map.Entry<String, Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+        for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
             Object extraConfigFileValue = extraConfigFile.getValue()
             copyConfig.doFirst {
                 // make sure the copy won't be a no-op or act on a directory
@@ -659,7 +659,7 @@ class ClusterFormationTasks {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
-            ext.pid = "${-> node.pidFile.getText('UTF-8').trim()}"
+            ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
             doFirst {
                 logger.info("Shutting down external node with pid ${pid}")
             }

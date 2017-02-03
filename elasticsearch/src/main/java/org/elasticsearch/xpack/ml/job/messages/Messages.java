@@ -75,7 +75,6 @@ public final class Messages {
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NULL = "job.config.condition.invalid.value.null";
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_NUMBER = "job.config.condition.invalid.value.numeric";
     public static final String JOB_CONFIG_CONDITION_INVALID_VALUE_REGEX = "job.config.condition.invalid.value.regex";
-    public static final String JOB_CONFIG_CONDITION_UNKNOWN_OPERATOR = "job.config.condition.unknown.operator";
     public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION = "job.config.detectionrule.condition."
             + "categorical.invalid.option";
     public static final String JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_MISSING_OPTION = "job.config.detectionrule.condition."

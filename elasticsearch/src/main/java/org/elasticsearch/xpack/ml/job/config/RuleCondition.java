@@ -35,7 +35,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return RuleConditionType.forString(p.text());
+                return RuleConditionType.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CONDITION_TYPE_FIELD, ValueType.STRING);

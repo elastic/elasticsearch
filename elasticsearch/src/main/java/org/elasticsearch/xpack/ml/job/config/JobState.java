@@ -45,4 +45,9 @@ public enum JobState implements Writeable {
     public boolean isAnyOf(JobState... candidates) {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
+
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

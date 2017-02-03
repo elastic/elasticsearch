@@ -16,15 +16,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RuleConditionTypeTests extends ESTestCase {
 
-    public void testForString() {
-        assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.forString("categorical"));
-        assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.forString("CATEGORICAL"));
-        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, RuleConditionType.forString("numerical_actual"));
-        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, RuleConditionType.forString("NUMERICAL_ACTUAL"));
-        assertEquals(RuleConditionType.NUMERICAL_TYPICAL, RuleConditionType.forString("numerical_typical"));
-        assertEquals(RuleConditionType.NUMERICAL_TYPICAL, RuleConditionType.forString("NUMERICAL_TYPICAL"));
-        assertEquals(RuleConditionType.NUMERICAL_DIFF_ABS, RuleConditionType.forString("numerical_diff_abs"));
-        assertEquals(RuleConditionType.NUMERICAL_DIFF_ABS, RuleConditionType.forString("NUMERICAL_DIFF_ABS"));
+    public void testFromString() {
+        assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.fromString("categorical"));
+        assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.fromString("CATEGORICAL"));
+        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, RuleConditionType.fromString("numerical_actual"));
+        assertEquals(RuleConditionType.NUMERICAL_ACTUAL, RuleConditionType.fromString("NUMERICAL_ACTUAL"));
+        assertEquals(RuleConditionType.NUMERICAL_TYPICAL, RuleConditionType.fromString("numerical_typical"));
+        assertEquals(RuleConditionType.NUMERICAL_TYPICAL, RuleConditionType.fromString("NUMERICAL_TYPICAL"));
+        assertEquals(RuleConditionType.NUMERICAL_DIFF_ABS, RuleConditionType.fromString("numerical_diff_abs"));
+        assertEquals(RuleConditionType.NUMERICAL_DIFF_ABS, RuleConditionType.fromString("NUMERICAL_DIFF_ABS"));
+    }
+
+    public void testToString() {
+        assertEquals("categorical", RuleConditionType.CATEGORICAL.toString());
+        assertEquals("numerical_actual", RuleConditionType.NUMERICAL_ACTUAL.toString());
+        assertEquals("numerical_typical", RuleConditionType.NUMERICAL_TYPICAL.toString());
+        assertEquals("numerical_diff_abs", RuleConditionType.NUMERICAL_DIFF_ABS.toString());
     }
 
     public void testValidOrdinals() {

@@ -10,8 +10,12 @@ import org.elasticsearch.test.ESTestCase;
 public class RuleActionTests extends ESTestCase {
 
     public void testForString() {
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.forString("filter_results"));
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.forString("FILTER_RESULTS"));
-        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.forString("fiLTer_Results"));
+        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("filter_results"));
+        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("FILTER_RESULTS"));
+        assertEquals(RuleAction.FILTER_RESULTS, RuleAction.fromString("fiLTer_Results"));
+    }
+
+    public void testToString() {
+        assertEquals("filter_results", RuleAction.FILTER_RESULTS.toString());
     }
 }

@@ -14,9 +14,13 @@ public class DatafeedStateTests extends ESTestCase {
         assertEquals(DatafeedState.fromString("stopped"), DatafeedState.STOPPED);
     }
 
+    public void testToString() {
+        assertEquals("started", DatafeedState.STARTED.toString());
+        assertEquals("stopped", DatafeedState.STOPPED.toString());
+    }
+
     public void testValidOrdinals() {
         assertEquals(0, DatafeedState.STARTED.ordinal());
         assertEquals(1, DatafeedState.STOPPED.ordinal());
     }
-
 }

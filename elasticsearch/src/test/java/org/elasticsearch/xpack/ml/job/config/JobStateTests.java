@@ -15,6 +15,19 @@ public class JobStateTests extends ESTestCase {
         assertEquals(JobState.fromString("failed"), JobState.FAILED);
         assertEquals(JobState.fromString("opening"), JobState.OPENING);
         assertEquals(JobState.fromString("opened"), JobState.OPENED);
+        assertEquals(JobState.fromString("CLOSED"), JobState.CLOSED);
+        assertEquals(JobState.fromString("CLOSING"), JobState.CLOSING);
+        assertEquals(JobState.fromString("FAILED"), JobState.FAILED);
+        assertEquals(JobState.fromString("OPENING"), JobState.OPENING);
+        assertEquals(JobState.fromString("OPENED"), JobState.OPENED);
+    }
+
+    public void testToString() {
+        assertEquals("closed", JobState.CLOSED.toString());
+        assertEquals("closing", JobState.CLOSING.toString());
+        assertEquals("failed", JobState.FAILED.toString());
+        assertEquals("opening", JobState.OPENING.toString());
+        assertEquals("opened", JobState.OPENED.toString());
     }
 
     public void testValidOrdinals() {

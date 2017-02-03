@@ -24,18 +24,7 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
      * Enum of the acceptable output destinations.
      */
     public enum DebugDestination implements Writeable {
-        FILE("file"),
-        DATA_STORE("data_store");
-
-        private String name;
-
-        DebugDestination(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
+        FILE, DATA_STORE;
 
         /**
          * Case-insensitive from string method. Works with FILE, File, file,
@@ -45,9 +34,8 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
          *            String representation
          * @return The output destination
          */
-        public static DebugDestination forString(String value) {
-            String valueUpperCase = value.toUpperCase(Locale.ROOT);
-            return DebugDestination.valueOf(valueUpperCase);
+        public static DebugDestination fromString(String value) {
+            return DebugDestination.valueOf(value.toUpperCase(Locale.ROOT));
         }
 
         public static DebugDestination readFromStream(StreamInput in) throws IOException {
@@ -61,6 +49,11 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -80,7 +73,7 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
                 }
             });
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> DebugDestination.forString(p.text()), WRITE_TO_FIELD,
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> DebugDestination.fromString(p.text()), WRITE_TO_FIELD,
                 ValueType.STRING);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), BOUNDS_PERCENTILE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
@@ -121,7 +114,7 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (writeTo != null) {
-            builder.field(WRITE_TO_FIELD.getPreferredName(), writeTo.getName());
+            builder.field(WRITE_TO_FIELD.getPreferredName(), writeTo);
         }
         builder.field(BOUNDS_PERCENTILE_FIELD.getPreferredName(), boundsPercentile);
         if (terms != null) {

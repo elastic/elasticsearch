@@ -18,9 +18,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class MemoryStatusTests extends ESTestCase {
 
     public void testFromString() {
-        assertEquals(MemoryStatus.OK, MemoryStatus.fromString(MemoryStatus.OK.getName()));
-        assertEquals(MemoryStatus.SOFT_LIMIT, MemoryStatus.fromString(MemoryStatus.SOFT_LIMIT.getName()));
-        assertEquals(MemoryStatus.HARD_LIMIT, MemoryStatus.fromString(MemoryStatus.HARD_LIMIT.getName()));
+        assertEquals(MemoryStatus.OK, MemoryStatus.fromString("ok"));
+        assertEquals(MemoryStatus.SOFT_LIMIT, MemoryStatus.fromString("soft_limit"));
+        assertEquals(MemoryStatus.HARD_LIMIT, MemoryStatus.fromString("hard_limit"));
+        assertEquals(MemoryStatus.OK, MemoryStatus.fromString("OK"));
+        assertEquals(MemoryStatus.SOFT_LIMIT, MemoryStatus.fromString("SOFT_LIMIT"));
+        assertEquals(MemoryStatus.HARD_LIMIT, MemoryStatus.fromString("HARD_LIMIT"));
+    }
+
+    public void testToString() {
+        assertEquals("ok", MemoryStatus.OK.toString());
+        assertEquals("soft_limit", MemoryStatus.SOFT_LIMIT.toString());
+        assertEquals("hard_limit", MemoryStatus.HARD_LIMIT.toString());
     }
 
     public void testValidOrdinals() {
@@ -83,13 +92,5 @@ public class MemoryStatusTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("Unknown MemoryStatus ordinal ["));
             }
         }
-    }
-
-    public void testInvalidFromString() {
-        String statusName = randomAsciiOfLengthBetween(11, 20);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            MemoryStatus.fromString(statusName);
-        });
-        assertThat(ex.getMessage(), containsString("Unknown MemoryStatus [" + statusName + "]"));
     }
 }

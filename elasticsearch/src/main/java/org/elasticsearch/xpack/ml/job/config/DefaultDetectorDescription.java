@@ -68,7 +68,7 @@ public final class DefaultDetectorDescription {
         }
 
         if (detector.getExcludeFrequent() != null) {
-            sb.append(EXCLUDE_FREQUENT_OPTION).append(detector.getExcludeFrequent().getToken());
+            sb.append(EXCLUDE_FREQUENT_OPTION).append(detector.getExcludeFrequent());
         }
     }
 

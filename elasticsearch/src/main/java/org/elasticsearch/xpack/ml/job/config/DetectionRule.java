@@ -84,7 +84,7 @@ public class DetectionRule extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONDITIONS_CONNECTIVE_FIELD.getPreferredName(), conditionsConnective.getName());
+        builder.field(CONDITIONS_CONNECTIVE_FIELD.getPreferredName(), conditionsConnective);
         builder.field(RULE_CONDITIONS_FIELD.getPreferredName(), ruleConditions);
         if (targetFieldName != null) {
             builder.field(TARGET_FIELD_NAME_FIELD.getPreferredName(), targetFieldName);

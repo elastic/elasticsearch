@@ -40,23 +40,14 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      * Enum of the acceptable data formats.
      */
     public enum DataFormat implements Writeable {
-        JSON("json"),
-        DELIMITED("delimited");
+        JSON,
+        DELIMITED;
 
         /**
          * Delimited used to be called delineated. We keep supporting that for backwards
          * compatibility.
          */
         private static final String DEPRECATED_DELINEATED = "DELINEATED";
-        private String name;
-
-        private DataFormat(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
 
         /**
          * Case-insensitive from string method.
@@ -82,6 +73,11 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

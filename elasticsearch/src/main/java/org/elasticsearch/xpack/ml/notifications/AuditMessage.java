@@ -37,7 +37,7 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         PARSER.declareString(AuditMessage::setMessage, MESSAGE);
         PARSER.declareField(AuditMessage::setLevel, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Level.forString(p.text());
+                return Level.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, LEVEL, ValueType.STRING);

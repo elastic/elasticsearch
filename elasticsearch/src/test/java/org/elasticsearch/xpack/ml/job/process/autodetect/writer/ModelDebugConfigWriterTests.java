@@ -37,7 +37,7 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
 
         writer.write();
 
-        verify(this.writer).write("writeto = FILE\nboundspercentile = 65.0\nterms = foo,bar\n");
+        verify(this.writer).write("writeto = file\nboundspercentile = 65.0\nterms = foo,bar\n");
     }
 
     public void testWrite_GivenFullConfig() throws IOException {
@@ -46,7 +46,7 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
 
         writer.write();
 
-        verify(this.writer).write("writeto = DATA_STORE\nboundspercentile = 65.0\nterms = foo,bar\n");
+        verify(this.writer).write("writeto = data_store\nboundspercentile = 65.0\nterms = foo,bar\n");
     }
 
 }

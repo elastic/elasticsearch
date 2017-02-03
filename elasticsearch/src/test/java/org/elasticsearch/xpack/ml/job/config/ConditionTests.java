@@ -52,7 +52,7 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
             condition = new Condition(op, randomAsciiOfLengthBetween(1, 20));
             break;
         default:
-            throw new AssertionError("Unknown operator selected: " + op.getName());
+            throw new AssertionError("Unknown operator selected: " + op);
         }
         return condition;
     }

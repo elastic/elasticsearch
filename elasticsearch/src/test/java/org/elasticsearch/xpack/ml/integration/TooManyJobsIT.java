@@ -84,7 +84,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
                     logger.warn("Unexpected cause", e);
                 }
                 assertEquals(IllegalArgumentException.class, cause.getClass());
-                assertEquals("Timeout expired while waiting for job state to change to [OPENED]", cause.getMessage());
+                assertEquals("Timeout expired while waiting for job state to change to [opened]", cause.getMessage());
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // now manually clean things up and see if we can succeed to run one new job

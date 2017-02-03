@@ -23,6 +23,11 @@ public class ConnectiveTests extends ESTestCase {
         assertEquals(Connective.AND, Connective.fromString("AND"));
     }
 
+    public void testToString() {
+        assertEquals("or", Connective.OR.toString());
+        assertEquals("and", Connective.AND.toString());
+    }
+
     public void testValidOrdinals() {
         assertThat(Connective.OR.ordinal(), equalTo(0));
         assertThat(Connective.AND.ordinal(), equalTo(1));

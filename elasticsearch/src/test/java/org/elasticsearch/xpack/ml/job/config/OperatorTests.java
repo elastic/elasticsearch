@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -17,7 +16,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OperatorTests extends ESTestCase {
-
 
     public void testFromString() {
         assertEquals(Operator.fromString("eq"), Operator.EQ);
@@ -30,9 +28,16 @@ public class OperatorTests extends ESTestCase {
         assertEquals(Operator.fromString("EQ"), Operator.EQ);
         assertEquals(Operator.fromString("GTE"), Operator.GTE);
         assertEquals(Operator.fromString("Match"), Operator.MATCH);
-
     }
 
+    public void testToString() {
+        assertEquals("eq", Operator.EQ.toString());
+        assertEquals("gt", Operator.GT.toString());
+        assertEquals("gte", Operator.GTE.toString());
+        assertEquals("lte", Operator.LTE.toString());
+        assertEquals("lt", Operator.LT.toString());
+        assertEquals("match", Operator.MATCH.toString());
+    }
 
     public void testTest() {
         assertTrue(Operator.GT.expectsANumericArgument());
@@ -57,7 +62,6 @@ public class OperatorTests extends ESTestCase {
         assertTrue(Operator.LTE.test(1.0, 1.0));
         assertFalse(Operator.LTE.test(1.0, 0.0));
     }
-
 
     public void testMatch() {
         assertFalse(Operator.MATCH.expectsANumericArgument());
@@ -171,10 +175,5 @@ public class OperatorTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("Unknown Operator ordinal ["));
             }
         }
-    }
-
-    public void testVerify_unknownOp() {
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> Operator.fromString("bad_op"));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_UNKNOWN_OPERATOR, "bad_op"), e.getMessage());
     }
 }

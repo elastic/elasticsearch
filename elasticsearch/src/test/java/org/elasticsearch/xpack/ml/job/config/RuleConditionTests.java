@@ -180,14 +180,14 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         Condition condition = new Condition(Operator.EQ, "5");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null));
-        assertEquals("Invalid detector rule: operator 'EQ' is not allowed", e.getMessage());
+        assertEquals("Invalid detector rule: operator 'eq' is not allowed", e.getMessage());
     }
 
     public void testVerify_GivenNumericalAndOperatorMatch() {
         Condition condition = new Condition(Operator.MATCH, "aaa");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null));
-        assertEquals("Invalid detector rule: operator 'MATCH' is not allowed", e.getMessage());
+        assertEquals("Invalid detector rule: operator 'match' is not allowed", e.getMessage());
     }
 
     public void testVerify_GivenDetectionRuleWithInvalidCondition() {

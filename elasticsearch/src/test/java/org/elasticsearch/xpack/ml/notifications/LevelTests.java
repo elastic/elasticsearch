@@ -15,15 +15,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LevelTests extends ESTestCase {
 
-    public void testForString() {
-        assertEquals(Level.INFO, Level.forString("info"));
-        assertEquals(Level.INFO, Level.forString("INFO"));
-        assertEquals(Level.ACTIVITY, Level.forString("activity"));
-        assertEquals(Level.ACTIVITY, Level.forString("ACTIVITY"));
-        assertEquals(Level.WARNING, Level.forString("warning"));
-        assertEquals(Level.WARNING, Level.forString("WARNING"));
-        assertEquals(Level.ERROR, Level.forString("error"));
-        assertEquals(Level.ERROR, Level.forString("ERROR"));
+    public void testFromString() {
+        assertEquals(Level.INFO, Level.fromString("info"));
+        assertEquals(Level.INFO, Level.fromString("INFO"));
+        assertEquals(Level.ACTIVITY, Level.fromString("activity"));
+        assertEquals(Level.ACTIVITY, Level.fromString("ACTIVITY"));
+        assertEquals(Level.WARNING, Level.fromString("warning"));
+        assertEquals(Level.WARNING, Level.fromString("WARNING"));
+        assertEquals(Level.ERROR, Level.fromString("error"));
+        assertEquals(Level.ERROR, Level.fromString("ERROR"));
+    }
+
+    public void testToString() {
+        assertEquals("info", Level.INFO.toString());
+        assertEquals("activity", Level.ACTIVITY.toString());
+        assertEquals("warning", Level.WARNING.toString());
+        assertEquals("error", Level.ERROR.toString());
     }
 
     public void testValidOrdinals() {

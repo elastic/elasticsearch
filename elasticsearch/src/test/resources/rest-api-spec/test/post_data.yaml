@@ -68,7 +68,7 @@ setup:
   - do:
       xpack.ml.get_job_stats:
         job_id: farequote
-  - match: { jobs.0.state: "CLOSED" }
+  - match: { jobs.0.state: "closed" }
 
   - do:
     get:
@@ -101,7 +101,7 @@ setup:
   - do:
       xpack.ml.get_job_stats:
         job_id: farequote
-  - match: { jobs.0.state: "CLOSED" }
+  - match: { jobs.0.state: "closed" }
 
 ---
 "Test POST data with invalid parameters":

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -88,25 +89,10 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
      * been dropped
      */
     public enum MemoryStatus implements Writeable {
-        OK("ok"), SOFT_LIMIT("soft_limit"), HARD_LIMIT("hard_limit");
-
-        private String name;
-
-        private MemoryStatus(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
+        OK, SOFT_LIMIT, HARD_LIMIT;
 
         public static MemoryStatus fromString(String statusName) {
-            for (MemoryStatus status : values()) {
-                if (status.name.equals(statusName)) {
-                    return status;
-                }
-            }
-            throw new IllegalArgumentException("Unknown MemoryStatus [" + statusName + "]");
+            return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
         }
 
         public static MemoryStatus readFromStream(StreamInput in) throws IOException {
@@ -120,6 +106,11 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -192,7 +183,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         builder.field(TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(), totalOverFieldCount);
         builder.field(TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(), totalPartitionFieldCount);
         builder.field(BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(), bucketAllocationFailuresCount);
-        builder.field(MEMORY_STATUS_FIELD.getPreferredName(), memoryStatus.getName());
+        builder.field(MEMORY_STATUS_FIELD.getPreferredName(), memoryStatus);
         builder.field(LOG_TIME_FIELD.getPreferredName(), logTime.getTime());
         if (timestamp != null) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp.getTime());

@@ -37,20 +37,10 @@ import java.util.stream.Collectors;
 public class Detector extends ToXContentToBytes implements Writeable {
 
     public enum ExcludeFrequent implements Writeable {
-        ALL("all"),
-        NONE("none"),
-        BY("by"),
-        OVER("over");
-
-        private final String token;
-
-        ExcludeFrequent(String token) {
-            this.token = token;
-        }
-
-        public String getToken() {
-            return token;
-        }
+        ALL,
+        NONE,
+        BY,
+        OVER;
 
         /**
          * Case-insensitive from string method.
@@ -74,6 +64,11 @@ public class Detector extends ToXContentToBytes implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

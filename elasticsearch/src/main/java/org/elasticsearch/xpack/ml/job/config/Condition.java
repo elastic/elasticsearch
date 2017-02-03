@@ -100,7 +100,7 @@ public class Condition extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Operator.OPERATOR_FIELD.getPreferredName(), op.getName());
+        builder.field(Operator.OPERATOR_FIELD.getPreferredName(), op);
         builder.field(FILTER_VALUE_FIELD.getPreferredName(), filterValue);
         builder.endObject();
         return builder;

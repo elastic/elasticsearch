@@ -9,10 +9,16 @@ import org.elasticsearch.test.ESTestCase;
 
 public class IgnoreDowntimeTests extends ESTestCase {
 
-    public void testForString() {
+    public void testFromString() {
         assertEquals(IgnoreDowntime.fromString("always"), IgnoreDowntime.ALWAYS);
         assertEquals(IgnoreDowntime.fromString("never"), IgnoreDowntime.NEVER);
         assertEquals(IgnoreDowntime.fromString("once"), IgnoreDowntime.ONCE);
+    }
+
+    public void testToString() {
+        assertEquals("always", IgnoreDowntime.ALWAYS.toString());
+        assertEquals("never", IgnoreDowntime.NEVER.toString());
+        assertEquals("once", IgnoreDowntime.ONCE.toString());
     }
 
     public void testValidOrdinals() {
@@ -45,7 +51,6 @@ public class IgnoreDowntimeTests extends ESTestCase {
     }
 
     public void testFromString_GivenNonMatchingString() {
-        ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> IgnoreDowntime.fromString("nope"));
+        ESTestCase.expectThrows(IllegalArgumentException.class, () -> IgnoreDowntime.fromString("nope"));
     }
 }

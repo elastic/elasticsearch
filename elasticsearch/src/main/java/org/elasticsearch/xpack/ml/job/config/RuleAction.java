@@ -16,7 +16,12 @@ public enum RuleAction {
      * @param value String representation
      * @return The rule action
      */
-    public static RuleAction forString(String value) {
+    public static RuleAction fromString(String value) {
         return RuleAction.valueOf(value.toUpperCase(Locale.ROOT));
+    }
+
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

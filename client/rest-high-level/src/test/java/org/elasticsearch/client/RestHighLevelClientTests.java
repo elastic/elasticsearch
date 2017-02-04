@@ -219,7 +219,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
-            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
             assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IOException.class));
@@ -231,7 +231,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = RestHighLevelClient.parseResponseException(responseException);
-            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
             assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));
@@ -254,7 +254,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             IOException ioe = expectThrows(IOException.class, () -> restHighLevelClient.performRequest(mainRequest,
                     requestConverter, response -> {throw new IllegalStateException();}, Collections.emptySet()));
-            assertEquals("unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
+            assertEquals("Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
                     "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
         }
     }
@@ -308,7 +308,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
                 () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
-        assertEquals("unable to parse response body", elasticsearchException.getMessage());
+        assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
         assertThat(elasticsearchException.getSuppressed()[0], instanceOf(JsonParseException.class));
@@ -327,7 +327,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
                 () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
-        assertEquals("unable to parse response body", elasticsearchException.getMessage());
+        assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
         assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));
@@ -400,7 +400,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
             assertThat(trackingActionListener.exception.get(), instanceOf(IOException.class));
             IOException ioe = (IOException) trackingActionListener.exception.get();
-            assertEquals("unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
+            assertEquals("Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
                     "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
             assertThat(ioe.getCause(), instanceOf(IllegalStateException.class));
         }
@@ -462,7 +462,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             responseListener.onFailure(responseException);
             assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
             ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
-            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
             assertThat(elasticsearchException.getSuppressed()[0], instanceOf(JsonParseException.class));
@@ -479,7 +479,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             responseListener.onFailure(responseException);
             assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
             ElasticsearchException elasticsearchException = (ElasticsearchException)trackingActionListener.exception.get();
-            assertEquals("unable to parse response body", elasticsearchException.getMessage());
+            assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
             assertThat(elasticsearchException.getSuppressed()[0], instanceOf(IllegalStateException.class));

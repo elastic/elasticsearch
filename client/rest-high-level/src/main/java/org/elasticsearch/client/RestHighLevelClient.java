@@ -121,7 +121,7 @@ public class RestHighLevelClient {
         try {
             return responseConverter.apply(response);
         } catch(Exception e) {
-            throw new IOException("unable to parse response body for " + response, e);
+            throw new IOException("Unable to parse response body for " + response, e);
         }
     }
 
@@ -153,7 +153,7 @@ public class RestHighLevelClient {
                 try {
                     actionListener.onResponse(responseConverter.apply(response));
                 } catch(Exception e) {
-                    IOException ioe = new IOException("unable to parse response body for " + response, e);
+                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
                     onFailure(ioe);
                 }
             }
@@ -190,10 +190,10 @@ public class RestHighLevelClient {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    static ElasticsearchException parseResponseException(ResponseException responseException) {
+    static ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
-        ElasticsearchException elasticsearchException;
+        ElasticsearchStatusException elasticsearchException;
         if (entity == null) {
             elasticsearchException = new ElasticsearchStatusException(
                     responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
@@ -203,7 +203,7 @@ public class RestHighLevelClient {
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
                 RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
-                elasticsearchException = new ElasticsearchStatusException("unable to parse response body", restStatus, responseException);
+                elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
                 elasticsearchException.addSuppressed(e);
             }
         }

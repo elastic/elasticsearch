@@ -199,13 +199,13 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                simulateDisconnect(node, original, "DISCONNECT: simulated");
             }
 
             @Override
             protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                        TransportRequestOptions options) throws IOException {
-                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
+                simulateDisconnect(connection, original, "DISCONNECT: simulated");
             }
         });
     }
@@ -250,7 +250,7 @@ public final class MockTransportService extends TransportService {
                                        TransportRequestOptions options) throws IOException {
                 if (blockedActions.contains(action)) {
                     logger.info("--> preventing {} request", action);
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                    simulateDisconnect(connection, original, "DISCONNECT: prevented " + action + " request");
                 }
                 connection.sendRequest(requestId, action, request, options);
             }
@@ -276,7 +276,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                simulateDisconnect(node, original, "UNRESPONSIVE: simulated");
             }
 
             @Override
@@ -332,10 +332,10 @@ public final class MockTransportService extends TransportService {
                         original.connectToNode(node, connectionProfile);
                     } else {
                         Thread.sleep(connectingTimeout.millis());
-                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                        simulateDisconnect(node, original, "UNRESPONSIVE: simulated");
                     }
                 } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
+                    simulateDisconnect(node, original, "UNRESPONSIVE: interrupted while sleeping", e);
                 }
             }
 
@@ -419,6 +419,35 @@ public final class MockTransportService extends TransportService {
     private LookupTestTransport transport() {
         return (LookupTestTransport) transport;
     }
+
+    /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(DiscoveryNode node,Transport transport, String reason) {
+        simulateDisconnect(node, transport, reason, null);
+    }
+
+    /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}, due to a specific cause exception
+     */
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason, @Nullable Throwable e) {
+        if (transport.nodeConnected(node)) {
+            transport.disconnectFromNode(node);
+        }
+        throw new ConnectTransportException(node, reason, e);
+    }
+
+    /**
+     * simulates a disconnect by closing the connection and and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(Transport.Connection connection, Transport transport, String reason) throws IOException {
+        connection.close();
+        simulateDisconnect(connection.getNode(), transport, reason);
+    }
+
 
     /**
      * A lookup transport that has a list of potential Transport implementations to delegate to for node operations,

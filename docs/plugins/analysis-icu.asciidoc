@@ -332,7 +332,7 @@ PUT icu_sample
 Collations are used for sorting documents in a language-specific word order.
 The `icu_collation` token filter is available to all indices and defaults to
 using the
-https://www.elastic.co/guide/en/elasticsearch/guide/current/sorting-collations.html#uca[DUCET collation],
+{defguide}/sorting-collations.html#uca[DUCET collation],
 which is a best-effort attempt at language-neutral sorting.
 
 Below is an example of how to set up a field for sorting German names in

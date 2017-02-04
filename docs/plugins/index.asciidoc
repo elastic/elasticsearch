@@ -1,10 +1,6 @@
 = Elasticsearch Plugins and Integrations
 
-:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/5.0
-:guide:          https://www.elastic.co/guide
-:version:        5.0.2
-:lucene_version: 6.2.0
-:plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
+include::../Versions.asciidoc[]
 
 [[intro]]
 == Introduction to plugins
@@ -55,8 +51,6 @@ include::ingest.asciidoc[]
 include::management.asciidoc[]
 
 include::mapper.asciidoc[]
-
-include::scripting.asciidoc[]
 
 include::security.asciidoc[]
 

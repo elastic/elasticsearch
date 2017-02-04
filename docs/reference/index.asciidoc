@@ -1,44 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.3.0
-:major-version:  5.x
-:docker-image: docker.elastic.co/elasticsearch/elasticsearch:{version}
-:x-pack-baseurl: https://www.elastic.co/guide/en/x-pack/5.0
-
-//////////
-release-state can be: released | prerelease | unreleased
-//////////
-
-:release-state:  unreleased
-:lucene_version: 6.4.0
-:branch:         master
-:jdk:            1.8.0_73
-:defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master
-:plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/5.x
-:javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.x/
-:issue:          https://github.com/elastic/elasticsearch/issues/
-:pull:           https://github.com/elastic/elasticsearch/pull/
-
-
-///////
-Javadoc roots used to generate links from Painless's API reference
-///////
-:java8-javadoc: https://docs.oracle.com/javase/8/docs/api
-:java9-javadoc: http://download.java.net/java/jigsaw/docs/api
-:joda-time-javadoc: http://www.joda.org/joda-time/apidocs
-:lucene-core-javadoc: http://lucene.apache.org/core/6_4_0/core
-
-ifeval::["{release-state}"=="unreleased"]
-:elasticsearch-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}-SNAPSHOT
-:painless-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}-SNAPSHOT
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-:elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
-:painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
-endif::[]
-
+include::../Versions.asciidoc[]
 
 
 include::getting-started.asciidoc[]
@@ -79,7 +42,9 @@ include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-include::release-notes.asciidoc[]
+//////
+ include::release-notes.asciidoc[]
+//////
 
 include::painless-api-reference.asciidoc[]
 

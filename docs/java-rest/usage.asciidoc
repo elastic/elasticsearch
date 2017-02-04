@@ -243,8 +243,7 @@ Response indexResponse = restClient.performRequest(
 
 IMPORTANT: The `ContentType` that you specify for the `HttpEntity` is important
 because it will be used to set the `Content-Type` header so that Elasticsearch
-can properly parse the content. Future releases of Elasticsearch will require this
-to be set properly.
+can properly parse the content.
 
 Note that the low-level client doesn't expose any helper for json marshalling
 and un-marshalling. Users are free to use the library that they prefer for that

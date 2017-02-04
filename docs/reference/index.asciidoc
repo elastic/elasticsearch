@@ -1,24 +1,8 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.1.2
-:major-version:  5.x
-:docker-image: docker.elastic.co/elasticsearch/elasticsearch:{version}
-:x-pack-baseurl: https://www.elastic.co/guide/en/x-pack/5.1
+include::../Versions.asciidoc[]
 
-//////////
-release-state can be: released | prerelease | unreleased
-//////////
-
-:release-state:  released
-:lucene_version: 6.3.0
-:branch:         master
-:jdk:            1.8.0_73
-:defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master
-:plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/5.1
-:javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.1/
-:issue:          https://github.com/elastic/elasticsearch/issues/
-:pull:           https://github.com/elastic/elasticsearch/pull/
 
 include::getting-started.asciidoc[]
 
@@ -58,6 +42,10 @@ include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-include::release-notes.asciidoc[]
+//////
+ include::release-notes.asciidoc[]
+//////
+
+include::painless-api-reference.asciidoc[]
 
 include::redirects.asciidoc[]

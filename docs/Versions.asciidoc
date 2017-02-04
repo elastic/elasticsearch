@@ -1,0 +1,26 @@
+:version:               5.1.2
+:major-version:         5.x
+:lucene_version:        6.3.0
+:lucene_version_path:   6_3_0
+:branch:                5.1
+:jdk:                   1.8.0_73
+
+//////////
+release-state can be: released | prerelease | unreleased
+//////////
+
+:release-state:   unreleased
+
+:ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
+:defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/{branch}
+:plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
+:javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
+:xpack:           https://www.elastic.co/guide/en/x-pack/{branch}
+:logstash:        https://www.elastic.co/guide/en/logstash/{branch}
+:kibana:          https://www.elastic.co/guide/en/kibana/{branch}
+:issue:           https://github.com/elastic/elasticsearch/issues/
+:pull:            https://github.com/elastic/elasticsearch/pull/
+
+:docker-image:    docker.elastic.co/elasticsearch/elasticsearch:{version}
+:plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
+

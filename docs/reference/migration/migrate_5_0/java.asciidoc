@@ -26,7 +26,7 @@ TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
         .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
 -----
 
-For more information please see the {javaclient}java-api.html[Java client documentation]
+For more information please see the {javaclient}/java-api.html[Java client documentation]
 
 ==== Count api has been removed
 

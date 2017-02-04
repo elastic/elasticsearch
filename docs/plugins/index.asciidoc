@@ -52,6 +52,8 @@ include::management.asciidoc[]
 
 include::mapper.asciidoc[]
 
+include::scripting.asciidoc[]
+
 include::security.asciidoc[]
 
 include::repository.asciidoc[]

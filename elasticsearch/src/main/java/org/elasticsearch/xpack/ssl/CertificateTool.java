@@ -74,18 +74,28 @@ public class CertificateTool extends EnvironmentAwareCommand {
             Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
     private static final int DEFAULT_KEY_SIZE = 2048;
 
-    private static final ObjectParser<List<CertificateInformation>, Void> PARSER = new ObjectParser<>("certgen");
-    static {
-        ConstructingObjectParser<CertificateInformation, Void> instanceParser =
-                new ConstructingObjectParser<>("instances",
-                        a -> new CertificateInformation((String) a[0], (String) (a[1] == null ? a[0] : a[1]),
-                                (List<String>) a[2], (List<String>) a[3]));
-        instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
-        instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
-        instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
-        instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("dns"));
+    /**
+     * Wraps the certgen object parser.
+     */
+    private static class CertificateToolParser {
+        private static final ObjectParser<List<CertificateInformation>, Void> PARSER = new ObjectParser<>("certgen");
 
-        PARSER.declareObjectArray(List::addAll, instanceParser, new ParseField("instances"));
+        // if the class initializer here runs before the main method, logging will not have been configured; this will lead to status logger
+        // error messages from the class initializer for ParseField since it creates Logger instances; therefore, we bury the initialization
+        // of the parser in this class so that we can defer initialization until after logging has been initialized
+        static {
+            @SuppressWarnings("unchecked") final ConstructingObjectParser<CertificateInformation, Void> instanceParser =
+                    new ConstructingObjectParser<>(
+                            "instances",
+                            a -> new CertificateInformation(
+                                    (String) a[0], (String) (a[1] == null ? a[0] : a[1]), (List<String>) a[2], (List<String>) a[3]));
+            instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
+            instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
+            instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
+            instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("dns"));
+
+            PARSER.declareObjectArray(List::addAll, instanceParser, new ParseField("instances"));
+        }
     }
 
     private final OptionSpec<String> outputPathSpec;
@@ -242,7 +252,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
         try (Reader reader = Files.newBufferedReader(file)) {
             // EMPTY is safe here because we never use namedObject
             XContentParser xContentParser = XContentType.YAML.xContent().createParser(NamedXContentRegistry.EMPTY, reader);
-            return PARSER.parse(xContentParser, new ArrayList<>(), null);
+            return CertificateToolParser.PARSER.parse(xContentParser, new ArrayList<>(), null);
         }
     }
 

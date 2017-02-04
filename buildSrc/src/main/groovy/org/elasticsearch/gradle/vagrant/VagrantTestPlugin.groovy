@@ -18,7 +18,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             // TODO: re-enable debian once it does not have broken openjdk packages
             //'debian-8',
-            'fedora-24',
+            // TODO: re-enable fedora once it does not have broken openjdk packages
+            //'fedora-24',
             'oel-6',
             'oel-7',
             'opensuse-13',

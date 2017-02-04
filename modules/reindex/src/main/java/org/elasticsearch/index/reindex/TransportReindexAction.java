@@ -204,7 +204,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
         int i = 0;
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
-            clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
+            clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
         return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
                 .setDefaultHeaders(clientHeaders)

@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.painless.api.Augmentation;
-import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -55,8 +54,6 @@ public final class WriterConstants {
 
     public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
-    public static final Method EXECUTE     =
-        getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class, Object.class);
 
     public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 

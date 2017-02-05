@@ -44,7 +44,7 @@ public final class Locals {
     /** Reserved word: unused */
     public static final String THIS   = "#this";
 
-    /** Map of always reserved keywords for a function scope */
+    /** Set of reserved keywords. */
     public static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         THIS, LOOP
     )));

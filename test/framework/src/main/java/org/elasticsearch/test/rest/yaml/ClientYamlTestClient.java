@@ -55,13 +55,15 @@ public class ClientYamlTestClient {
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
     private final Version esVersion;
+    private final Map<HttpHost, Version> hostVersionMap;
 
     public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
-                                Version esVersion) throws IOException {
+                                Version esVersion, Map<HttpHost, Version> hostVersionMap) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
         this.esVersion = esVersion;
+        this.hostVersionMap = hostVersionMap;
     }
 
     public Version getEsVersion() {
@@ -86,9 +88,9 @@ public class ClientYamlTestClient {
             // And everything else is a url parameter!
             try {
                 Response response = restClient.performRequest(method, path, queryStringParams, entity);
-                return new ClientYamlTestResponse(response);
+                return new ClientYamlTestResponse(response, hostVersionMap.get(response.getHost()));
             } catch(ResponseException e) {
-                throw new ClientYamlTestResponseException(e);
+                throw new ClientYamlTestResponseException(e, hostVersionMap.get(e.getResponse().getHost()));
             }
         }
 
@@ -122,6 +124,9 @@ public class ClientYamlTestClient {
             if (supportedMethods.contains("GET") && RandomizedTest.rarely()) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", body);
+                if (esVersion.after(Version.V_5_3_0_UNRELEASED)) { // TODO make onOrAfter with backport
+                    queryStringParams.put("source_content_type", ContentType.APPLICATION_JSON.toString());
+                }
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
@@ -168,9 +173,9 @@ public class ClientYamlTestClient {
         logger.debug("calling api [{}]", apiName);
         try {
             Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
-            return new ClientYamlTestResponse(response);
+            return new ClientYamlTestResponse(response, hostVersionMap.get(response.getHost()));
         } catch(ResponseException e) {
-            throw new ClientYamlTestResponseException(e);
+            throw new ClientYamlTestResponseException(e, hostVersionMap.get(e.getResponse().getHost()));
         }
     }
 

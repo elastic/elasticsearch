@@ -764,7 +764,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
         private Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data;
 
-        public TestAllocator() {
+        TestAllocator() {
             super(Settings.EMPTY);
         }
 

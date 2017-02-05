@@ -74,7 +74,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         private final AtomicArray<DfsSearchResult> firstResults;
         private final Function<AtomicArray<QuerySearchResultProvider>, CheckedRunnable<Exception>> nextPhaseFactory;
 
-        public DfsQueryPhase(AtomicArray<DfsSearchResult> firstResults,
+        DfsQueryPhase(AtomicArray<DfsSearchResult> firstResults,
                              SearchPhaseController searchPhaseController,
                              Function<AtomicArray<QuerySearchResultProvider>, CheckedRunnable<Exception>> nextPhaseFactory) {
             this.queryResult = new AtomicArray<>(firstResults.length());

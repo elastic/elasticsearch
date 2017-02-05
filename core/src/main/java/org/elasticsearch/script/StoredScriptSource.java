@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -231,8 +232,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @param content The content from the request to be parsed as described above.
      * @return        The parsed {@link StoredScriptSource}.
      */
-    public static StoredScriptSource parse(String lang, BytesReference content) {
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, content)) {
+    public static StoredScriptSource parse(String lang, BytesReference content, XContentType xContentType) {
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {
@@ -430,6 +431,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 
     /**

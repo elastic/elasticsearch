@@ -246,7 +246,7 @@ public class ClusterStateObserver {
         private final String masterNodeId;
         private final long version;
 
-        public StoredState(ClusterState clusterState) {
+        StoredState(ClusterState clusterState) {
             this.masterNodeId = clusterState.nodes().getMasterNodeId();
             this.version = clusterState.version();
         }
@@ -271,7 +271,7 @@ public class ClusterStateObserver {
         public final Listener listener;
         public final Predicate<ClusterState> statePredicate;
 
-        public ObservingContext(Listener listener, Predicate<ClusterState> statePredicate) {
+        ObservingContext(Listener listener, Predicate<ClusterState> statePredicate) {
             this.listener = listener;
             this.statePredicate = statePredicate;
         }

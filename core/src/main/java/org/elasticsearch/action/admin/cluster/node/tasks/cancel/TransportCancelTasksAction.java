@@ -217,7 +217,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         private final AtomicInteger counter;
         private final int nodesSize;
 
-        public BanLock(int nodesSize, Runnable finish) {
+        BanLock(int nodesSize, Runnable finish) {
             counter = new AtomicInteger(0);
             this.finish = finish;
             this.nodesSize = nodesSize;
@@ -268,7 +268,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             this.ban = false;
         }
 
-        public BanParentTaskRequest() {
+        BanParentTaskRequest() {
         }
 
         @Override

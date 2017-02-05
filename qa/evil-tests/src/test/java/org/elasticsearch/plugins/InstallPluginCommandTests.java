@@ -108,7 +108,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             private final FileSystem fileSystem;
             private final Function<String, Path> temp;
 
-            public Parameter(FileSystem fileSystem, String root) {
+            Parameter(FileSystem fileSystem, String root) {
                 this(fileSystem, s -> {
                     try {
                         return Files.createTempDirectory(fileSystem.getPath(root), s);
@@ -118,7 +118,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 });
             }
 
-            public Parameter(FileSystem fileSystem, Function<String, Path> temp) {
+            Parameter(FileSystem fileSystem, Function<String, Path> temp) {
                 this.fileSystem = fileSystem;
                 this.temp = temp;
             }

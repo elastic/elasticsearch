@@ -223,7 +223,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         private final Set<BytesRef> valids;
         private final Set<BytesRef> invalids;
 
-        public TermListBackedStringFilter(Set<BytesRef> includeValues, Set<BytesRef> excludeValues) {
+        TermListBackedStringFilter(Set<BytesRef> includeValues, Set<BytesRef> excludeValues) {
             this.valids = includeValues;
             this.invalids = excludeValues;
         }
@@ -295,7 +295,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         private final SortedSet<BytesRef> includeValues;
         private final SortedSet<BytesRef> excludeValues;
 
-        public TermListBackedOrdinalsFilter(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+        TermListBackedOrdinalsFilter(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
             this.includeValues = includeValues;
             this.excludeValues = excludeValues;
         }

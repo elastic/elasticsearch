@@ -202,18 +202,13 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
-        tmpScript.setText(script, 'UTF-8')
         ByteArrayOutputStream output = new ByteArrayOutputStream()
-        ExecResult result = project.exec {
-            executable = new File(javaHome, 'bin/jjs')
-            args tmpScript.toString()
+        project.exec {
+            executable = new File(javaHome, 'bin/jrunscript')
+            args '-e', script
             standardOutput = output
             errorOutput = new ByteArrayOutputStream()
-            ignoreExitValue = true // we do not fail so we can first cleanup the tmp file
         }
-        java.nio.file.Files.delete(tmpScript.toPath())
-        result.assertNormalExitValue()
         return output.toString('UTF-8').trim()
     }
 

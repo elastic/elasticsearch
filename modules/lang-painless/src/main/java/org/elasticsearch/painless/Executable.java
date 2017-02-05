@@ -48,7 +48,7 @@ public abstract class Executable {
         return source;
     }
 
-    /** 
+    /**
      * Finds the start of the first statement boundary that is
      * on or before {@code offset}. If one is not found, {@code -1}
      * is returned.
@@ -56,8 +56,8 @@ public abstract class Executable {
     public int getPreviousStatement(int offset) {
         return statements.previousSetBit(offset);
     }
-    
-    /** 
+
+    /**
      * Finds the start of the first statement boundary that is
      * after {@code offset}. If one is not found, {@code -1}
      * is returned.
@@ -66,6 +66,5 @@ public abstract class Executable {
         return statements.nextSetBit(offset+1);
     }
 
-    public abstract Object execute(
-        final Map<String, Object> params, final Scorer scorer, final LeafDocLookup doc, final Object value);
+    public abstract Object execute(Map<String, Object> params, Scorer scorer, LeafDocLookup doc, Object value);
 }

@@ -50,7 +50,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private static class DummyS3Service extends AbstractLifecycleComponent implements AwsS3Service {
-        public DummyS3Service() {
+        DummyS3Service() {
             super(Settings.EMPTY);
         }
         @Override

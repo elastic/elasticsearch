@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -413,14 +414,15 @@ public class ScriptServiceTests extends ESTestCase {
                     .field("script", "abc")
                 .endObject().bytes();
 
-        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse("_lang", script));
+        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
+            StoredScriptSource.parse("_lang", script, XContentType.JSON));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
     }
 
     public void testDeleteScript() throws Exception {
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
-            StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}")));
+            StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON));
         scriptMetaData = ScriptMetaData.deleteStoredScript(scriptMetaData, "_id", "_lang");
         assertNotNull(scriptMetaData);
         assertNull(scriptMetaData.getStoredScript("_id", "_lang"));
@@ -438,7 +440,7 @@ public class ScriptServiceTests extends ESTestCase {
             .metaData(MetaData.builder()
                 .putCustom(ScriptMetaData.TYPE,
                     new ScriptMetaData.Builder(null).storeScript("_id",
-                        StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"))).build()))
+                        StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)).build()))
             .build();
 
         assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getCode());

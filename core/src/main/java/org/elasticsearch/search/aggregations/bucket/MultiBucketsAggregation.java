@@ -64,7 +64,7 @@ public interface MultiBucketsAggregation extends Aggregation {
 
         Object getProperty(String containingAggName, List<String> path);
 
-        static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
+        class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 
             private final AggregationPath path;
             private final boolean asc;

@@ -294,7 +294,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
         public int fetchCount = 0;
-        public DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
+        DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
             super(settings, transportService, service);
         }
     }

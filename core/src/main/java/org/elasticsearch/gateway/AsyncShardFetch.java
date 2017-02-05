@@ -343,7 +343,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         private boolean valueSet;
         private Throwable failure;
 
-        public NodeEntry(String nodeId) {
+        NodeEntry(String nodeId) {
             this.nodeId = nodeId;
         }
 

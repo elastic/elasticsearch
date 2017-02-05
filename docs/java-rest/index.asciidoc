@@ -1,7 +1,7 @@
 [[java-rest]]
 = Java REST Client
 
-:version: 6.0.0-alpha1
+include::../Versions.asciidoc[]
 
 include::overview.asciidoc[]
 

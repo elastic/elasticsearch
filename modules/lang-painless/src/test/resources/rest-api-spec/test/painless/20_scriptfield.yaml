@@ -12,12 +12,22 @@ setup:
                   type: keyword
                 missing:
                   type: keyword
+                date:
+                  type: date
+                  format: yyyy/MM/dd
+                dates:
+                  type: date
+                  format: yyyy/MM/dd
     - do:
         index:
             index: test
             type: test
             id: 1
-            body: { "foo": "aaa" }
+            body: {
+              "foo": "aaa",
+              "date": "2017/01/01",
+              "dates": ["2017/01/01", "2017/02/01", "2017/03/01"]
+            }
     - do:
         indices.refresh: {}
 
@@ -34,6 +44,7 @@ setup:
                                 x: "bbb"
 
     - match: { hits.hits.0.fields.bar.0: "aaabbb"}
+
 ---
 "Scripted Field Doing Compare":
     - do:
@@ -60,6 +71,7 @@ setup:
                                 x: "bbb"
 
     - match: { hits.hits.0.fields.bar.0: false}
+
 ---
 "Scripted Field with a null safe dereference (non-null)":
     - do:
@@ -88,6 +100,35 @@ setup:
                                 x: 5
 
     - match: { hits.hits.0.fields.bar.0: 5}
+
+---
+"Access a date":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: "doc.date.date.dayOfWeek"
+
+    - match: { hits.hits.0.fields.bar.0: 7}
+
+---
+"Access many dates":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            inline: >
+                              StringBuilder b = new StringBuilder();
+                              for (def date : doc.dates.dates) {
+                                b.append(" ").append(date.getDayOfWeek());
+                              }
+                              return b.toString().trim()
+
+    - match: { hits.hits.0.fields.bar.0: "7 3 3"}
 
 ---
 "Scripted Field with script error":

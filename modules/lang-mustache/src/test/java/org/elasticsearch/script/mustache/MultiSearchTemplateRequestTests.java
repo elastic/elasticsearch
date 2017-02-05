@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -34,7 +35,8 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/script/mustache/simple-msearch-template.json");
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(data), XContentType.JSON).build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 

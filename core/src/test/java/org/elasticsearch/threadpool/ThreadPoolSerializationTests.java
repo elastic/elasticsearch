@@ -78,7 +78,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));
@@ -100,7 +100,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -80,7 +81,7 @@ public abstract class ScrollableHitSource implements Closeable {
         });
     }
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
-    
+
     @Override
     public final void close() {
         String scrollId = this.scrollId.get();
@@ -190,6 +191,10 @@ public abstract class ScrollableHitSource implements Closeable {
          */
         @Nullable BytesReference getSource();
         /**
+         * The content type of the hit source. Returns null if the source didn't come back from the search.
+         */
+        @Nullable XContentType getXContentType();
+        /**
          * The document id of the parent of the hit if there is a parent or null if there isn't.
          */
         @Nullable String getParent();
@@ -209,6 +214,7 @@ public abstract class ScrollableHitSource implements Closeable {
         private final long version;
 
         private BytesReference source;
+        private XContentType xContentType;
         private String parent;
         private String routing;
 
@@ -244,8 +250,14 @@ public abstract class ScrollableHitSource implements Closeable {
             return source;
         }
 
-        public BasicHit setSource(BytesReference source) {
+        @Override
+        public XContentType getXContentType() {
+            return xContentType;
+        }
+
+        public BasicHit setSource(BytesReference source, XContentType xContentType) {
             this.source = source;
+            this.xContentType = xContentType;
             return this;
         }
 

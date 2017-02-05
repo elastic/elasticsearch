@@ -29,6 +29,9 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.startsWith;
 
+/**
+ * Tests for Painless implementing different interfaces and for {@link DerivedArgument}s.
+ */
 public class ImplementInterfacesTests extends ScriptTestCase {
     @FunctionalInterface
     public interface NoArgs {

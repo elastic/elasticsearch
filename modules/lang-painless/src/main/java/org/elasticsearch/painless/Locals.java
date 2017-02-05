@@ -22,6 +22,8 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.MainMethod.DerivedArgument;
+import org.elasticsearch.painless.MainMethod.MethodArgument;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,36 +39,14 @@ import java.util.Set;
  */
 public final class Locals {
 
-    /** Reserved word: params map parameter */
-    public static final String PARAMS = "params";
-    /** Reserved word: Lucene scorer parameter */
-    public static final String SCORER = "#scorer";
-    /** Reserved word: _value variable for aggregations */
-    public static final String VALUE  = "_value";
-    /** Reserved word: _score variable for search scripts */
-    public static final String SCORE  = "_score";
-    /** Reserved word: ctx map for executable scripts */
-    public static final String CTX    = "ctx";
     /** Reserved word: loop counter */
     public static final String LOOP   = "#loop";
     /** Reserved word: unused */
     public static final String THIS   = "#this";
-    /** Reserved word: unused */
-    public static final String DOC    = "doc";
-
-    /** Map of always reserved keywords for the main scope */
-    public static final Set<String> MAIN_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        THIS,PARAMS,SCORER,DOC,VALUE,SCORE,CTX,LOOP
-    )));
 
     /** Map of always reserved keywords for a function scope */
-    public static final Set<String> FUNCTION_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        THIS,LOOP
-    )));
-
-    /** Map of always reserved keywords for a lambda scope */
-    public static final Set<String> LAMBDA_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        THIS,LOOP
+    public static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        THIS, LOOP
     )));
 
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
@@ -81,7 +61,7 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType, LAMBDA_KEYWORDS);
+        Locals locals = new Locals(programScope, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -100,7 +80,7 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType, FUNCTION_KEYWORDS);
+        Locals locals = new Locals(programScope, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.type, parameter.name, false);
         }
@@ -112,33 +92,20 @@ public final class Locals {
     }
 
     /** Creates a new main method scope */
-    public static Locals newMainMethodScope(Locals programScope, boolean usesScore, boolean usesCtx, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE, MAIN_KEYWORDS);
-        // This reference.  Internal use only.
+    public static Locals newMainMethodScope(MainMethod mainMethod, Locals programScope, Iterable<DerivedArgument> usedDerivedArguments,
+            int maxLoopCounter) {
+        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE, KEYWORDS);
+        // This reference. Internal use only.
         locals.defineVariable(null, Definition.getType("Object"), THIS, true);
 
-        // Input map of variables passed to the script.
-        locals.defineVariable(null, Definition.getType("Map"), PARAMS, true);
-
-        // Scorer parameter passed to the script.  Internal use only.
-        locals.defineVariable(null, Definition.DEF_TYPE, SCORER, true);
-
-        // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
-        locals.defineVariable(null, Definition.getType("Map"), DOC, true);
-
-        // Aggregation _value parameter passed to the script.
-        locals.defineVariable(null, Definition.DEF_TYPE, VALUE, true);
-
-        // Shortcut variables.
-
-        // Document's score as a read-only double.
-        if (usesScore) {
-            locals.defineVariable(null, Definition.DOUBLE_TYPE, SCORE, true);
+        // Method arguments
+        for (MethodArgument arg : mainMethod.getArguments()) {
+            locals.defineVariable(null, arg.getType(), arg.getName(), true);
         }
 
-        // The ctx map set by executable scripts as a read-only map.
-        if (usesCtx) {
-            locals.defineVariable(null, Definition.getType("Map"), CTX, true);
+        // Derived arguments
+        for (DerivedArgument darg : usedDerivedArguments) {
+            locals.defineVariable(null, darg.getType(), darg.getName(), true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.

@@ -28,8 +28,10 @@ import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.RuntimeClass;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
+import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MainMethod;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
@@ -894,10 +896,11 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
+        MainMethod mainMethod = new MainMethod(GenericElasticsearchScript.class, GenericElasticsearchScript.DERIVED_ARGUMENTS);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(getTestName(), code, compilerSettings, null);
+            return Walker.buildPainlessTree(mainMethod, getTestName(), code, compilerSettings, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);
         }

@@ -76,10 +76,11 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
+            MainMethod mainMethod = new MainMethod(GenericElasticsearchScript.class, GenericElasticsearchScript.DERIVED_ARGUMENTS);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(getTestName(), script, pickySettings, null);
+            Walker.buildPainlessTree(mainMethod, getTestName(), script, pickySettings, null);
         }
         // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);

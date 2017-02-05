@@ -28,12 +28,15 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MainMethod;
+import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.util.Printer;
 import org.objectweb.asm.util.TraceClassVisitor;
 
@@ -42,18 +45,17 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
-import static org.elasticsearch.painless.WriterConstants.EXECUTE;
-import static org.elasticsearch.painless.WriterConstants.MAP_GET;
-import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
 /**
  * The root of all Painless trees.  Contains a series of statements.
@@ -61,44 +63,33 @@ import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 public final class SSource extends AStatement {
 
     /**
-     * Tracks reserved variables.  Must be given to any source of input
+     * Tracks derived arguments and the loop counter.  Must be given to any source of input
      * prior to beginning the analysis phase so that reserved variables
      * are known ahead of time to assign appropriate slots without
      * being wasteful.
      */
     public interface Reserved {
-        void markReserved(String name);
-        boolean isReserved(String name);
+        void markUsedVariable(String name);
 
         void setMaxLoopCounter(int max);
         int getMaxLoopCounter();
     }
 
     public static final class MainMethodReserved implements Reserved {
-        private boolean score = false;
-        private boolean ctx = false;
+        private final Map<String, DerivedArgument> usedDerivedArguments = new LinkedHashMap<>();
+        private final Map<String, DerivedArgument> possibleDefivedArguments;
         private int maxLoopCounter = 0;
 
+        public MainMethodReserved(MainMethod mainMethod) {
+            this.possibleDefivedArguments = mainMethod.getDerivedArguments();
+        }
+
         @Override
-        public void markReserved(String name) {
-            if (Locals.SCORE.equals(name)) {
-                score = true;
-            } else if (Locals.CTX.equals(name)) {
-                ctx = true;
+        public void markUsedVariable(String name) {
+            DerivedArgument deriver = possibleDefivedArguments.get(name);
+            if (deriver != null) {
+                usedDerivedArguments.putIfAbsent(name, deriver);
             }
-        }
-
-        @Override
-        public boolean isReserved(String name) {
-            return Locals.MAIN_KEYWORDS.contains(name);
-        }
-
-        public boolean usesScore() {
-            return score;
-        }
-
-        public boolean usesCtx() {
-            return ctx;
         }
 
         @Override
@@ -110,8 +101,13 @@ public final class SSource extends AStatement {
         public int getMaxLoopCounter() {
             return maxLoopCounter;
         }
+
+        public Map<String, DerivedArgument> getUsedDerivedArguments() {
+            return unmodifiableMap(usedDerivedArguments);
+        }
     }
 
+    private final MainMethod mainMethod;
     private final CompilerSettings settings;
     private final String name;
     private final String source;
@@ -121,13 +117,14 @@ public final class SSource extends AStatement {
     private final Globals globals;
     private final List<AStatement> statements;
 
-    private Locals mainMethod;
+    private Locals mainMethodLocals;
     private byte[] bytes;
 
-    public SSource(CompilerSettings settings, String name, String source, Printer debugStream,
+    public SSource(MainMethod mainMethod, CompilerSettings settings, String name, String source, Printer debugStream,
                    MainMethodReserved reserved, Location location,
                    List<SFunction> functions, Globals globals, List<AStatement> statements) {
         super(location);
+        this.mainMethod = Objects.requireNonNull(mainMethod);
         this.settings = Objects.requireNonNull(settings);
         this.name = Objects.requireNonNull(name);
         this.source = Objects.requireNonNull(source);
@@ -175,7 +172,8 @@ public final class SSource extends AStatement {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
-        mainMethod = Locals.newMainMethodScope(program, reserved.usesScore(), reserved.usesCtx(), reserved.getMaxLoopCounter());
+        mainMethodLocals = Locals.newMainMethodScope(mainMethod, program, reserved.getUsedDerivedArguments().values(),
+                reserved.getMaxLoopCounter());
 
         AStatement last = statements.get(statements.size() - 1);
 
@@ -188,21 +186,27 @@ public final class SSource extends AStatement {
 
             statement.lastSource = statement == last;
 
-            statement.analyze(mainMethod);
+            statement.analyze(mainMethodLocals);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
         }
     }
 
-    public void write() {
+    public void write(Class<?> iface) {
         // Create the ClassWriter.
 
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String classBase = BASE_CLASS_TYPE.getInternalName();
         String className = CLASS_TYPE.getInternalName();
-        String classInterfaces[] = reserved.usesScore() ? new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() } : null;
+        String classInterfaces[];
+        // TODO generalize this or remove it from Elasticsearch
+        if (reserved.getUsedDerivedArguments().containsKey("_score")) {
+            classInterfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName(), Type.getType(iface).getInternalName() };
+        } else {
+            classInterfaces = new String[] { Type.getType(iface).getInternalName() };
+        }
 
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;
@@ -227,11 +231,12 @@ public final class SSource extends AStatement {
         constructor.returnValue();
         constructor.endMethod();
 
-        // Write the execute method:
-        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, visitor, globals.getStatements(), settings);
-        execute.visitCode();
-        write(execute, globals);
-        execute.endMethod();
+        // Write the method defined in the interface:
+        MethodWriter ifaceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, mainMethod.getAsmMethod(), visitor, globals.getStatements(),
+                settings);
+        ifaceMethod.visitCode();
+        write(ifaceMethod, globals);
+        ifaceMethod.endMethod();
 
         // Write all functions:
         for (SFunction function : functions) {
@@ -281,36 +286,15 @@ public final class SSource extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        if (reserved.usesScore()) {
-            // if the _score value is used, we do this once:
-            // final double _score = scorer.score();
-            Variable scorer = mainMethod.getVariable(null, Locals.SCORER);
-            Variable score = mainMethod.getVariable(null, Locals.SCORE);
-
-            writer.visitVarInsn(Opcodes.ALOAD, scorer.getSlot());
-            writer.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
-            writer.visitInsn(Opcodes.F2D);
-            writer.visitVarInsn(Opcodes.DSTORE, score.getSlot());
-        }
-
-        if (reserved.usesCtx()) {
-            // if the _ctx value is used, we do this once:
-            // final Map<String,Object> ctx = input.get("ctx");
-
-            Variable input = mainMethod.getVariable(null, Locals.PARAMS);
-            Variable ctx = mainMethod.getVariable(null, Locals.CTX);
-
-            writer.visitVarInsn(Opcodes.ALOAD, input.getSlot());
-            writer.push(Locals.CTX);
-            writer.invokeInterface(MAP_TYPE, MAP_GET);
-            writer.visitVarInsn(Opcodes.ASTORE, ctx.getSlot());
+        for (DerivedArgument darg : reserved.getUsedDerivedArguments().values()) {
+            darg.getDeriver().accept(writer, mainMethodLocals);
         }
 
         if (reserved.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
-            Variable loop = mainMethod.getVariable(null, Locals.LOOP);
+            Variable loop = mainMethodLocals.getVariable(null, Locals.LOOP);
 
             writer.push(reserved.getMaxLoopCounter());
             writer.visitVarInsn(Opcodes.ISTORE, loop.getSlot());

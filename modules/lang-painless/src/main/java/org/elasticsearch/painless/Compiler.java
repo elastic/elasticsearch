@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.util.Printer;
@@ -43,7 +44,7 @@ final class Compiler {
     /**
      * The maximum number of characters allowed in the script source.
      */
-    static int MAXIMUM_SOURCE_LENGTH = 16384;
+    static final int MAXIMUM_SOURCE_LENGTH = 16384;
 
     /**
      * Define the class with lowest privileges.
@@ -87,29 +88,33 @@ final class Compiler {
     /**
      * Runs the two-pass compiler to generate a Painless script.
      * @param loader The ClassLoader used to define the script.
+     * @param iface Interface the compiled script should implement
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
+     * @param derivedArguments Parameters to the script that are derived from other parameters
      * @return An {@link Executable} Painless script.
      */
-    static Executable compile(Loader loader, String name, String source, CompilerSettings settings) {
+    static <T> T compile(Loader loader, Class<T> iface, String name, String source, CompilerSettings settings,
+            DerivedArgument... derivedArguments) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
+        MainMethod mainMethod = new MainMethod(iface, derivedArguments);
 
-        SSource root = Walker.buildPainlessTree(name, source, settings, null);
+        SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, null);
 
         root.analyze();
-        root.write();
+        root.write(iface);
 
         try {
             Class<? extends Executable> clazz = loader.define(CLASS_NAME, root.getBytes());
             java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return constructor.newInstance(name, source, root.getStatements());
+            return iface.cast(constructor.newInstance(name, source, root.getStatements()));
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
@@ -117,21 +122,25 @@ final class Compiler {
 
     /**
      * Runs the two-pass compiler to generate a Painless script.  (Used by the debugger.)
+     * @param iface Interface the compiled script should implement
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
+     * @param derivedArguments Parameters to the script that are derived from other parameters
      * @return The bytes for compilation.
      */
-    static byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
+    static <T> byte[] compile(Class<T> iface, String name, String source, CompilerSettings settings, Printer debugStream,
+            DerivedArgument... derivedArguments) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
+        MainMethod mainMethod = new MainMethod(iface, derivedArguments);
 
-        SSource root = Walker.buildPainlessTree(name, source, settings, debugStream);
+        SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, debugStream);
 
         root.analyze();
-        root.write();
+        root.write(iface);
 
         return root.getBytes();
     }

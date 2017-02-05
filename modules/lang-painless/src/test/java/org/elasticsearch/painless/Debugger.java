@@ -39,7 +39,8 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            Compiler.compile("<debugging>", source, settings, textifier);
+            Compiler.compile(GenericElasticsearchScript.class, "<debugging>", source, settings, textifier,
+                    GenericElasticsearchScript.DERIVED_ARGUMENTS);
         } catch (Exception e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));

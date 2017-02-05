@@ -122,6 +122,6 @@ will be prefixed with their remote cluster name:
 
   A node attribute to filter out nodes that are eligible as a gateway node in
   the remote cluster. For instance a node can have a node attribute
-  `node.attr.gateway: true`such that only nodes with this attribute will be
+  `node.attr.gateway: true` such that only nodes with this attribute will be
   connected to if `search.remote.node.attr` is set to `gateway`.
 

@@ -77,7 +77,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1299,12 +1298,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testMockFailToSendNoConnectRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
-                    assertThat("moshe", equalTo(request.message));
-                    throw new RuntimeException("bad message !!!");
-                }
+            (request, channel) -> {
+                assertThat("moshe", equalTo(request.message));
+                throw new RuntimeException("bad message !!!");
             });
 
         serviceB.addFailToSendNoConnectRule(serviceA);
@@ -1328,7 +1324,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    assertThat(exp.getCause().getMessage(), endsWith("DISCONNECT: simulated"));
+                    Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                    assertThat(cause, instanceOf(ConnectTransportException.class));
+                    assertThat(((ConnectTransportException)cause).node(), equalTo(nodeA));
                 }
             });
 
@@ -1336,7 +1334,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), endsWith("DISCONNECT: simulated"));
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            assertThat(cause, instanceOf(ConnectTransportException.class));
+            assertThat(((ConnectTransportException)cause).node(), equalTo(nodeA));
         }
 
         try {

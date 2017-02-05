@@ -434,9 +434,11 @@ public final class MockTransportService extends TransportService {
      */
     private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason, @Nullable Throwable e) {
         if (transport.nodeConnected(node)) {
+            // this a connected node, disconnecting from it will be up the exception
             transport.disconnectFromNode(node);
+        } else {
+            throw new ConnectTransportException(node, reason, e);
         }
-        throw new ConnectTransportException(node, reason, e);
     }
 
     /**

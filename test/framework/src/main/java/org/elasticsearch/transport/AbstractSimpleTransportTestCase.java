@@ -1398,6 +1398,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
+            serviceB.disconnectFromNode(nodeA);
             serviceB.connectToNode(nodeA);
             fail("exception should be thrown");
         } catch (ConnectTransportException e) {

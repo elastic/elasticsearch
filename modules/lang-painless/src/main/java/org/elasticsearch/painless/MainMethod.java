@@ -144,7 +144,8 @@ public class MainMethod {
     }
 
     /**
-     * A method argument derived from other method arguments.
+     * A method argument derived from other method arguments. These are special because Painless won't declare them or set them unless they
+     * are used.
      */
     public static class DerivedArgument {
         private final Definition.Type type;

@@ -128,7 +128,7 @@ final class Compiler {
      * @param derivedArguments Parameters to the script that are derived from other parameters
      * @return The bytes for compilation.
      */
-    static <T> byte[] compile(Class<T> iface, String name, String source, CompilerSettings settings, Printer debugStream,
+    static byte[] compile(Class<?> iface, String name, String source, CompilerSettings settings, Printer debugStream,
             DerivedArgument... derivedArguments) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +

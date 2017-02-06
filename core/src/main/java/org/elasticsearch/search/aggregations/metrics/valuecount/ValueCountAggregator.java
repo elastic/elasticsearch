@@ -82,7 +82,10 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? 0 : counts.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+            return 0;
+        }
+        return counts.get(owningBucketOrd);
     }
 
     @Override

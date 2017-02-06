@@ -125,3 +125,8 @@ will be prefixed with their remote cluster name:
   `node.attr.gateway: true` such that only nodes with this attribute will be
   connected to if `search.remote.node.attr` is set to `gateway`.
 
+`search.remote.connect`::
+  If set to `false` the node will not connect to any configured remote cluster. This is useful to disable cross cluster
+  search support on certain nodes if remote clusters are configured via the cluster settings. The default is `true`
+
+

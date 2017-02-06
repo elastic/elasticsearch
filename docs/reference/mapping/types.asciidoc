@@ -8,7 +8,7 @@ document:
 === Core datatypes
 
 string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
+<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::      `date`
 <<boolean>>::   `boolean`
 <<binary>>::    `binary`

@@ -23,8 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.io.IOException;
@@ -32,12 +30,11 @@ import java.util.Locale;
 
 /**
  * Geo distance calculation.
+ * @Deprecated geo_distance computation is handled internally to Lucene so this class is deprecated
  */
+@Deprecated
 public enum GeoDistance implements Writeable {
     PLANE, ARC;
-
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(GeoDistance.class));
 
     /** Creates a GeoDistance instance from an input stream */
     public static GeoDistance readFromStream(StreamInput in) throws IOException {
@@ -103,7 +100,6 @@ public enum GeoDistance implements Writeable {
         if ("plane".equals(name)) {
             return PLANE;
         } else if ("sloppy_arc".equals(name)) {
-            DEPRECATION_LOGGER.deprecated("[sloppy_arc] is deprecated. Use [arc] instead.");
             return ARC;
         } else if ("arc".equals(name)) {
             return ARC;

@@ -71,7 +71,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final GeoValidationMethod DEFAULT_VALIDATION = GeoValidationMethod.DEFAULT;
 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    @Deprecated
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+        .withAllDeprecated("no replacement: `distance_type` is no longer supported due to recent improvements");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");

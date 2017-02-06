@@ -104,9 +104,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         if (randomBoolean()) {
             builder.includeUpper(randomBoolean());
         }
-        if (randomBoolean()) {
-            builder.geoDistance(randomFrom(GeoDistance.values()));
-        }
         builder.unit(fromToUnits);
         if (randomBoolean()) {
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
@@ -116,6 +113,20 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             builder.ignoreUnmapped(randomBoolean());
         }
         return builder;
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
     }
 
     @Override
@@ -307,6 +318,8 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         GeoDistanceRangeQueryBuilder parsed = (GeoDistanceRangeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, -70.0, parsed.point().lon(), 0.0001);
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
     }
 
     public void testFromJsonOptimizeBboxFails() throws IOException {
@@ -319,7 +332,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_lower\" : true,\n" +
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -328,6 +340,26 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         parseQuery(json);
         assertWarnings("Deprecated field [optimize_bbox] used, replaced by [no replacement: `optimize_bbox` is no longer " +
                 "supported due to recent improvements]");
+    }
+
+    public void testFromJsonDistanceTypeFails() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"arc\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parseQuery(json);
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
     }
 
     public void testFromJsonCoerceFails() throws IOException {
@@ -340,7 +372,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_lower\" : true,\n" +
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"coerce\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -360,7 +391,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_lower\" : true,\n" +
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"ignore_malformed\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

@@ -55,9 +55,6 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         if (randomBoolean()) {
             factory.unit(randomFrom(DistanceUnit.values()));
         }
-        if (randomBoolean()) {
-            factory.distanceType(randomFrom(GeoDistance.values()));
-        }
         return factory;
     }
 

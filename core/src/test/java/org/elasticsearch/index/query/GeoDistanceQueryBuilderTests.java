@@ -77,13 +77,23 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
 
         if (randomBoolean()) {
-            qb.geoDistance(randomFrom(GeoDistance.values()));
-        }
-
-        if (randomBoolean()) {
             qb.ignoreUnmapped(randomBoolean());
         }
         return qb;
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
     }
 
     public void testIllegalValues() {
@@ -116,9 +126,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals("geohash must not be null or empty", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> query.geohash(""));
         assertEquals("geohash must not be null or empty", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> query.geoDistance(null));
-        assertEquals("geoDistance must not be null", e.getMessage());
     }
 
     /**
@@ -383,9 +390,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: `distance_type` is no longer " +
+            "supported due to recent improvements]");
     }
 
-    public void testSloppyArcIsDeprecated() throws IOException {
+    public void testDistanceTypeIsDeprecated() throws IOException {
         String json =
             "{\n" +
                 "  \"geo_distance\" : {\n" +
@@ -398,7 +407,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarnings("[sloppy_arc] is deprecated. Use [arc] instead.");
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is no longer supported due to recent improvements]");
     }
 
     public void testOptimizeBboxIsDeprecated() throws IOException {
@@ -407,7 +417,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
@@ -425,7 +434,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"coerce\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -441,7 +449,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"ignore_malformed\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

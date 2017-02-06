@@ -65,6 +65,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for distance unit computation. */
     public static final DistanceUnit DEFAULT_DISTANCE_UNIT = DistanceUnit.DEFAULT;
     /** Default for geo distance computation. */
+    @Deprecated
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.ARC;
     /** Default for optimising query through pre computed bounding box query. */
     @Deprecated
@@ -81,7 +82,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     @Deprecated
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox")
             .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    @Deprecated
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+            .withAllDeprecated("no replacement: `distance_type` is no longer supported due to recent improvements");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
@@ -92,8 +95,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Point to use as center. */
     private GeoPoint center = new GeoPoint(Double.NaN, Double.NaN);
     /** Algorithm to use for distance computation. */
+    @Deprecated
     private GeoDistance geoDistance = GeoDistance.ARC;
     /** Whether or not to use a bbox for pre-filtering. TODO change to enum? */
+    @Deprecated
     private String optimizeBbox = null;
     /** How strict should geo coordinate validation be? */
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
@@ -208,6 +213,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     /** Which type of geo distance calculation method to use. */
+    @Deprecated
     public GeoDistanceQueryBuilder geoDistance(GeoDistance geoDistance) {
         if (geoDistance == null) {
             throw new IllegalArgumentException("geoDistance must not be null");
@@ -217,6 +223,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     /** Returns geo distance calculation type to use. */
+    @Deprecated
     public GeoDistance geoDistance() {
         return this.geoDistance;
     }
@@ -330,9 +337,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.startArray(fieldName).value(center.lon()).value(center.lat()).endArray();
         builder.field(DISTANCE_FIELD.getPreferredName(), distance);
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        if (Strings.isEmpty(optimizeBbox) == false) {
-            builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
-        }
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);

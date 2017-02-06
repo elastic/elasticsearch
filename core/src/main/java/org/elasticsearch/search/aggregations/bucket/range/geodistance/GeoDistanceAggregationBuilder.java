@@ -52,7 +52,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final String NAME = "geo_distance";
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
-    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+        .withAllDeprecated("no replacement: `distance_type` is no longer supported due to recent improvements");
 
     private static final ObjectParser<GeoDistanceAggregationBuilder, QueryParseContext> PARSER;
     static {

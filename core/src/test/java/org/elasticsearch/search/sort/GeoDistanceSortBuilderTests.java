@@ -195,6 +195,12 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
           }
     }
 
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("no replacement: `distance_type` is no longer supported due to recent improvements");
+    }
+
     public void testReverseOptionFailsWhenNonStringField() throws IOException {
         String json = "{\n" +
                 "  \"testname\" : [ {\n" +
@@ -257,6 +263,24 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         }
     }
 
+    public void testDistanceTypeIsDeprecated() throws IOException {
+        String json = "{\n" +
+            "  \"testname\" : [ {\n" +
+            "    \"lat\" : -6.046997540714173,\n" +
+            "    \"lon\" : -51.94128329747579\n" +
+            "  } ],\n" +
+            "  \"unit\" : \"m\",\n" +
+            "  \"distance_type\" : \"arc\",\n" +
+            "  \"mode\" : \"MAX\"\n" +
+            "}";
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(itemParser);
+        GeoDistanceSortBuilder.fromXContent(context, "");
+        assertWarnings("no replacement: `distance_type` is no longer supported due to recent improvements");
+    }
+
     public void testCoerceIsDeprecated() throws IOException {
         String json = "{\n" +
                 "  \"testname\" : [ {\n" +
@@ -264,7 +288,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"MAX\",\n" +
                 "  \"coerce\" : true\n" +
                 "}";
@@ -283,7 +306,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"MAX\",\n" +
                 "  \"ignore_malformed\" : true\n" +
                 "}";
@@ -302,7 +324,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
@@ -319,7 +340,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", " +
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested_filter\" : {\n" +
                 "      \"ids\" : {\n" +

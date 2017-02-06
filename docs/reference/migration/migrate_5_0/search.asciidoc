@@ -164,6 +164,8 @@ This parameter was undocumented and silently ignored before for these types of `
 
 * For `geo_distance` query, aggregation, and sort the `sloppy_arc` option for the `distance_type` parameter has been deprecated.
 
+* The `distance_type` parameter is deprecated in `geo_distance` query.
+
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,

@@ -191,7 +191,7 @@ The following are options allowed on the filter:
 
 `distance_type`::
 
-    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
+    deprecated[5.3] How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 `optimize_bbox`::
 

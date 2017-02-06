@@ -57,6 +57,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
+    @Deprecated
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.ARC;
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
     @Deprecated
@@ -76,7 +77,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private static final ParseField LT_FIELD = new ParseField("lt");
     private static final ParseField LTE_FIELD = new ParseField("lte", "le");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    @Deprecated
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+            .withAllDeprecated("no replacement: `distance_type` is no longer supported due to recent improvements");
     private static final ParseField NAME_FIELD = new ParseField("_name");
     private static final ParseField BOOST_FIELD = new ParseField("boost");
     @Deprecated
@@ -100,10 +103,12 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     private final GeoPoint point;
 
+    @Deprecated
     private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
 
     private DistanceUnit unit = DEFAULT_UNIT;
 
+    @Deprecated
     private String optimizeBbox = null;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
@@ -226,6 +231,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return includeUpper;
     }
 
+    @Deprecated
     public GeoDistanceRangeQueryBuilder geoDistance(GeoDistance geoDistance) {
         if (geoDistance == null) {
             throw new IllegalArgumentException("geoDistance calculation mode must not be null");
@@ -234,6 +240,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return this;
     }
 
+    @Deprecated
     public GeoDistance geoDistance() {
         return geoDistance;
     }
@@ -379,9 +386,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         builder.field(UNIT_FIELD.getPreferredName(), unit);
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        if (Strings.isEmpty(optimizeBbox) == false) {
-            builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
-        }
         builder.field(VALIDATION_METHOD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
@@ -404,7 +408,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         Boolean includeUpper = null;
         DistanceUnit unit = null;
         GeoDistance geoDistance = null;
-        String optimizeBbox = null;
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
@@ -526,7 +529,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 } else if (BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if (OPTIMIZE_BBOX_FIELD.match(currentFieldName)) {
-                    optimizeBbox = parser.textOrNull();
                 } else if (COERCE_FIELD.match(currentFieldName)) {
                     coerce = parser.booleanValue();
                 } else if (IGNORE_MALFORMED_FIELD.match(currentFieldName)) {
@@ -589,10 +591,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             queryBuilder.geoDistance(geoDistance);
         }
 
-        if (optimizeBbox != null) {
-            queryBuilder.optimizeBbox(optimizeBbox);
-        }
-
         if (validationMethod != null) {
             // if validation method is set explicitly ignore deprecated coerce/ignore malformed fields if any
             queryBuilder.setValidationMethod(validationMethod);
@@ -612,7 +610,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 (Objects.equals(includeUpper, other.includeUpper)) &&
                 (Objects.equals(includeLower, other.includeLower)) &&
                 (Objects.equals(geoDistance, other.geoDistance)) &&
-                (Objects.equals(optimizeBbox, other.optimizeBbox)) &&
                 (Objects.equals(validationMethod, other.validationMethod))) &&
                 Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }

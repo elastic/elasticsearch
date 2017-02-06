@@ -31,3 +31,7 @@ than zero.
 
 Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
 date histogram intervals "1.5h" will be rejected and should instead be input as "90m".
+
+==== geo_distance Aggregation
+
+The `distance_type` parameter is deprecated in the `geo_distance` aggregation.

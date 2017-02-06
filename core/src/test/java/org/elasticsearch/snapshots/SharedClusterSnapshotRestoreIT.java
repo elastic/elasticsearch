@@ -2488,7 +2488,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                            .get();
             fail("should not be allowed to create a snapshot with the same name as an already existing snapshot: " +
                  createSnapshotResponse.getSnapshotInfo().snapshotId());
-        } catch (SnapshotCreationException e) {
+        } catch (InvalidSnapshotNameException e) {
             assertThat(e.getMessage(), containsString("snapshot with the same name already exists"));
         }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -197,8 +196,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         return TopDocs.merge(topN, shardTopDocs).scoreDocs;
     }
 
-    private AtomicArray<FetchSearchResultProvider> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
-        AtomicArray<FetchSearchResultProvider> fetchResults = new AtomicArray<>(nShards);
+    private AtomicArray<QuerySearchResultProvider> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
+        AtomicArray<QuerySearchResultProvider> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             float maxScore = -1F;
             SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex);

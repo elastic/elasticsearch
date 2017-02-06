@@ -30,10 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
 import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
-/**
- *
- */
-public class QueryFetchSearchResult extends QuerySearchResultProvider implements FetchSearchResultProvider {
+public class QueryFetchSearchResult extends QuerySearchResultProvider {
 
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;
@@ -61,11 +58,6 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider implements
     public void shardTarget(SearchShardTarget shardTarget) {
         queryResult.shardTarget(shardTarget);
         fetchResult.shardTarget(shardTarget);
-    }
-
-    @Override
-    public boolean includeFetch() {
-        return true;
     }
 
     @Override

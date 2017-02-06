@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.transport.TransportResponse;
 
 /**
@@ -28,9 +29,16 @@ import org.elasticsearch.transport.TransportResponse;
 public abstract class QuerySearchResultProvider extends TransportResponse implements SearchPhaseResult {
 
     /**
-     * If both query and fetch happened on the same call.
+     * Returns the query result iff it's included in this response otherwise <code>null</code>
      */
-    public abstract boolean includeFetch();
+    public QuerySearchResult queryResult() {
+        return  null;
+    }
 
-    public abstract QuerySearchResult queryResult();
+    /**
+     * Returns the fetch result iff it's included in this response otherwise <code>null</code>
+     */
+    public FetchSearchResult fetchResult() {
+        return null;
+    }
 }

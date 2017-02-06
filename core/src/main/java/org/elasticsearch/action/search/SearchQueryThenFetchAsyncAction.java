@@ -44,6 +44,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Qu
                                     SearchTask task) {
         super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
             request, listener, shardsIts, startTime, clusterStateVersion, task);
+
     }
 
     @Override

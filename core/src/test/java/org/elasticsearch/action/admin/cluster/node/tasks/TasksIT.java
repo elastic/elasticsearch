@@ -363,7 +363,6 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(mainTask.get(0).getTaskId(), taskInfo.getParentTaskId());
             switch (taskInfo.getAction()) {
                 case SearchTransportService.QUERY_ACTION_NAME:
-                case SearchTransportService.QUERY_FETCH_ACTION_NAME:
                 case SearchTransportService.DFS_ACTION_NAME:
                     assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
                     break;

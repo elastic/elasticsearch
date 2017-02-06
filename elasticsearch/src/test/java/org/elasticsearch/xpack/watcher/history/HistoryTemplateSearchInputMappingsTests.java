@@ -51,7 +51,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         refresh();
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
-                new String[]{index}, new String[]{type}, SearchType.QUERY_AND_FETCH,
+                new String[]{index}, new String[]{type}, SearchType.QUERY_THEN_FETCH,
                 WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
         );
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()

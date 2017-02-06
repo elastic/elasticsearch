@@ -77,7 +77,7 @@ public class AggregationContext {
             } else if (ValuesSource.class.isAssignableFrom(config.valueSourceType)
                     || ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)
                     || ValuesSource.Bytes.WithOrdinals.class.isAssignableFrom(config.valueSourceType)) {
-                vs = (VS) ValuesSource.Bytes.EMPTY;
+                vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else {
                 throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type " + config.valueSourceType, null);
             }

@@ -32,6 +32,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.SimpleFieldFragList;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -50,11 +51,13 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static final SimpleBoundaryScanner DEFAULT_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
 
+    public static final Setting<Boolean> SETTING_TV_HIGHLIGHT_MULTI_VALUE = Setting.boolSetting("search.highlight.term_vector_multi_value",
+        true, Setting.Property.NodeScope);
     private static final String CACHE_KEY = "highlight-fsv";
     private final Boolean termVectorMultiValue;
 
     public FastVectorHighlighter(Settings settings) {
-        this.termVectorMultiValue = settings.getAsBoolean("search.highlight.term_vector_multi_value", true);
+        this.termVectorMultiValue = SETTING_TV_HIGHLIGHT_MULTI_VALUE.get(settings);
     }
 
     @Override

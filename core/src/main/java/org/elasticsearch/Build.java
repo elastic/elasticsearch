@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -44,7 +45,7 @@ public class Build {
 
         final URL url = getElasticsearchCodebase();
         if (url.toString().endsWith(".jar")) {
-            try (JarInputStream jar = new JarInputStream(url.openStream())) {
+            try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");

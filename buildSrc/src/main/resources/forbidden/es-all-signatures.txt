@@ -39,6 +39,8 @@ java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
 
 @defaultMessage Don't open socket connections
 java.net.URL#openStream()
+java.net.URLConnection#connect()
+java.net.URLConnection#getInputStream()
 java.net.Socket#connect(java.net.SocketAddress)
 java.net.Socket#connect(java.net.SocketAddress, int)
 java.nio.channels.SocketChannel#open(java.net.SocketAddress)

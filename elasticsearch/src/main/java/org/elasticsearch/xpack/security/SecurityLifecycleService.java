@@ -13,6 +13,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
@@ -40,7 +41,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                                     @Nullable IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
-                                    NativeRolesStore nativeRolesStore, InternalClient client) {
+                                    NativeRolesStore nativeRolesStore, XPackLicenseState licenseState, InternalClient client) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
@@ -53,7 +54,8 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         clusterService.addListener(this);
         clusterService.addListener(nativeUserStore);
         clusterService.addListener(nativeRolesStore);
-        clusterService.addListener(new SecurityTemplateService(settings, client, new NativeRealmMigrator(settings, nativeUserStore)));
+        final NativeRealmMigrator nativeRealmMigrator = new NativeRealmMigrator(settings, nativeUserStore, licenseState);
+        clusterService.addListener(new SecurityTemplateService(settings, client, nativeRealmMigrator));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override

@@ -217,8 +217,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
 
         assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.NOT_STARTED));
 
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
-                , EMPTY_CLUSTER_STATE));
+        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(),
+                EMPTY_CLUSTER_STATE));
 
         assertThat(migratorVersionRef.get(), equalTo(expectedOldVersion));
         assertThat(migratorListenerRef.get(), notNullValue());
@@ -241,7 +241,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         assertTrue(securityTemplateService.updateMappingPending.get());
 
         // if we now simulate an error...
-        listener.onFailure(new Exception());
+        listener.onFailure(new Exception("Testing failure handling"));
         assertFalse(securityTemplateService.updateMappingPending.get());
 
         // ... we should be able to send a new update

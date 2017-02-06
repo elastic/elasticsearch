@@ -337,7 +337,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(authzService);
 
         components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
-            nativeUsersStore, nativeRolesStore, client));
+            nativeUsersStore, nativeRolesStore, licenseState, client));
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
         components.add(ipFilter.get());

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 
@@ -24,10 +25,12 @@ import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 public class NativeRealmMigrator {
 
     private final NativeUsersStore nativeUsersStore;
+    private final XPackLicenseState licenseState;
     private final Logger logger;
 
-    public NativeRealmMigrator(Settings settings, NativeUsersStore nativeUsersStore) {
+    public NativeRealmMigrator(Settings settings, NativeUsersStore nativeUsersStore, XPackLicenseState licenseState) {
         this.nativeUsersStore = nativeUsersStore;
+        this.licenseState = licenseState;
         this.logger = Loggers.getLogger(getClass(), settings);
     }
 
@@ -48,7 +51,10 @@ public class NativeRealmMigrator {
             if (shouldDisableLogstashUser(previousVersion)) {
                 logger.info("Upgrading security from version [{}] - new reserved user [{}] will default to disabled",
                         previousVersion, LogstashSystemUser.NAME);
-                nativeUsersStore.ensureReservedUserIsDisabled(LogstashSystemUser.NAME, new ActionListener<Void>() {
+                // Only clear the cache is authentication is allowed by the current license
+                // otherwise the license management checks will prevent it from completing successfully.
+                final boolean clearCache = licenseState.isAuthAllowed();
+                nativeUsersStore.ensureReservedUserIsDisabled(LogstashSystemUser.NAME, clearCache, new ActionListener<Void>() {
                             @Override
                             public void onResponse(Void aVoid) {
                                 listener.onResponse(true);

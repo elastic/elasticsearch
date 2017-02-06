@@ -140,11 +140,12 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
             });
             return true;
         } else {
-            andThen.run();
+            if (upgradeDataState.get() == UpgradeState.COMPLETE) {
+                andThen.run();
+            }
             return false;
         }
     }
-
 
     private void updateSecurityMapping() {
         // only update the mapping if this is not already in progress

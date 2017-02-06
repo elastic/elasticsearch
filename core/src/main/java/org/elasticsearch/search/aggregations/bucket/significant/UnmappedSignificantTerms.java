@@ -76,6 +76,11 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
+    protected String getType() {
+        return SignificantStringTerms.NAME;
+    }
+
+    @Override
     public UnmappedSignificantTerms create(List<Bucket> buckets) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }

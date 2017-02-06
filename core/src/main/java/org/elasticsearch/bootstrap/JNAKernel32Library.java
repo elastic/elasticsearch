@@ -155,7 +155,7 @@ final class JNAKernel32Library {
 
     public static class SizeT extends IntegerType {
 
-        SizeT() {
+        public SizeT() {
             this(0);
         }
 

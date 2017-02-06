@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -72,6 +73,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -359,6 +361,95 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         responseLatch.await();
         assertNull(exception.get());
         assertThat(responseString.get(), equalTo("test"));
+    }
+
+    public void testAdapterSendReceiveCallbacks() throws ExecutionException, InterruptedException {
+        final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel) -> {
+            try {
+                if (randomBoolean()) {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                } else {
+                    channel.sendResponse(new ElasticsearchException("simulated"));
+                }
+            } catch (IOException e) {
+                logger.error("Unexpected failure", e);
+                fail(e.getMessage());
+            }
+        };
+        serviceA.registerRequestHandler("action", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+            requestHandler);
+        serviceB.registerRequestHandler("action", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+            requestHandler);
+
+
+        class CountingTracer  extends MockTransportService.Tracer  {
+            AtomicInteger requestsReceived = new AtomicInteger();
+            AtomicInteger requestsSent = new AtomicInteger();
+            AtomicInteger responseReceived = new AtomicInteger();
+            AtomicInteger responseSent = new AtomicInteger();
+            @Override
+            public void receivedRequest(long requestId, String action) {
+                requestsReceived.incrementAndGet();
+            }
+
+            @Override
+            public void responseSent(long requestId, String action) {
+                responseSent.incrementAndGet();
+            }
+
+            @Override
+            public void responseSent(long requestId, String action, Throwable t) {
+                responseSent.incrementAndGet();
+            }
+
+            @Override
+            public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+                responseReceived.incrementAndGet();
+            }
+
+            @Override
+            public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+                requestsSent.incrementAndGet();
+            }
+        }
+        final CountingTracer tracerA = new CountingTracer();
+        final CountingTracer tracerB = new CountingTracer();
+        serviceA.addTracer(tracerA);
+        serviceB.addTracer(tracerB);
+
+        try {
+            serviceA
+                .submitRequest(nodeB, "action", TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+        }
+
+        assertThat(tracerA.requestsReceived.get(), equalTo(0));
+        assertThat(tracerA.requestsSent.get(), equalTo(1));
+        assertThat(tracerA.responseReceived.get(), equalTo(1));
+        assertThat(tracerA.responseSent.get(), equalTo(0));
+        assertThat(tracerB.requestsReceived.get(), equalTo(1));
+        assertThat(tracerB.requestsSent.get(), equalTo(0));
+        assertThat(tracerB.responseReceived.get(), equalTo(0));
+        assertThat(tracerB.responseSent.get(), equalTo(1));
+
+        try {
+            serviceA
+                .submitRequest(nodeA, "action", TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+        }
+
+        assertThat(tracerA.requestsReceived.get(), equalTo(1));
+        assertThat(tracerA.requestsSent.get(), equalTo(2));
+        assertThat(tracerA.responseReceived.get(), equalTo(2));
+        assertThat(tracerA.responseSent.get(), equalTo(1));
+        assertThat(tracerB.requestsReceived.get(), equalTo(1));
+        assertThat(tracerB.requestsSent.get(), equalTo(0));
+        assertThat(tracerB.responseReceived.get(), equalTo(0));
+        assertThat(tracerB.responseSent.get(), equalTo(1));
     }
 
     public void testVoidMessageCompressed() {

@@ -606,6 +606,7 @@ public class TransportService extends AbstractLifecycleComponent {
         final DirectResponseChannel channel = new DirectResponseChannel(logger, localNode, action, requestId, adapter, threadPool);
         try {
             adapter.onRequestSent(localNode, requestId, action, request, options);
+            adapter.onRequestReceived(requestId, action);
             final RequestHandlerRegistry reg = adapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
@@ -1084,6 +1085,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void sendResponse(final TransportResponse response, TransportResponseOptions options) throws IOException {
+            adapter.onResponseSent(requestId, action, response, options);
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
@@ -1107,6 +1109,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void sendResponse(Exception exception) throws IOException {
+            adapter.onResponseSent(requestId, action, exception);
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {

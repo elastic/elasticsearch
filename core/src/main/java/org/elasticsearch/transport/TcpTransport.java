@@ -480,6 +480,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
                                                       ConnectionProfile defaultConnectionProfile) {
+        Objects.requireNonNull(defaultConnectionProfile);
         if (connectionProfile == null) {
             return defaultConnectionProfile;
         } else if (connectionProfile.getConnectTimeout() != null && connectionProfile.getHandshakeTimeout() != null) {

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -84,7 +83,6 @@ public class ElasticsearchMappings {
     static final String INTEGER = "integer";
     static final String KEYWORD = "keyword";
     static final String LONG = "long";
-    static final String OBJECT = "object";
     static final String TEXT = "text";
 
     private ElasticsearchMappings() {
@@ -142,6 +140,9 @@ public class ElasticsearchMappings {
                             .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
                                 .field(TYPE, DOUBLE)
                             .endObject()
+                            .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
+                                .field(TYPE, DOUBLE)
+                            .endObject()
                             .startObject(Bucket.INITIAL_ANOMALY_SCORE.getPreferredName())
                                 .field(TYPE, DOUBLE)
                             .endObject()
@@ -187,11 +188,38 @@ public class ElasticsearchMappings {
                             .startObject(Bucket.BUCKET_INFLUENCERS.getPreferredName())
                                 .field(TYPE, NESTED)
                                 .startObject(PROPERTIES)
+                                    .startObject(Job.ID.getPreferredName())
+                                        .field(TYPE, KEYWORD)
+                                    .endObject()
+                                    .startObject(Result.RESULT_TYPE.getPreferredName())
+                                        .field(TYPE, KEYWORD)
+                                    .endObject()
                                     .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
                                         .field(TYPE, KEYWORD)
                                     .endObject()
+                                    .startObject(BucketInfluencer.INITIAL_ANOMALY_SCORE.getPreferredName())
+                                        .field(TYPE, DOUBLE)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.ANOMALY_SCORE.getPreferredName())
+                                        .field(TYPE, DOUBLE)
+                                    .endObject()
                                     .startObject(BucketInfluencer.RAW_ANOMALY_SCORE.getPreferredName())
                                         .field(TYPE, DOUBLE)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
+                                        .field(TYPE, DOUBLE)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.TIMESTAMP.getPreferredName())
+                                        .field(TYPE, DATE)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.BUCKET_SPAN.getPreferredName())
+                                        .field(TYPE, LONG)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.SEQUENCE_NUM.getPreferredName())
+                                        .field(TYPE, INTEGER)
+                                    .endObject()
+                                    .startObject(BucketInfluencer.IS_INTERIM.getPreferredName())
+                                        .field(TYPE, BOOLEAN)
                                     .endObject()
                                 .endObject()
                             .endObject()
@@ -486,7 +514,7 @@ public class ElasticsearchMappings {
                                 .field(TYPE, TEXT)
                             .endObject()
                             .startObject(CategoryDefinition.REGEX.getPreferredName())
-                                .field(TYPE, TEXT)
+                                .field(TYPE, KEYWORD)
                             .endObject()
                             .startObject(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName())
                                 .field(TYPE, LONG)
@@ -530,9 +558,6 @@ public class ElasticsearchMappings {
                             .startObject(ModelSnapshot.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)
                             .endObject()
-                            // "description" is analyzed so that it has the same
-                            // mapping as a user field of the same name - this means
-                            // it doesn't have to be a reserved field name
                             .startObject(ModelSnapshot.DESCRIPTION.getPreferredName())
                                 .field(TYPE, TEXT)
                             .endObject()
@@ -549,24 +574,20 @@ public class ElasticsearchMappings {
                                 .startObject(PROPERTIES)
                                     .startObject(Job.ID.getPreferredName())
                                         .field(TYPE, KEYWORD)
+                                    .endObject()
+                                    .startObject(Result.RESULT_TYPE.getPreferredName())
+                                        .field(TYPE, KEYWORD)
+                                    .endObject()
+                                    .startObject(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName())
+                                        .field(TYPE, DATE)
                                     .endObject();
 
         addModelSizeStatsFieldsToMapping(builder);
 
-                         builder.endObject()
+        builder.endObject()
                             .endObject()
                             .startObject(Quantiles.TYPE.getPreferredName())
-                                .startObject(PROPERTIES)
-                                    .startObject(Job.ID.getPreferredName())
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                    .startObject(Quantiles.TIMESTAMP.getPreferredName())
-                                        .field(TYPE, DATE)
-                                    .endObject()
-                                    .startObject(Quantiles.QUANTILE_STATE.getPreferredName())
-                                        .field(TYPE, TEXT)
-                                    .endObject()
-                                 .endObject()
+                                .field(ENABLED, false)
                             .endObject()
                             .startObject(ModelSnapshot.LATEST_RECORD_TIME.getPreferredName())
                                 .field(TYPE, DATE)
@@ -618,6 +639,15 @@ public class ElasticsearchMappings {
                 .startObject()
                     .startObject(AuditMessage.TYPE.getPreferredName())
                         .startObject(PROPERTIES)
+                            .startObject(Job.ID.getPreferredName())
+                                .field(TYPE, KEYWORD)
+                            .endObject()
+                            .startObject(AuditMessage.LEVEL.getPreferredName())
+                               .field(TYPE, KEYWORD)
+                            .endObject()
+                            .startObject(AuditMessage.MESSAGE.getPreferredName())
+                                .field(TYPE, TEXT)
+                            .endObject()
                             .startObject(AuditMessage.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)
                             .endObject()

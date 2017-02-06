@@ -136,7 +136,7 @@ public final class ReservedFieldNames {
             ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName(),
             ModelSizeStats.LOG_TIME_FIELD.getPreferredName(),
 
-            // ModelSnapshot.DESCRIPTION is not reserved because it is an analyzed string
+            ModelSnapshot.DESCRIPTION.getPreferredName(),
             ModelSnapshot.RESTORE_PRIORITY.getPreferredName(),
             ModelSnapshot.SNAPSHOT_ID.getPreferredName(),
             ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName(),
@@ -144,8 +144,6 @@ public final class ReservedFieldNames {
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
 
             PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName(),
-
-            Quantiles.QUANTILE_STATE.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName()
     };

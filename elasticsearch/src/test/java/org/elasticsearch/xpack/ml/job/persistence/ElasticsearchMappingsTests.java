@@ -8,21 +8,14 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
-import org.elasticsearch.xpack.ml.notifications.AuditMessage;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -81,50 +74,20 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         // These are not reserved because they're data types, not field names
         overridden.add(Result.TYPE.getPreferredName());
-        overridden.add(AuditActivity.TYPE.getPreferredName());
-        overridden.add(AuditMessage.TYPE.getPreferredName());
         overridden.add(DataCounts.TYPE.getPreferredName());
-        overridden.add(CategorizerState.TYPE);
         overridden.add(CategoryDefinition.TYPE.getPreferredName());
-        overridden.add(Job.TYPE);
-        overridden.add(MlFilter.TYPE.getPreferredName());
-        overridden.add(ModelState.TYPE.getPreferredName());
         overridden.add(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
 
-        // These are not reserved because they're in the ml-int index
-        // not the job indices
-        overridden.add(MlFilter.ID.getPreferredName());
-        overridden.add(MlFilter.ITEMS.getPreferredName());
-
-        // These are not reserved because they're analyzed strings, i.e. the
-        // same type as user-specified fields
-        overridden.add(Job.DESCRIPTION.getPreferredName());
-        overridden.add(Allocation.STATE.getPreferredName());
-        overridden.add(ModelSnapshot.DESCRIPTION.getPreferredName());
-
         Set<String> expected = new HashSet<>();
 
-        XContentBuilder builder = ElasticsearchMappings.auditActivityMapping();
-        BufferedInputStream inputStream = new BufferedInputStream(
-                new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
+        // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
+
+        XContentBuilder builder = ElasticsearchMappings.resultsMapping(Collections.emptyList());
+        BufferedInputStream inputStream =
+                new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.auditMessageMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.resultsMapping(Collections.emptyList());
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.categorizerStateMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.categoryDefinitionMapping();
@@ -138,16 +101,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         parseJson(parser, expected);
 
         builder = ElasticsearchMappings.modelSnapshotMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.modelStateMapping();
-        inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
-        parser = new JsonFactory().createParser(inputStream);
-        parseJson(parser, expected);
-
-        builder = ElasticsearchMappings.quantilesMapping();
         inputStream = new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         parser = new JsonFactory().createParser(inputStream);
         parseJson(parser, expected);

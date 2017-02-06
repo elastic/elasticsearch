@@ -84,8 +84,8 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         Terms terms = aggs.get("input_search_type");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey("query_and_fetch"), notNullValue());
-        assertThat(terms.getBucketByKey("query_and_fetch").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("query_then_fetch"), notNullValue());
+        assertThat(terms.getBucketByKey("query_then_fetch").getDocCount(), is(1L));
 
         terms = aggs.get("input_indices");
         assertThat(terms, notNullValue());

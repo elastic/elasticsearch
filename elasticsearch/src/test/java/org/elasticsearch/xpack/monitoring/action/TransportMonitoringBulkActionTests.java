@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -99,12 +100,12 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool, () -> node);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 // skip
             }
         });

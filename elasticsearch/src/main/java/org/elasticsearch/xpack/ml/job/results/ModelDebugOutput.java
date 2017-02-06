@@ -140,7 +140,7 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         if (timestamp != null) {
-            builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+            builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);

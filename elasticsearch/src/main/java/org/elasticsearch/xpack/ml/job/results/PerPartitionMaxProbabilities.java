@@ -168,7 +168,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        builder.field(Bucket.TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.dateField(Bucket.TIMESTAMP.getPreferredName(), Bucket.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(Bucket.BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(PER_PARTITION_MAX_PROBABILITIES.getPreferredName(), perPartitionMaxProbabilities);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);

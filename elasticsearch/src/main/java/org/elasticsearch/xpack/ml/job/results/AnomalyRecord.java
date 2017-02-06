@@ -252,7 +252,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
-        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);
         }

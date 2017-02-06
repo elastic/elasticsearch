@@ -132,7 +132,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Bucket.IS_INTERIM.getPreferredName(), isInterim);
-        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.endObject();
         return builder;
     }

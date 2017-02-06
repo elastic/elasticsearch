@@ -129,7 +129,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(RAW_ANOMALY_SCORE.getPreferredName(), rawAnomalyScore);
         builder.field(PROBABILITY.getPreferredName(), probability);
-        builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);

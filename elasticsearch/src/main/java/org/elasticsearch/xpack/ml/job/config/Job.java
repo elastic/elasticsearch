@@ -406,16 +406,20 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     }
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        final String humanReadableSuffix = "_string";
+
         builder.field(ID.getPreferredName(), jobId);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.field(CREATE_TIME.getPreferredName(), createTime.getTime());
+        builder.dateField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
         if (finishedTime != null) {
-            builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());
+            builder.dateField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+                    finishedTime.getTime());
         }
         if (lastDataTime != null) {
-            builder.field(LAST_DATA_TIME.getPreferredName(), lastDataTime.getTime());
+            builder.dateField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + humanReadableSuffix,
+                    lastDataTime.getTime());
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {

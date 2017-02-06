@@ -370,10 +370,12 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         builder.field(MISSING_FIELD_COUNT.getPreferredName(), missingFieldCount);
         builder.field(OUT_OF_ORDER_TIME_COUNT.getPreferredName(), outOfOrderTimeStampCount);
         if (earliestRecordTimeStamp != null) {
-            builder.field(EARLIEST_RECORD_TIME.getPreferredName(), earliestRecordTimeStamp.getTime());
+            builder.dateField(EARLIEST_RECORD_TIME.getPreferredName(), EARLIEST_RECORD_TIME.getPreferredName() + "_string",
+                    earliestRecordTimeStamp.getTime());
         }
         if (latestRecordTimeStamp != null) {
-            builder.field(LATEST_RECORD_TIME.getPreferredName(), latestRecordTimeStamp.getTime());
+            builder.dateField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
+                    latestRecordTimeStamp.getTime());
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
 

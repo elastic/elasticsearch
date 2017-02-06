@@ -323,7 +323,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Cancel all child tasks without cancelling the main task, which should quit on its own
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setParentTaskId(new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()));
+        request.setParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
         CancelTasksResponse response = testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction.execute(request)
             .get();
@@ -339,7 +339,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
                 ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
                     .transportListTasksAction.execute(new ListTasksRequest().setTaskId(
-                        new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()))).get();
+                        new TaskId(testNodes[0].getNodeId(), mainTask.getId()))).get();
                 assertEquals(0, listTasksResponse.getTasks().size());
 
             } catch (ExecutionException | InterruptedException ex) {

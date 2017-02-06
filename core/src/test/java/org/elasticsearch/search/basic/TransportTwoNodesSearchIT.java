@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
-import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -291,7 +290,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             expectedIds.add(Integer.toString(i));
         }
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(100L));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard

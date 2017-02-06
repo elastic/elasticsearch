@@ -59,7 +59,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
-    public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField INDEX_NAME = new ParseField("index_name");
 
@@ -107,7 +106,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
         PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
         PARSER.declareField(Builder::setIgnoreDowntime, (p, c) -> IgnoreDowntime.fromString(p.text()), IGNORE_DOWNTIME, ValueType.STRING);
-        PARSER.declareLong(Builder::setTimeout, TIMEOUT);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareLong(Builder::setBackgroundPersistInterval, BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
@@ -123,7 +121,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final Date createTime;
     private final Date finishedTime;
     private final Date lastDataTime;
-    private final long timeout;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
@@ -137,7 +134,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final String modelSnapshotId;
     private final String indexName;
 
-    public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime, long timeout,
+    public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits,  DataDescription dataDescription,
                ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
                Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
@@ -147,7 +144,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
         }
 
-        checkValueNotLessThan(0, "timeout", timeout);
         checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
         checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
         checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
@@ -171,7 +167,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.createTime = createTime;
         this.finishedTime = finishedTime;
         this.lastDataTime = lastDataTime;
-        this.timeout = timeout;
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
@@ -192,7 +187,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
         lastDataTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-        timeout = in.readVLong();
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
@@ -271,16 +265,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public Date getLastDataTime() {
         return lastDataTime;
-    }
-
-    /**
-     * The job timeout setting in seconds. Jobs are retired if they do not
-     * receive data for this period of time. The default is 600 seconds
-     *
-     * @return The timeout period in seconds
-     */
-    public long getTimeout() {
-        return timeout;
     }
 
     /**
@@ -399,7 +383,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         } else {
             out.writeBoolean(false);
         }
-        out.writeVLong(timeout);
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
@@ -434,7 +417,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (lastDataTime != null) {
             builder.field(LAST_DATA_TIME.getPreferredName(), lastDataTime.getTime());
         }
-        builder.field(TIMEOUT.getPreferredName(), timeout);
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
             builder.field(ANALYSIS_LIMITS.getPreferredName(), analysisLimits, params);
@@ -485,7 +467,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.finishedTime, that.finishedTime)
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
-                && (this.timeout == that.timeout)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelDebugConfig, that.modelDebugConfig)
@@ -501,7 +482,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig,
+        return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, analysisConfig,
                 analysisLimits, dataDescription, modelDebugConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, ignoreDowntime, customSettings,
                 modelSnapshotId, indexName);
@@ -521,8 +502,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public static class Builder {
 
-        public static final long DEFAULT_TIMEOUT = 600;
-
         private String id;
         private String description;
 
@@ -532,7 +511,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Date createTime;
         private Date finishedTime;
         private Date lastDataTime;
-        private Long timeout = DEFAULT_TIMEOUT;
         private ModelDebugConfig modelDebugConfig;
         private Long renormalizationWindowDays;
         private Long backgroundPersistInterval;
@@ -558,7 +536,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
             this.lastDataTime = job.getLastDataTime();
-            this.timeout = job.getTimeout();
             this.modelDebugConfig = job.getModelDebugConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
@@ -599,10 +576,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 }
             }
             this.analysisLimits = analysisLimits;
-        }
-
-        public void setTimeout(Long timeout) {
-            this.timeout = timeout;
         }
 
         public void setCreateTime(Date createTime) {
@@ -685,7 +658,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             }
 
             return new Job(
-                    id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
+                    id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
                     dataDescription, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     indexName

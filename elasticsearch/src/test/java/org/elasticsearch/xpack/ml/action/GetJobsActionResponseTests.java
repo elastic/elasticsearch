@@ -52,7 +52,7 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
             String indexName = randomBoolean() ? "index" + j : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
-                    timeout, analysisConfig, analysisLimits, dataDescription,
+                    analysisConfig, analysisLimits, dataDescription,
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId, indexName);
 

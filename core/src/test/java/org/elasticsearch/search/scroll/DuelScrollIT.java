@@ -256,16 +256,9 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
     }
 
-    public void testDuelIndexOrderQueryAndFetch() throws Exception {
-        final SearchType searchType = SearchType.QUERY_AND_FETCH;
-        // QUERY_AND_FETCH only works with a single shard
-        final int numDocs = createIndex(true);
-        testDuelIndexOrder(searchType, false, numDocs);
-        testDuelIndexOrder(searchType, true, numDocs);
-    }
-
     public void testDuelIndexOrderQueryThenFetch() throws Exception {
-        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH));
+        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH,
+            SearchType.DFS_QUERY_THEN_FETCH));
         final int numDocs = createIndex(false);
         testDuelIndexOrder(searchType, false, numDocs);
         testDuelIndexOrder(searchType, true, numDocs);

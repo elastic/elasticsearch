@@ -39,12 +39,12 @@ import java.util.Map;
 
 public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    final ValuesSource.Numeric valuesSource;
-    final DocValueFormat format;
+    private final ValuesSource.Numeric valuesSource;
+    private final DocValueFormat format;
 
-    DoubleArray sums;
+    private DoubleArray sums;
 
-    public SumAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
+    SumAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;

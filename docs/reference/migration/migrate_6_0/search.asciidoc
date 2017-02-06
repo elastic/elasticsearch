@@ -35,6 +35,9 @@
   a regex as `max_determinized_states` instead of the typo
   `max_determined_states`.
 
+* The `query_string` query no longer accepts `enable_position_increment`, use
+  `enable_position_increments` instead.
+
 * For `geo_distance` queries, sorting, and aggregations the `sloppy_arc` option
   has been removed from the `distance_type` parameter.
 

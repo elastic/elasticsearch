@@ -34,7 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -235,7 +235,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             }
         }
 
-        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+        if (!(fieldType instanceof GeoPointFieldType)) {
             throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
         }
 

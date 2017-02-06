@@ -34,7 +34,13 @@ The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
 as they could cause undesired results when their values differed from their
 defaults.
 
-=== `timestamp` and `ttl` in index requests
+==== `timestamp` and `ttl` in index requests
 
 `timestamp` and `ttl` are not accepted anymore as parameters of index/update
 requests.
+
+==== Refresh requests with one or more shard failures return HTTP 500 response instead of 200
+
+Refresh requests that are broadcast to multiple shards that can have one or more
+shards fail during the request now return a 500 response instead of a 200
+response in the event there is at least one failure.

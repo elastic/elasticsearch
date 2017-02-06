@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -51,7 +50,6 @@ import org.elasticsearch.transport.Transport;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -137,7 +135,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 final Transport.Connection connection = nodeIdToConnection.apply(shard.currentNodeId());
                 AliasFilter filter = this.aliasFilter.get(shard.index().getUUID());
                 assert filter != null;
-
                 float indexBoost = concreteIndexBoosts.getOrDefault(shard.index().getUUID(), DEFAULT_INDEX_BOOST);
                 ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
                     filter, indexBoost, startTime());
@@ -440,39 +437,45 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         public void run() throws Exception {
             final boolean isScrollRequest = request.scroll() != null;
             ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-            final IntConsumer finishPhase =  successOpts
-                -> sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, fetchResults);
-            if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
-                queryResults.asList().stream()
-                    .map(e -> e.value.queryResult())
-                    .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
-                finishPhase.accept(successfulOps.get());
+            if (queryResults.length() == 1) {
+                assert queryResults.get(0) == null || queryResults.get(0).fetchResult() != null;
+                // query AND fetch optimization
+                sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, queryResults);
             } else {
-                final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
-                    searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
-                    : null;
-                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
-                    docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                    finishPhase);
-                for (int i = 0; i < docIdsToLoad.length; i++) {
-                    IntArrayList entry = docIdsToLoad[i];
-                    QuerySearchResultProvider queryResult = queryResults.get(i);
-                    if (entry == null) { // no results for this shard ID
-                        if (queryResult != null) {
-                            // if we got some hits from this shard we have to release the context there
-                            // we do this as we go since it will free up resources and passing on the request on the
-                            // transport layer is cheap.
-                            releaseIrrelevantSearchContext(queryResult.queryResult());
+                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
+                final IntConsumer finishPhase = successOpts
+                    -> sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, fetchResults);
+                if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+                    queryResults.asList().stream()
+                        .map(e -> e.value.queryResult())
+                        .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
+                    finishPhase.accept(successfulOps.get());
+                } else {
+                    final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
+                        searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
+                        : null;
+                    final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
+                        docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
+                        finishPhase);
+                    for (int i = 0; i < docIdsToLoad.length; i++) {
+                        IntArrayList entry = docIdsToLoad[i];
+                        QuerySearchResultProvider queryResult = queryResults.get(i);
+                        if (entry == null) { // no results for this shard ID
+                            if (queryResult != null) {
+                                // if we got some hits from this shard we have to release the context there
+                                // we do this as we go since it will free up resources and passing on the request on the
+                                // transport layer is cheap.
+                                releaseIrrelevantSearchContext(queryResult.queryResult());
+                            }
+                            // in any case we count down this result since we don't talk to this shard anymore
+                            counter.countDown();
+                        } else {
+                            Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
+                            ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
+                                lastEmittedDocPerShard);
+                            executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
+                                connection);
                         }
-                        // in any case we count down this result since we don't talk to this shard anymore
-                        counter.countDown();
-                    } else {
-                        Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                        ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
-                            lastEmittedDocPerShard);
-                        executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
-                            connection);
                     }
                 }
             }
@@ -529,16 +532,14 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
      */
     final void sendResponseAsync(String phase, SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
                                   AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-                                  AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+                                  AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
         getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
                 final boolean isScrollRequest = request.scroll() != null;
-                final ScoreDoc[] theScoreDocs = sortedDocs == null ? searchPhaseController.sortDocs(isScrollRequest, queryResultsArr)
-                    : sortedDocs;
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, theScoreDocs, queryResultsArr,
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, queryResultsArr,
                     fetchResultsArr);
-                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), queryResultsArr) : null;
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(queryResultsArr) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
             }

@@ -80,10 +80,10 @@ public class Build {
         return Build.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
-    private String shortHash;
-    private String date;
+    private final String shortHash;
+    private final String date;
 
-    Build(String shortHash, String date, boolean isSnapshot) {
+    public Build(String shortHash, String date, boolean isSnapshot) {
         this.shortHash = shortHash;
         this.date = date;
         this.isSnapshot = isSnapshot;

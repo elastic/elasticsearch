@@ -535,7 +535,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10 states"));
     }
 
-    public void testToQueryFuzzyQueryAutoFuzziness() throws Exception {
+    /**
+     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
+     */
+    public void testEnabledPositionIncrements() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject(); {
+            builder.startObject("query_string"); {
+                builder.field("query", "text");
+                builder.field("default_field", STRING_FIELD_NAME);
+                builder.field("enable_position_increments", false);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) new QueryParseContext(createParser(builder))
+                .parseInnerQueryBuilder();
+        assertFalse(queryBuilder.enablePositionIncrements());
+    }
+
+    public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         int length = randomIntBetween(1, 10);
@@ -809,7 +831,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"auto_generate_phrase_queries\" : false,\n" +
                 "    \"max_determinized_states\" : 10000,\n" +
-                "    \"enable_position_increment\" : true,\n" +
+                "    \"enable_position_increments\" : true,\n" +
                 "    \"fuzziness\" : \"AUTO\",\n" +
                 "    \"fuzzy_prefix_length\" : 0,\n" +
                 "    \"fuzzy_max_expansions\" : 50,\n" +

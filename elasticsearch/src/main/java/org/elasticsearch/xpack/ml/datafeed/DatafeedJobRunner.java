@@ -12,6 +12,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
@@ -39,6 +40,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class DatafeedJobRunner extends AbstractComponent {
+
+    private static final String INF_SYMBOL = "\u221E";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -80,7 +83,9 @@ public class DatafeedJobRunner extends AbstractComponent {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        logger.info("Starting datafeed [{}] for job [{}]", holder.datafeed.getId(), holder.datafeed.getJobId());
+        logger.info("Starting datafeed [{}] for job [{}] in [{}, {})", holder.datafeed.getId(), holder.datafeed.getJobId(),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(startTime),
+                endTime == null ? INF_SYMBOL : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(endTime));
         holder.future = threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
             Long next = null;
             try {

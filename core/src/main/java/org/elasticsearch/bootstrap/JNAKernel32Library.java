@@ -155,7 +155,9 @@ final class JNAKernel32Library {
 
     public static class SizeT extends IntegerType {
 
-        SizeT() {
+        // JNA requires this no-arg constructor to be public,
+        // otherwise it fails to register kernel32 library
+        public SizeT() {
             this(0);
         }
 

@@ -127,7 +127,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testStructuredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
@@ -143,7 +143,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testStructuredAnalysisWithIncludeExclude() throws Exception {
         long[] excludeTerms = { MUSIC_CATEGORY };
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "paul"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
@@ -223,7 +223,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
@@ -237,7 +237,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testTextAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint())
@@ -251,7 +251,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testTextAnalysisGND() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new GND(true))
@@ -265,7 +265,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testTextAnalysisChiSquare() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new ChiSquare(false,true))
@@ -280,7 +280,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void testTextAnalysisPercentageScore() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0)
                 .setSize(60)
@@ -299,7 +299,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         // We search for the name of a snowboarder but use music-related content (fact_category:1)
         // as the background source of term statistics.
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
@@ -323,7 +323,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testFilteredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "weller"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
@@ -348,7 +348,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 { "paul", "smith" },
                 { "craig", "kelly", "terje", "haakonsen", "burton" }};
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(terms("myCategories").field("fact_category").minDocCount(2)
                         .subAggregation(
                                    significantTerms("mySignificantTerms").field("description")
@@ -373,7 +373,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms").field("description")
@@ -388,7 +388,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(boolQuery().should(termQuery("description", "the")).should(termQuery("description", "terje")))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")
@@ -425,7 +425,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testDefaultSignificanceHeuristic() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")
@@ -442,7 +442,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
 
     public void testMutualInformation() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("description", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(significantTerms("mySignificantTerms")

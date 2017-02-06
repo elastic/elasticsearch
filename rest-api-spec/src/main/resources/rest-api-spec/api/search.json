@@ -76,10 +76,6 @@
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
         },
-        "prefixed_name": {
-          "type" : "boolean",
-          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
-        },
         "q": {
           "type" : "string",
           "description" : "Query in the Lucene query string syntax"
@@ -150,6 +146,10 @@
         "track_scores": {
           "type" : "boolean",
           "description": "Whether to calculate and return scores even if they are not used for sorting"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
         },
         "version": {
           "type" : "boolean",

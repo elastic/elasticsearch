@@ -54,7 +54,7 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("prefixed_name");
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("typed_keys");
 
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);

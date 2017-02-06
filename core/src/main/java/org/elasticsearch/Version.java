@@ -113,9 +113,9 @@ public class Version {
     public static final int V_5_2_0_ID_UNRELEASED = 5020099;
     public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
     public static final int V_5_2_1_ID_UNRELEASED = 5020199;
-    public static final Version V_5_2_1_UNRELEASED = new Version(V_5_2_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
+    public static final Version V_5_2_1_UNRELEASED = new Version(V_5_2_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
     public static final int V_5_3_0_ID_UNRELEASED = 5030099;
-    public static final Version V_5_3_0_UNRELEASED = new Version(V_5_3_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_0);
+    public static final Version V_5_3_0_UNRELEASED = new Version(V_5_3_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_4_1);
     public static final Version CURRENT = V_5_3_0_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)

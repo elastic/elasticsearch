@@ -237,6 +237,16 @@
                   "type": "long"
                 }
               }
+            },
+            "queue": {
+              "properties": {
+                "events_count": {
+                  "type": "long"
+                },
+                "type": {
+                  "type": "keyword"
+                }
+              }
             }
           }
         }

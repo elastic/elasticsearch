@@ -32,12 +32,8 @@ import com.vividsolutions.jts.geom.MultiLineString;
 import com.vividsolutions.jts.geom.MultiPoint;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.hamcrest.Matcher;
 import org.junit.Assert;
 
 import java.util.Arrays;
@@ -238,20 +234,6 @@ public class ElasticsearchGeoAssertions {
 
     public static void assertMultiLineString(Shape shape) {
         assert(unwrap(shape) instanceof MultiLineString): "expected MultiLineString but found " + unwrap(shape).getClass().getName();
-    }
-
-    public static void assertDistance(String geohash1, String geohash2, Matcher<Double> match) {
-        GeoPoint p1 = new GeoPoint(geohash1);
-        GeoPoint p2 = new GeoPoint(geohash2);
-        assertDistance(p1.lat(), p1.lon(), p2.lat(),p2.lon(), match);
-    }
-
-    public static void assertDistance(double lat1, double lon1, double lat2, double lon2, Matcher<Double> match) {
-        assertThat(distance(lat1, lon1, lat2, lon2), match);
-    }
-
-    private static double distance(double lat1, double lon1, double lat2, double lon2) {
-        return GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.DEFAULT);
     }
 
     public static void assertValidException(XContentParser parser, Class expectedException) {

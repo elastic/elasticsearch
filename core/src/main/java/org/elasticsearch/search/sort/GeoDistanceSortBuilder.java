@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,14 +68,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final GeoValidationMethod DEFAULT_VALIDATION = GeoValidationMethod.DEFAULT;
 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
 
-    private GeoDistance geoDistance = GeoDistance.ARC;
     private DistanceUnit unit = DistanceUnit.DEFAULT;
 
     private SortMode sortMode = null;
@@ -133,7 +130,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     GeoDistanceSortBuilder(GeoDistanceSortBuilder original) {
         this.fieldName = original.fieldName();
         this.points.addAll(original.points);
-        this.geoDistance = original.geoDistance;
         this.unit = original.unit;
         this.order = original.order;
         this.sortMode = original.sortMode;
@@ -149,7 +145,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public GeoDistanceSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
         points.addAll((List<GeoPoint>) in.readGenericValue());
-        geoDistance = GeoDistance.readFromStream(in);
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
@@ -162,7 +157,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(points);
-        geoDistance.writeTo(out);
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
@@ -217,21 +211,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             this.points.add(GeoPoint.fromGeohash(geohash));
         }
         return this;
-    }
-
-    /**
-     * The geo distance type used to compute the distance.
-     */
-    public GeoDistanceSortBuilder geoDistance(GeoDistance geoDistance) {
-        this.geoDistance = geoDistance;
-        return this;
-    }
-
-    /**
-     * Returns the geo distance type used to compute the distance.
-     */
-    public GeoDistance geoDistance() {
-        return this.geoDistance;
     }
 
     /**
@@ -328,7 +307,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         builder.endArray();
 
         builder.field(UNIT_FIELD.getPreferredName(), unit);
-        builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field(ORDER_FIELD.getPreferredName(), order);
 
         if (sortMode != null) {
@@ -366,7 +344,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistanceSortBuilder other = (GeoDistanceSortBuilder) object;
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.deepEquals(points, other.points) &&
-                Objects.equals(geoDistance, other.geoDistance) &&
                 Objects.equals(unit, other.unit) &&
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(order, other.order) &&
@@ -377,7 +354,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.fieldName, this.points, this.geoDistance,
+        return Objects.hash(this.fieldName, this.points,
                 this.unit, this.sortMode, this.order, this.nestedFilter,
                 this.nestedPath, this.validation);
     }
@@ -397,7 +374,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
-        GeoDistance geoDistance = GeoDistance.ARC;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
         QueryBuilder nestedFilter = null;
@@ -435,8 +411,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     order = SortOrder.fromString(parser.text());
                 } else if (UNIT_FIELD.match(currentName)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (DISTANCE_TYPE_FIELD.match(currentName)) {
-                    geoDistance = GeoDistance.fromString(parser.text());
                 } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
                     validation = GeoValidationMethod.fromString(parser.text());
                 } else if (SORTMODE_FIELD.match(currentName)) {
@@ -472,7 +446,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         }
 
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(fieldName, geoPoints.toArray(new GeoPoint[geoPoints.size()]));
-        result.geoDistance(geoDistance);
         result.unit(unit);
         result.order(order);
         if (sortMode != null) {
@@ -558,8 +531,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
                         throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
-                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit,
-                            geoPointValues, localPoints);
+                        final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(unit, geoPointValues, localPoints);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);

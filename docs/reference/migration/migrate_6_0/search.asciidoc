@@ -38,8 +38,8 @@
 * The `query_string` query no longer accepts `enable_position_increment`, use
   `enable_position_increments` instead.
 
-* For `geo_distance` queries, sorting, and aggregations the `sloppy_arc` option
-  has been removed from the `distance_type` parameter.
+* For `geo_distance` queries, sorting, and aggregations the `distance_type` parameter, which
+  was deprecated in 5.0, has been removed.
 
 * The `geo_distance_range` query, which was deprecated in 5.0, has been removed.
 

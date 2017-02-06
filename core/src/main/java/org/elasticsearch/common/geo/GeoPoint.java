@@ -25,6 +25,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.util.Arrays;
 
@@ -183,5 +184,13 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
+    }
+
+    public double distanceFrom(GeoPoint other) {
+        return GeoUtils.arcDistance(lat, lon, other.lat, other.lon);
+    }
+
+    public double distanceFrom(GeoPoint other, DistanceUnit units) {
+        return DistanceUnit.convert(GeoUtils.arcDistance(lat, lon, other.lat, other.lon), DistanceUnit.METERS, units);
     }
 }

@@ -24,7 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -329,8 +328,6 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
 
-        private static final GeoDistance distFunction = GeoDistance.ARC;
-
         GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
@@ -360,8 +357,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 @Override
                 public double nextValue() throws IOException {
                     GeoPoint other = geoPointValues.nextValue();
-                    return Math.max(0.0d,
-                            distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
+                    return Math.max(0.0d, origin.distanceFrom(other));
                 }
             }, 0.0);
         }

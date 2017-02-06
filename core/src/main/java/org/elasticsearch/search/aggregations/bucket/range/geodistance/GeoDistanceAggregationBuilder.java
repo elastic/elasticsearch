@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +51,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final String NAME = "geo_distance";
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
-    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
     private static final ObjectParser<GeoDistanceAggregationBuilder, QueryParseContext> PARSER;
     static {
@@ -69,9 +67,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
         PARSER.declareField(GeoDistanceAggregationBuilder::unit, p -> DistanceUnit.fromString(p.text()),
                 UNIT_FIELD, ObjectParser.ValueType.STRING);
-
-        PARSER.declareField(GeoDistanceAggregationBuilder::distanceType, p -> GeoDistance.fromString(p.text()),
-                DISTANCE_TYPE_FIELD, ObjectParser.ValueType.STRING);
 
         PARSER.declareField(GeoDistanceAggregationBuilder::origin, GeoDistanceAggregationBuilder::parseGeoPoint,
                 ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
@@ -201,7 +196,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
-    private GeoDistance distanceType = GeoDistance.ARC;
     private boolean keyed = false;
 
     public GeoDistanceAggregationBuilder(String name, GeoPoint origin) {
@@ -229,7 +223,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             ranges.add(new Range(in));
         }
         keyed = in.readBoolean();
-        distanceType = GeoDistance.readFromStream(in);
         unit = DistanceUnit.readFromStream(in);
     }
 
@@ -259,7 +252,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             range.writeTo(out);
         }
         out.writeBoolean(keyed);
-        distanceType.writeTo(out);
         unit.writeTo(out);
     }
 
@@ -358,18 +350,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return unit;
     }
 
-    public GeoDistanceAggregationBuilder distanceType(GeoDistance distanceType) {
-        if (distanceType == null) {
-            throw new IllegalArgumentException("[distanceType] must not be null: [" + name + "]");
-        }
-        this.distanceType = distanceType;
-        return this;
-    }
-
-    public GeoDistance distanceType() {
-        return distanceType;
-    }
-
     public GeoDistanceAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
@@ -387,7 +367,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, context, parent,
+        return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, keyed, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -397,13 +377,12 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         builder.field(RangeAggregator.RANGES_FIELD.getPreferredName(), ranges);
         builder.field(RangeAggregator.KEYED_FIELD.getPreferredName(), keyed);
         builder.field(UNIT_FIELD.getPreferredName(), unit);
-        builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), distanceType);
         return builder;
     }
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(origin, ranges, keyed, distanceType, unit);
+        return Objects.hash(origin, ranges, keyed, unit);
     }
 
     @Override
@@ -412,7 +391,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return Objects.equals(origin, other.origin)
                 && Objects.equals(ranges, other.ranges)
                 && Objects.equals(keyed, other.keyed)
-                && Objects.equals(distanceType, other.distanceType)
                 && Objects.equals(unit, other.unit);
     }
 

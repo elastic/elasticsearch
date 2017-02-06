@@ -169,7 +169,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.deleteJob(request, client, (JobStorageDeletionTask) task, taskManager, listener);
+            jobManager.deleteJob(request, client, (JobStorageDeletionTask) task, listener);
         }
 
         @Override

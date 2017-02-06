@@ -96,6 +96,7 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
     fi
     echo "Checking out Elasticsearch '$BRANCH' branch..."
     git clone -b $BRANCH https://github.com/elastic/elasticsearch.git --depth=1
+    printf "Checked out Elasticsearch revision: %s\n" "$(git -C elasticsearch rev-parse HEAD)"
 else
     if [ -d "./elasticsearch" ]; then
         echo "Using existing 'elasticsearch' checkout"

@@ -63,25 +63,6 @@ public abstract class ValuesSource {
 
     public static abstract class Bytes extends ValuesSource {
 
-        public static final WithOrdinals EMPTY = new WithOrdinals() {
-
-            @Override
-            public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
-                return DocValues.emptySortedSet();
-            }
-
-            @Override
-            public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
-                return DocValues.emptySortedSet();
-            }
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
-            }
-
-        };
-
         @Override
         public Bits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
@@ -93,6 +74,25 @@ public abstract class ValuesSource {
         }
 
         public static abstract class WithOrdinals extends Bytes {
+
+            public static final WithOrdinals EMPTY = new WithOrdinals() {
+
+                @Override
+                public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
+                    return DocValues.emptySortedSet();
+                }
+
+                @Override
+                public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
+                    return DocValues.emptySortedSet();
+                }
+
+                @Override
+                public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                    return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary(context.reader().maxDoc());
+                }
+
+            };
 
             @Override
             public Bits docsWithValue(LeafReaderContext context) {

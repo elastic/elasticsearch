@@ -50,7 +50,8 @@ public interface RestHandler {
 
     /**
      * Indicates if the RestHandler supports content as a stream. A stream would be multiple objects delineated by
-     * {@link XContent#streamSeparator()}
+     * {@link XContent#streamSeparator()}. If a handler returns true this will affect the types of content that can be sent to
+     * this endpoint.
      */
     default boolean supportsContentStream() {
         return false;

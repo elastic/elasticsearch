@@ -180,6 +180,10 @@ public class RestController extends AbstractComponent {
 
             if (contentLength > 0 && hasContentTypeOrCanAutoDetect(request, handler) == false) {
                 sendContentTypeErrorMessage(request, responseChannel);
+            } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
+                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
+                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(RestStatus.NOT_ACCEPTABLE, "Content-Type [" +
+                    request.getXContentType() + "] does not support stream parsing. Use JSON or SMILE instead"));
             } else {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");

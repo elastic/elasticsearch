@@ -199,7 +199,10 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                simulateDisconnect(node, original, "DISCONNECT: simulated");
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                }
             }
 
             @Override
@@ -276,7 +279,10 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                simulateDisconnect(node, original, "UNRESPONSIVE: simulated");
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                }
             }
 
             @Override
@@ -318,6 +324,10 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+                if (original.nodeConnected(node)) {
+                    // connecting to an already connected node is a no-op
+                    return;
+                }
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNode(node, connectionProfile);
@@ -332,10 +342,10 @@ public final class MockTransportService extends TransportService {
                         original.connectToNode(node, connectionProfile);
                     } else {
                         Thread.sleep(connectingTimeout.millis());
-                        simulateDisconnect(node, original, "UNRESPONSIVE: simulated");
+                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                     }
                 } catch (InterruptedException e) {
-                    simulateDisconnect(node, original, "UNRESPONSIVE: interrupted while sleeping", e);
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                 }
             }
 

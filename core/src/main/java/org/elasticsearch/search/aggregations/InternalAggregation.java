@@ -150,18 +150,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     /**
-     * Returns the name of the aggregation preceded by a prefix that uniquely
-     * identifies its type. This prefix can later be used by REST clients to
-     * determine the internal type of the aggregation.
+     * Returns a string representing the type of the aggregation. This type is added to
+     * the aggregation name in the response, so that it can later be used by REST clients
+     * to determine the internal type of the aggregation.
      */
-    protected String getPrefixedName() {
-        return String.join(":", getWriteableName(), getName());
+    protected String getType() {
+        return getWriteableName();
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(params.paramAsBoolean("prefixed_name", false) ? getPrefixedName() : getName());
-        builder.startObject();
+        // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+        String name = params.paramAsBoolean("typed_keys", false) ? String.join("#", getType(), getName()) : getName();
+        builder.startObject(name);
         if (this.metaData != null) {
             builder.field(CommonFields.META);
             builder.map(this.metaData);

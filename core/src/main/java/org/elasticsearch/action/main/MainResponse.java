@@ -118,7 +118,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return builder;
     }
 
-    private final static ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(),
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
             () -> new MainResponse());
 
     static {

@@ -126,12 +126,12 @@ public class ClusterServiceTests extends ESTestCase {
             threadPool, () -> new DiscoveryNode("node1",  LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 // skip
             }
         });
@@ -1058,12 +1058,12 @@ public class ClusterServiceTests extends ESTestCase {
         Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 discoveryNodes.forEach(currentNodes::add);
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 Set<DiscoveryNode> nodeSet = new HashSet<>();
                 nodesToKeep.iterator().forEachRemaining(nodeSet::add);
                 currentNodes.removeIf(node -> nodeSet.contains(node) == false);

@@ -434,7 +434,7 @@ public final class MockTransportService extends TransportService {
      * simulates a disconnect by disconnecting from the underlying transport and throwing a
      * {@link ConnectTransportException}
      */
-    private void simulateDisconnect(DiscoveryNode node,Transport transport, String reason) {
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason) {
         simulateDisconnect(node, transport, reason, null);
     }
 
@@ -452,7 +452,7 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * simulates a disconnect by closing the connection and and throwing a
+     * simulates a disconnect by closing the connection and throwing a
      * {@link ConnectTransportException}
      */
     private void simulateDisconnect(Transport.Connection connection, Transport transport, String reason) throws IOException {

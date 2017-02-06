@@ -237,13 +237,16 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                }
             }
 
             @Override
             protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                        TransportRequestOptions options) throws IOException {
-                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
+                simulateDisconnect(connection, original, "DISCONNECT: simulated");
             }
         });
     }
@@ -288,7 +291,7 @@ public final class MockTransportService extends TransportService {
                                        TransportRequestOptions options) throws IOException {
                 if (blockedActions.contains(action)) {
                     logger.info("--> preventing {} request", action);
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                    simulateDisconnect(connection, original, "DISCONNECT: prevented " + action + " request");
                 }
                 connection.sendRequest(requestId, action, request, options);
             }
@@ -314,7 +317,10 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                }
             }
 
             @Override
@@ -356,6 +362,10 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+                if (original.nodeConnected(node)) {
+                    // connecting to an already connected node is a no-op
+                    return;
+                }
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNode(node, connectionProfile);
@@ -373,7 +383,7 @@ public final class MockTransportService extends TransportService {
                         throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                     }
                 } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                 }
             }
 
@@ -457,6 +467,37 @@ public final class MockTransportService extends TransportService {
     private LookupTestTransport transport() {
         return (LookupTestTransport) transport;
     }
+
+    /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason) {
+        simulateDisconnect(node, transport, reason, null);
+    }
+
+    /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}, due to a specific cause exception
+     */
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason, @Nullable Throwable e) {
+        if (transport.nodeConnected(node)) {
+            // this a connected node, disconnecting from it will be up the exception
+            transport.disconnectFromNode(node);
+        } else {
+            throw new ConnectTransportException(node, reason, e);
+        }
+    }
+
+    /**
+     * simulates a disconnect by closing the connection and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(Transport.Connection connection, Transport transport, String reason) throws IOException {
+        connection.close();
+        simulateDisconnect(connection.getNode(), transport, reason);
+    }
+
 
     /**
      * A lookup transport that has a list of potential Transport implementations to delegate to for node operations,

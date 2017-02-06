@@ -408,7 +408,7 @@ public class TransportService extends AbstractLifecycleComponent {
         HandshakeResponse() {
         }
 
-        HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
+        public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
             this.discoveryNode = discoveryNode;
             this.version = version;
             this.clusterName = clusterName;

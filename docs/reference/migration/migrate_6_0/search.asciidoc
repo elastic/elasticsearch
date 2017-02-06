@@ -35,6 +35,19 @@
   a regex as `max_determinized_states` instead of the typo
   `max_determined_states`.
 
+* The `query_string` query no longer accepts `enable_position_increment`, use
+  `enable_position_increments` instead.
+
+* For `geo_distance` queries, sorting, and aggregations the `sloppy_arc` option
+  has been removed from the `distance_type` parameter.
+
+* The `geo_distance_range` query, which was deprecated in 5.0, has been removed.
+
+* The `optimize_bbox` parameter has been removed from `geo_distance` queries.
+
+* The `ignore_malformed` and `coerce` parameters have been removed from
+  `geo_bounding_box`, `geo_polygon`, and `geo_distance` queries.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't
@@ -45,3 +58,30 @@ have any effect in previous versions.
 * The `"time"` field showing human readable timing output has been replaced by the `"time_in_nanos"`
   field which displays the elapsed time in nanoseconds. The `"time"` field can be turned on by adding
   `"?human=true"` to the request url. It will display a rounded, human readable time value.
+
+==== Scoring changes
+
+===== Query normalization
+
+Query normalization has been removed. This means that the TF-IDF similarity no
+longer tries to make scores comparable across queries and that boosts are now
+integrated into scores as simple multiplicative factors.
+
+Other similarities are not affected as they did not normalize scores and
+already integrated boosts into scores as multiplicative factors.
+
+See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
+information.
+
+===== Coordination factors
+
+Coordination factors have been removed from the scoring formula. This means that
+boolean queries no longer score based on the number of matching clauses.
+Instead, they always return the sum of the scores of the matching clauses.
+
+As a consequence, use of the TF-IDF similarity is now discouraged as this was
+an important component of the quality of the scores that this similarity
+produces. BM25 is recommended instead.
+
+See https://issues.apache.org/jira/browse/LUCENE-7347[`LUCENE-7347`] for more
+information.

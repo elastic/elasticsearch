@@ -21,6 +21,12 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -46,7 +52,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -63,10 +69,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         if (request.getSlices() > 1) {
-            ReindexParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE, clusterService.localNode().getId(),
-                    (ParentBulkByScrollTask) task, request, listener);
+            BulkByScrollParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE,
+                    clusterService.localNode().getId(), (ParentBulkByScrollTask) task, request, listener);
         } else {
             ClusterState state = clusterService.state();
             ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
@@ -76,7 +82,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         throw new UnsupportedOperationException("task required");
     }
 
@@ -84,9 +90,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
-        public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
-                ActionListener<BulkIndexByScrollResponse> listener) {
+                ActionListener<BulkByScrollResponse> listener) {
             super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
         }
 
@@ -100,7 +106,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());

@@ -51,6 +51,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -401,10 +402,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        return innerFromXContent(parser);
+        return innerFromXContent(parser, false);
     }
 
-    private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
+    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -412,6 +413,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
+        List<ElasticsearchException> rootCauses = new ArrayList<>();
 
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             String currentFieldName = parser.currentName();
@@ -459,35 +461,32 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                // Parse the array and add each item to the corresponding list of metadata.
-                // Arrays of objects are not supported yet and just ignored and skipped.
-                List<String> values = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        values.add(parser.text());
-                    } else {
-                        parser.skipChildren();
+                if (parseRootCauses && ROOT_CAUSE.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rootCauses.add(fromXContent(parser));
                     }
-                }
-                if (values.size() > 0) {
-                    if (metadata.containsKey(currentFieldName)) {
-                        values.addAll(metadata.get(currentFieldName));
+                } else {
+                    // Parse the array and add each item to the corresponding list of metadata.
+                    // Arrays of objects are not supported yet and just ignored and skipped.
+                    List<String> values = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            values.add(parser.text());
+                        } else {
+                            parser.skipChildren();
+                        }
                     }
-                    metadata.put(currentFieldName, values);
+                    if (values.size() > 0) {
+                        if (metadata.containsKey(currentFieldName)) {
+                            values.addAll(metadata.get(currentFieldName));
+                        }
+                        metadata.put(currentFieldName, values);
+                    }
                 }
             }
         }
 
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-
-        ElasticsearchException e = new ElasticsearchException(message.toString(), cause);
-
+        ElasticsearchException e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
             //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
@@ -499,6 +498,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());
+        }
+
+        // Adds root causes as suppressed exception. This way they are not lost
+        // after parsing and can be retrieved using getSuppressed() method.
+        for (ElasticsearchException rootCause : rootCauses) {
+            e.addSuppressed(rootCause);
         }
         return e;
     }
@@ -527,7 +532,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
      *
-     * This method is usually used when the {@link Exception} is rendered as a full XContent object.
+     * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
+     * by the {@link #failureFromXContent(XContentParser)} method.
      */
     public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
             throws IOException {
@@ -566,6 +572,25 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         builder.endObject();
+    }
+
+    /**
+     * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
+     */
+    public static ElasticsearchException failureFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureFieldName(parser, token, ERROR);
+
+        token = parser.nextToken();
+        if (token.isValue()) {
+            return new ElasticsearchException(buildMessage("exception", parser.text(), null));
+        }
+
+        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        token = parser.nextToken();
+
+        // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.
+        return innerFromXContent(parser, true);
     }
 
     /**
@@ -611,6 +636,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName);
+    }
+
+    static String buildMessage(String type, String reason, String stack) {
+        StringBuilder message = new StringBuilder("Elasticsearch exception [");
+        message.append(TYPE).append('=').append(type).append(", ");
+        message.append(REASON).append('=').append(reason);
+        if (stack != null) {
+            message.append(", ").append(STACK_TRACE).append('=').append(stack);
+        }
+        message.append(']');
+        return message.toString();
     }
 
     @Override

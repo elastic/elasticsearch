@@ -45,7 +45,6 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -365,15 +364,16 @@ public class SearchPhaseController extends AbstractComponent {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public void fillDocIdsToLoad(AtomicArray<IntArrayList> docIdsToLoad, ScoreDoc[] shardDocs) {
+    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad.get(shardDoc.shardIndex);
+            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = new IntArrayList(); // can't be shared!, uses unsafe on it later on
-                docIdsToLoad.set(shardDoc.shardIndex, shardDocIdsToLoad);
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }
+        return docIdsToLoad;
     }
 
     /**
@@ -385,10 +385,10 @@ public class SearchPhaseController extends AbstractComponent {
      */
     public InternalSearchResponse merge(boolean ignoreFrom, ScoreDoc[] sortedDocs,
                                         AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-                                        AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+                                        AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
-        List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
+        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> fetchResults = fetchResultsArr.asList();
 
         if (queryResults.isEmpty()) {
             return InternalSearchResponse.empty();
@@ -442,7 +442,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         // clean the fetch counter
-        for (AtomicArray.Entry<? extends FetchSearchResultProvider> entry : fetchResults) {
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : fetchResults) {
             entry.value.fetchResult().initCounter();
         }
         int from = ignoreFrom ? 0 : firstResult.queryResult().from();
@@ -454,7 +454,7 @@ public class SearchPhaseController extends AbstractComponent {
         if (!fetchResults.isEmpty()) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedDocs[i];
-                FetchSearchResultProvider fetchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
+                QuerySearchResultProvider fetchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
                 if (fetchResultProvider == null) {
                     continue;
                 }
@@ -497,11 +497,11 @@ public class SearchPhaseController extends AbstractComponent {
                         final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
                         for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
                             ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
-                            FetchSearchResultProvider fetchSearchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
-                            if (fetchSearchResultProvider == null) {
+                            QuerySearchResultProvider searchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
+                            if (searchResultProvider == null) {
                                 continue;
                             }
-                            FetchSearchResult fetchResult = fetchSearchResultProvider.fetchResult();
+                            FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                             int fetchResultIndex = fetchResult.counterGetAndIncrement();
                             if (fetchResultIndex < fetchResult.hits().internalHits().length) {
                                 InternalSearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
@@ -563,7 +563,7 @@ public class SearchPhaseController extends AbstractComponent {
     private static int topN(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
         QuerySearchResultProvider firstResult = queryResults.get(0).value;
         int topN = firstResult.queryResult().size();
-        if (firstResult.includeFetch()) {
+        if (firstResult.fetchResult() != null) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             // this is also important since we shortcut and fetch only docs from "from" and up to "size"
             topN *= queryResults.size();

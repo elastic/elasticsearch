@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,7 +60,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0])).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("source", "t1", Integer.toString(i))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
@@ -85,7 +87,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
 
         for (int i = 0; i < 20; i++) { // now update
-            client().prepareIndex("first_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("first_shrink", "t1", Integer.toString(i))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
@@ -113,7 +116,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
 
         for (int i = 0; i < 20; i++) { // now update
-            client().prepareIndex("second_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("second_shrink", "t1", Integer.toString(i))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
@@ -129,7 +133,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put("index.version.created", version)
         ).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3"))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
@@ -164,7 +169,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
 
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("target", randomFrom("t1", "t2", "t3"))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 40);
@@ -181,7 +187,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put("number_of_shards", randomIntBetween(2, 7))
             .put("number_of_replicas", 0)).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3"))
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();

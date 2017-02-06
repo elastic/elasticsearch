@@ -190,7 +190,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         private final String status;
 
-        public TestTaskResponse(StreamInput in) throws IOException {
+        TestTaskResponse(StreamInput in) throws IOException {
             status = in.readString();
         }
 
@@ -199,7 +199,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             out.writeString(status);
         }
 
-        public TestTaskResponse(String status) {
+        TestTaskResponse(String status) {
             this.status = status;
         }
 
@@ -216,11 +216,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         private List<TestTaskResponse> tasks;
 
-        public TestTasksResponse() {
+        TestTasksResponse() {
 
         }
 
-        public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
+        TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
@@ -801,6 +801,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         builder.endObject();
         builder.flush();
         logger.info(builder.string());
-        return XContentHelper.convertToMap(builder.bytes(), false).v2();
+        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
     }
 }

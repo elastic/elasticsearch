@@ -96,6 +96,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.Discovery;
@@ -876,7 +877,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getExcludeSettings(index, n, builder);
         }
         Settings build = builder.build();
-        if (!build.getAsMap().isEmpty()) {
+        if (!build.isEmpty()) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
             client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
         }
@@ -1226,10 +1227,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      * <p>
-     * where source is a String.
+     * where source is a JSON String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1387,7 +1388,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 String id = randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(new Tuple<>(index, id));
-                builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}"));
+                builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}", XContentType.JSON));
             }
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
@@ -1581,7 +1582,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private class LatchedActionListener<Response> implements ActionListener<Response> {
         private final CountDownLatch latch;
 
-        public LatchedActionListener(CountDownLatch latch) {
+        LatchedActionListener(CountDownLatch latch) {
             this.latch = latch;
         }
 
@@ -1609,7 +1610,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         private final CopyOnWriteArrayList<Tuple<T, Exception>> errors;
         private final T builder;
 
-        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
+        PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
             super(latch);
             this.errors = errors;
             this.builder = builder;

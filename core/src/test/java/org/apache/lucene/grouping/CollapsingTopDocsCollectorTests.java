@@ -58,7 +58,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
 
-        public SegmentSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
+        SegmentSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
             this.ctx = Collections.singletonList(ctx);
         }

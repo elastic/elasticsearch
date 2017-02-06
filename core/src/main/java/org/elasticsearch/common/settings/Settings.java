@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -589,7 +589,7 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.getAsMap().size());
+        out.writeVInt(settings.size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
@@ -626,7 +626,12 @@ public final class Settings implements ToXContent {
      * @return <tt>true</tt> if this settings object contains no settings
      */
     public boolean isEmpty() {
-        return this.settings.isEmpty();
+        return this.settings.isEmpty(); // TODO: account for secure settings
+    }
+
+    /** Returns the number of settings in this settings object. */
+    public int size() {
+        return this.settings.size(); // TODO: account for secure settings
     }
 
     /**
@@ -897,6 +902,9 @@ public final class Settings implements ToXContent {
         public Builder put(Settings settings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
+            if (settings.getSecureSettings() != null) {
+                setSecureSettings(settings.getSecureSettings());
+            }
             return this;
         }
 
@@ -953,7 +961,9 @@ public final class Settings implements ToXContent {
         /**
          * Loads settings from the actual string content that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * @deprecated use {@link #loadFromSource(String, XContentType)} to avoid content type detection
          */
+        @Deprecated
         public Builder loadFromSource(String source) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
             try {
@@ -966,8 +976,23 @@ public final class Settings implements ToXContent {
         }
 
         /**
+         * Loads settings from the actual string content that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromXContentType(XContentType)} method to obtain a loader
+         */
+        public Builder loadFromSource(String source, XContentType xContentType) {
+            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromXContentType(xContentType);
+            try {
+                Map<String, String> loadedSettings = settingsLoader.load(source);
+                put(loadedSettings);
+            } catch (Exception e) {
+                throw new SettingsException("Failed to load settings from [" + source + "]", e);
+            }
+            return this;
+        }
+
+        /**
          * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
          */
         public Builder loadFromPath(Path path) throws IOException {
             // NOTE: loadFromStream will close the input stream
@@ -976,7 +1001,7 @@ public final class Settings implements ToXContent {
 
         /**
          * Loads settings from a stream that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         * {@link SettingsLoaderFactory#loaderFromResource(String)}.
          */
         public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);

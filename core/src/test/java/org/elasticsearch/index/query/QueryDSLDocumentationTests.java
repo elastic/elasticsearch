@@ -146,7 +146,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         geoDistanceQuery("pin.location")
             .point(40, -70)
             .distance(200, DistanceUnit.KILOMETERS)
-            .optimizeBbox("memory")                     // TODO switch to geoexectype see also bounding box
             .geoDistance(GeoDistance.ARC);
     }
 

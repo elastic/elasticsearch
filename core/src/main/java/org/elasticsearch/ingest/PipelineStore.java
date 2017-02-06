@@ -162,7 +162,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
         List<IllegalArgumentException> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
@@ -185,7 +185,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))

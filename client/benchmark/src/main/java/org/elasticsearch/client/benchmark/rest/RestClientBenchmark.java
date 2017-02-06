@@ -73,7 +73,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
         private final RestClient client;
         private final String actionMetaData;
 
-        public RestBulkRequestExecutor(RestClient client, String index, String type) {
+        RestBulkRequestExecutor(RestClient client, String index, String type) {
             this.client = client;
             this.actionMetaData = String.format(Locale.ROOT, "{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }%n", index, type);
         }

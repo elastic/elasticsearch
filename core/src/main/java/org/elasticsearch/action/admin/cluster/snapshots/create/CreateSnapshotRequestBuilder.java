@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -147,9 +148,25 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      *
      * @param source repository-specific snapshot settings
      * @return this builder
+     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public CreateSnapshotRequestBuilder setSettings(String source) {
         request.settings(source);
+        return this;
+    }
+
+    /**
+     * Sets repository-specific snapshot settings in YAML or JSON format
+     * <p>
+     * See repository documentation for more information.
+     *
+     * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
+     * @return this builder
+     */
+    public CreateSnapshotRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 

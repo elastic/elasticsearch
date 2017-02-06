@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.script.ScriptService;
 
@@ -28,7 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public class UpdateByQueryWithScriptTests
-        extends AbstractAsyncBulkByScrollActionScriptTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        extends AbstractAsyncBulkByScrollActionScriptTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
 
     public void testModifyingCtxNotAllowed() {
         /*

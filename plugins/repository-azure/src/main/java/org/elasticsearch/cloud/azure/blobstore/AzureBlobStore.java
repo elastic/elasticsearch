@@ -100,16 +100,6 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return this.client.doesContainerExist(this.accountName, this.locMode, container);
     }
 
-    public void removeContainer(String container) throws URISyntaxException, StorageException
-    {
-        this.client.removeContainer(this.accountName, this.locMode, container);
-    }
-
-    public void createContainer(String container) throws URISyntaxException, StorageException
-    {
-        this.client.createContainer(this.accountName, this.locMode, container);
-    }
-
     public void deleteFiles(String container, String path) throws URISyntaxException, StorageException
     {
         this.client.deleteFiles(this.accountName, this.locMode, container, path);

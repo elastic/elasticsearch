@@ -201,7 +201,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
-    private GeoDistance distanceType = GeoDistance.DEFAULT;
+    private GeoDistance distanceType = GeoDistance.ARC;
     private boolean keyed = false;
 
     public GeoDistanceAggregationBuilder(String name, GeoPoint origin) {

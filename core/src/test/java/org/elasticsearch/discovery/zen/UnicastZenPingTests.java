@@ -777,7 +777,7 @@ public class UnicastZenPingTests extends ESTestCase {
         public final DiscoveryNode node;
         public final ConcurrentMap<TransportAddress, AtomicInteger> counters;
 
-        public NetworkHandle(
+        NetworkHandle(
             final TransportAddress address,
             final TransportService transportService,
             final DiscoveryNode discoveryNode,
@@ -791,7 +791,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
     private static class TestUnicastZenPing extends UnicastZenPing {
 
-        public TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
+        TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
                                   UnicastHostsProvider unicastHostsProvider) {
             super(Settings.builder().put("node.name", networkHandle.node.getName()).put(settings).build(),
                 threadPool, networkHandle.transportService, unicastHostsProvider);

@@ -94,6 +94,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
+                        // both errors and rejections are logged here. the service
+                        // will try again after `cluster.nodes.reconnect_interval` on all nodes but the current master.
+                        // On the master, node fault detection will remove these nodes from the cluster as their are not
+                        // connected. Note that it is very rare that we end up here on the master.
                         logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), e);
                     }
 

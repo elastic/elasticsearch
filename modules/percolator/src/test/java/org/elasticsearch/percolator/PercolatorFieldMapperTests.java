@@ -565,7 +565,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
@@ -592,7 +592,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();

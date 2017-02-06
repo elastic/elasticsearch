@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -471,7 +472,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody));
+        reqs.add(client().prepareIndex("test", "doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();

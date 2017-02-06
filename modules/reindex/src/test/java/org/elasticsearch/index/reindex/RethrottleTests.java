@@ -22,6 +22,9 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.tasks.TaskId;
 
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -82,7 +86,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
-        ListenableActionFuture<? extends BulkIndexByScrollResponse> responseListener = request.execute();
+        ListenableActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, request.request().getSlices());
         TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
@@ -117,9 +121,15 @@ public class RethrottleTests extends ReindexTestCase {
             assertEquals(newRequestsPerSecond, status.getRequestsPerSecond(), Float.MIN_NORMAL);
         } else {
             /* Check that at least one slice was rethrottled. We won't always rethrottle all of them because they might have completed.
-             * With multiple slices these numbers might not add up perfectly, thus the 0.0001f. */
-            float expectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ? Float.POSITIVE_INFINITY
-                    : newRequestsPerSecond / request.request().getSlices();
+             * With multiple slices these numbers might not add up perfectly, thus the 1.01F. */
+            long unfinished = status.getSliceStatuses().stream()
+                    .filter(slice -> slice != null)
+                    .filter(slice -> slice.getStatus().getTotal() > slice.getStatus().getSuccessfullyProcessed())
+                    .count();
+            float maxExpectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ?
+                    Float.POSITIVE_INFINITY : (newRequestsPerSecond / unfinished) * 1.01F;
+            float minExpectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ?
+                    Float.POSITIVE_INFINITY : (newRequestsPerSecond / request.request().getSlices()) * 0.99F;
             boolean oneSliceRethrottled = false;
             float totalRequestsPerSecond = 0;
             for (BulkByScrollTask.StatusOrException statusOrException : status.getSliceStatuses()) {
@@ -131,10 +141,12 @@ public class RethrottleTests extends ReindexTestCase {
                 assertNull(statusOrException.getException());
                 BulkByScrollTask.Status slice = statusOrException.getStatus();
                 if (slice.getTotal() > slice.getSuccessfullyProcessed()) {
-                    assertEquals(expectedSliceRequestsPerSecond, slice.getRequestsPerSecond(), expectedSliceRequestsPerSecond * 0.0001f);
+                    // This slice reports as not having completed so it should have been processed.
+                    assertThat(slice.getRequestsPerSecond(), both(greaterThanOrEqualTo(minExpectedSliceRequestsPerSecond))
+                            .and(lessThanOrEqualTo(maxExpectedSliceRequestsPerSecond)));
                 }
-                if (Math.abs(expectedSliceRequestsPerSecond - slice.getRequestsPerSecond()) <= expectedSliceRequestsPerSecond * 0.0001f
-                        || expectedSliceRequestsPerSecond == slice.getRequestsPerSecond()) {
+                if (minExpectedSliceRequestsPerSecond <= slice.getRequestsPerSecond()
+                        && slice.getRequestsPerSecond() <= maxExpectedSliceRequestsPerSecond) {
                     oneSliceRethrottled = true;
                 }
                 totalRequestsPerSecond += slice.getRequestsPerSecond();
@@ -151,7 +163,7 @@ public class RethrottleTests extends ReindexTestCase {
         }
 
         // Now the response should come back quickly because we've rethrottled the request
-        BulkIndexByScrollResponse response = responseListener.get();
+        BulkByScrollResponse response = responseListener.get();
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
                 response.getBatches(), greaterThanOrEqualTo(request.request().getSlices()));
     }

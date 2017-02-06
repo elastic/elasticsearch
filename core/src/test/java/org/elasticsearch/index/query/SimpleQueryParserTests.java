@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleQueryParserTests extends ESTestCase {
     private static class MockSimpleQueryParser extends SimpleQueryParser {
-        public MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
+        MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
             super(analyzer, weights, flags, settings, null);
         }
 

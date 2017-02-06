@@ -70,11 +70,11 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
-    protected abstract T doParseInstance(XContentParser parser);
+    protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
     /**
      * Renders the provided instance in XContent
-     * 
+     *
      * @param instance
      *            the instance to render
      * @param contentType
@@ -86,7 +86,13 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         if (randomBoolean()) {
             builder.prettyPrint();
         }
+        if (instance.isFragment()) {
+            builder.startObject();
+        }
         instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        if (instance.isFragment()) {
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -94,7 +100,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * Returns alternate string representation of the instance that need to be
      * tested as they are never used as output of the test instance. By default
      * there are no alternate versions.
-     * 
+     *
      * These alternatives must be JSON strings.
      */
     protected Map<String, T> getAlternateVersions() {

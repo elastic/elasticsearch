@@ -280,7 +280,7 @@ public class MockRepository extends FsRepository {
             }
 
 
-            public MockBlobContainer(BlobContainer delegate) {
+            MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
             }
 

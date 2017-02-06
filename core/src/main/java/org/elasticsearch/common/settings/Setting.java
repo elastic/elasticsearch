@@ -123,7 +123,7 @@ public class Setting<T> extends ToXContentToBytes {
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
             Property... properties) {
-        assert this instanceof SecureSetting || parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting()
+        assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
                : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
@@ -527,6 +527,14 @@ public class Setting<T> extends ToXContentToBytes {
             }
         }
 
+        /**
+         * Get a setting with the given namespace filled in for prefix and suffix.
+         */
+        public Setting<T> getConcreteSettingForNamespace(String namespace) {
+            String fullKey = key.toConcreteKey(namespace).toString();
+            return getConcreteSetting(fullKey);
+        }
+
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
             matchStream(defaultSettings).forEach((key) -> getConcreteSetting(key).diff(builder, source, defaultSettings));
@@ -555,7 +563,7 @@ public class Setting<T> extends ToXContentToBytes {
         private final Logger logger;
         private final Consumer<T> accept;
 
-        public Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             this.accept = accept;

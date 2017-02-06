@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -236,7 +237,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            client().prepareUpdate("test1", "type1", "1").setDoc("field", "value2").setTimeout(timeout).get();
+            client().prepareUpdate("test1", "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));

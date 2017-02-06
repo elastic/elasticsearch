@@ -238,7 +238,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final Channel channel;
 
-        public HandshakeResponseHandler(Channel channel) {
+        HandshakeResponseHandler(Channel channel) {
             this.channel = channel;
         }
 
@@ -1480,7 +1480,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final TransportRequest request;
         private final TransportChannel transportChannel;
 
-        public RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
+        RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
             this.reg = reg;
             this.request = request;
             this.transportChannel = transportChannel;

@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -119,8 +120,6 @@ public class InternalEngine extends Engine {
     private final IndexThrottle throttle;
 
     private final SequenceNumbersService seqNoService;
-    static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
-    static final String MAX_SEQ_NO = "max_seq_no";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -159,11 +158,12 @@ public class InternalEngine extends Engine {
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = loadSeqNoStatsFromLuceneAndTranslog(engineConfig.getTranslogConfig(), writer);
+                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+                        seqNoStats = store.loadSeqNoStats(globalCheckpoint);
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = loadSeqNoStatsFromLucene(SequenceNumbersService.UNASSIGNED_SEQ_NO, writer);
+                        seqNoStats = store.loadSeqNoStats(SequenceNumbersService.UNASSIGNED_SEQ_NO);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
@@ -351,47 +351,6 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
-    }
-
-    /**
-     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and the translog
-     * checkpoint (global checkpoint).
-     *
-     * @param translogConfig the translog config (for the global checkpoint)
-     * @param indexWriter    the index writer (for the Lucene commit point)
-     * @return the sequence number stats
-     * @throws IOException if an I/O exception occurred reading the Lucene commit point or the translog checkpoint
-     */
-    private static SeqNoStats loadSeqNoStatsFromLuceneAndTranslog(
-        final TranslogConfig translogConfig,
-        final IndexWriter indexWriter) throws IOException {
-        long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath());
-        return loadSeqNoStatsFromLucene(globalCheckpoint, indexWriter);
-    }
-
-    /**
-     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and uses the
-     * specified global checkpoint.
-     *
-     * @param globalCheckpoint the global checkpoint to use
-     * @param indexWriter      the index writer (for the Lucene commit point)
-     * @return the sequence number stats
-     */
-    private static SeqNoStats loadSeqNoStatsFromLucene(final long globalCheckpoint, final IndexWriter indexWriter) {
-        long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
-        for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
-            final String key = entry.getKey();
-            if (key.equals(LOCAL_CHECKPOINT_KEY)) {
-                assert localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED;
-                localCheckpoint = Long.parseLong(entry.getValue());
-            } else if (key.equals(MAX_SEQ_NO)) {
-                assert maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : localCheckpoint;
-                maxSeqNo = Long.parseLong(entry.getValue());
-            }
-        }
-
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -712,7 +671,7 @@ public class InternalEngine extends Engine {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
             }
         } else {
-            try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+            try (Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
                 final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
@@ -793,7 +752,6 @@ public class InternalEngine extends Engine {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
                 }
-
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);
@@ -839,7 +797,7 @@ public class InternalEngine extends Engine {
     @Override
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
-        try (final ReleasableLock ignored = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             noOpResult = new NoOpResult(noOp.seqNo(), e);
@@ -1328,7 +1286,7 @@ public class InternalEngine extends Engine {
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         assert incrementIndexVersionLookup();
-        try (final Searcher searcher = acquireSearcher("load_version")) {
+        try (Searcher searcher = acquireSearcher("load_version")) {
             return Versions.loadVersion(searcher.reader(), uid);
         }
     }
@@ -1532,11 +1490,11 @@ public class InternalEngine extends Engine {
                 final Map<String, String> commitData = new HashMap<>(6);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
                 if (syncId != null) {
                     commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
-                commitData.put(MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 if (logger.isTraceEnabled()) {
                     logger.trace("committing writer with commit data [{}]", commitData);
                 }

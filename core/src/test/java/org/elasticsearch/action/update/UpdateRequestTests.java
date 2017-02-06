@@ -144,7 +144,8 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
-        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        Map<String, Object> upsertDoc =
+            XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
@@ -171,7 +172,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 

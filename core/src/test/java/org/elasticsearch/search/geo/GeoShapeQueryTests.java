@@ -21,6 +21,7 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -69,7 +70,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
         GetResponse result = client().prepareGet("test", "type1", "aNullshape").execute().actionGet();
         assertThat(result.getField("location"), nullValue());
     }
@@ -252,8 +254,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setSource(
                         String.format(
                                 Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location
-                        )
-                ).setRefreshPolicy(IMMEDIATE).get();
+                        ), XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().startObject("location")
                         .field("type", "polygon")

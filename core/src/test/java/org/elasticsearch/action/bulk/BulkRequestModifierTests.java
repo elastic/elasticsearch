@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -44,7 +45,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         int numRequests = scaledRandomIntBetween(8, 64);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}"));
+            bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}", XContentType.JSON));
         }
         CaptureActionListener actionListener = new CaptureActionListener();
         TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);

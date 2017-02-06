@@ -65,11 +65,14 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -115,6 +118,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -290,7 +294,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private void ensureNoWarnings() throws IOException {
-        //Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+        //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
@@ -306,12 +310,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                    expectedWarnings.length, actualWarnings.size());
             for (String msg : expectedWarnings) {
                 assertThat(actualWarnings, hasItem(containsString(msg)));
             }
+            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+                expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger();
         }
@@ -859,11 +863,22 @@ public abstract class ESTestCase extends LuceneTestCase {
      * internally should stay untouched.
      */
     public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
-        XContentParser parser = createParser(builder);
+        try (XContentParser parser = createParser(builder)) {
+            return shuffleXContent(parser, builder.isPrettyPrint(), exceptFieldNames);
+        }
+    }
+
+    /**
+     * Randomly shuffles the fields inside objects parsed using the {@link XContentParser} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
+    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
         // use ordered maps for reproducibility
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
-        if (builder.isPrettyPrint()) {
+        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+        if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }
         return xContentBuilder.map(shuffledMap);
@@ -949,6 +964,38 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+
+    /**
+     * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
+     * differences if they aren't equal.
+     */
+    public static <T extends ToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
+        if (Objects.equals(expected, actual)) {
+            return;
+        }
+        if (expected == null) {
+            throw new AssertionError("Expected null be actual was [" + actual.toString() + "]");
+        }
+        if (actual == null) {
+            throw new AssertionError("Didn't expect null but actual was [null]");
+        }
+        try (XContentBuilder actualJson = JsonXContent.contentBuilder();
+                XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
+            actualJson.startObject();
+            actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
+            actualJson.endObject();
+            expectedJson.startObject();
+            expected.toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
+            expectedJson.endObject();
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareMaps(
+                    XContentHelper.convertToMap(actualJson.bytes(), false).v2(),
+                    XContentHelper.convertToMap(expectedJson.bytes(), false).v2());
+            throw new AssertionError("Didn't match expected value:\n" + message);
+        } catch (IOException e) {
+            throw new AssertionError("IOException while building failure message", e);
+        }
     }
 
     /**

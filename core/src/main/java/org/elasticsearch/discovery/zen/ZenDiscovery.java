@@ -520,7 +520,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             private final DiscoveryNode node;
             private final String reason;
 
-            public Task(final DiscoveryNode node, final String reason) {
+            Task(final DiscoveryNode node, final String reason) {
                 this.node = node;
                 this.reason = reason;
             }

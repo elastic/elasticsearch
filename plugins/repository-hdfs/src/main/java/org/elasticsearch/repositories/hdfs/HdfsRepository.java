@@ -134,15 +134,12 @@ public final class HdfsRepository extends BlobStoreRepository {
         cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
         // create the filecontext with our user
-        return Subject.doAs(subject, new PrivilegedAction<FileContext>() {
-            @Override
-            public FileContext run() {
-                try {
-                    AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
-                    return FileContext.getFileContext(fs, cfg);
-                } catch (UnsupportedFileSystemException e) {
-                    throw new RuntimeException(e);
-                }
+        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
+            try {
+                AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
+                return FileContext.getFileContext(fs, cfg);
+            } catch (UnsupportedFileSystemException e) {
+                throw new RuntimeException(e);
             }
         });
     }

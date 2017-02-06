@@ -36,7 +36,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     private byte[][] pages;
 
     /** Constructor. */
-    public BigByteArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigByteArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(BYTE_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new byte[numPages(size)][];

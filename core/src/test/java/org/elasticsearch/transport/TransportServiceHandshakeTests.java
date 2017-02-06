@@ -183,7 +183,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         private TransportService transportService;
         private DiscoveryNode discoveryNode;
 
-        public NetworkHandle(TransportService transportService, DiscoveryNode discoveryNode) {
+        NetworkHandle(TransportService transportService, DiscoveryNode discoveryNode) {
             this.transportService = transportService;
             this.discoveryNode = discoveryNode;
         }

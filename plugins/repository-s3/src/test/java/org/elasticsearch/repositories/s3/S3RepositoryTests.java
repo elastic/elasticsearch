@@ -19,13 +19,13 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.Protocol;
+import java.io.IOException;
+
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -34,8 +34,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-
-import java.io.IOException;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
@@ -52,7 +50,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private static class DummyS3Service extends AbstractLifecycleComponent implements AwsS3Service {
-        public DummyS3Service() {
+        DummyS3Service() {
             super(Settings.EMPTY);
         }
         @Override
@@ -62,19 +60,15 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
+        public AmazonS3 client(Settings repositorySettings, Integer maxRetries,
                                boolean useThrottleRetries, Boolean pathStyleAccess) {
             return new DummyS3Client();
         }
     }
 
     public void testSettingsResolution() throws Exception {
-        MockSecureSettings secureSettings1 = new MockSecureSettings();
-        secureSettings1.setString(Repository.KEY_SETTING.getKey(), "key1");
-        Settings localSettings = Settings.builder().setSecureSettings(secureSettings1).build();
-        MockSecureSettings secureSettings2 = new MockSecureSettings();
-        secureSettings2.setString(Repositories.KEY_SETTING.getKey(), "key2");
-        Settings globalSettings = Settings.builder().setSecureSettings(secureSettings2).build();
+        Settings localSettings = Settings.builder().put(Repository.KEY_SETTING.getKey(), "key1").build();
+        Settings globalSettings = Settings.builder().put(Repositories.KEY_SETTING.getKey(), "key2").build();
 
         assertEquals(new SecureString("key1".toCharArray()),
                      getValue(localSettings, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
@@ -84,6 +78,8 @@ public class S3RepositoryTests extends ESTestCase {
                      getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
         assertEquals(new SecureString("".toCharArray()),
                      getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
+        assertWarnings("[" + Repository.KEY_SETTING.getKey() + "] setting was deprecated",
+                       "[" + Repositories.KEY_SETTING.getKey() + "] setting was deprecated");
     }
 
     public void testInvalidChunkBufferSizeSettings() throws IOException {

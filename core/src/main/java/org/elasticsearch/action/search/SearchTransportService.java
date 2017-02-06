@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -55,7 +56,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -71,7 +72,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query+fetch]";
-    public static final String QUERY_QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query/query+fetch]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
@@ -120,8 +120,18 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final ActionListener<QuerySearchResultProvider> listener) {
-        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
+        // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
+        // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
+        final boolean fetchDocuments = request.numberOfShards() == 1;
+        Supplier<QuerySearchResultProvider> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+        if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+            // TODO this BWC layer can be removed once this is back-ported to 5.3
+            transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
+                new ActionListenerResponseHandler<>(listener, supplier));
+        } else {
+            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
+                new ActionListenerResponseHandler<>(listener, supplier));
+        }
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
@@ -134,18 +144,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                                  final ActionListener<ScrollQuerySearchResult> listener) {
         transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
-    }
-
-    public void sendExecuteFetch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
-                                 final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
-    }
-
-    public void sendExecuteFetch(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
-                                 final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(connection, QUERY_QUERY_FETCH_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
     }
 
     public void sendExecuteFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
@@ -204,7 +202,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        public SearchFreeContextRequest() {
+        SearchFreeContextRequest() {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {
@@ -341,25 +339,19 @@ public class SearchTransportService extends AbstractLifecycleComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
+        // this is for BWC with 5.3 until the QUERY_AND_FETCH removal change has been back-ported to 5.x
+        // in 5.3 we will only execute a `indices:data/read/search[phase/query+fetch]` if the node is pre 5.3
+        // such that we can remove this after the back-port.
         transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    QueryFetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
+                    assert request.numberOfShards() == 1 : "expected single shard request but got: " + request.numberOfShards();
+                    QuerySearchResultProvider result = searchService.executeQueryPhase(request, (SearchTask)task);
                     channel.sendResponse(result);
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
-
-        transportService.registerRequestHandler(QUERY_QUERY_FETCH_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
-            new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
-                @Override
-                public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) throws Exception {
-                    QueryFetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
-                }
-            });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {

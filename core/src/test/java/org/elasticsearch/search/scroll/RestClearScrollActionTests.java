@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
@@ -48,7 +49,8 @@ public class RestClearScrollActionTests extends ESTestCase {
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
         RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY, mock(RestController.class));
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray("{invalid_json}")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
     }

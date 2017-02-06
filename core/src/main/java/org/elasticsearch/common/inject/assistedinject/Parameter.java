@@ -39,7 +39,7 @@ class Parameter {
     private final Annotation bindingAnnotation;
     private final boolean isProvider;
 
-    public Parameter(Type type, Annotation[] annotations) {
+    Parameter(Type type, Annotation[] annotations) {
         this.type = type;
         this.bindingAnnotation = getBindingAnnotation(annotations);
         this.isAssisted = hasAssistedAnnotation(annotations);

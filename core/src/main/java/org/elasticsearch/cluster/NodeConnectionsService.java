@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
@@ -37,9 +38,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.settings.Setting.Property;
@@ -78,21 +79,53 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
     }
 
-    public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
-
-        // TODO: do this in parallel (and wait)
+    public void connectToNodes(DiscoveryNodes discoveryNodes) {
+        CountDownLatch latch = new CountDownLatch(discoveryNodes.getSize());
         for (final DiscoveryNode node : discoveryNodes) {
+            final boolean connected;
             try (Releasable ignored = nodeLocks.acquire(node)) {
                 nodes.putIfAbsent(node, 0);
-                validateNodeConnected(node);
+                connected = transportService.nodeConnected(node);
             }
+            if (connected) {
+                latch.countDown();
+            } else {
+                // spawn to another thread to do in parallel
+                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        // both errors and rejections are logged here. the service
+                        // will try again after `cluster.nodes.reconnect_interval` on all nodes but the current master.
+                        // On the master, node fault detection will remove these nodes from the cluster as their are not
+                        // connected. Note that it is very rare that we end up here on the master.
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        try (Releasable ignored = nodeLocks.acquire(node)) {
+                            validateAndConnectIfNeeded(node);
+                        }
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        latch.countDown();
+                    }
+                });
+            }
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
     /**
      * Disconnects from all nodes except the ones provided as parameter
      */
-    public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+    public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
         Set<DiscoveryNode> currentNodes = new HashSet<>(nodes.keySet());
         for (DiscoveryNode node : nodesToKeep) {
             currentNodes.remove(node);
@@ -110,8 +143,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    void validateNodeConnected(DiscoveryNode node) {
-        assert nodeLocks.isHeldByCurrentThread(node) : "validateNodeConnected must be called under lock";
+    void validateAndConnectIfNeeded(DiscoveryNode node) {
+        assert nodeLocks.isHeldByCurrentThread(node) : "validateAndConnectIfNeeded must be called under lock";
         if (lifecycle.stoppedOrClosed() ||
                 nodes.containsKey(node) == false) { // we double check existence of node since connectToNode might take time...
             // nothing to do
@@ -147,7 +180,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         protected void doRun() {
             for (DiscoveryNode node : nodes.keySet()) {
                 try (Releasable ignored = nodeLocks.acquire(node)) {
-                    validateNodeConnected(node);
+                    validateAndConnectIfNeeded(node);
                 }
             }
         }

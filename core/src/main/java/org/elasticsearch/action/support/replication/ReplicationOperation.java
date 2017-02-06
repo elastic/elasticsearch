@@ -147,7 +147,7 @@ public class ReplicationOperation<
             for (String allocationId : Sets.difference(inSyncAllocationIds, availableAllocationIds)) {
                 // mark copy as stale
                 pendingActions.incrementAndGet();
-                replicasProxy.markShardCopyAsStale(replicaRequest.shardId(), allocationId, replicaRequest.primaryTerm(),
+                replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId, replicaRequest.primaryTerm(),
                     ReplicationOperation.this::decPendingAndFinishIfNeeded,
                     ReplicationOperation.this::onPrimaryDemoted,
                     throwable -> decPendingAndFinishIfNeeded()
@@ -209,14 +209,9 @@ public class ReplicationOperation<
                     shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                     String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    logger.warn(
-                        (org.apache.logging.log4j.util.Supplier<?>)
-                            () -> new ParameterizedMessage("[{}] {}", shard.shardId(), message), replicaException);
-                    replicasProxy.failShard(shard, replicaRequest.primaryTerm(), message, replicaException,
-                        ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                        ReplicationOperation.this::onPrimaryDemoted,
-                        throwable -> decPendingAndFinishIfNeeded()
-                    );
+                    replicasProxy.failShardIfNeeded(shard, replicaRequest.primaryTerm(), message,
+                            replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
+                            ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
                 }
             }
         });
@@ -314,10 +309,13 @@ public class ReplicationOperation<
         }
     }
 
+    /**
+     * An encapsulation of an operation that is to be performed on the primary shard
+     */
     public interface Primary<
-                Request extends ReplicationRequest<Request>,
-                ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-                PrimaryResultT extends PrimaryResult<ReplicaRequest>
+                RequestT extends ReplicationRequest<RequestT>,
+                ReplicaRequestT extends ReplicationRequest<ReplicaRequestT>,
+                PrimaryResultT extends PrimaryResult<ReplicaRequestT>
             > {
 
         /**
@@ -338,7 +336,7 @@ public class ReplicationOperation<
          * @param request the request to perform
          * @return the request to send to the repicas
          */
-        PrimaryResultT perform(Request request) throws Exception;
+        PrimaryResultT perform(RequestT request) throws Exception;
 
 
         /**
@@ -355,7 +353,10 @@ public class ReplicationOperation<
         long localCheckpoint();
     }
 
-    public interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
+    /**
+     * An encapsulation of an operation that will be executed on the replica shards, if present.
+     */
+    public interface Replicas<RequestT extends ReplicationRequest<RequestT>> {
 
         /**
          * performs the the given request on the specified replica
@@ -364,24 +365,29 @@ public class ReplicationOperation<
          * @param replicaRequest operation to peform
          * @param listener       a callback to call once the operation has been complicated, either successfully or with an error.
          */
-        void performOn(ShardRouting replica, ReplicaRequest replicaRequest, ActionListener<ReplicaResponse> listener);
+        void performOn(ShardRouting replica, RequestT replicaRequest, ActionListener<ReplicaResponse> listener);
 
         /**
-         * Fail the specified shard, removing it from the current set of active shards
+         * Fail the specified shard if needed, removing it from the current set
+         * of active shards. Whether a failure is needed is left up to the
+         * implementation.
+         *
          * @param replica          shard to fail
          * @param primaryTerm      the primary term of the primary shard when requesting the failure
          * @param message          a (short) description of the reason
          * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
          * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
          * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
-*                         by the master.
+         *                         by the master.
          * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
          */
-        void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
-                       Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
+                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
 
         /**
-         * Marks shard copy as stale, removing its allocation id from the set of in-sync allocation ids.
+         * Marks shard copy as stale if needed, removing its allocation id from
+         * the set of in-sync allocation ids. Whether marking as stale is needed
+         * is left up to the implementation.
          *
          * @param shardId          shard id
          * @param allocationId     allocation id to remove from the set of in-sync allocation ids
@@ -391,8 +397,8 @@ public class ReplicationOperation<
          *                         by the master.
          * @param onIgnoredFailure a callback to call when the request failed, but the failure can be safely ignored.
          */
-        void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
-                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                          Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
     }
 
     /**
@@ -422,13 +428,13 @@ public class ReplicationOperation<
         }
     }
 
-    public interface PrimaryResult<R extends ReplicationRequest<R>> {
+    public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
 
         /**
          * @return null if no operation needs to be sent to a replica
          * (for example when the operation failed on the primary due to a parsing exception)
          */
-        @Nullable R replicaRequest();
+        @Nullable RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
     }

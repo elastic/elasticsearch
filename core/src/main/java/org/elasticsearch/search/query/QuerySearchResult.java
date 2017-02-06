@@ -66,11 +66,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     @Override
-    public boolean includeFetch() {
-        return false;
-    }
-
-    @Override
     public QuerySearchResult queryResult() {
         return this;
     }

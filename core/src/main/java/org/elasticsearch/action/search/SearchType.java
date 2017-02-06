@@ -36,14 +36,9 @@ public enum SearchType {
      * document content. The return number of hits is exactly as specified in size, since they are the only ones that
      * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
      */
-    QUERY_THEN_FETCH((byte) 1),
+    QUERY_THEN_FETCH((byte) 1);
     // 2 used to be DFS_QUERY_AND_FETCH
-    /**
-     * The most naive (and possibly fastest) implementation is to simply execute the query on all relevant shards
-     * and return the results. Each shard returns size results. Since each shard already returns size hits, this
-     * type actually returns size times number of shards results back to the caller.
-     */
-    QUERY_AND_FETCH((byte) 3);
+    // 3 used to be QUERY_AND_FETCH
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -69,10 +64,9 @@ public enum SearchType {
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;
-        } else if (id == 1) {
+        } else if (id == 1
+            || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed now
             return QUERY_THEN_FETCH;
-        } else if (id == 3) {
-            return QUERY_AND_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");
         }
@@ -91,8 +85,6 @@ public enum SearchType {
             return SearchType.DFS_QUERY_THEN_FETCH;
         } else if ("query_then_fetch".equals(searchType)) {
             return SearchType.QUERY_THEN_FETCH;
-        } else if ("query_and_fetch".equals(searchType)) {
-            return SearchType.QUERY_AND_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }

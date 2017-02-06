@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,11 +44,22 @@ public class BroadcastResponse extends ActionResponse {
     public BroadcastResponse() {
     }
 
-    public BroadcastResponse(int totalShards, int successfulShards, int failedShards, List<? extends ShardOperationFailedException> shardFailures) {
+    public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
+                             List<? extends ShardOperationFailedException> shardFailures) {
+        assertNoShardNotAvailableFailures(shardFailures);
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = shardFailures == null ? EMPTY : shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
+        this.shardFailures = shardFailures == null ? EMPTY :
+                shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
+    }
+
+    private void assertNoShardNotAvailableFailures(List<? extends ShardOperationFailedException> shardFailures) {
+        if (shardFailures != null) {
+            for (Object e : shardFailures) {
+                assert (e instanceof ShardNotFoundException) == false : "expected no ShardNotFoundException failures, but got " + e;
+            }
+        }
     }
 
     /**
@@ -68,6 +81,17 @@ public class BroadcastResponse extends ActionResponse {
      */
     public int getFailedShards() {
         return failedShards;
+    }
+
+    /**
+     * The REST status that should be used for the response
+     */
+    public RestStatus getStatus() {
+        if (failedShards > 0) {
+            return shardFailures[0].status();
+        } else {
+            return RestStatus.OK;
+        }
     }
 
     /**

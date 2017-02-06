@@ -17,11 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.client;
 
-import org.elasticsearch.search.SearchPhaseResult;
+import java.io.IOException;
 
-public interface FetchSearchResultProvider extends SearchPhaseResult {
+public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
-    FetchSearchResult fetchResult();
+    public void testPing() throws IOException {
+        assertTrue(highLevelClient().ping());
+    }
+
+    //TODO add here integ tests for info api: "GET /" once we have parsing code for MainResponse
 }

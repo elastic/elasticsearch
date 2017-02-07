@@ -11,6 +11,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -94,6 +95,18 @@ public class ExtractedFieldTests extends ESTestCase {
 
         ExtractedField sourceField = ExtractedField.newField("b", ExtractedField.ExtractionMethod.DOC_VALUE);
         assertThat(sourceField.value(hit), equalTo(new Object[0]));
+    }
+
+    public void testNewTimeFieldGivenSource() {
+        expectThrows(IllegalArgumentException.class, () -> ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.SOURCE));
+    }
+
+    public void testValueGivenTimeField() {
+        SearchHit hit = new SearchHitBuilder(42).addField("time", new DateTime(123456789L)).build();
+
+        ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+
+        assertThat(timeField.value(hit), equalTo(new Object[] { 123456789L }));
     }
 
     static class SearchHitBuilder {

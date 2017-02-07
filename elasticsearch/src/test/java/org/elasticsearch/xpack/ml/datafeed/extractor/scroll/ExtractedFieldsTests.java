@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExtractedFieldsTests extends ESTestCase {
 
-    private ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+    private ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
 
     public void testInvalidConstruction() {
         expectThrows(IllegalArgumentException.class, () -> new ExtractedFields(timeField, Collections.emptyList()));
@@ -47,7 +48,7 @@ public class ExtractedFieldsTests extends ESTestCase {
     }
 
     public void testTimeFieldValue() {
-        SearchHit hit = new ExtractedFieldTests.SearchHitBuilder(1).addField("time", 1000L).build();
+        SearchHit hit = new ExtractedFieldTests.SearchHitBuilder(1).addField("time", new DateTime(1000L)).build();
 
         ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
 

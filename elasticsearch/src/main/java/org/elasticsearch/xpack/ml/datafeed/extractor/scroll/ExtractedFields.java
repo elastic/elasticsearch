@@ -71,7 +71,7 @@ class ExtractedFields {
     public static ExtractedFields build(Job job, DatafeedConfig datafeedConfig) {
         Set<String> scriptFields = datafeedConfig.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
         String timeField = job.getDataDescription().getTimeField();
-        ExtractedField timeExtractedField = ExtractedField.newField(timeField, scriptFields.contains(timeField) ?
+        ExtractedField timeExtractedField = ExtractedField.newTimeField(timeField, scriptFields.contains(timeField) ?
                 ExtractedField.ExtractionMethod.SCRIPT_FIELD : ExtractedField.ExtractionMethod.DOC_VALUE);
         List<String> remainingFields = job.allFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size());

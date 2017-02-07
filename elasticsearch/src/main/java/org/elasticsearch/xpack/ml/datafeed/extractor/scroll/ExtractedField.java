@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.joda.time.base.BaseDateTime;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,13 @@ abstract class ExtractedField {
 
     public abstract Object[] value(SearchHit hit);
 
+    public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {
+        if (extractionMethod == ExtractionMethod.SOURCE) {
+            throw new IllegalArgumentException("time field cannot be extracted from source");
+        }
+        return new TimeField(name, extractionMethod);
+    }
+
     public static ExtractedField newField(String name, ExtractionMethod extractionMethod) {
         switch (extractionMethod) {
             case DOC_VALUE:
@@ -62,6 +70,23 @@ abstract class ExtractedField {
                 return values.toArray(new Object[values.size()]);
             }
             return new Object[0];
+        }
+    }
+
+    private static class TimeField extends FromFields {
+
+        TimeField(String name, ExtractionMethod extractionMethod) {
+            super(name, extractionMethod);
+        }
+
+        @Override
+        public Object[] value(SearchHit hit) {
+            Object[] value = super.value(hit);
+            if (value.length != 1) {
+                return value;
+            }
+            value[0] = ((BaseDateTime) value[0]).getMillis();
+            return value;
         }
     }
 

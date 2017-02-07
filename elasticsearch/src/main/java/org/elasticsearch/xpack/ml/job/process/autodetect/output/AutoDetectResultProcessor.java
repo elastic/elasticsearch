@@ -185,7 +185,11 @@ public class AutoDetectResultProcessor {
      * @return {@code true} if the flush has completed or the parsing finished; {@code false} if the timeout expired
      */
     public boolean waitForFlushAcknowledgement(String flushId, Duration timeout) {
-        return flushListener.waitForFlush(flushId, timeout.toMillis());
+        return flushListener.waitForFlush(flushId, timeout);
+    }
+
+    public void clearAwaitingFlush(String flushId) {
+        flushListener.clear(flushId);
     }
 
     public void waitUntilRenormalizerIsIdle() {

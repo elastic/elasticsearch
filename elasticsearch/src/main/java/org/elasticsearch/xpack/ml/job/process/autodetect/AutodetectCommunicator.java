@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 public class AutodetectCommunicator implements Closeable {
 
     private static final Logger LOGGER = Loggers.getLogger(AutodetectCommunicator.class);
-    private static final int DEFAULT_TRY_TIMEOUT_SECS = 30;
+    private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
     private final DataCountsReporter dataCountsReporter;
@@ -100,28 +100,31 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void flushJob(InterimResultsParams params) throws IOException {
-        flushJob(params, DEFAULT_TRY_TIMEOUT_SECS);
-    }
-
-    void flushJob(InterimResultsParams params, int tryTimeoutSecs) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_FLUSH, job.getId()), () -> {
             String flushId = autodetectProcess.flushJob(params);
-
-            Duration timeout = Duration.ofSeconds(tryTimeoutSecs);
-            LOGGER.info("[{}] waiting for flush", job.getId());
-            boolean isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, timeout);
-            LOGGER.info("[{}] isFlushComplete={}", job.getId(), isFlushComplete);
-            if (!isFlushComplete) {
-                String msg = Messages.getMessage(Messages.AUTODETECT_FLUSH_TIMEOUT, job.getId()) + " " + autodetectProcess.readError();
-                LOGGER.error(msg);
-                throw ExceptionsHelper.serverError(msg);
-            }
-
-            // We also have to wait for the normalizer to become idle so that we block
-            // clients from querying results in the middle of normalization.
-            autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
+            waitFlushToCompletion(flushId);
             return null;
         }, false);
+    }
+
+    private void waitFlushToCompletion(String flushId) throws IOException {
+        LOGGER.info("[{}] waiting for flush", job.getId());
+
+        try {
+            boolean isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+            while (isFlushComplete == false) {
+                checkProcessIsAlive();
+                isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+            }
+        } finally {
+            autoDetectResultProcessor.clearAwaitingFlush(flushId);
+        }
+
+        // We also have to wait for the normalizer to become idle so that we block
+        // clients from querying results in the middle of normalization.
+        autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
+
+        LOGGER.info("[{}] Flush completed", job.getId());
     }
 
     /**

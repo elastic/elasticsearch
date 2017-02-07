@@ -19,7 +19,6 @@ public final class Messages {
      */
     private static final String BUNDLE_NAME = "org.elasticsearch.xpack.ml.job.messages.ml_messages";
     public static final String AUTODETECT_FLUSH_UNEXPTECTED_DEATH = "autodetect.flush.failed.unexpected.death";
-    public static final String AUTODETECT_FLUSH_TIMEOUT = "autodetect.flush.timeout";
 
     public static final String CPU_LIMIT_JOB = "cpu.limit.jobs";
 

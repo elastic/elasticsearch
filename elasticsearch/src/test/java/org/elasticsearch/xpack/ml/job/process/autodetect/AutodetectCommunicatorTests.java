@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -31,6 +32,7 @@ import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -78,17 +80,21 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", e.getMessage());
     }
 
-    public void testFlushJob_throwsOnTimeout() throws IOException {
+    public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws IOException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
-        when(process.readError()).thenReturn("Mock process has stalled");
         AutoDetectResultProcessor autoDetectResultProcessor = Mockito.mock(AutoDetectResultProcessor.class);
-        when(autoDetectResultProcessor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(false);
-        try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            InterimResultsParams params = InterimResultsParams.builder().build();
-            ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params, 1));
-            assertEquals("[foo] Timed out flushing job. Mock process has stalled", e.getMessage());
+        when(autoDetectResultProcessor.waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1))))
+                .thenReturn(false).thenReturn(true);
+        InterimResultsParams params = InterimResultsParams.builder().build();
+
+        try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, autoDetectResultProcessor)) {
+            communicator.flushJob(params);
         }
+
+        verify(autoDetectResultProcessor, times(2)).waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1)));
+        // First in checkAndRun, second due to check between calls to waitForFlushAcknowledgement and third due to close()
+        verify(process, times(3)).isProcessAlive();
     }
 
     public void testClose() throws IOException {

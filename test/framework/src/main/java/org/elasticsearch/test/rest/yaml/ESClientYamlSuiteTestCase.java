@@ -30,6 +30,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -250,7 +251,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = Files.createTempFile(null, ".jar");
-                try (InputStream in = codeLocation.openStream()) {
+                try (InputStream in = FileSystemUtils.openFileURLStream(codeLocation)) {
                     Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
                 }
                 return FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.emptyMap());

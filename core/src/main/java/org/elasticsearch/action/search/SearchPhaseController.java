@@ -537,7 +537,8 @@ public class SearchPhaseController extends AbstractComponent {
             shardResults);
     }
 
-    private InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList, List<SiblingPipelineAggregator> pipelineAggregators) {
+    private InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
+                                            List<SiblingPipelineAggregator> pipelineAggregators) {
         ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService);
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
@@ -553,7 +554,7 @@ public class SearchPhaseController extends AbstractComponent {
         return aggregations;
     }
 
-    public final static class ReducedQueryPhase {
+    public static final class ReducedQueryPhase {
         // the sum of all hits across all reduces shards
         final long totalHits;
         // the number of returned hits (doc IDs) across all reduces shards

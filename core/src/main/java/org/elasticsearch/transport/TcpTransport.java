@@ -440,7 +440,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 if (nodeChannels != null) {
                     return;
                 }
-                boolean success = false;
                 try {
                     try {
                         nodeChannels = openConnection(node, connectionProfile);
@@ -449,6 +448,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         logger.trace(
                             (Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
+                        IOUtils.closeWhileHandlingException(nodeChannels);
                         throw e;
                     }
                     // we acquire a connection lock, so no way there is an existing connection
@@ -457,16 +457,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         logger.debug("connected to node [{}]", node);
                     }
                     transportServiceAdapter.onNodeConnected(node);
-                    success = true;
                 } catch (ConnectTransportException e) {
                     throw e;
                 } catch (Exception e) {
                     throw new ConnectTransportException(node, "general node connection failure", e);
-                } finally {
-                    if (success == false) {
-                        connectedNodes.remove(node);
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    }
                 }
             }
         } finally {

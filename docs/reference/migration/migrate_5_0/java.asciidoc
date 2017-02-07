@@ -210,7 +210,7 @@ Removing setters for to(Object ...) and from(Object ...) in favour of the only t
 arguments (String, Number). Removing setter for center point (point(), geohash()) because parameter
 is mandatory and should already be set in constructor.
 Also removing setters for lt(), lte(), gt(), gte() since they can all be replaced by equivalent
-calls to to/from() and inludeLower()/includeUpper().
+calls to to/from() and includeLower()/includeUpper().
 
 ===== GeoPolygonQueryBuilder
 

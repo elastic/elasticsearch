@@ -461,9 +461,11 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(queryResults) : null;
             List<AtomicArray.Entry<QuerySearchResultProvider>> queryResultsAsList = queryResults.asList();
             final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResultsAsList);
+            final boolean queryAndFetchOptimization = queryResults.length() == 1;
             final IntConsumer finishPhase = successOpts
-                -> sendResponse(searchPhaseController, sortedShardDocs, scrollId, reducedQueryPhase, fetchResults);
-            if (queryResults.length() == 1) {
+                -> sendResponse(searchPhaseController, sortedShardDocs, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
+                    queryResults : fetchResults);
+            if (queryAndFetchOptimization) {
                 assert queryResults.get(0) == null || queryResults.get(0).fetchResult() != null;
                 // query AND fetch optimization
                 finishPhase.accept(successfulOps.get());

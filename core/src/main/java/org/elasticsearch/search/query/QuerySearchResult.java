@@ -50,14 +50,15 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private TopDocs topDocs;
     private DocValueFormat[] sortValueFormats;
     private InternalAggregations aggregations;
+    private boolean hasAggs;
     private List<SiblingPipelineAggregator> pipelineAggregators;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
+    private boolean hasProfile;
 
     public QuerySearchResult() {
-
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
@@ -125,7 +126,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Retruns <code>true</code> if this query result has unconsumed aggregations
      */
     public boolean hasAggs() {
-        return aggregations != null;
+        return hasAggs;
     }
 
     /**
@@ -143,11 +144,13 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
+        hasAggs = aggregations != null;
     }
 
     /**
-     * Returns the profiled results for this search, or potentially null if result was empty
-     * @return The profiled results, or null
+     * Returns and nulls out the profiled results for this search, or potentially null if result was empty.
+     * This allows to free up memory once the profiled result is consumed.
+     * @throws IllegalStateException if the profiled result has already been consumed.
      */
     public ProfileShardResult consumeProfileResult() {
         if (profileShardResults == null) {
@@ -159,7 +162,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public boolean hasProfileResults() {
-        return profileShardResults != null;
+        return hasProfile;
     }
 
     /**
@@ -168,6 +171,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      */
     public void profileResults(ProfileShardResult shardResults) {
         this.profileShardResults = shardResults;
+        hasProfile = shardResults != null;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -240,7 +244,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             }
         }
         topDocs = readTopDocs(in);
-        if (in.readBoolean()) {
+        if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
         pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream().map(a -> (SiblingPipelineAggregator) a)
@@ -251,6 +255,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        hasProfile = profileShardResults != null;
     }
 
     @Override

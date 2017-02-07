@@ -64,7 +64,10 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         String setting = arguments.value(options);
-        if (keystore.getSettings().contains(setting) && options.has(forceOption) == false) {
+        if (setting == null) {
+            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
+        }
+        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
                 return;

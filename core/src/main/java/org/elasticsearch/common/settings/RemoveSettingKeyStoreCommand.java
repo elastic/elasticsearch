@@ -56,7 +56,7 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
         keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         for (String setting : arguments.values(options)) {
-            if (keystore.getSettings().contains(setting) == false) {
+            if (keystore.getSettingNames().contains(setting) == false) {
                 throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
             }
             keystore.remove(setting);

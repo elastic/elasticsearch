@@ -23,6 +23,7 @@ import org.elasticsearch.transport.DelegatingTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.Authentication;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import javax.net.ssl.SSLEngine;
@@ -139,6 +141,17 @@ public interface ServerTransportFilter {
                         } else {
                             throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
                         }
+                    } else if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
+                            SystemUser.is(authentication.getUser()) == false) {
+                        securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
+                            final Authentication replaced = Authentication.getAuthentication(threadContext);
+                            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
+                                    new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
+                                        authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
+                                        listener.onResponse(null);
+                                    });
+                            asyncAuthorizer.authorize(authzService);
+                        });
                     } else {
                         final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                                 new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
@@ -192,7 +205,7 @@ public interface ServerTransportFilter {
                 throws IOException {
             // TODO is ']' sufficient to mark as shard action?
             final boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
-            if (isInternalOrShardAction) {
+            if (isInternalOrShardAction && TransportService.HANDSHAKE_ACTION_NAME.equals(action) == false) {
                 throw authenticationError("executing internal/shard actions is considered malicious and forbidden");
             }
             super.inbound(action, request, transportChannel, listener);

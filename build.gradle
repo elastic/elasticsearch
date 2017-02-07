@@ -3,20 +3,62 @@ description = 'Builds the Machine Learning Java classes and UI'
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
+import com.bettercloud.vault.Vault
+import com.bettercloud.vault.VaultConfig
+import com.bettercloud.vault.response.LogicalResponse
+
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 
 if (project.projectDir.name != 'prelert-legacy') {
   throw new GradleException('You must checkout prelert-legacy in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/prelert-legacy')
 }
 
-String mlAwsAccessKey = System.env.PRELERT_AWS_ACCESS_KEY_ID
-if (mlAwsAccessKey == null && project.hasProperty("PRELERT_AWS_ACCESS_KEY_ID")) {
-  mlAwsAccessKey = PRELERT_AWS_ACCESS_KEY_ID
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath group: 'com.bettercloud', name: 'vault-java-driver', version:"1.1.0"
+  }
 }
 
-String mlAwsSecretKey = System.env.PRELERT_AWS_SECRET_ACCESS_KEY
-if (mlAwsSecretKey == null && project.hasProperty("PRELERT_AWS_SECRET_ACCESS_KEY")) {
-  mlAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
+// Vault auth to get keys for access to cpp artifacts
+
+// first need to get an authentication token with vault
+File githubToken = project.file('github.token')
+final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
+final String VAULT_SECRET_ID = System.env.SECRET_ID
+String authBody = null
+if (githubToken.exists()) {
+  Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
+  if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
+      throw new GradleException('github.token must have 600 permissions')
+  }
+  authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
+} else if (VAULT_SECRET_ID != null) {
+  authBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
+} else {
+    throw new GradleException('Missing github.token file or SECRET_ID environment variable, needed to authenticate with vault for secrets')
 }
+
+final String VAULT_URL = 'https://secrets.elastic.co:8200'
+URL vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
+HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
+vaultConn.setRequestProperty('Content-Type', 'application/json')
+vaultConn.setRequestMethod('PUT')
+vaultConn.setDoOutput(true)
+vaultConn.outputStream.withWriter('UTF-8') { writer ->
+    writer.write(authBody)
+}
+vaultConn.connect()
+Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
+VaultConfig config = new VaultConfig(VAULT_URL, authResponse.auth.client_token)
+Vault vault = new Vault(config)
+LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
+String mlAwsAccessKey = secret.data.get('access_key')
+String mlAwsSecretKey = secret.data.get('secret_key')
 
 String envCppLocalDists = System.env.CPP_LOCAL_DISTS
 if (envCppLocalDists != null) {

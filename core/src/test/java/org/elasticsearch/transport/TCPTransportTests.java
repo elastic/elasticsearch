@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -38,6 +39,8 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /** Unit tests for TCPTransport */
 public class TCPTransportTests extends ESTestCase {
@@ -238,6 +241,38 @@ public class TCPTransportTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
         }
+    }
+
+    public void testConnectionProfileResolve() {
+        final ConnectionProfile defaultProfile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(defaultProfile, TcpTransport.resolveConnectionProfile(null, defaultProfile));
+
+        final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.BULK);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.REG);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STATE);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.PING);
+
+        final boolean connectionTimeoutSet = randomBoolean();
+        if (connectionTimeoutSet) {
+            builder.setConnectTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        final boolean connectionHandshakeSet = randomBoolean();
+        if (connectionHandshakeSet) {
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+
+        final ConnectionProfile profile = builder.build();
+        final ConnectionProfile resolved = TcpTransport.resolveConnectionProfile(profile, defaultProfile);
+        assertNotEquals(resolved, defaultProfile);
+        assertThat(resolved.getNumConnections(), equalTo(profile.getNumConnections()));
+        assertThat(resolved.getHandles(), equalTo(profile.getHandles()));
+
+        assertThat(resolved.getConnectTimeout(),
+            equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
+        assertThat(resolved.getHandshakeTimeout(),
+            equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
     }
 
     public void testDefaultConnectionProfile() {

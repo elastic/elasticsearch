@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -168,11 +167,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 .build();
 
         MockTransportService service = buildTransportService(settings, threadPool);
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(settings, service.boundAddress().publishAddress(),
-            NodeEnvironment.generateNodeId(settings));
+        DiscoveryNode discoveryNode = service.getLocalDiscoNode();
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
-        final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);
+        final CountDownLatch latch = new CountDownLatch(nodes.size() * 2);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
@@ -190,7 +188,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
             curNode.connectTo(node.discoveryNode);
             node.connectTo(curNode.discoveryNode);
         }
-        node.connectTo(node.discoveryNode);
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         for (MockNode curNode : nodes.values()) {
             curNode.service.removeConnectionListener(waitForConnection);

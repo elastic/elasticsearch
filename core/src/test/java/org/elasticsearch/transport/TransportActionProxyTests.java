@@ -35,9 +35,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-
 public class TransportActionProxyTests extends ESTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
@@ -61,11 +58,11 @@ public class TransportActionProxyTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0); // this one supports dynamic tracer updates
-        nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+        nodeA = serviceA.getLocalDiscoNode();
         serviceB = buildService(version1); // this one doesn't support dynamic tracer updates
-        nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+        nodeB = serviceB.getLocalDiscoNode();
         serviceC = buildService(version1); // this one doesn't support dynamic tracer updates
-        nodeC = new DiscoveryNode("TS_C", serviceC.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+        nodeC = serviceC.getLocalDiscoNode();
     }
 
     @Override

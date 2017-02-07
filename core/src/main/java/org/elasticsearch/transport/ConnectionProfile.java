@@ -79,6 +79,18 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
 
+        /** create an empty builder */
+        public Builder() {
+        }
+
+        /** copy constructor, using another profile as a base */
+        public Builder(ConnectionProfile source) {
+            handles.addAll(source.getHandles());
+            offset = source.getNumConnections();
+            handles.forEach(th -> addedTypes.addAll(th.types));
+            connectTimeout = source.getConnectTimeout();
+            handshakeTimeout = source.getHandshakeTimeout();
+        }
         /**
          * Sets a connect timeout for this connection profile
          */

@@ -73,7 +73,7 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 public class TransportService extends AbstractLifecycleComponent {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
-    private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
+    public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
@@ -130,7 +130,7 @@ public class TransportService extends AbstractLifecycleComponent {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            sendLocalRequest(requestId, action, request);
+            sendLocalRequest(requestId, action, request, options);
         }
 
         @Override
@@ -206,6 +206,7 @@ public class TransportService extends AbstractLifecycleComponent {
             HANDSHAKE_ACTION_NAME,
             () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
+            false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
@@ -311,7 +312,13 @@ public class TransportService extends AbstractLifecycleComponent {
         if (isLocalNode(node)) {
             return;
         }
-        transport.connectToNode(node, connectionProfile);
+        transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
+            // We don't validate cluster names to allow for tribe node connections.
+            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
+            if (node.equals(remote) == false) {
+                throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+            }
+        });
     }
 
     /**
@@ -397,7 +404,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
     }
 
-    static class HandshakeResponse extends TransportResponse {
+    public static class HandshakeResponse extends TransportResponse {
         private DiscoveryNode discoveryNode;
         private ClusterName clusterName;
         private Version version;
@@ -405,7 +412,7 @@ public class TransportService extends AbstractLifecycleComponent {
         HandshakeResponse() {
         }
 
-        HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
+        public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
             this.discoveryNode = discoveryNode;
             this.version = version;
             this.clusterName = clusterName;
@@ -599,9 +606,11 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    private void sendLocalRequest(long requestId, final String action, final TransportRequest request) {
+    private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
         final DirectResponseChannel channel = new DirectResponseChannel(logger, localNode, action, requestId, adapter, threadPool);
         try {
+            adapter.onRequestSent(localNode, requestId, action, request, options);
+            adapter.onRequestReceived(requestId, action);
             final RequestHandlerRegistry reg = adapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
@@ -1080,6 +1089,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void sendResponse(final TransportResponse response, TransportResponseOptions options) throws IOException {
+            adapter.onResponseSent(requestId, action, response, options);
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
@@ -1103,6 +1113,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void sendResponse(Exception exception) throws IOException {
+            adapter.onResponseSent(requestId, action, exception);
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {

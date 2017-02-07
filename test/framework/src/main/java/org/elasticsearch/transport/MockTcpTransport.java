@@ -201,8 +201,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
             // we just use a single connections
             configureSocket(socket);
-            final TimeValue connectTimeout = profile.getConnectTimeout() == null ? defaultConnectionProfile.getConnectTimeout()
-                : profile.getConnectTimeout();
+            final TimeValue connectTimeout = profile.getConnectTimeout();
             try {
                 socket.connect(address, Math.toIntExact(connectTimeout.millis()));
             } catch (SocketTimeoutException ex) {

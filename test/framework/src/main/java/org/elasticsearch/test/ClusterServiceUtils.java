@@ -48,8 +48,13 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "ClusterServiceTests").build(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+        return createClusterService(Settings.EMPTY, threadPool, localNode);
+    }
+
+    public static ClusterService createClusterService(Settings settings, ThreadPool threadPool, DiscoveryNode localNode) {
+        ClusterService clusterService = new ClusterService(
+            Settings.builder().put("cluster.name", "ClusterServiceTests").put(settings).build(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, () -> localNode);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

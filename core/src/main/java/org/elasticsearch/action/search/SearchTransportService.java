@@ -78,13 +78,18 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     private final TransportService transportService;
     private final RemoteClusterService remoteClusterService;
+    private final boolean connectToRemote;
 
     public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
+        this.connectToRemote = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
         this.remoteClusterService = new RemoteClusterService(settings, transportService);
-        clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
-            (namespace, value) -> {});
+        if (connectToRemote) {
+            clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
+                (namespace, value) -> {
+                });
+        }
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
@@ -390,8 +395,10 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        // here we start to connect to the remote clusters
-        remoteClusterService.initializeRemoteClusters();
+        if (connectToRemote) {
+            // here we start to connect to the remote clusters
+            remoteClusterService.initializeRemoteClusters();
+        }
     }
 
     @Override

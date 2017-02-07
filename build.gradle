@@ -29,7 +29,7 @@ buildscript {
 // first need to get an authentication token with vault
 File githubToken = project.file('github.token')
 final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
-final String VAULT_SECRET_ID = System.env.SECRET_ID
+final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
 String authBody = null
 if (githubToken.exists()) {
   Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())

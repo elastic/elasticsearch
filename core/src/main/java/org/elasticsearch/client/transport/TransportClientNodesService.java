@@ -540,6 +540,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
                 latch.await();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 return;
             }
 

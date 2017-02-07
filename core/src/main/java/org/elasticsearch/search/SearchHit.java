@@ -33,6 +33,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +49,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -64,7 +65,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
@@ -346,7 +346,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
      */
     @SuppressWarnings("unchecked")
     public Map<String, SearchHits> getInnerHits() {
-        return (Map) innerHits;
+        return innerHits;
     }
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
@@ -370,6 +370,14 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         static final String INNER_HITS = "inner_hits";
         static final String _SHARD = "_shard";
         static final String _NODE = "_node";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toInnerXContent(builder, params);
+        builder.endObject();
+        return builder;
     }
 
     // public because we render hit as part of completion suggestion option
@@ -465,121 +473,70 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         return builder;
     }
 
-    public static SearchHit fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        String currentFieldName = null;
-        String type = null, id = null;
-        String index = null;
-        float score = DEFAULT_SCORE;
-        long version = -1;
-        SearchSortValues sortValues = SearchSortValues.EMPTY;
-        NestedIdentity nestedIdentity = null;
-        Map<String, HighlightField> highlightFields = new HashMap<>();
-        BytesReference parsedSource = null;
-        List<String> matchedQueries = new ArrayList<>();
-        Map<String, SearchHitField> fields = new HashMap<>();
-        Explanation explanation = null;
-        ShardId shardId = null;
-        String nodeId = null;
-        Map<String, SearchHits> innerHits = null;
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (Fields._TYPE.equals(currentFieldName)) {
-                    type = parser.text();
-                } else if (Fields._INDEX.equals(currentFieldName)) {
-                    index = parser.text();
-                } else if (Fields._ID.equals(currentFieldName)) {
-                    id = parser.text();
-                } else if (Fields._SCORE.equals(currentFieldName)) {
-                     score = parser.floatValue();
-                } else if (Fields._VERSION.equals(currentFieldName)) {
-                    version = parser.longValue();
-                } else if (Fields._SHARD.equals(currentFieldName)) {
-                    shardId = ShardId.fromString(parser.text());
-                } else if (Fields._NODE.equals(currentFieldName)) {
-                   nodeId = parser.text();
-                } else if (MapperService.isMetadataField(currentFieldName)) {
-                    List<Object> values = new ArrayList<>();
-                    values.add(parseStoredFieldsValue(parser));
-                    fields.put(currentFieldName, new SearchHitField(currentFieldName, values));
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                if (Fields._SCORE.equals(currentFieldName)) {
-                     score = Float.NaN;
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SourceFieldMapper.NAME.equals(currentFieldName)) {
-                    try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                        //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
-                        //it all depends on the current builder settings
-                        builder.copyCurrentStructure(parser);
-                        parsedSource = builder.bytes();
-                    }
-                } else if (Fields.HIGHLIGHT.equals(currentFieldName)) {
-                    while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        HighlightField highlightField = HighlightField.fromXContent(parser);
-                        highlightFields.put(highlightField.getName(), highlightField);
-                    }
-                } else if (Fields.FIELDS.equals(currentFieldName)) {
-                    while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        String fieldName = parser.currentName();
-                        List<Object> values = new ArrayList<>();
-                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-                        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            values.add(parseStoredFieldsValue(parser));
-                        }
-                        fields.put(fieldName, new SearchHitField(fieldName, values));
-                    }
-                } else if (Fields._EXPLANATION.equals(currentFieldName)) {
-                    explanation = parseExplanation(parser);
-                } else if (Fields.INNER_HITS.equals(currentFieldName)) {
-                    innerHits = new HashMap<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        // parse the key
-                        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-                        String name = parser.currentName();
-                        innerHits.put(name, SearchHits.fromXContent(parser));
-                        parser.nextToken();
-                        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-                    }
-                } else if (NestedIdentity.Fields._NESTED.equals(currentFieldName)) {
-                    nestedIdentity = NestedIdentity.fromXContent(parser);
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.SORT.equals(currentFieldName)) {
-                    sortValues = SearchSortValues.fromXContent(parser);
-                } else if (Fields.MATCHED_QUERIES.equals(currentFieldName)) {
-                    while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        matchedQueries.add(parser.text());
-                    }
-                } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
-                }
-            } else {
-                throwUnknownToken(token, parser.getTokenLocation());
-            }
-        }
-        SearchHit searchHit = new SearchHit(-1, id, new Text(type), nestedIdentity, Collections.emptyMap());
-        searchHit.index = index;
-        searchHit.score(score);
-        searchHit.version(version);
-        searchHit.sortValues(sortValues);
-        searchHit.highlightFields(highlightFields);
-        searchHit.sourceRef(parsedSource);
-        searchHit.explanation(explanation);
-        searchHit.setInnerHits(innerHits);
-        if (matchedQueries.size() > 0) {
+    // ------------- Parsing code --------------
+
+    private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("innerHitsParser", HashMap::new);
+
+    static {
+        declareInnerHitsParseFields(PARSER);
+    }
+
+    public static SearchHit fromXContent(XContentParser parser) {
+        return createFromMap(PARSER.apply(parser, null));
+    }
+
+    public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
+        declareMetaDataFields(parser);
+        parser.declareString((map, value) -> map.put(Fields._TYPE, value), new ParseField(Fields._TYPE));
+        parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
+        parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
+        parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
+        parser.declareField((map, value) -> map.put(Fields._SCORE, value), SearchHit::parseScore, new ParseField(Fields._SCORE),
+                ValueType.FLOAT_OR_NULL);
+        parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
+        parser.declareField((map, value) -> map.put(Fields._SHARD, value), (p, c) -> ShardId.fromString(p.text()),
+                new ParseField(Fields._SHARD), ValueType.STRING);
+        parser.declareObject((map, value) -> map.put(SourceFieldMapper.NAME, value), SearchHit::parseSourceBytes,
+                new ParseField(SourceFieldMapper.NAME));
+        parser.declareObject((map, value) -> map.put(Fields.HIGHLIGHT, value), SearchHit::parseHighlightFields,
+                new ParseField(Fields.HIGHLIGHT));
+        parser.declareObject((map, value) -> {
+            Map<String, SearchHitField> fieldMap = get(Fields.FIELDS, map, new HashMap<String, SearchHitField>());
+            fieldMap.putAll(value);
+            map.put(Fields.FIELDS, fieldMap);
+        }, SearchHit::parseFields, new ParseField(Fields.FIELDS));
+        parser.declareObject((map, value) -> map.put(Fields._EXPLANATION, value), SearchHit::parseExplanation,
+                new ParseField(Fields._EXPLANATION));
+        parser.declareObject((map, value) -> map.put(NestedIdentity.Fields._NESTED, value), NestedIdentity::fromXContent,
+                new ParseField(NestedIdentity.Fields._NESTED));
+        parser.declareObject((map, value) -> map.put(Fields.INNER_HITS, value), SearchHit::parseInnerHits,
+                new ParseField(Fields.INNER_HITS));
+        parser.declareStringArray((map, list) -> map.put(Fields.MATCHED_QUERIES, list), new ParseField(Fields.MATCHED_QUERIES));
+        parser.declareField((map, list) -> map.put(Fields.SORT, list), SearchSortValues::fromXContent, new ParseField(Fields.SORT),
+                ValueType.OBJECT_ARRAY);
+    }
+
+    public static SearchHit createFromMap(Map<String, Object> values) {
+        String id = get(Fields._ID, values, null);
+        String type = get(Fields._TYPE, values, null);
+        NestedIdentity nestedIdentity = get(NestedIdentity.Fields._NESTED, values, null);
+        Map<String, SearchHitField> fields = get(Fields.FIELDS, values, null);
+
+        SearchHit searchHit = new SearchHit(-1, id, new Text(type), nestedIdentity, fields);
+        searchHit.index = get(Fields._INDEX, values, null);
+        searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
+        searchHit.version(get(Fields._VERSION, values, -1L));
+        searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
+        searchHit.highlightFields(get(Fields.HIGHLIGHT, values, null));
+        searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
+        searchHit.explanation(get(Fields._EXPLANATION, values, null));
+        searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
+        List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
+        if (matchedQueries != null) {
             searchHit.matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
         }
+        ShardId shardId = get(Fields._SHARD, values, null);
+        String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
             searchHit.shard(new SearchShardTarget(nodeId, shardId));
         }
@@ -587,7 +544,95 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         return searchHit;
     }
 
-    private static Explanation parseExplanation(XContentParser parser) throws IOException {
+    private static <T> T get(String key, Map<String, Object> map, T defaultValue) {
+        @SuppressWarnings("unchecked")
+        T value = (T) map.get(key);
+        if (value == null) {
+            value = defaultValue;
+        }
+        return value;
+    }
+
+    private static float parseScore(XContentParser parser, Void context) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER || parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return parser.floatValue();
+        } else {
+            return Float.NaN;
+        }
+    }
+
+    private static BytesReference parseSourceBytes(XContentParser parser, Void context) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+            // the original document gets slightly modified: whitespaces or
+            // pretty printing are not preserved,
+            // it all depends on the current builder settings
+            builder.copyCurrentStructure(parser);
+            return builder.bytes();
+        }
+    }
+
+    /**
+     * we need to declare parse fields for each metadata field, except for _ID, _INDEX and _TYPE which are
+     * handled individually. All other fields are parsed to an entry in the fields map
+     */
+    private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
+        for (String metadatafield : MapperService.getAllMetaFields()) {
+            if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false
+                    && metadatafield.equals(Fields._TYPE) == false) {
+                parser.declareField((map, field) -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, SearchHitField> fieldMap = (Map<String, SearchHitField>) map.get(Fields.FIELDS);
+                    if (fieldMap == null) {
+                        fieldMap = new HashMap<>();
+                        map.put(Fields.FIELDS, fieldMap);
+                    }
+                    fieldMap.put(field.getName(), field);
+                }, (p, c) -> {
+                    List<Object> values = new ArrayList<>();
+                    values.add(parseStoredFieldsValue(p));
+                    return new SearchHitField(metadatafield, values);
+                }, new ParseField(metadatafield), ValueType.VALUE);
+            }
+        }
+    }
+
+    private static Map<String, SearchHitField> parseFields(XContentParser parser, Void context) throws IOException {
+        Map<String, SearchHitField> fields = new HashMap<>();
+        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            String fieldName = parser.currentName();
+            List<Object> values = new ArrayList<>();
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                values.add(parseStoredFieldsValue(parser));
+            }
+            fields.put(fieldName, new SearchHitField(fieldName, values));
+        }
+        return fields;
+    }
+
+    private static Map<String, SearchHits> parseInnerHits(XContentParser parser, Void context) throws IOException {
+        Map<String, SearchHits> innerHits = new HashMap<>();
+        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            // parse the key
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            String name = parser.currentName();
+            innerHits.put(name, SearchHits.fromXContent(parser));
+            parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        }
+        return innerHits;
+    }
+
+    private static Map<String, HighlightField> parseHighlightFields(XContentParser parser, Void context) throws IOException {
+        Map<String, HighlightField> highlightFields = new HashMap<>();
+        while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            HighlightField highlightField = HighlightField.fromXContent(parser);
+            highlightFields.put(highlightField.getName(), highlightField);
+        }
+        return highlightFields;
+    }
+
+    private static Explanation parseExplanation(XContentParser parser, Void context) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         XContentParser.Token token;
         Float value = null;
@@ -604,7 +649,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
             } else if (Fields.DETAILS.equals(currentFieldName)) {
                 ensureExpectedToken(XContentParser.Token.START_ARRAY, token, () -> parser.getTokenLocation());
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    details.add(parseExplanation(parser));
+                    details.add(parseExplanation(parser, null));
                 }
             } else {
                 throwUnknownField(currentFieldName, parser.getTokenLocation());
@@ -632,15 +677,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
             builder.endArray();
         }
         builder.endObject();
-
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toInnerXContent(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     public static SearchHit readSearchHit(StreamInput in) throws IOException {
@@ -877,6 +913,10 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
             PARSER.declareObject(optionalConstructorArg(), PARSER, new ParseField(Fields._NESTED));
         }
 
+        static NestedIdentity fromXContent(XContentParser parser, Void context) {
+            return fromXContent(parser);
+        }
+
         public static NestedIdentity fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
@@ -901,9 +941,9 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         }
 
         public static class Fields {
-            static final String _NESTED = "_nested";
-            static final String _NESTED_FIELD = "field";
-            static final String _NESTED_OFFSET = "offset";
+            public static final String _NESTED = "_nested";
+            public static final String _NESTED_FIELD = "field";
+            public static final String _NESTED_OFFSET = "offset";
         }
     }
 }

@@ -20,23 +20,30 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -190,14 +197,16 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts;
+            private Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
             private ScoreDoc doc;
             private SearchHit hit;
+
+            public static final ParseField CONTEXT = new ParseField("contexts");
 
             public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
-                this.contexts = contexts;
+                this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
             }
 
             protected Option() {
@@ -233,14 +242,14 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("text", getText());
+                builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
                     hit.toInnerXContent(builder, params);
                 } else {
-                    builder.field("score", getScore());
+                    builder.field(SCORE.getPreferredName(), getScore());
                 }
                 if (contexts.size() > 0) {
-                    builder.startObject("contexts");
+                    builder.startObject(CONTEXT.getPreferredName());
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                         builder.startArray(entry.getKey());
                         for (CharSequence context : entry.getValue()) {
@@ -251,6 +260,58 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     builder.endObject();
                 }
                 return builder;
+            }
+
+            private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
+                    true, HashMap::new);
+
+            static {
+                SearchHit.declareInnerHitsParseFields(PARSER);
+                PARSER.declareString((map, value) -> map.put(Suggestion.Entry.Option.TEXT.getPreferredName(), value),
+                        Suggestion.Entry.Option.TEXT);
+                PARSER.declareFloat((map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
+                        Suggestion.Entry.Option.SCORE);
+                PARSER.declareObject((map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName(), value),
+                        Option::parseContext, CompletionSuggestion.Entry.Option.CONTEXT);
+            }
+
+            private static Map<String, Set<CharSequence>> parseContext(XContentParser parser, Void context) throws IOException {
+                Map<String, Set<CharSequence>> contexts = new HashMap<>();
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+                while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+                    String key = parser.currentName();
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                    Set<CharSequence> values = new HashSet<>();
+                    for (Object value : parser.list()) {
+                        values.add((String) value);
+                    }
+                    contexts.put(key, values);
+                }
+                return contexts;
+            }
+
+            public static Option fromXContent(XContentParser parser) {
+                Map<String, Object> values = PARSER.apply(parser, null);
+
+                Text text = new Text((String) values.get(Suggestion.Entry.Option.TEXT.getPreferredName()));
+                Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
+                @SuppressWarnings("unchecked")
+                Map<String, Set<CharSequence>> contexts = (Map<String, Set<CharSequence>>) values
+                        .get(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName());
+                if (contexts == null) {
+                    contexts = Collections.emptyMap();
+                }
+
+                SearchHit hit = null;
+                // the option either prints SCORE or inlines the search hit
+                if (score == null) {
+                    hit = SearchHit.createFromMap(values);
+                    score = hit.getScore();
+                }
+                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
+                option.setHit(hit);
+                return option;
             }
 
             @Override
@@ -310,7 +371,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append("]");
                 return stringBuilder.toString();
             }
-
         }
     }
 

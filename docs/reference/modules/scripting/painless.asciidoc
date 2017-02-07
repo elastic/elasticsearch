@@ -361,8 +361,7 @@ Java, leading to some trouble when it whitelists classes from the Java
 standard library. For example, in Java and Groovy, `Matcher` has two methods:
 `group(int)` and `group(String)`. Painless can't whitelist both of them methods
 because they have the same name and the same number of parameters. So instead it
-has <<painless-api-reference-Matcher-group-1, `group(int)`>> and
-<<painless-api-reference-Matcher-namedGroup-1, `namedGroup(String)`>>.
+has `group(int)` and `namedGroup(String)`.
 
 We have a few justifications for this different way of dispatching methods:
 

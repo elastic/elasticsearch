@@ -39,6 +39,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
@@ -100,7 +102,48 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (scroll != null) {
+            if (source.from() > 0) {
+                validationException =
+                    addValidationError("cannot use `scroll` when `from` is greater than 0", validationException);
+            }
+            if (source.size() == 0) {
+                validationException = addValidationError("cannot use `scroll` if `size` is 0", validationException);
+            }
+            if (source.searchAfter() != null) {
+                validationException = addValidationError("`search_after` cannot be used in a scroll context.",
+                    validationException);
+            }
+            if (source.collapse() != null) {
+                validationException = addValidationError("cannot use `collapse` in a scroll context",
+                    validationException);
+            }
+        } else if (source.slice() != null) {
+            validationException = addValidationError("`slice` cannot be used outside of a scroll context",
+                validationException);
+        }
+
+        if (source.searchAfter() != null) {
+            if (source.from() > 0) {
+                validationException =
+                    addValidationError("`from` parameter must be set to 0 when `search_after` is used.",
+                        validationException);
+            }
+            if (source.collapse() != null) {
+                validationException =
+                    addValidationError("cannot use `collapse` in conjunction with `search_after`",
+                        validationException);
+            }
+        }
+
+        if (source.collapse() != null) {
+            if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`",
+                    validationException);
+            }
+        }
+        return validationException;
     }
 
     /**

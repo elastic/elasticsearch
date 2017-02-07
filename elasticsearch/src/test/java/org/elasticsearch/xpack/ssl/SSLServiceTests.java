@@ -157,18 +157,9 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslEngine, notNullValue());
     }
 
-    public void testCreateWithoutAnySettingsNotValidForServer() throws Exception {
+    public void testCreateWithoutAnySettingsValidForServer() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, Settings.EMPTY));
-    }
-
-    public void testCreateWithOnlyTruststoreNotValidForServer() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.ssl.truststore.path", testnodeStore)
-                .put("xpack.ssl.truststore.password", "testnode")
-                .build();
-        SSLService sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, Settings.EMPTY));
+        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
     }
 
     public void testCreateWithKeystoreIsValidForServer() throws Exception {
@@ -177,7 +168,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, Settings.EMPTY));
+        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
     }
 
     public void testValidForServerWithFallback() throws Exception {
@@ -186,7 +177,8 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.truststore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, settings.getByPrefix("xpack.ssl.")));
+        // transport is valid in default config
+        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
 
         settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
@@ -195,13 +187,13 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.security.transport.ssl.keystore.password", "testnode")
                 .build();
         sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, settings.getByPrefix("xpack.ssl.")));
+        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
         assertTrue(sslService.isConfigurationValidForServerUsage(
-                settings.getByPrefix("xpack.security.transport.ssl."), settings.getByPrefix("xpack.ssl.")));
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, settings.getByPrefix("xpack.security.transport.ssl.")));
+                settings.getByPrefix("xpack.security.transport.ssl."), false));
+        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
     }
 
-    public void testGetVerificationMode() {
+    public void testGetVerificationMode() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         assertThat(sslService.getVerificationMode(Settings.EMPTY, Settings.EMPTY), is(XPackSettings.VERIFICATION_MODE_DEFAULT));
 
@@ -220,7 +212,7 @@ public class SSLServiceTests extends ESTestCase {
                 is(VerificationMode.CERTIFICATE));
     }
 
-    public void testIsSSLClientAuthEnabled() {
+    public void testIsSSLClientAuthEnabled() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         assertTrue(sslService.isSSLClientAuthEnabled(Settings.EMPTY));
         assertTrue(sslService.isSSLClientAuthEnabled(Settings.EMPTY, Settings.EMPTY));
@@ -238,7 +230,7 @@ public class SSLServiceTests extends ESTestCase {
                 settings.getByPrefix("xpack.security.transport.ssl.")));
     }
 
-    public void testThatHttpClientAuthDefaultsToNone() {
+    public void testThatHttpClientAuthDefaultsToNone() throws Exception {
         final Settings globalSettings = Settings.builder()
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())

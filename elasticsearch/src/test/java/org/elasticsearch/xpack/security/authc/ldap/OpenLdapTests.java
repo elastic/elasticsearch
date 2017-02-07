@@ -44,7 +44,7 @@ public class OpenLdapTests extends ESTestCase {
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
+        Path truststore = getDataPath("../ldap/support/ldaptrust.jks");
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -53,19 +53,19 @@ public class OpenLdapTests extends ESTestCase {
         useGlobalSSL = randomBoolean();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.keystore.path", keystore)
-                    .put("xpack.ssl.keystore.password", "changeit");
+            builder.put("xpack.ssl.truststore.path", truststore)
+                    .put("xpack.ssl.truststore.password", "changeit");
 
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", keystore);
+            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
             builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }

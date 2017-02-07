@@ -37,7 +37,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     private SSLService sslService;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(globalSettings, new Environment(globalSettings));
     }

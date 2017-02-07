@@ -10,15 +10,10 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.TestXPackTransportClient;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -27,15 +22,11 @@ import org.junit.BeforeClass;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 
-import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD;
-import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_USER_NAME;
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.is;
 
 public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
@@ -71,8 +62,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
@@ -90,26 +81,6 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
-    }
-
-    public void testTransportClientWithoutClientCertificate() {
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
-        int port = randomFrom(transport.profileBoundAddresses().get("want_client_auth").boundAddresses()).address().getPort();
-
-        Settings sslSettingsForStore = getSSLSettingsForStore
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks", "truststore-testnode-only");
-        Settings settings = Settings.builder()
-                .put(sslSettingsForStore)
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                .build();
-
-
-        try (TransportClient client = new TestXPackTransportClient(settings)) {
-            client.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), port));
-            assertGreenClusterState(client);
         }
     }
 

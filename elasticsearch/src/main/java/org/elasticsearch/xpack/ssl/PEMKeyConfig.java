@@ -8,15 +8,22 @@ package org.elasticsearch.xpack.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,30 +53,40 @@ class PEMKeyConfig extends KeyConfig {
 
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
-        // password must be non-null for keystore...
-        char[] password = keyPassword == null ? new char[0] : keyPassword.toCharArray();
         try {
             PrivateKey privateKey = readPrivateKey(CertUtils.resolvePath(keyPath, environment));
+            if (privateKey == null) {
+                throw new IllegalArgumentException("private key [" + keyPath + "] could not be loaded");
+            }
             Certificate[] certificateChain = CertUtils.readCertificates(Collections.singletonList(certPath), environment);
             // password must be non-null for keystore...
-            return CertUtils.keyManager(certificateChain, privateKey, password);
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
-        } finally {
-            if (password != null) {
-                Arrays.fill(password, (char) 0);
+            try (SecuredString securedKeyPasswordChars = new SecuredString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
+                return CertUtils.keyManager(certificateChain, privateKey, securedKeyPasswordChars.internalChars());
             }
+        } catch (IOException | UnrecoverableKeyException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
+            throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
     }
 
-    private PrivateKey readPrivateKey(Path keyPath) throws Exception {
-        char[] password = keyPassword == null ? null : keyPassword.toCharArray();
-        try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
-            return CertUtils.readPrivateKey(reader, () -> password);
-        } finally {
-            if (password != null) {
-                Arrays.fill(password, (char) 0);
-            }
+    @Override
+    List<PrivateKey> privateKeys(@Nullable Environment environment) {
+        try {
+            return Collections.singletonList(readPrivateKey(CertUtils.resolvePath(keyPath, environment)));
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to read key", e);
+        }
+    }
+
+    private PrivateKey readPrivateKey(Path keyPath) throws IOException {
+        try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8);
+             SecuredString securedString = new SecuredString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
+            return CertUtils.readPrivateKey(reader, () -> {
+                if (keyPassword == null) {
+                    return null;
+                } else {
+                    return securedString.internalChars();
+                }
+            });
         }
     }
 

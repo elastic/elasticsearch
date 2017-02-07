@@ -11,6 +11,7 @@ import org.elasticsearch.env.Environment;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
+import java.security.PrivateKey;
 import java.util.Collections;
 import java.util.List;
 
@@ -46,7 +47,14 @@ abstract class KeyConfig extends TrustConfig {
         public int hashCode() {
             return System.identityHashCode(this);
         }
+
+        @Override
+        List<PrivateKey> privateKeys(@Nullable Environment environment) {
+            return Collections.emptyList();
+        }
     };
 
     abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
+
+    abstract List<PrivateKey> privateKeys(@Nullable Environment environment);
 }

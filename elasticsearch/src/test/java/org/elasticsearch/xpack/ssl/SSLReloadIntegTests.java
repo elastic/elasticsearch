@@ -42,7 +42,6 @@ import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
-import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
@@ -68,12 +67,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             }
         }
         Settings settings = super.nodeSettings(nodeOrdinal);
-        Settings.Builder builder = Settings.builder();
-        for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.ssl.") == false) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
+        Settings.Builder builder = Settings.builder()
+                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
 
         builder.put("resource.reload.interval.high", "1s")
                 .put(SecuritySettingsSource.getSSLSettingsForStore(
@@ -88,8 +83,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {

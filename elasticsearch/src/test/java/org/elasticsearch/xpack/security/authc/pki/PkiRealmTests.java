@@ -44,13 +44,12 @@ public class PkiRealmTests extends ESTestCase {
     private SSLService sslService;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack.ssl.keystore.path", testnodeStore)
                 .put("xpack.ssl.keystore.password", "testnode")
-                .put("xpack.security.transport.ssl.enabled", true)
                 .build();
         sslService = new SSLService(globalSettings, new Environment(globalSettings));
     }
@@ -217,7 +216,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("has SSL with client authentication enabled"));
     }
 
-    public void testHttpClientAuthOnly() {
+    public void testHttpClientAuthOnly() throws Exception {
         Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put("xpack.ssl.client_authentication", "none")
@@ -226,18 +225,6 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         new PkiRealm(new RealmConfig("", Settings.EMPTY, settings), mock(DnRoleMapper.class),
                 new SSLService(settings, new Environment(settings)));
-    }
-
-    public void testNoSSLThrowsException() throws Exception {
-        Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put("xpack.security.transport.ssl.enabled", false)
-                .build();
-
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> new PkiRealm(new RealmConfig("", Settings.EMPTY, settings), mock(DnRoleMapper.class),
-                        new SSLService(settings, new Environment(settings))));
-        assertThat(e.getMessage(), containsString("has SSL with client authentication enabled"));
     }
 
     static X509Certificate readCert(Path path) throws Exception {

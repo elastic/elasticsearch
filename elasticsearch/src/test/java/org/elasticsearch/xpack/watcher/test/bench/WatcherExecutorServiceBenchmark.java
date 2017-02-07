@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
+import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +25,12 @@ import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
+import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.Arrays;
 
@@ -201,7 +207,8 @@ public class WatcherExecutorServiceBenchmark {
     public static final class XPackBenchmarkPlugin extends XPackPlugin {
 
 
-        public XPackBenchmarkPlugin(Settings settings) throws IOException {
+        public XPackBenchmarkPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException,
+                NoSuchAlgorithmException, KeyStoreException, DestroyFailedException, OperatorCreationException {
             super(settings);
             watcher = new BenchmarkWatcher(settings);
         }

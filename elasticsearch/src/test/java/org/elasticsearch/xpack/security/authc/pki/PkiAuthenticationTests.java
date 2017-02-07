@@ -69,8 +69,8 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     public void testTransportClientCanAuthenticateViaPki() {

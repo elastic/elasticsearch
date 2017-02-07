@@ -145,12 +145,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 case SUITE:
                     if (customSecuritySettingsSource == null) {
                         customSecuritySettingsSource =
-                                new CustomSecuritySettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
+                                new CustomSecuritySettingsSource(useGeneratedSSLConfig(), createTempDir(), currentClusterScope);
                     }
                     break;
                 case TEST:
                     customSecuritySettingsSource =
-                            new CustomSecuritySettingsSource(sslTransportEnabled(), createTempDir(), currentClusterScope);
+                            new CustomSecuritySettingsSource(useGeneratedSSLConfig(), createTempDir(), currentClusterScope);
                     break;
             }
         }
@@ -291,11 +291,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to control whether ssl is enabled or not on the transport layer when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
+     * Allows to control whether ssl key information is auto generated or not on the transport layer
      */
-    protected boolean sslTransportEnabled() {
+    protected boolean useGeneratedSSLConfig() {
         return randomBoolean();
     }
 
@@ -309,8 +307,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
-        private CustomSecuritySettingsSource(boolean sslTransportEnabled, Path configDir, Scope scope) {
-            super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
+        private CustomSecuritySettingsSource(boolean useGeneratedSSLConfig, Path configDir, Scope scope) {
+            super(maxNumberOfNodes(), useGeneratedSSLConfig, configDir, scope);
         }
 
         @Override

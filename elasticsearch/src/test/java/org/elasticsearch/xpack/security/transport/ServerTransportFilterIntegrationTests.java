@@ -42,9 +42,10 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
     }
 
+    // don't use it here to simplify the settings we need
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    public boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     @Override
@@ -60,11 +61,9 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             throw new RuntimeException(e);
         }
 
-        if (sslTransportEnabled()) {
-            settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
-                           .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
-                           .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED);
-        }
+        settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
+                       .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
+                       .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED);
 
         return settingsBuilder
                 .put(super.nodeSettings(nodeOrdinal))
@@ -94,7 +93,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put("xpack.security.transport.ssl.enabled", sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
@@ -123,7 +121,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
-                .put("xpack.security.transport.ssl.enabled", sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "0s")

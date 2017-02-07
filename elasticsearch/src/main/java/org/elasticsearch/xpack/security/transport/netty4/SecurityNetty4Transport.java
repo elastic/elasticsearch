@@ -15,12 +15,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -31,7 +29,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 import static org.elasticsearch.xpack.security.Security.setting;
-import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 
 /**
@@ -39,12 +36,9 @@ import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
  */
 public class SecurityNetty4Transport extends Netty4Transport {
 
-    public static final Setting<Boolean> PROFILE_SSL_SETTING = Setting.boolSetting(setting("ssl.enabled"), false);
-
     private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
     private final Settings transportSSLSettings;
-    private final boolean ssl;
 
     @Inject
     public SecurityNetty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
@@ -52,7 +46,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
                                    @Nullable IPFilter authenticator, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
-        this.ssl = TRANSPORT_SSL_ENABLED.get(settings);
         this.sslService = sslService;
         this.transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
     }
@@ -77,32 +70,22 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     class SecurityServerChannelInitializer extends ServerChannelInitializer {
 
-        private final boolean sslEnabled;
         private final Settings securityProfileSettings;
 
         SecurityServerChannelInitializer(String name, Settings profileSettings) {
             super(name, profileSettings);
-            this.sslEnabled = PROFILE_SSL_SETTING.exists(profileSettings) ? PROFILE_SSL_SETTING.get(profileSettings) : ssl;
             this.securityProfileSettings = profileSettings.getByPrefix(setting("ssl."));
-            if (sslEnabled && sslService.isConfigurationValidForServerUsage(securityProfileSettings, transportSSLSettings) == false) {
-                if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
-                    throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the "
-                            + "[xpack.security.transport.ssl.key] or [xpack.security.transport.ssl.keystore.path] setting");
-                }
-                throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the "
-                        + "[transport.profiles." + name + ".xpack.security.ssl.key] or [transport.profiles." + name
-                        + ".xpack.security.ssl.keystore.path] setting");
-            }
+            assert sslService.isConfigurationValidForServerUsage(securityProfileSettings, true) :
+                    "the ssl configuration is not valid for server use but we are running as a server. this should have been caught by" +
+                            " the key config validation";
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (sslEnabled) {
-                SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings, transportSSLSettings);
-                serverEngine.setUseClientMode(false);
-                ch.pipeline().addFirst(new SslHandler(serverEngine));
-            }
+            SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings, transportSSLSettings);
+            serverEngine.setUseClientMode(false);
+            ch.pipeline().addFirst(new SslHandler(serverEngine));
             if (authenticator != null) {
                 ch.pipeline().addFirst(new IpFilterRemoteAddressFilter(authenticator, name));
             }
@@ -121,9 +104,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (ssl) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(transportSSLSettings, sslService, hostnameVerificationEnabled));
-            }
+            ch.pipeline().addFirst(new ClientSslHandlerInitializer(transportSSLSettings, sslService, hostnameVerificationEnabled));
         }
     }
 

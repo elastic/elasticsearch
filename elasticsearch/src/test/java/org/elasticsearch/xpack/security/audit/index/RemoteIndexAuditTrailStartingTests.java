@@ -34,7 +34,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.is;
 
 /**
  * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster. The cluster
@@ -50,13 +49,13 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
 
     private InternalTestCluster remoteCluster;
 
-    private final boolean useSSL = randomBoolean();
+    private final boolean useGeneratedSSL = randomBoolean();
     private final boolean localAudit = randomBoolean();
     private final String outputs = randomFrom("index", "logfile", "index,logfile");
 
     @Override
-    public boolean sslTransportEnabled() {
-        return useSSL;
+    public boolean useGeneratedSSLConfig() {
+        return useGeneratedSSL;
     }
 
     @Override
@@ -90,7 +89,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // Setup a second test cluster with a single node, security enabled, and SSL
         final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(numNodes, useGeneratedSSL, systemKey(), createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()

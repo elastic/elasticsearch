@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack;
 
+import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -89,15 +91,21 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
+import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -176,7 +184,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Watcher watcher;
     protected Graph graph;
 
-    public XPackPlugin(Settings settings) throws IOException {
+    public XPackPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException,
+            KeyStoreException, DestroyFailedException, OperatorCreationException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
         this.env = transportClientMode ? null : new Environment(settings);
@@ -497,5 +506,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
         return security.getRestHandlerWrapper(threadContext);
+    }
+
+    @Override
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return security.getBootstrapChecks();
     }
 }

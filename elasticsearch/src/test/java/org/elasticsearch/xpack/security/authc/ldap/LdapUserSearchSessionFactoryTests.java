@@ -57,8 +57,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          */
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.keystore.path", keystore)
-                .put("xpack.ssl.keystore.password", "changeit")
+                .put("xpack.ssl.truststore.path", keystore)
+                .put("xpack.ssl.truststore.password", "changeit")
                 .build();
         sslService = new SSLService(globalSettings, env);
     }

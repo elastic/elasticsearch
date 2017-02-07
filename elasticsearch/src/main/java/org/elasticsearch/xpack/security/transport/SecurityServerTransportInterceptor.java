@@ -44,7 +44,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.Security.setting;
 
 public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
@@ -142,10 +141,8 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = SecurityNetty4Transport.PROFILE_SSL_SETTING.get(profileSettings);
             final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
-            final boolean clientAuth = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
-            final boolean extractClientCert = profileSsl && clientAuth;
+            final boolean extractClientCert = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
@@ -161,9 +158,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         }
 
         if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
-            final boolean profileSsl = TRANSPORT_SSL_ENABLED.get(settings);
-            final boolean clientAuth = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-            final boolean extractClientCert = profileSsl && clientAuth;
+            final boolean extractClientCert = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
                     threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled, securityContext));
         }

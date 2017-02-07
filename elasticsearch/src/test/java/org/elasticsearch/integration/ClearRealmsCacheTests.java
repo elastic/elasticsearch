@@ -179,10 +179,6 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
-    @Override
-    public boolean sslTransportEnabled() {
-        return false;
-    }
 
     @Override
     protected String configRoles() {

@@ -104,8 +104,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
-        final boolean transportSSLEnabled = randomBoolean();
-        settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
         final String[] auditOutputs = randomFrom(new String[] {"logfile"}, new String[] {"index"}, new String[] {"logfile", "index"});
         when(auditTrail.usageStats())
@@ -171,9 +169,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
                     assertThat(source.getValue("realms"), is(notNullValue()));
                 }
 
-                // check SSL
+                // check http SSL
                 assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
-                assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
 
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));

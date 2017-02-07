@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
@@ -777,7 +778,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return queueConsumer.peek();
     }
 
-    private static Client initializeRemoteClient(Settings settings, Logger logger) {
+    Client initializeRemoteClient(Settings settings, Logger logger) {
         Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
         String[] hosts = clientSettings.getAsArray("hosts");
         if (hosts.length == 0) {
@@ -807,7 +808,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
         final TransportClient transportClient = new TransportClient(Settings.builder()
                 .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
-                .put(theClientSetting).build(), Settings.EMPTY, Collections.singletonList(XPackPlugin.class), null) {};
+                .put(theClientSetting).build(), Settings.EMPTY, remoteTransportClientPlugins(), null) {};
         for (Tuple<String, Integer> pair : hostPortPairs) {
             try {
                 transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
@@ -963,6 +964,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 }
             });
         }
+    }
+
+    // method for testing to allow different plugins such as mock transport...
+    List<Class<? extends Plugin>> remoteTransportClientPlugins() {
+        return Collections.singletonList(XPackPlugin.class);
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

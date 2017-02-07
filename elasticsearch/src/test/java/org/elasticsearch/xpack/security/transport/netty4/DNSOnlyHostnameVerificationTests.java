@@ -88,8 +88,8 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public boolean sslTransportEnabled() {
-        return true;
+    public boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     @Override
@@ -97,7 +97,6 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
         Settings defaultSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
                 .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
-                .put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true)
                 .put("transport.host", hostName);
         String confPath = Environment.PATH_CONF_SETTING.get(defaultSettings);
         Path path = PathUtils.get(confPath).resolve("keystore.jks");
@@ -126,8 +125,7 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     public Settings transportClientSettings() {
         Settings defaultSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder()
-                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
-                .put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true);
+                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false));
         Path path = createTempDir().resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(path)) {
             keystore.store(os, "changeme".toCharArray());

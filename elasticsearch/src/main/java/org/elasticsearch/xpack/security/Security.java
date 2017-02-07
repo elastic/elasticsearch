@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -125,6 +126,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -446,6 +448,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         // hide settings where we don't define them - they are part of a group...
         settingsFilter.add("transport.profiles.*." + setting("*"));
         return settingsFilter;
+    }
+
+    public List<BootstrapCheck> getBootstrapChecks() {
+        if (enabled) {
+            return Collections.singletonList(new SSLBootstrapCheck(sslService, settings, env));
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     public void onIndexModule(IndexModule module) {

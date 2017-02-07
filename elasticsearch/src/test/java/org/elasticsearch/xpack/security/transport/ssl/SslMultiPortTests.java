@@ -30,13 +30,11 @@ import static org.hamcrest.Matchers.containsString;
 public class SslMultiPortTests extends SecurityIntegTestCase {
 
     private static int randomClientPort;
-    private static int randomNonSslPort;
     private static int randomNoClientAuthPort;
 
     @BeforeClass
     public static void getRandomPort() {
         randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
-        randomNonSslPort = randomIntBetween(49000, 65500);
         randomNoClientAuthPort = randomIntBetween(49000, 65500);
     }
 
@@ -46,13 +44,11 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      *     <li>default: testnode keystore. Requires client auth</li>
      *     <li>client: testnode-client-profile keystore that only trusts the testclient cert. Requires client auth</li>
      *     <li>no_client_auth: testnode keystore. Does not require client auth</li>
-     *     <li>no_ssl: plaintext transport profile</li>
      * </ul>
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
-        String randomNonSslPortRange = randomNonSslPort + "-" + (randomNonSslPort+100);
         String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort+100);
 
         Path store;
@@ -71,9 +67,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put("transport.profiles.client.bind_host", "localhost")
                 .put("transport.profiles.client.xpack.security.ssl.truststore.path", store.toAbsolutePath())
                 .put("transport.profiles.client.xpack.security.ssl.truststore.password", "testnode-client-profile")
-                .put("transport.profiles.no_ssl.port", randomNonSslPortRange)
-                .put("transport.profiles.no_ssl.bind_host", "localhost")
-                .put("transport.profiles.no_ssl.xpack.security.ssl.enabled", "false")
                 .put("transport.profiles.no_client_auth.port", randomNoClientAuthPortRange)
                 .put("transport.profiles.no_client_auth.bind_host", "localhost")
                 .put("transport.profiles.no_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
@@ -81,23 +74,13 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     private TransportClient createTransportClient(Settings additionalSettings) {
-        Settings clientSettings = transportClientSettings();
-        if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
-            Settings.Builder builder = Settings.builder();
-            for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith("xpack.ssl.") == false) {
-                    builder.put(entry.getKey(), entry.getValue());
-                }
-            }
-            clientSettings = builder.build();
-        }
-
-        Settings settings = Settings.builder().put(clientSettings)
+        Settings settings = Settings.builder()
+                .put(transportClientSettings().filter(s -> s.startsWith("xpack.ssl") == false))
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(additionalSettings)
@@ -121,7 +104,11 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * disabling the client auth requirement
      */
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
-        try(TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
+        try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
+                .put(transportClientSettings())
+                .put("node.name", "programmatic_transport_client")
+                .put("cluster.name", internalCluster().getClusterName())
+                .build())) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(),
                     getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
@@ -139,21 +126,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         try (TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             transportClient.admin().cluster().prepareHealth().get();
-            fail("Expected NoNodeAvailableException");
-        } catch (NoNodeAvailableException e) {
-            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
-        }
-    }
-
-    /**
-     * Uses a transport client with the same settings as the internal cluster transport client to test connection to the
-     * no_ssl profile. The internal transport client is not used here since we are connecting to a different
-     * profile. The no_ssl profile is plain text and the standard transport client uses SSL, so a connection will never work
-     */
-    public void testThatStandardTransportClientCannotConnectToNoSslProfile() throws Exception {
-        try (TransportClient transportClient = createTransportClient(Settings.EMPTY)) {
-            transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
-            assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
             assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
@@ -206,38 +178,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
             assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
-        }
-    }
-
-    /**
-     * Uses a transport client with a custom keystore; this keystore testclient-client-profile.jks trusts the testnode
-     * certificate and had its own self signed certificate. This test connects to the no_ssl profile, which does not
-     * use SSL so the connection will never work
-     */
-    public void testThatProfileTransportClientCannotConnectToNoSslProfile() throws Exception {
-        Settings settings = getSSLSettingsForStore(
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
-        try (TransportClient transportClient = createTransportClient(settings)) {
-            transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
-            transportClient.admin().cluster().prepareHealth().get();
-            fail("Expected NoNodeAvailableException");
-        } catch (NoNodeAvailableException e) {
-            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
-        }
-    }
-
-    /**
-     * Uses a transport client with SSL disabled. This test connects to the no_ssl profile, which should always succeed
-     */
-    public void testThatTransportClientCanConnectToNoSslProfile() throws Exception {
-        Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
-                .put("xpack.security.transport.ssl.enabled", false)
-                .put("cluster.name", internalCluster().getClusterName())
-                .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
-            transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
-            assertGreenClusterState(transportClient);
         }
     }
 
@@ -305,7 +245,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("xpack.ssl.truststore.password", "truststore-testnode-only")
@@ -359,29 +298,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
             transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
                     assertGreenClusterState(transportClient);
-            fail("Expected NoNodeAvailableException");
-        } catch (NoNodeAvailableException e) {
-            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));
-        }
-    }
-
-    /**
-     * Uses a transport client with a custom truststore; this truststore truststore-testnode-only only trusts the testnode
-     * certificate and contains no other certification. This test connects to the no_ssl profile, which does not use
-     * SSL so the connection should never succeed
-     */
-    public void testThatTransportClientWithOnlyTruststoreCannotConnectToNoSslProfile() throws Exception {
-        Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.truststore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.ssl.truststore.password", "truststore-testnode-only")
-                .build();
-        try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
-            transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
-            assertGreenClusterState(transportClient);
             fail("Expected NoNodeAvailableException");
         } catch (NoNodeAvailableException e) {
             assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#-"));

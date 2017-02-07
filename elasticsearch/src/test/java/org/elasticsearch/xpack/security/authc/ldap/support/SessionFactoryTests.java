@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SessionFactoryTests extends ESTestCase {
 
-    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
+    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() throws Exception {
         final Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         RealmConfig realmConfig = new RealmConfig("conn settings", Settings.EMPTY, environment.settings(), environment);
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
@@ -37,7 +37,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 
-    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() {
+    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
         Settings settings = Settings.builder()
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "10ms")
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, "false")

@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * This is not a string but a CharSequence that can be cleared of its memory.  Important for handling passwords.
@@ -26,11 +27,11 @@ public class SecuredString implements CharSequence, AutoCloseable {
     private boolean cleared = false;
 
     /**
-     * Note: the passed in chars are duplicated
+     * Creates a new SecuredString from the chars. These chars will be cleared when the SecuredString is closed so they should not be
+     * used directly outside of using the SecuredString
      */
     public SecuredString(char[] chars) {
-        this.chars = new char[chars.length];
-        System.arraycopy(chars, 0, this.chars, 0, chars.length);
+        this.chars = Objects.requireNonNull(chars, "chars must not be null!");
     }
 
     /**
@@ -94,6 +95,7 @@ public class SecuredString implements CharSequence, AutoCloseable {
      * @return  A copy of the internal characters. May be used for caching.
      */
     public char[] copyChars() {
+        throwIfCleared();
         return Arrays.copyOf(chars, chars.length);
     }
 

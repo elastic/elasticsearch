@@ -54,13 +54,11 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
     protected static RealmConfig realmConfig;
     protected static boolean useGlobalSSL;
-    protected static boolean sslEnabled;
 
     @BeforeClass
     public static void setupRealm() {
         realmConfig = randomFrom(RealmConfig.values());
         useGlobalSSL = randomBoolean();
-        sslEnabled = randomBoolean();
         ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]. " +
                         "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings.getAsMap());
     }
@@ -74,20 +72,34 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         Path nodeFiles = createTempDir();
         Path store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
-        Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(realmConfig.buildSettings(store, "testnode"))
+        Settings.Builder builder = Settings.builder();
+        if (useGlobalSSL) {
+            builder.put(super.nodeSettings(nodeOrdinal).filter((s) -> s.startsWith("xpack.ssl.") == false))
+                    .put(sslSettingsForStore(store, "testnode"));
+        } else {
+            builder.put(super.nodeSettings(nodeOrdinal));
+        }
+        builder.put(realmConfig.buildSettings(store, "testnode"))
                 .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml",
                         configRoleMappings()));
-        if (sslEnabled == false && useGlobalSSL) {
-            builder.put(sslSettingsForStore(store, "testnode"));
-        }
         return builder.build();
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return sslEnabled;
+    protected Settings transportClientSettings() {
+        if (useGlobalSSL) {
+            Path store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            return Settings.builder()
+                    .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false))
+                    .put(sslSettingsForStore(store, "testnode"))
+                    .build();
+        } else {
+            return super.transportClientSettings();
+        }
+    }
+    @Override
+    protected boolean useGeneratedSSLConfig() {
+        return useGlobalSSL == false;
     }
 
     protected String configRoleMappings() {

@@ -8,14 +8,24 @@ package org.elasticsearch.xpack.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Key;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,13 +59,13 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
-        try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
-            // TODO remove reliance on JKS since we can use PKCS12 stores in JDK8+...
-            KeyStore ks = KeyStore.getInstance("jks");
-            assert keyStorePassword != null;
-            ks.load(in, keyStorePassword.toCharArray());
-            return CertUtils.keyManager(ks, keyPassword.toCharArray(), keyStoreAlgorithm);
-        } catch (Exception e) {
+        try {
+            KeyStore ks = getKeyStore(environment);
+            checkKeyStore(ks);
+            try (SecuredString keyPasswordSecuredString = new SecuredString(keyPassword.toCharArray())) {
+                return CertUtils.keyManager(ks, keyPasswordSecuredString.internalChars(), keyStoreAlgorithm);
+            }
+        } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
     }
@@ -72,6 +82,54 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
         return Collections.singletonList(CertUtils.resolvePath(keyStorePath, environment));
+    }
+
+    @Override
+    List<PrivateKey> privateKeys(@Nullable Environment environment) {
+        try {
+            KeyStore keyStore = getKeyStore(environment);
+            try (SecuredString keyPasswordSecuredString = new SecuredString(keyPassword.toCharArray())) {
+                List<PrivateKey> privateKeys = new ArrayList<>();
+                for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                    final String alias = e.nextElement();
+                    if (keyStore.isKeyEntry(alias)) {
+                        Key key = keyStore.getKey(alias, keyPasswordSecuredString.internalChars());
+                        if (key instanceof PrivateKey) {
+                            privateKeys.add((PrivateKey) key);
+                        }
+                    }
+                }
+                return privateKeys;
+            }
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to list keys", e);
+        }
+    }
+
+    private KeyStore getKeyStore(@Nullable Environment environment)
+                                throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+        try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
+            // TODO remove reliance on JKS since we can use PKCS12 stores in JDK8+...
+            KeyStore ks = KeyStore.getInstance("jks");
+            if (keyStorePassword == null) {
+                throw new IllegalArgumentException("keystore password may not be null");
+            }
+            try (SecuredString keyStorePasswordSecuredString  = new SecuredString(keyStorePassword.toCharArray())) {
+                ks.load(in, keyStorePasswordSecuredString.internalChars());
+            }
+            return ks;
+        }
+    }
+
+    private void checkKeyStore(KeyStore keyStore) throws KeyStoreException {
+        Enumeration<String> aliases = keyStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            if (keyStore.isKeyEntry(alias)) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("the keystore [" + keyStorePath + "] does not contain a private key entry");
     }
 
     @Override

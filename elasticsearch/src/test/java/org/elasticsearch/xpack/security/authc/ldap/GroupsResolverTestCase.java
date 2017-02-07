@@ -43,24 +43,24 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
 
     @Before
     public void setUpLdapConnection() throws Exception {
-        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
+        Path truststore = getDataPath("../ldap/support/ldaptrust.jks");
         boolean useGlobalSSL = randomBoolean();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.keystore.path", keystore)
-                    .put("xpack.ssl.keystore.password", "changeit");
+            builder.put("xpack.ssl.truststore.path", truststore)
+                    .put("xpack.ssl.truststore.password", "changeit");
 
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.keystore.path", keystore);
-            builder.put("xpack.security.authc.realms.foo.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
-            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         Settings settings = builder.build();
@@ -78,8 +78,8 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         if (useGlobalSSL) {
             connectionSettings = Settings.EMPTY;
         } else {
-            connectionSettings = Settings.builder().put("keystore.path", keystore)
-                    .put("keystore.password", "changeit").build();
+            connectionSettings = Settings.builder().put("truststore.path", truststore)
+                    .put("truststore.password", "changeit").build();
         }
         ldapConnection = LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options,
                 ldapurl.getHost(), ldapurl.getPort(), bindDN(), bindPassword()));

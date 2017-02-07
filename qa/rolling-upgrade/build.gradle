@@ -47,6 +47,8 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     return tmpFile.exists()
 }
 
+String outputDir = "generated-resources/${project.name}"
+
 task oldClusterTest(type: RestIntegTestTask) {
     mustRunAfter(precommit)
     cluster {
@@ -58,6 +60,10 @@ task oldClusterTest(type: RestIntegTestTask) {
         clusterName = 'rolling-upgrade'
         waitCondition = waitWithAuth
         setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
+        setting 'xpack.security.transport.ssl.enabled', 'true'
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.ssl.keystore.password', 'testnode'
+        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
     }
     systemProperty 'tests.rest.suite', 'old_cluster'
 }
@@ -71,6 +77,9 @@ task mixedClusterTest(type: RestIntegTestTask) {
         unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
         dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
         waitCondition = waitWithAuth
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.ssl.keystore.password', 'testnode'
+        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     finalizedBy 'oldClusterTest#node0.stop'
@@ -85,6 +94,9 @@ task upgradedClusterTest(type: RestIntegTestTask) {
         unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
         dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
         waitCondition = waitWithAuth
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.ssl.keystore.password', 'testnode'
+        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
     }
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
@@ -104,7 +116,6 @@ dependencies {
 }
 
 // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
-String outputDir = "generated-resources/${project.name}"
 task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
     from project(':x-pack:elasticsearch').sourceSets.test.resources
@@ -112,8 +123,15 @@ task copyXPackRestSpec(type: Copy) {
     into project.sourceSets.test.output.resourcesDir
 }
 
-task copyXPackPluginProps(type: Copy) {
+task copyTestNodeKeystore(type: Copy) {
     dependsOn(copyXPackRestSpec)
+    from project(':x-pack:elasticsearch')
+            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    into outputDir
+}
+
+task copyXPackPluginProps(type: Copy) {
+    dependsOn(copyTestNodeKeystore)
     from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
     from project(':x-pack:elasticsearch').tasks.pluginProperties
     into outputDir

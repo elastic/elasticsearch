@@ -22,19 +22,15 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     Path keystore;
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
-        Settings.Builder builder = Settings.builder();
-        for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.ssl.") == false) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
+        Settings.Builder builder = Settings.builder()
+                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP

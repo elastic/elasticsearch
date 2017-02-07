@@ -92,7 +92,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         HttpSslChannelHandler(Netty4HttpServerTransport transport) {
             super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
             this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
-            if (ssl && sslService.isConfigurationValidForServerUsage(sslSettings, Settings.EMPTY) == false) {
+            if (ssl && sslService.isConfigurationValidForServerUsage(sslSettings, false) == false) {
                 throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
                         "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
             }

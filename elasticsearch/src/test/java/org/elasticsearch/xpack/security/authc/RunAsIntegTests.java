@@ -49,11 +49,6 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public boolean sslTransportEnabled() {
-        return false;
-    }
-
-    @Override
     public String configRoles() {
         return ROLES + super.configRoles();
     }
@@ -70,6 +65,11 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         return super.configUsersRoles()
                 + "run_as_role:" + RUN_AS_USER + "\n"
                 + "transport_client:" + TRANSPORT_CLIENT_USER;
+    }
+
+    @Override
+    public boolean useGeneratedSSLConfig() {
+        return true;
     }
 
     public void testUserImpersonation() throws Exception {
@@ -222,7 +222,6 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(extraSettings)
                 .put("cluster.name", clusterName)
-                .put("xpack.security.transport.ssl.enabled", false)
                 .build();
 
         return new TestXPackTransportClient(settings)

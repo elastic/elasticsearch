@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * The configuration of trust material for SSL usage
@@ -43,4 +49,63 @@ abstract class TrustConfig {
      * {@inheritDoc}. Declared as abstract to force implementors to provide a custom implementation
      */
     public abstract int hashCode();
+
+    /**
+     * A trust configuration that is a combination of a trust configuration with the default JDK trust configuration. This trust
+     * configuration returns a trust manager verifies certificates against both the default JDK trusted configurations and the specific
+     * {@link TrustConfig} provided.
+     */
+    static class CombiningTrustConfig extends TrustConfig {
+
+        private final List<TrustConfig> trustConfigs;
+
+        CombiningTrustConfig(List<TrustConfig> trustConfig) {
+            this.trustConfigs = Collections.unmodifiableList(trustConfig);
+        }
+
+        @Override
+        X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
+            Optional<TrustConfig> matchAll = trustConfigs.stream().filter(TrustAllConfig.INSTANCE::equals).findAny();
+            if (matchAll.isPresent()) {
+                return matchAll.get().createTrustManager(environment);
+            }
+
+            try {
+                return CertUtils.trustManager(trustConfigs.stream()
+                        .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
+                        .collect(Collectors.toList())
+                        .toArray(new X509Certificate[0]));
+            } catch (Exception e) {
+                throw new ElasticsearchException("failed to create trust manager", e);
+            }
+        }
+
+        @Override
+        List<Path> filesToMonitor(@Nullable Environment environment) {
+            return trustConfigs.stream().flatMap((tc) -> tc.filesToMonitor(environment).stream()).collect(Collectors.toList());
+        }
+
+        @Override
+        public String toString() {
+            return "Combining Trust Config{" + trustConfigs.stream().map(TrustConfig::toString).collect(Collectors.joining(", ")) + "}";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof CombiningTrustConfig)) {
+                return false;
+            }
+
+            CombiningTrustConfig that = (CombiningTrustConfig) o;
+            return trustConfigs.equals(that.trustConfigs);
+        }
+
+        @Override
+        public int hashCode() {
+            return trustConfigs.hashCode();
+        }
+    }
 }

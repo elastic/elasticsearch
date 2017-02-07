@@ -55,8 +55,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean sslTransportEnabled() {
-        return true;
+    protected boolean useGeneratedSSLConfig() {
+        return false;
     }
 
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
@@ -90,7 +90,6 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
 
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.ssl.keystore.path", store)
                 .put("xpack.ssl.keystore.password", "testclient-client-profile")

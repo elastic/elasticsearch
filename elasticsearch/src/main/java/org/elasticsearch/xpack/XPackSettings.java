@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -45,8 +47,20 @@ public class XPackSettings {
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
     public static final Setting<Boolean> DLS_FLS_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".dls_fls", true);
 
-    /** Setting for enabling or disabling transport ssl. Defaults to false. */
-    public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".transport.ssl", false);
+    /**
+     * Legacy setting for enabling or disabling transport ssl. Defaults to true. This is just here to make upgrading easier since the
+     * user needs to set this setting in 5.x to upgrade
+     */
+    private static final Setting<Boolean> TRANSPORT_SSL_ENABLED =
+            new Setting<>(XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".transport.ssl.enabled", (s) -> Boolean.toString(true),
+                    (s) -> {
+                        final boolean parsed = Booleans.parseBoolean(s);
+                        if (parsed == false) {
+                            throw new IllegalArgumentException("transport ssl cannot be disabled. Remove setting [" +
+                                    XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".transport.ssl.enabled]");
+                        }
+                        return true;
+                    }, Property.NodeScope, Property.Deprecated);
 
     /** Setting for enabling or disabling http ssl. Defaults to false. */
     public static final Setting<Boolean> HTTP_SSL_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".http.ssl", false);
@@ -86,6 +100,7 @@ public class XPackSettings {
         ALL_SETTINGS.addAll(GLOBAL_SSL.getAllSettings());
         ALL_SETTINGS.addAll(HTTP_SSL.getAllSettings());
         ALL_SETTINGS.addAll(TRANSPORT_SSL.getAllSettings());
+        ALL_SETTINGS.add(TRANSPORT_SSL_ENABLED);
     }
 
     /**

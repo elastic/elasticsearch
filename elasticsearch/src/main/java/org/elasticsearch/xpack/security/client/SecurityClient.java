@@ -156,6 +156,10 @@ public class SecurityClient {
         client.execute(PutUserAction.INSTANCE, request, listener);
     }
 
+    /**
+     * Populates the {@link ChangePasswordRequest} with the username and password. Note: the passed in char[] will be cleared by this
+     * method.
+     */
     public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password) {
         return new ChangePasswordRequestBuilder(client).username(username).password(password);
     }

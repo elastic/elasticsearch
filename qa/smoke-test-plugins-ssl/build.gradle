@@ -171,10 +171,9 @@ integTest {
     setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
     setting 'xpack.monitoring.exporters._http.auth.password', 'changeme'
 
-    setting 'xpack.security.transport.ssl.enabled', 'true'
     setting 'xpack.security.http.ssl.enabled', 'true'
-    setting 'xpack.ssl.keystore.path', nodeKeystore.name
-    setting 'xpack.ssl.keystore.password', 'keypass'
+    setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
+    setting 'xpack.security.http.ssl.keystore.password', 'keypass'
 
     plugin ':x-pack:elasticsearch'
 

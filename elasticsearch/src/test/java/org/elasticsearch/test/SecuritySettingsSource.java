@@ -74,36 +74,36 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private final Path parentFolder;
     private final String subfolderPrefix;
     private final byte[] systemKey;
-    private final boolean sslTransportEnabled;
+    private final boolean useGeneratedSSLConfig;
     private final boolean hostnameVerificationEnabled;
 
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
-     * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
+     * @param useGeneratedSSLConfig whether ssl key/cert should be auto-generated
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
-    public SecuritySettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, Scope scope) {
-        this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
+    public SecuritySettingsSource(int numOfNodes, boolean useGeneratedSSLConfig, Path parentFolder, Scope scope) {
+        this(numOfNodes, useGeneratedSSLConfig, generateKey(), parentFolder, scope);
     }
 
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
-     * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
+     * @param useGeneratedSSLConfig whether ssl key/cert should be auto-generated
      * @param systemKey the system key that all of the nodes will use to sign messages
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
-    public SecuritySettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, Scope scope) {
+    public SecuritySettingsSource(int numOfNodes, boolean useGeneratedSSLConfig, byte[] systemKey, Path parentFolder, Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
-        this.sslTransportEnabled = sslTransportEnabled;
+        this.useGeneratedSSLConfig = useGeneratedSSLConfig;
         this.hostnameVerificationEnabled = randomBoolean();
     }
 
@@ -211,10 +211,10 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                    sslTransportEnabled, hostnameVerificationEnabled, false);
+                    useGeneratedSSLConfig, hostnameVerificationEnabled, false);
         }
         return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
-                sslTransportEnabled, hostnameVerificationEnabled, false);
+                useGeneratedSSLConfig, hostnameVerificationEnabled, false);
     }
 
     public Settings getClientSSLSettings() {
@@ -223,11 +223,11 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                     "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                     Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
-                    sslTransportEnabled, hostnameVerificationEnabled, true);
+                    useGeneratedSSLConfig, hostnameVerificationEnabled, true);
         }
 
         return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient",
-                sslTransportEnabled, hostnameVerificationEnabled, true);
+                useGeneratedSSLConfig, hostnameVerificationEnabled, true);
     }
 
     /**
@@ -238,26 +238,26 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * @return the configuration settings
      */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true);
+        return getSSLSettingsForStore(resourcePathToStore, password, false, true, true);
     }
 
-    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled,
+    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean useGeneratedSSLConfig,
                                                    boolean hostnameVerificationEnabled, boolean transportClient) {
         Path store = resolveResourcePath(resourcePathToStore);
 
-        Settings.Builder builder = Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslTransportEnabled);
+        Settings.Builder builder = Settings.builder();
 
         if (transportClient == false) {
             builder.put("xpack.security.http.ssl.enabled", false);
         }
 
-        if (sslTransportEnabled) {
+        builder.put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        if (useGeneratedSSLConfig == false) {
             builder.put("xpack.ssl.keystore.path", store)
-                    .put("xpack.ssl.keystore.password", password)
-                    .put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+                    .put("xpack.ssl.keystore.password", password);
         }
 
-        if (sslTransportEnabled && randomBoolean()) {
+        if (useGeneratedSSLConfig == false && randomBoolean()) {
             builder.put("xpack.ssl.truststore.path", store)
                     .put("xpack.ssl.truststore.password", password);
         }
@@ -265,20 +265,19 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     }
 
     private static Settings getSSLSettingsForPEMFiles(String keyPath, String password, String certificatePath,
-                                            List<String> trustedCertificates, boolean sslTransportEnabled,
+                                            List<String> trustedCertificates, boolean useGeneratedSSLConfig,
                                             boolean hostnameVerificationEnabled, boolean transportClient) {
         Settings.Builder builder = Settings.builder();
-        builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslTransportEnabled);
 
         if (transportClient == false) {
             builder.put("xpack.security.http.ssl.enabled", false);
         }
 
-        if (sslTransportEnabled) {
+        builder.put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        if (useGeneratedSSLConfig == false) {
             builder.put("xpack.ssl.key", resolveResourcePath(keyPath))
                     .put("xpack.ssl.key_passphrase", password)
-                    .put("xpack.ssl.certificate", resolveResourcePath(certificatePath))
-                    .put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+                    .put("xpack.ssl.certificate", resolveResourcePath(certificatePath));
 
             if (trustedCertificates.isEmpty() == false) {
                 builder.put("xpack.ssl.certificate_authorities",

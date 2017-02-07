@@ -14,7 +14,9 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x509.Time;
+import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -27,6 +29,7 @@ import org.bouncycastle.openssl.X509TrustedCertificateBlock;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder;
 import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
@@ -48,19 +51,26 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -96,7 +106,8 @@ public class CertUtils {
     /**
      * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
      */
-    static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password) throws Exception {
+    static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
         // password must be non-null for keystore...
@@ -107,7 +118,8 @@ public class CertUtils {
     /**
      * Returns a {@link X509ExtendedKeyManager} that is built from the provided keystore
      */
-    static X509ExtendedKeyManager keyManager(KeyStore keyStore, char[] password, String algorithm) throws Exception {
+    static X509ExtendedKeyManager keyManager(KeyStore keyStore, char[] password, String algorithm)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
@@ -123,9 +135,9 @@ public class CertUtils {
      * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
      * @param certificates the certificates to trust
      * @return a trust manager that trusts the provided certificates
-     * @throws Exception if there is an error loading the certificates or trust manager
      */
-    public static X509ExtendedTrustManager trustManager(Certificate[] certificates) throws Exception {
+    public static X509ExtendedTrustManager trustManager(Certificate[] certificates)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         KeyStore store = KeyStore.getInstance("jks");
         store.load(null, null);
         int counter = 0;
@@ -143,23 +155,24 @@ public class CertUtils {
      * @param trustStoreAlgorithm the algorithm to use for the truststore
      * @param env the environment to use for file resolution. May be {@code null}
      * @return a trust manager with the trust material from the store
-     * @throws Exception if an error occurs when loading the truststore or the trust manager
      */
     public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm,
-                                                        @Nullable Environment env) throws Exception {
+                                                        @Nullable Environment env)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         try (InputStream in = Files.newInputStream(resolvePath(trustStorePath, env))) {
             // TODO remove reliance on JKS since we can PKCS12 stores...
             KeyStore trustStore = KeyStore.getInstance("jks");
             assert trustStorePassword != null;
             trustStore.load(in, trustStorePassword.toCharArray());
-            return CertUtils.trustManager(trustStore, trustStoreAlgorithm);
+            return trustManager(trustStore, trustStoreAlgorithm);
         }
     }
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
      */
-    static X509ExtendedTrustManager trustManager(KeyStore keyStore, String algorithm) throws Exception {
+    static X509ExtendedTrustManager trustManager(KeyStore keyStore, String algorithm)
+            throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(keyStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
@@ -176,9 +189,9 @@ public class CertUtils {
      * @param certPaths the paths to the PEM encoded certificates
      * @param environment the environment to resolve files against. May be {@code null}
      * @return an array of {@link Certificate} objects
-     * @throws Exception if an error occurs reading a file or parsing a certificate
      */
-    public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment) throws Exception {
+    public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
+            throws CertificateException, IOException {
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (String path : certPaths) {
@@ -192,7 +205,8 @@ public class CertUtils {
     /**
      * Reads the certificates from the provided reader
      */
-    static void readCertificates(Reader reader, List<Certificate> certificates, CertificateFactory certFactory) throws Exception {
+    static void readCertificates(Reader reader, List<Certificate> certificates, CertificateFactory certFactory)
+            throws IOException, CertificateException {
         try (PEMParser pemParser = new PEMParser(reader)) {
 
             Object parsed = pemParser.readObject();
@@ -220,40 +234,31 @@ public class CertUtils {
     /**
      * Reads the private key from the reader and optionally uses the password supplier to retrieve a password if the key is encrypted
      */
-    static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws Exception {
+    static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws IOException {
         try (PEMParser parser = new PEMParser(reader)) {
-            Object parsed;
-            List<Object> list = new ArrayList<>(1);
-            do {
-                parsed = parser.readObject();
-                if (parsed != null) {
-                    list.add(parsed);
-                }
-            } while (parsed != null);
-
-            if (list.size() != 1) {
-                throw new IllegalStateException("key file contained [" + list.size() + "] entries, expected one");
+            final Object parsed = parser.readObject();
+            if (parser.readObject() != null) {
+                throw new IllegalStateException("key file contained more that one entry");
             }
 
             PrivateKeyInfo privateKeyInfo;
-            Object parsedObject = list.get(0);
-            if (parsedObject instanceof PEMEncryptedKeyPair) {
+            if (parsed instanceof PEMEncryptedKeyPair) {
                 char[] keyPassword = passwordSupplier.get();
                 if (keyPassword == null) {
                     throw new IllegalArgumentException("cannot read encrypted key without a password");
                 }
                 // we have an encrypted key pair so we need to decrypt it
-                PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) parsedObject;
+                PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) parsed;
                 privateKeyInfo = encryptedKeyPair
                         .decryptKeyPair(new JcePEMDecryptorProviderBuilder().setProvider(BC_PROV).build(keyPassword))
                         .getPrivateKeyInfo();
-            } else if (parsedObject instanceof PEMKeyPair) {
-                privateKeyInfo = ((PEMKeyPair) parsedObject).getPrivateKeyInfo();
-            } else if (parsedObject instanceof PrivateKeyInfo) {
-                privateKeyInfo = (PrivateKeyInfo) parsedObject;
+            } else if (parsed instanceof PEMKeyPair) {
+                privateKeyInfo = ((PEMKeyPair) parsed).getPrivateKeyInfo();
+            } else if (parsed instanceof PrivateKeyInfo) {
+                privateKeyInfo = (PrivateKeyInfo) parsed;
             } else {
                 throw new IllegalArgumentException("parsed an unsupported object [" +
-                        parsedObject.getClass().getSimpleName() + "]");
+                        parsed.getClass().getSimpleName() + "]");
             }
 
             JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
@@ -264,7 +269,8 @@ public class CertUtils {
     /**
      * Generates a CA certificate
      */
-    static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days) throws Exception {
+    static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days)
+            throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
         return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days);
     }
 
@@ -272,7 +278,8 @@ public class CertUtils {
      * Generates a signed certificate using the provided CA private key and information from the CA certificate
      */
     public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey, int days) throws Exception {
+                                                     X509Certificate caCert, PrivateKey caPrivKey, int days)
+            throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
         return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days);
     }
 
@@ -286,11 +293,10 @@ public class CertUtils {
      * @param caPrivKey the CA private key. If {@code null}, this results in a self signed certificate
      * @param isCa whether or not the generated certificate is a CA
      * @return a signed {@link X509Certificate}
-     * @throws Exception if an error occurs during the certificate creation
      */
     private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
                                                      X509Certificate caCert, PrivateKey caPrivKey, boolean isCa, int days)
-            throws Exception {
+            throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
         if (days < 1) {
             throw new IllegalArgumentException("the certificate must be valid for at least one day");
@@ -338,9 +344,9 @@ public class CertUtils {
      * @param sanList the subject alternative names that should be added to the certificate as an X509v3 extension. May be
 *                     {@code null}
      * @return a certificate signing request
-     * @throws Exception if an error occurs generating or signing the CSR
      */
-    static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws Exception {
+    static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList)
+            throws IOException, OperatorCreationException {
         JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
         if (sanList != null) {
             ExtensionsGenerator extGen = new ExtensionsGenerator();
@@ -364,7 +370,7 @@ public class CertUtils {
     /**
      * Generates a RSA key pair with the provided key size (in bits)
      */
-    static KeyPair generateKeyPair(int keysize) throws Exception {
+    static KeyPair generateKeyPair(int keysize) throws NoSuchAlgorithmException {
         // generate a private key
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
         keyPairGenerator.initialize(keysize);
@@ -374,7 +380,7 @@ public class CertUtils {
     /**
      * Converts the {@link InetAddress} objects into a {@link GeneralNames} object that is used to represent subject alternative names.
      */
-    static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws Exception {
+    static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws SocketException {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (InetAddress address : addresses) {
             if (address.isAnyLocalAddress()) {

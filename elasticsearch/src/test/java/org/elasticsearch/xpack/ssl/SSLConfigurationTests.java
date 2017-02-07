@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ssl.DefaultJDKTrustConfig.CombiningTrustConfig;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ssl.TrustConfig.CombiningTrustConfig;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;

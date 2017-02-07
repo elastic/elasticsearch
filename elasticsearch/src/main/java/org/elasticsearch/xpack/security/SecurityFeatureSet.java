@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.elasticsearch.common.Nullable;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 /**
  * Indicates whether the features of Security are currently in use
@@ -106,10 +104,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
-        Map<String, Object> map = new HashMap<>(2);
-        map.put("http", Collections.singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
-        map.put("transport", Collections.singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
-        return map;
+        return Collections.singletonMap("http", Collections.singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
     }
 
     static Map<String, Object> auditUsage(@Nullable AuditTrailService auditTrailService) {

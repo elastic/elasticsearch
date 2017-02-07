@@ -41,7 +41,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.Security.setting;
 
 public class PkiRealm extends Realm {
@@ -199,6 +198,7 @@ public class PkiRealm extends Realm {
      * @param config this realm's configuration
      * @param sslService the SSLService to use for ssl configurations
      */
+    // TODO move this to a Bootstrap check!
     static void checkSSLEnabled(RealmConfig config, SSLService sslService) {
         Settings settings = config.globalSettings();
 
@@ -211,10 +211,9 @@ public class PkiRealm extends Realm {
         }
 
         // Default Transport
-        final boolean ssl = TRANSPORT_SSL_ENABLED.get(settings);
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-        if (ssl && clientAuthEnabled) {
+        if (clientAuthEnabled) {
             return;
         }
 
@@ -222,9 +221,7 @@ public class PkiRealm extends Realm {
         Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
-            if (SecurityNetty4Transport.PROFILE_SSL_SETTING.get(profileSettings)
-                    && sslService.isSSLClientAuthEnabled(
-                    SecurityNetty4Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
+            if (sslService.isSSLClientAuthEnabled(SecurityNetty4Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
                 return;
             }
         }

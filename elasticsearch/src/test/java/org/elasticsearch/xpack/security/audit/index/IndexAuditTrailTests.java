@@ -37,6 +37,7 @@ import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -56,6 +57,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -132,10 +134,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         // Setup a second test cluster with randomization for number of nodes, security enabled, and SSL
         final int numNodes = randomIntBetween(1, 2);
         final boolean useSecurity = randomBoolean();
-        final boolean useSSL = useSecurity && randomBoolean();
-        logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useSSL, numNodes);
+        final boolean useGeneratedSSL = useSecurity && randomBoolean();
+        logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useGeneratedSSL,
+                numNodes);
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
+                new SecuritySettingsSource(numNodes, useGeneratedSSL, systemKey(), createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -145,6 +148,21 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
                 }
                 return builder.build();
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                if (useSecurity) {
+                    return super.transportClientSettings();
+                } else {
+                    Settings.Builder builder = Settings.builder()
+                            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                            .put(super.transportClientSettings());
+                    if (builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+                        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                    }
+                    return builder.build();
+                }
             }
         };
 
@@ -163,17 +181,19 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         TransportAddress inet = info.address().publishAddress();
 
         Settings.Builder builder = Settings.builder()
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity)
+                .put("xpack.security.audit.index.client." + XPackSettings.SECURITY_ENABLED.getKey(), useSecurity)
                 .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                 .put("xpack.security.audit.index.client.xpack.security.user", SecuritySettingsSource.DEFAULT_USER_NAME + ":" +
                         SecuritySettingsSource.DEFAULT_PASSWORD);
 
-        if (useSSL) {
+        if (useGeneratedSSL == false) {
             for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
                 builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
             }
-        } else {
-            builder.put("xpack.security.audit.index.client.xpack.ssl.client_authentication", "none");
+        }
+        if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+            builder.put("xpack.security.audit.index.client." + NetworkModule.TRANSPORT_TYPE_KEY,
+                    MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
         }
         remoteSettings = builder.build();
     }
@@ -282,6 +302,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             void enqueue(Message message, String type) {
                 enqueuedMessage.set(message);
                 super.enqueue(message, type);
+            }
+
+            @Override
+            List<Class<? extends Plugin>> remoteTransportClientPlugins() {
+                return Arrays.asList(XPackPlugin.class, MockTcpTransportPlugin.class);
             }
         };
         auditor.start(true);

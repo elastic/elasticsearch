@@ -18,7 +18,6 @@ import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +31,7 @@ public class SettingsFilterTests extends ESTestCase {
     private Settings.Builder configuredSettingsBuilder = Settings.builder();
     private Map<String, Matcher> settingsMatcherMap = new HashMap<>();
 
-    public void testFiltering() throws IOException {
+    public void testFiltering() throws Exception {
         configureUnfilteredSetting("xpack.security.authc.realms.file.type", "file");
 
         // ldap realm filtering

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.nio.CharBuffer;
 
 /**
  * Request to change a user's password.
@@ -44,15 +44,17 @@ public class ChangePasswordRequestBuilder
         return this;
     }
 
+    /**
+     * Sets the password. Note: the char[] passed to this method will be cleared.
+     */
     public ChangePasswordRequestBuilder password(char[] password) {
-        Validation.Error error = Validation.Users.validatePassword(password);
-        if (error != null) {
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError(error.toString());
-            throw validationException;
-        }
-
         try (SecuredString securedString = new SecuredString(password)) {
+            Validation.Error error = Validation.Users.validatePassword(password);
+            if (error != null) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError(error.toString());
+                throw validationException;
+            }
             request.passwordHash(Hasher.BCRYPT.hash(securedString));
         }
         return this;
@@ -82,10 +84,10 @@ public class ChangePasswordRequestBuilder
                 } else if (User.Fields.PASSWORD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
-                        char[] passwordChars = password.toCharArray();
+                        final char[] passwordChars = password.toCharArray();
                         password(passwordChars);
-                        password = null;
-                        Arrays.fill(passwordChars, (char) 0);
+                        assert CharBuffer.wrap(passwordChars).chars().noneMatch((i) -> (char) i != (char) 0) : "expected password to " +
+                                "clear the char[] but it did not!";
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);

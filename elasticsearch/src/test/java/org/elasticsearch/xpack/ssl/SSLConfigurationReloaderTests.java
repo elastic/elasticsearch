@@ -19,6 +19,7 @@ import org.junit.Before;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -34,8 +35,9 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,21 +83,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .build();
         final Environment env = randomBoolean() ? null : new Environment(settings);
 
-        final BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPreChecks = (keyManager, config) -> {
+        final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks = (keyManager, config) -> {
             // key manager checks
             String[] aliases = keyManager.getServerAliases("RSA", null);
             assertNotNull(aliases);
             assertThat(aliases.length, is(1));
             assertThat(aliases[0], is("testnode"));
-            return null;
         };
 
         final SetOnce<Integer> trustedCount = new SetOnce<>();
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks = (trustManager, config) -> {
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
             Certificate[] certificates = trustManager.getAcceptedIssuers();
             trustedCount.set(certificates.length);
-            return null;
         };
 
         final Runnable modifier = () -> {
@@ -103,6 +103,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 // modify it
                 KeyStore keyStore = KeyStore.getInstance("jks");
                 keyStore.load(null, null);
+                final KeyPair keyPair = CertUtils.generateKeyPair(512);
+                X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=testReloadingKeyStore"), null, keyPair,
+                        null, null, 365);
+                keyStore.setKeyEntry("key", keyPair.getPrivate(), "testnode".toCharArray(), new X509Certificate[] { cert });
                 Path updated = tempDir.resolve("updated.jks");
                 try (OutputStream out = Files.newOutputStream(updated)) {
                     keyStore.store(out, "testnode".toCharArray());
@@ -113,11 +117,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             }
         };
 
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks = (updatedTrustManager, config) -> {
-            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
-            return null;
+        final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPostChecks = (updatedKeyManager, config) -> {
+            String[] aliases = updatedKeyManager.getServerAliases("RSA", null);
+            assertNotNull(aliases);
+            assertThat(aliases.length, is(1));
+            assertThat(aliases[0], is("key"));
         };
-        validateSSLConfigurationIsReloaded(settings, env, keyManagerPreChecks, trustManagerPreChecks, modifier, (k, c) -> null,
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
+            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(4));
+        };
+        validateSSLConfigurationIsReloaded(settings, env, keyManagerPreChecks, trustManagerPreChecks, modifier, keyManagerPostChecks,
                 trustManagerPostChecks);
     }
 
@@ -144,14 +153,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
         final SetOnce<PrivateKey> privateKey = new SetOnce<>();
-        final BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPreChecks = (keyManager, config) -> {
+        final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks = (keyManager, config) -> {
             String[] aliases = keyManager.getServerAliases("RSA", null);
             assertNotNull(aliases);
             assertThat(aliases.length, is(1));
             assertThat(aliases[0], is("key"));
             privateKey.set(keyManager.getPrivateKey("key"));
             assertNotNull(privateKey.get());
-            return null;
         };
 
         final KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
@@ -180,14 +188,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             }
         };
 
-        final BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPostChecks = (keyManager, config) -> {
+        final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPostChecks = (keyManager, config) -> {
             String[] aliases = keyManager.getServerAliases("RSA", null);
             assertNotNull(aliases);
             assertThat(aliases.length, is(1));
             assertThat(aliases[0], is("key"));
             assertThat(keyManager.getPrivateKey(aliases[0]), not(equalTo(privateKey)));
             assertThat(keyManager.getPrivateKey(aliases[0]), is(equalTo(keyPair.getPrivate())));
-            return null;
         };
         validateKeyConfigurationIsReloaded(settings, env, keyManagerPreChecks, modifier, keyManagerPostChecks);
     }
@@ -205,13 +212,15 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
+        final X500Principal expectedPrincipal = new X500Principal("CN=xpack public development ca");
 
         final SetOnce<Integer> trustedCount = new SetOnce<>();
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks = (trustManager, config) -> {
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
             Certificate[] certificates = trustManager.getAcceptedIssuers();
             trustedCount.set(certificates.length);
-            return null;
+            assertTrue(Arrays.stream(trustManager.getAcceptedIssuers())
+                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
 
@@ -229,9 +238,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             }
         };
 
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks = (updatedTrustManager, config) -> {
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
             assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
-            return null;
+            assertTrue(Arrays.stream(updatedTrustManager.getAcceptedIssuers())
+                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);
@@ -250,13 +260,15 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
+        final X500Principal expectedPrincipal = new X500Principal("CN=xpack public development ca");
 
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks = (trustManager, config) -> {
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
             Certificate[] certificates = trustManager.getAcceptedIssuers();
-            assertThat(certificates.length, is(1));
+            assertThat(certificates.length, is(2));
             assertThat(((X509Certificate)certificates[0]).getSubjectX500Principal().getName(), containsString("Test Client"));
-            return null;
+            assertTrue(Arrays.stream(trustManager.getAcceptedIssuers())
+                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         final Runnable modifier = () -> {
@@ -270,11 +282,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             }
         };
 
-        final BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks = (updatedTrustManager, config) -> {
+        final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
             Certificate[] updatedCerts = updatedTrustManager.getAcceptedIssuers();
-            assertThat(updatedCerts.length, is(1));
+            assertThat(updatedCerts.length, is(2));
             assertThat(((X509Certificate)updatedCerts[0]).getSubjectX500Principal().getName(), containsString("Test Node"));
-            return null;
+            assertTrue(Arrays.stream(updatedTrustManager.getAcceptedIssuers())
+                    .anyMatch((cert) -> expectedPrincipal.equals(cert.getSubjectX500Principal())));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);
@@ -425,9 +438,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Validates the trust configuration aspect of the SSLConfiguration is reloaded
      */
     private void validateTrustConfigurationIsReloaded(Settings settings, Environment env,
-                                                      BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks,
+                                                      BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks,
                                                       Runnable modificationFunction,
-                                                      BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks)
+                                                      BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks)
                                                       throws Exception {
         validateSSLConfigurationIsReloaded(settings, env, false, true, null, trustManagerPreChecks, modificationFunction, null,
                 trustManagerPostChecks);
@@ -437,10 +450,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Validates the trust configuration aspect of the SSLConfiguration is reloaded
      */
     private void validateKeyConfigurationIsReloaded(Settings settings, Environment env,
-                                                      BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPreChecks,
-                                                      Runnable modificationFunction,
-                                                      BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPostChecks)
-                                                      throws Exception {
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks,
+                                                    Runnable modificationFunction,
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPostChecks)
+                                                    throws Exception {
         validateSSLConfigurationIsReloaded(settings, env, true, false, keyManagerPreChecks, null, modificationFunction,
                 keyManagerPostChecks, null);
     }
@@ -449,22 +462,22 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Validates that both the key and trust configuration aspects of the SSLConfiguration are reloaded
      */
     private void validateSSLConfigurationIsReloaded(Settings settings, Environment env,
-                                                    BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPreChecks,
-                                                    BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks,
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks,
+                                                    BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks,
                                                     Runnable modificationFunction,
-                                                    BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPostChecks,
-                                                    BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks)
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPostChecks,
+                                                    BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks)
                                                     throws Exception {
         validateSSLConfigurationIsReloaded(settings, env, true, true, keyManagerPreChecks, trustManagerPreChecks, modificationFunction,
                 keyManagerPostChecks, trustManagerPostChecks);
     }
 
     private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, boolean checkKeys, boolean checkTrust,
-                                                    BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPreChecks,
-                                                    BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPreChecks,
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks,
+                                                    BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks,
                                                     Runnable modificationFunction,
-                                                    BiFunction<X509ExtendedKeyManager, SSLConfiguration, Void> keyManagerPostChecks,
-                                                    BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks)
+                                                    BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPostChecks,
+                                                    BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks)
                                                     throws Exception {
 
         final CountDownLatch reloadLatch = new CountDownLatch(1);
@@ -494,12 +507,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         // key manager checks
         if (checkKeys) {
-            keyManagerPreChecks.apply(keyManager, config);
+            keyManagerPreChecks.accept(keyManager, config);
         }
 
         // trust manager checks
         if (checkTrust) {
-            trustManagerPreChecks.apply(trustManager, config);
+            trustManagerPreChecks.accept(trustManager, config);
         }
 
         assertEquals("nothing should have called reload", 1, reloadLatch.getCount());
@@ -512,14 +525,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         if (checkKeys) {
             final X509ExtendedKeyManager updatedKeyManager = sslService.sslContextHolder(config).keyManager().getKeyManager();
             assertThat(updatedKeyManager, not(sameInstance(keyManager)));
-            keyManagerPostChecks.apply(updatedKeyManager, config);
+            keyManagerPostChecks.accept(updatedKeyManager, config);
         }
 
         // check trust manager
         if (checkTrust) {
             final X509ExtendedTrustManager updatedTrustManager = sslService.sslContextHolder(config).trustManager().getTrustManager();
             assertThat(updatedTrustManager, not(sameInstance(trustManager)));
-            trustManagerPostChecks.apply(updatedTrustManager, config);
+            trustManagerPostChecks.accept(updatedTrustManager, config);
         }
     }
 

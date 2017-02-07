@@ -5,27 +5,19 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +39,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
-    private static final String KEYSTORE_PASS = "keypass";
     private static final String MONITORING_PATTERN = ".monitoring-*";
 
     @Override
@@ -59,9 +50,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", clientKeyStore)
-                .put("xpack.ssl.keystore.password", KEYSTORE_PASS)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4).build();
     }
 
@@ -121,24 +109,5 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
             httpAddresses[i] = nodes.get(i).getHttp().address().publishAddress().address();
         }
         return httpAddresses;
-    }
-
-    static Path clientKeyStore;
-
-    @BeforeClass
-    public static void loadKeyStore() {
-        try {
-            clientKeyStore = PathUtils.get(SmokeTestMonitoringWithSecurityIT.class.getResource("/test-client.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
-        }
-        if (!Files.exists(clientKeyStore)) {
-            throw new IllegalStateException("Keystore file [" + clientKeyStore + "] does not exist.");
-        }
-    }
-
-    @AfterClass
-    public static void clearClientKeyStore() {
-        clientKeyStore = null;
     }
 }

@@ -9,7 +9,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;

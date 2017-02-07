@@ -19,16 +19,21 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
 import java.io.IOException;
 import java.util.Comparator;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The suggestion responses corresponding with the suggestions in the request.
@@ -147,13 +152,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
          */
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
 
-            static class Fields {
-                static final String FREQ = "freq";
+            public static class Fields {
+                public static final ParseField FREQ = new ParseField("freq");
             }
 
             private int freq;
 
-            protected Option(Text text, int freq, float score) {
+            public Option(Text text, int freq, float score) {
                 super(text, score);
                 this.freq = freq;
             }
@@ -194,8 +199,26 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 builder = super.innerToXContent(builder, params);
-                builder.field(Fields.FREQ, freq);
+                builder.field(Fields.FREQ.getPreferredName(), freq);
                 return builder;
+            }
+
+            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("TermSuggestOptionParser",
+                    true, args -> {
+                        Text text = new Text((String) args[0]);
+                        int freq = (Integer) args[1];
+                        float score = (Float) args[2];
+                        return new Option(text, freq, score);
+                    });
+
+            static {
+                PARSER.declareString(constructorArg(), Suggestion.Entry.Option.Fields.TEXT);
+                PARSER.declareInt(constructorArg(), TermSuggestion.Entry.Option.Fields.FREQ);
+                PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.Fields.SCORE);
+            }
+
+            public static final Option fromXContent(XContentParser parser) {
+                return PARSER.apply(parser, null);
             }
         }
 

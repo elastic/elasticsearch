@@ -46,7 +46,6 @@ import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -180,7 +179,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     // pkg private for testing
-    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;

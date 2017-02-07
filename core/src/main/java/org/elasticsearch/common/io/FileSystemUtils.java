@@ -22,7 +22,6 @@ package org.elasticsearch.common.io;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -120,7 +119,6 @@ public final class FileSystemUtils {
     /**
      * Returns an InputStream the given url if the url has a protocol of 'file', no host, and no port.
      */
-    @SuppressForbidden(reason = "Will only open url streams for local files")
     public static InputStream openFileURLStream(URL url) throws IOException {
         String protocol = url.getProtocol();
         if ("file".equals(protocol) == false) {

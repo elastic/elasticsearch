@@ -30,7 +30,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -266,7 +265,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
-    @SuppressForbidden(reason = "We use getInputStream to download plugins")
     private Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
@@ -316,7 +314,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
-    @SuppressForbidden(reason = "We use openStream to download plugins")
     private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(terminal, urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);

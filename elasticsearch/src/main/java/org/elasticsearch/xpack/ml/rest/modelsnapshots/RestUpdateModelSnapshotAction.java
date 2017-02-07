@@ -31,12 +31,12 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentParser();
-        UpdateModelSnapshotAction.Request getModelSnapshots = UpdateModelSnapshotAction.Request.parseRequest(
+        UpdateModelSnapshotAction.Request updateModelSnapshot = UpdateModelSnapshotAction.Request.parseRequest(
                 restRequest.param(Job.ID.getPreferredName()),
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),
                 parser);
 
         return channel ->
-                client.execute(UpdateModelSnapshotAction.INSTANCE, getModelSnapshots, new RestStatusToXContentListener<>(channel));
+                client.execute(UpdateModelSnapshotAction.INSTANCE, updateModelSnapshot, new RestStatusToXContentListener<>(channel));
     }
 }

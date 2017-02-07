@@ -67,10 +67,10 @@ public class StateProcessorTests extends ESTestCase {
 
     /**
      * This test is designed to pick up N-squared processing in the state consumption code.  The size of the state document
-     * is comparable to those that the C++ code will create for a huge model.  5 seconds is an overestimate of the time
+     * is comparable to those that the C++ code will create for a huge model.  10 seconds is an overestimate of the time
      * required to avoid spurious failures due to VM stalls - on a reasonable spec laptop this should take around 1 second.
      */
-    @Timeout(millis = 5 * 1000)
+    @Timeout(millis = 10 * 1000)
     public void testLargeStateRead() throws Exception {
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {

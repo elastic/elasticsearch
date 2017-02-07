@@ -65,6 +65,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+        if (restRequest.hasParam("max_concurrent_searches")) {
+            multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
+        }
+
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
                     try {

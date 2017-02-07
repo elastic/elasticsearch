@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
@@ -70,4 +71,12 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals(1, request.requests().get(1).getScriptParams().size());
         assertEquals(1, request.requests().get(2).getScriptParams().size());
     }
+    
+    public void testMaxConcurrentSearchRequests() {
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
+        expectThrows(IllegalArgumentException.class, () ->
+                request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
+    }
+
 }

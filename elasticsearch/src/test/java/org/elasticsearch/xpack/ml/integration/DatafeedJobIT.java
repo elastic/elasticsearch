@@ -191,8 +191,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                 .execute();
     }
 
-    public void testLookbackOnlyGivenAggregations() throws Exception {
-        String jobId = "aggs-job";
+    public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
+        String jobId = "aggs-histogram-job";
         String job = "{\"description\":\"Aggs job\",\"analysis_config\" :{\"bucket_span\":3600,\"summary_count_field_name\":\"doc_count\","
                 + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
                 + "\"data_description\" : {\"time_field\":\"time stamp\"}"
@@ -201,6 +201,29 @@ public class DatafeedJobIT extends ESRestTestCase {
 
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"time stamp\":{\"histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+                + "\"aggregations\":{\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
+                + "\"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    public void testLookbackOnlyGivenAggregationsWithDateHistogram() throws Exception {
+        String jobId = "aggs-date-histogram-job";
+        String job = "{\"description\":\"Aggs job\",\"analysis_config\" :{\"bucket_span\":3600,\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
+                + "\"data_description\" : {\"time_field\":\"time stamp\"}"
+                + "}";
+        client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
                 + "\"aggregations\":{\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
                 + "\"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();

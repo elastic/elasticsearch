@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createDateHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createSingleValue;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createTerms;
@@ -137,6 +139,20 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString(histogram));
         assertThat(e.getMessage(), containsString("Multiple nested aggregations are not supported"));
+    }
+
+    public void testProcessGivenHistogramWithDateTimeKeys() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createDateHistogramBucket(new DateTime(1000L), 3),
+                createDateHistogramBucket(new DateTime(2000L), 5)
+        );
+        Histogram histogram = mock(Histogram.class);
+        when(histogram.getName()).thenReturn("time");
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+
+        String json = aggToString(histogram);
+
+        assertThat(json, equalTo("{\"time\":1000,\"doc_count\":3} {\"time\":2000,\"doc_count\":5}"));
     }
 
     private String aggToString(Aggregation aggregation) throws IOException {

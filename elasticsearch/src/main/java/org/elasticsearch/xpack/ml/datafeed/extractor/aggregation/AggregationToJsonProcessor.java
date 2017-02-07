@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.joda.time.base.BaseDateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -51,7 +52,11 @@ class AggregationToJsonProcessor implements Releasable {
 
     private void processHistogram(Histogram histogram) throws IOException {
         for (Histogram.Bucket bucket : histogram.getBuckets()) {
-            keyValuePairs.put(histogram.getName(), bucket.getKey());
+            Object timestamp = bucket.getKey();
+            if (timestamp instanceof BaseDateTime) {
+                timestamp = ((BaseDateTime) timestamp).getMillis();
+            }
+            keyValuePairs.put(histogram.getName(), timestamp);
             processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
         }
     }

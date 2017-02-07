@@ -63,4 +63,8 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         return channel -> client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest, new RestToXContentListener<>(channel));
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
 }

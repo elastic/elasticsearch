@@ -116,6 +116,11 @@ public class RestBulkAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
     static final class Fields {
         static final String ITEMS = "items";
         static final String ERRORS = "errors";

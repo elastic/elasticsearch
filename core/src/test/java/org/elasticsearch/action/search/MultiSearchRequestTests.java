@@ -80,6 +80,19 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
+    public void testSimpleAddWithCarriageReturn() throws Exception {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
     public void testSimpleAdd2() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch2.json");
         assertThat(request.requests().size(), equalTo(5));

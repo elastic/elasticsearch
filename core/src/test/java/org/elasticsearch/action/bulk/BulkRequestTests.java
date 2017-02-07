@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
@@ -66,6 +67,17 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
         assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
+    }
+
+    public void testSimpleBulkWithCarriageReturn() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+        assertThat(bulkRequest.numberOfActions(), equalTo(1));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }\r")));
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(((IndexRequest) bulkRequest.requests().get(0)).source(),
+            false, XContentType.JSON).v2();
+        assertEquals("value1", sourceMap.get("field1"));
     }
 
     public void testSimpleBulk2() throws Exception {

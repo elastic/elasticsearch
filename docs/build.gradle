@@ -35,7 +35,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/avg-aggregation.asciidoc',
   'reference/aggregations/metrics/cardinality-aggregation.asciidoc',
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
   'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
@@ -405,7 +404,7 @@ buildRestTests.setups['stackoverflow'] = '''
       type: question
       refresh: true
       body: |'''
-      
+
 // Make Kibana strongly connected to elasticsearch and logstash
 // Make Kibana rarer (and therefore higher-ranking) than Javascript
 // Make Javascript strongly connected to jquery and angular
@@ -438,4 +437,27 @@ for (int i = 0; i < 50; i++) {
 }
 buildRestTests.setups['stackoverflow'] += """
 """
-
+// Used by some aggregations
+buildRestTests.setups['exams'] = '''
+  - do:
+    indices.create:
+      index: exams
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 1
+        mappings:
+          exam:
+            properties:
+              grade:
+                type: byte
+  - do:
+    bulk:
+      index: exams
+      type: exam
+      refresh: true
+      body: |
+        {"index":{}}
+        {"grade": 100}
+        {"index":{}}
+        {"grade": 50}'''

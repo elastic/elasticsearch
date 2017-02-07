@@ -20,13 +20,13 @@
 package org.elasticsearch.common.transport;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -61,13 +61,13 @@ public abstract class TransportAddressSerializers {
         ADDRESS_REGISTRY = newMapBuilder(ADDRESS_REGISTRY).put(address.uniqueAddressTypeId(), address).immutableMap();
     }
 
-    public static TransportAddress addressFromStream(StreamInput input) throws IOException {
+    public static TransportAddress addressFromStream(StreamInput input, @Nullable String hostString) throws IOException {
         short addressUniqueId = input.readShort();
         TransportAddress addressType = ADDRESS_REGISTRY.get(addressUniqueId);
         if (addressType == null) {
             throw new IOException("No transport address mapped to [" + addressUniqueId + "]");
         }
-        return addressType.readFrom(input);
+        return addressType.readFrom(input, hostString);
     }
 
     public static void addressToStream(StreamOutput out, TransportAddress address) throws IOException {

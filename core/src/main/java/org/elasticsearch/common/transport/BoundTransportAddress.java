@@ -68,9 +68,9 @@ public class BoundTransportAddress implements Streamable {
         int boundAddressLength = in.readInt();
         boundAddresses = new TransportAddress[boundAddressLength];
         for (int i = 0; i < boundAddressLength; i++) {
-            boundAddresses[i] = TransportAddressSerializers.addressFromStream(in);
+            boundAddresses[i] = TransportAddressSerializers.addressFromStream(in, null);
         }
-        publishAddress = TransportAddressSerializers.addressFromStream(in);
+        publishAddress = TransportAddressSerializers.addressFromStream(in, null);
     }
 
     @Override

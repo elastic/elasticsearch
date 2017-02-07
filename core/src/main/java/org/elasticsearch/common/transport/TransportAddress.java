@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 
 /**
@@ -47,5 +49,7 @@ public interface TransportAddress extends Writeable<TransportAddress> {
 
     boolean sameHost(TransportAddress other);
 
-    public String toString();
+    String toString();
+
+    TransportAddress readFrom(StreamInput in, String hostString) throws IOException;
 }

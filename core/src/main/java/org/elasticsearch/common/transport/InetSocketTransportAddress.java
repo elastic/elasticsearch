@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.transport;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -36,11 +38,18 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     private final InetSocketAddress address;
 
-    public InetSocketTransportAddress(StreamInput in) throws IOException {
+    public InetSocketTransportAddress(StreamInput in, @Nullable String hostString) throws IOException {
         final int len = in.readByte();
         final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
         in.readFully(a);
-        InetAddress inetAddress = InetAddress.getByAddress(a);
+        final InetAddress inetAddress;
+        if (in.getVersion().onOrAfter(Version.V_2_4_5)) {
+            String host = in.readString();
+            inetAddress = InetAddress.getByAddress(host, a); // the host string was serialized so we can ignore the passed in version
+        } else {
+            // prior to this version, we did not serialize the host string so we used the passed in version
+            inetAddress = InetAddress.getByAddress(hostString, a);
+        }
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
     }
@@ -76,7 +85,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getHost() {
-       return getAddress(); // just delegate no resolving
+       return address().getHostString(); // getHostString does not do reverse dns
     }
 
     @Override
@@ -94,8 +103,13 @@ public final class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override
-    public TransportAddress readFrom(StreamInput in) throws IOException {
-        return new InetSocketTransportAddress(in);
+    public InetSocketTransportAddress readFrom(StreamInput in) throws IOException {
+        return new InetSocketTransportAddress(in, null);
+    }
+
+    @Override
+    public InetSocketTransportAddress readFrom(StreamInput in, String hostString) throws IOException {
+        return new InetSocketTransportAddress(in, hostString);
     }
 
     @Override
@@ -103,6 +117,9 @@ public final class InetSocketTransportAddress implements TransportAddress {
         byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
         out.writeByte((byte) bytes.length); // 1 byte
         out.write(bytes, 0, bytes.length);
+        if (out.getVersion().onOrAfter(Version.V_2_4_5)) {
+            out.writeString(address().getHostString());
+        }
         // don't serialize scope ids over the network!!!!
         // these only make sense with respect to the local machine, and will only formulate
         // the address incorrectly remotely.

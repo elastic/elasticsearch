@@ -40,7 +40,7 @@ public class ActionTransportException extends TransportException {
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            address = TransportAddressSerializers.addressFromStream(in);
+            address = TransportAddressSerializers.addressFromStream(in, null);
         } else {
             address = null;
         }

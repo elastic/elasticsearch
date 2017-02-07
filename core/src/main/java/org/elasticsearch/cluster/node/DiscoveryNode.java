@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -329,7 +327,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
         nodeId = in.readString().intern();
         hostName = in.readString().intern();
         hostAddress = in.readString().intern();
-        address = TransportAddressSerializers.addressFromStream(in);
+        address = TransportAddressSerializers.addressFromStream(in, hostName);
         int size = in.readVInt();
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (int i = 0; i < size; i++) {

@@ -65,6 +65,11 @@ public class DummyTransportAddress implements TransportAddress {
     }
 
     @Override
+    public DummyTransportAddress readFrom(StreamInput in, String hostString) throws IOException {
+        return INSTANCE;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
     }
 

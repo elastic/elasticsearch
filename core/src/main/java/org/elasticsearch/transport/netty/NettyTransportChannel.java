@@ -130,6 +130,7 @@ public class NettyTransportChannel implements TransportChannel {
     public void sendResponse(final Throwable error) throws IOException {
         close();
         BytesStreamOutput stream = new BytesStreamOutput();
+        stream.setVersion(version);
         stream.skip(NettyHeader.HEADER_SIZE);
         RemoteTransportException tx = new RemoteTransportException(
             transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);

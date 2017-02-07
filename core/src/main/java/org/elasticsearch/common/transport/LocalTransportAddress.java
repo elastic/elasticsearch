@@ -21,8 +21,6 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,6 +76,11 @@ public final class LocalTransportAddress implements TransportAddress {
 
     @Override
     public LocalTransportAddress readFrom(StreamInput in) throws IOException {
+        return new LocalTransportAddress(in);
+    }
+
+    @Override
+    public LocalTransportAddress readFrom(StreamInput in, String hostString) throws IOException {
         return new LocalTransportAddress(in);
     }
 

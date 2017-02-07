@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -116,6 +117,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
+    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);

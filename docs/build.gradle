@@ -111,7 +111,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/index-modules/similarity.asciidoc',
   'reference/index-modules/store.asciidoc',
   'reference/index-modules/translog.asciidoc',
-  'reference/indices/analyze.asciidoc',
   'reference/indices/flush.asciidoc',
   'reference/indices/get-settings.asciidoc',
   'reference/indices/put-mapping.asciidoc',

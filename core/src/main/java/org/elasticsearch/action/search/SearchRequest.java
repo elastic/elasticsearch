@@ -103,6 +103,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (source == null) {
+            return validationException;
+        }
+
         if (scroll != null) {
             if (source.from() > 0) {
                 validationException =

@@ -127,7 +127,7 @@ NOTE: Upgrading (or downgrading) JVM versions does not require the service to be
 [float]
 === Customizing service settings
 
-The Elasticsearch service can be configured prior to installation by setting the the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
+The Elasticsearch service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
 
 [horizontal]
 `SERVICE_ID`::

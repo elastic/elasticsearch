@@ -28,23 +28,24 @@ buildscript {
 
 // first need to get an authentication token with vault
 File githubToken = project.file('github.token')
+final String VAULT_URL = 'https://secrets.elastic.co:8200'
 final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
 final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
 String authBody = null
+URL vaultUrl = null
 if (githubToken.exists()) {
   Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
   if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
       throw new GradleException('github.token must have 600 permissions')
   }
+  vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
   authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
 } else if (VAULT_SECRET_ID != null) {
+  vaultUrl = new URL(VAULT_URL + '/v1/auth/approle/login')
   authBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
 } else {
-    throw new GradleException('Missing github.token file or SECRET_ID environment variable, needed to authenticate with vault for secrets')
+    throw new GradleException('Missing github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
 }
-
-final String VAULT_URL = 'https://secrets.elastic.co:8200'
-URL vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
 HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
 vaultConn.setRequestProperty('Content-Type', 'application/json')
 vaultConn.setRequestMethod('PUT')

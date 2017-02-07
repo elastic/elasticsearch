@@ -363,7 +363,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(responseString.get(), equalTo("test"));
     }
 
-    public void testAdapterSendReceiveCallbacks() throws ExecutionException, InterruptedException {
+    public void testAdapterSendReceiveCallbacks() throws Exception {
         final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel) -> {
             try {
                 if (randomBoolean()) {
@@ -425,14 +425,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        assertThat(tracerA.requestsReceived.get(), equalTo(0));
-        assertThat(tracerA.requestsSent.get(), equalTo(1));
-        assertThat(tracerA.responseReceived.get(), equalTo(1));
-        assertThat(tracerA.responseSent.get(), equalTo(0));
-        assertThat(tracerB.requestsReceived.get(), equalTo(1));
-        assertThat(tracerB.requestsSent.get(), equalTo(0));
-        assertThat(tracerB.responseReceived.get(), equalTo(0));
-        assertThat(tracerB.responseSent.get(), equalTo(1));
+        // use assert busy as call backs are sometime called after the response have been sent
+        assertBusy(() -> {
+            assertThat(tracerA.requestsReceived.get(), equalTo(0));
+            assertThat(tracerA.requestsSent.get(), equalTo(1));
+            assertThat(tracerA.responseReceived.get(), equalTo(1));
+            assertThat(tracerA.responseSent.get(), equalTo(0));
+            assertThat(tracerB.requestsReceived.get(), equalTo(1));
+            assertThat(tracerB.requestsSent.get(), equalTo(0));
+            assertThat(tracerB.responseReceived.get(), equalTo(0));
+            assertThat(tracerB.responseSent.get(), equalTo(1));
+        });
 
         try {
             serviceA
@@ -442,14 +445,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        assertThat(tracerA.requestsReceived.get(), equalTo(1));
-        assertThat(tracerA.requestsSent.get(), equalTo(2));
-        assertThat(tracerA.responseReceived.get(), equalTo(2));
-        assertThat(tracerA.responseSent.get(), equalTo(1));
-        assertThat(tracerB.requestsReceived.get(), equalTo(1));
-        assertThat(tracerB.requestsSent.get(), equalTo(0));
-        assertThat(tracerB.responseReceived.get(), equalTo(0));
-        assertThat(tracerB.responseSent.get(), equalTo(1));
+        // use assert busy as call backs are sometime called after the response have been sent
+        assertBusy(() -> {
+            assertThat(tracerA.requestsReceived.get(), equalTo(1));
+            assertThat(tracerA.requestsSent.get(), equalTo(2));
+            assertThat(tracerA.responseReceived.get(), equalTo(2));
+            assertThat(tracerA.responseSent.get(), equalTo(1));
+            assertThat(tracerB.requestsReceived.get(), equalTo(1));
+            assertThat(tracerB.requestsSent.get(), equalTo(0));
+            assertThat(tracerB.responseReceived.get(), equalTo(0));
+            assertThat(tracerB.responseSent.get(), equalTo(1));
+        });
     }
 
     public void testVoidMessageCompressed() {

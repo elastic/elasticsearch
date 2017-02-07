@@ -56,7 +56,6 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     final AtomicArray<QuerySearchResult> queryResults;
     final AtomicArray<FetchSearchResult> fetchResults;
-    private volatile SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
     private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
@@ -172,12 +171,12 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private void executeFetchPhase() throws Exception {
         sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
         if (sortedShardDocs.length == 0) {
-            finishHim();
+            finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
             return;
         }
 
         final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-        reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList());
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList());
         final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs,
             queryResults.length());
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.length);
@@ -195,7 +194,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                         result.shardTarget(querySearchResult.shardTarget());
                         fetchResults.set(index, result);
                         if (counter.decrementAndGet() == 0) {
-                            finishHim();
+                            finishHim(reducedQueryPhase);
                         }
                     }
 
@@ -206,34 +205,30 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                         }
                         successfulOps.decrementAndGet();
                         if (counter.decrementAndGet() == 0) {
-                            finishHim();
+                            finishHim(reducedQueryPhase);
                         }
                     }
                 });
             } else {
                 // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
                 if (counter.decrementAndGet() == 0) {
-                    finishHim();
+                    finishHim(reducedQueryPhase);
                 }
             }
         }
     }
 
-    private void finishHim() {
+    private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            innerFinishHim();
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            String scrollId = null;
+            if (request.scroll() != null) {
+                scrollId = request.scrollId();
+            }
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
+                buildTookInMillis(), buildShardFailures()));
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }
-    }
-
-    private void innerFinishHim() {
-        final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, reducedQueryPhase, fetchResults);
-        String scrollId = null;
-        if (request.scroll() != null) {
-            scrollId = request.scrollId();
-        }
-        listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-            buildTookInMillis(), buildShardFailures()));
     }
 }

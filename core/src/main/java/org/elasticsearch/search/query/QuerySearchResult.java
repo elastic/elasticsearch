@@ -121,8 +121,24 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return sortValueFormats;
     }
 
-    public Aggregations aggregations() {
-        return aggregations;
+    /**
+     * Retruns <code>true</code> if this query result has unconsumed aggregations
+     */
+    public boolean hasAggs() {
+        return aggregations != null;
+    }
+
+    /**
+     * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
+     * @throws IllegalStateException if the aggregations have already been consumed.
+     */
+    public Aggregations consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already consumed");
+        }
+        Aggregations aggs = aggregations;
+        aggregations = null;
+        return aggs;
     }
 
     public void aggregations(InternalAggregations aggregations) {
@@ -133,8 +149,17 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
-    @Nullable public ProfileShardResult profileResults() {
-        return profileShardResults;
+    public ProfileShardResult consumeProfileResult() {
+        if (profileShardResults == null) {
+            throw new IllegalStateException("profile results already consumed");
+        }
+        ProfileShardResult result = profileShardResults;
+        profileShardResults = null;
+        return result;
+    }
+
+    public boolean hasProfileResults() {
+        return profileShardResults != null;
     }
 
     /**
@@ -170,6 +195,9 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    /**
+     * Returns the maximum size of this results top docs.
+     */
     public int size() {
         return size;
     }

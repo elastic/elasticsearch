@@ -61,14 +61,15 @@ task updateWorktree(type: LoggedExec) {
   workingDir = worktreeDir
 }
 
-task buildVersion5x(type: LoggedExec) {
+File bwcZip = file("${worktreeDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
+task buildBwcVersion(type: LoggedExec) {
   dependsOn updateWorktree
   commandLine = ['gradle', ':distribution:zip:assemble']
   workingDir = worktreeDir
 }
 
 artifacts {
-  'default' file: file("${worktreeDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip"), name: 'elasticsearch', type: 'zip', builtBy: buildVersion5x
+  'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
 }
 
 gradle.taskGraph.whenReady {

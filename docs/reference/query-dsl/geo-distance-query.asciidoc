@@ -193,22 +193,9 @@ The following are options allowed on the filter:
 
     How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
-`optimize_bbox`::
-
-    Whether to use the optimization of first running a bounding box check
-    before the distance check. Defaults to `memory` which will do in memory
-    checks. Can also have values of `indexed` to use indexed value check (make
-    sure the `geo_point` type index lat lon in this case), or `none` which
-    disables bounding box optimization. deprecated[2.2]
-
 `_name`::
 
     Optional name field to identify the query
-
-`ignore_malformed`::
-   
-    deprecated[5.0.0,Use `validation_method` instead] Set to `true` to accept geo points with invalid latitude or
-    longitude (default is `false`).
 
 `validation_method`::
 

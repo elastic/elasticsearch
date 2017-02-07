@@ -62,10 +62,12 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             }
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
+                /* Because this is called once per document we end up creating a new ScriptDocValues for every document which is important
+                 * because the values inside ScriptDocValues might be reused for different documents (Dates do this). */
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
-                ScriptDocValues values = data.getScriptValues();
+                ScriptDocValues<?> values = data.getScriptValues();
                 values.setNextDocId(hitContext.docId());
-                hitField.values().addAll(values.getValues());
+                hitField.values().addAll(values);
             }
         }
     }

@@ -466,7 +466,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
                         /**
                          * we try to reuse existing connections but if needed we will open a temporary connection
-                         * that nodes to be closed at the end of execution.
+                         * that will be closed at the end of the execution.
                          */
                         Transport.Connection connectionToClose = null;
 
@@ -531,8 +531,12 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                         logger.info(
                                             (Supplier<?>) () -> new ParameterizedMessage(
                                                 "failed to get local cluster state for {}, disconnecting...", nodeToPing), e);
-                                        latch.countDown();
-                                        hostFailureListener.onNodeDisconnected(nodeToPing, e);
+                                        try {
+                                            hostFailureListener.onNodeDisconnected(nodeToPing, e);
+                                        }
+                                        finally {
+                                            latch.countDown();
+                                        }
                                     }
                                 });
                         }

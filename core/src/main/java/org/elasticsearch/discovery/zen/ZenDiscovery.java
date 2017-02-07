@@ -116,7 +116,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final MembershipAction membership;
     private final ThreadPool threadPool;
 
-
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
 
@@ -972,7 +971,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
         } else {
             logger.warn("discovered [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster ([{}])", otherMaster, otherMaster, reason);
-            // spawn to a background thread to not do blocking operations on
+            // spawn to a background thread to not do blocking operations on the cluster state thread
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {

@@ -81,7 +81,6 @@ public final class ConnectionProfile {
 
         /** create an empty builder */
         public Builder() {
-
         }
 
         /** copy constructor, using another profile as a base */

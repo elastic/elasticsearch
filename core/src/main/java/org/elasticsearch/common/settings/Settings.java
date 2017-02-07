@@ -553,18 +553,21 @@ public final class Settings implements ToXContent {
      */
     public Set<String> names() {
         synchronized (firstLevelNames) {
-            Stream<String> stream = settings.keySet().stream();
-            if (secureSettings != null) {
-                stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
-            }
-            firstLevelNames.set(stream.map(k -> {
-                int i = k.indexOf('.');
-                if (i < 0) {
-                    return k;
-                } else {
-                    return k.substring(0, i);
+            if (firstLevelNames.get() == null) {
+                Stream<String> stream = settings.keySet().stream();
+                if (secureSettings != null) {
+                    stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
                 }
-            }).collect(Collectors.toSet()));
+                Set<String> names = stream.map(k -> {
+                    int i = k.indexOf('.');
+                    if (i < 0) {
+                        return k;
+                    } else {
+                        return k.substring(0, i);
+                    }
+                }).collect(Collectors.toSet());
+                firstLevelNames.set(Collections.unmodifiableSet(names));
+            }
         }
         return firstLevelNames.get();
     }
@@ -660,7 +663,7 @@ public final class Settings implements ToXContent {
                 } else {
                     Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
                     // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(stream.collect(Collectors.toSet()));
+                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
                 }
             }
         }
@@ -1279,7 +1282,8 @@ public final class Settings implements ToXContent {
         public Set<String> getSettingNames() {
             synchronized (settingNames) {
                 if (settingNames.get() == null) {
-                    settingNames.set(delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet()));
+                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    settingNames.set(Collections.unmodifiableSet(names));
                 }
             }
             return settingNames.get();

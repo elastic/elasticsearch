@@ -498,6 +498,17 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.NodeScope)));
     }
 
+    public void testAffixKeyPattern() {
+        assertTrue(AbstractScopedSettings.isValidAffixKey("prefix.*.suffix"));
+        assertTrue(AbstractScopedSettings.isValidAffixKey("prefix.*.split.suffix"));
+        assertTrue(AbstractScopedSettings.isValidAffixKey("split.prefix.*.split.suffix"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("prefix.*.suffix."));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("prefix.*"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("*.suffix"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("*"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey(""));
+    }
+
     public void testLoggingUpdates() {
         final Level level = ESLoggerFactory.getRootLogger().getLevel();
         final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();

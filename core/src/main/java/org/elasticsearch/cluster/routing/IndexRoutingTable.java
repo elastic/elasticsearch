@@ -139,8 +139,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         "allocation set " + inSyncAllocationIds);
                 }
 
-                if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
-                    indexMetaData.isIndexUsingShadowReplicas() == false && // see #20650
+                if (indexMetaData.isIndexUsingShadowReplicas() == false && // see #20650
                     shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
                     RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
@@ -444,12 +443,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 final RecoverySource primaryRecoverySource;
                 if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
-                    primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
-                } else if (indexMetaData.getCreationVersion().before(Version.V_5_0_0_alpha1) &&
-                    unassignedInfo.getReason() != UnassignedInfo.Reason.INDEX_CREATED // tests can create old indices
-                    ) {
-                    // the index is old and didn't maintain inSyncAllocationIds. Fall back to old behavior and require
-                    // finding existing copies
                     primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
                 } else if (indexMetaData.getMergeSourceIndex() != null) {
                     // this is a new index but the initial shards should merged from another index

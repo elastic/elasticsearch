@@ -75,7 +75,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
                     routing -> currentNodes.get(routing.currentNodeId()),
                     routing ->
                         new NodeGatewayStartedShards(
-                            currentNodes.get(routing.currentNodeId()), -1, routing.allocationId().getId(), routing.primary())));
+                            currentNodes.get(routing.currentNodeId()), routing.allocationId().getId(), routing.primary())));
 
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, Collections.emptySet(), ignoreNodes);
         }

@@ -296,7 +296,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-                    PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,

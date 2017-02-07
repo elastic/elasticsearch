@@ -117,12 +117,12 @@ public final class FileSystemUtils {
     }
 
     /**
-     * Returns an InputStream the given url if the url has a protocol of 'file', no host, and no port.
+     * Returns an InputStream the given url if the url has a protocol of 'file' or 'jar', no host, and no port.
      */
     public static InputStream openFileURLStream(URL url) throws IOException {
         String protocol = url.getProtocol();
-        if ("file".equals(protocol) == false) {
-            throw new IllegalArgumentException("Invalid protocol [" + protocol + "], must be [file]");
+        if ("file".equals(protocol) == false && "jar".equals(protocol) == false) {
+            throw new IllegalArgumentException("Invalid protocol [" + protocol + "], must be [file] or [jar]");
         }
         if (Strings.isEmpty(url.getHost()) == false) {
             throw new IllegalArgumentException("URL cannot have host. Found: [" + url.getHost() + ']');

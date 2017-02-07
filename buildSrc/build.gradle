@@ -27,6 +27,10 @@ if (GradleVersion.current() < GradleVersion.version('2.13')) {
   throw new GradleException('Gradle 2.13+ is required to build elasticsearch')
 }
 
+if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
+  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+}
+
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar

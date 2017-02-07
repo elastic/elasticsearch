@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableDateTime;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,8 +106,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
             scripts.put("doc['date'].date.millis", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
-                ScriptDocValues.Longs date = (ScriptDocValues.Longs) doc.get("date");
-                return date.getDate().getMillis();
+                ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
+                return dates.getValue().getMillis();
             });
 
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));
@@ -689,8 +691,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endArray()
                 .endObject().bytes();
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source).get();
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
 
 
         String field = "field1.field2.field3.field4";
@@ -776,6 +778,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
 
+        ReadableDateTime date = new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC);
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("text_field", "foo")
                 .field("keyword_field", "foo")
@@ -785,7 +788,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("long_field", 4L)
                 .field("float_field", 5.0f)
                 .field("double_field", 6.0d)
-                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
+                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(date))
                 .field("boolean_field", true)
                 .field("ip_field", "::1")
                 .endObject()).execute().actionGet();
@@ -819,7 +822,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo(date));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));

@@ -45,7 +45,7 @@ public interface CharMatcher {
         }
     }
 
-    public enum Basic implements CharMatcher {
+    enum Basic implements CharMatcher {
         LETTER {
             @Override
             public boolean isTokenChar(int c) {
@@ -97,7 +97,7 @@ public interface CharMatcher {
         }
     }
 
-    public final class Builder {
+    final class Builder {
         private final Set<CharMatcher> matchers;
         Builder() {
             matchers = new HashSet<>();

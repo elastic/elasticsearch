@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
@@ -1009,7 +1010,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .get();
         assertHitCount(response, 0L);
 
-        client().prepareIndex("test", "child", "c1").setSource("{}").setParent("p1").get();
+        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
         refresh();
 
         response = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).get();
@@ -1018,7 +1019,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).get();
         assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "child", "c2").setSource("{}").setParent("p2").get();
+        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
         refresh();
         response = client().prepareSearch("test").setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
         assertHitCount(response, 2L);
@@ -1039,13 +1040,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "child", "c1").setSource("{}").setParent("p1").get();
+        client().prepareIndex("test", "child", "c1").setSource("{}", XContentType.JSON).setParent("p1").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setQuery(parentId("child", "p1")).get();
         assertHitCount(response, 1L);
 
-        client().prepareIndex("test", "child", "c2").setSource("{}").setParent("p2").get();
+        client().prepareIndex("test", "child", "c2").setSource("{}", XContentType.JSON).setParent("p2").get();
         refresh();
 
         response = client().prepareSearch("test")
@@ -1405,8 +1406,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "parent", "p" + i).setSource("{}").get();
-            client().prepareIndex("test", "child", "c" + i).setSource("{}").setParent("p" + i).get();
+            client().prepareIndex("test", "parent", "p" + i).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test", "child", "c" + i).setSource("{}", XContentType.JSON).setParent("p" + i).get();
         }
 
         refresh();
@@ -1488,8 +1489,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         indexRequests.add(client().prepareIndex("test", "parent", "1").setSource("field1", "a"));
-        indexRequests.add(client().prepareIndex("test", "child", "1").setParent("1").setSource("{}"));
-        indexRequests.add(client().prepareIndex("test", "child", "2").setParent("1").setSource("{}"));
+        indexRequests.add(client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("test", "child", "2").setParent("1").setSource("{}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1883,8 +1884,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentFieldToNonExistingType() {
         assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         try {
@@ -1898,8 +1899,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasParentInnerQueryType() {
         assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
-        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
-        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
         refresh();
         //make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("child-type").setQuery(
@@ -1909,8 +1910,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testHasChildInnerQueryType() {
         assertAcked(prepareCreate("test").addMapping("parent-type").addMapping("child-type", "_parent", "type=parent-type"));
-        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}").get();
-        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}").get();
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("{}", XContentType.JSON).get();
         refresh();
         //make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("parent-type").setQuery(

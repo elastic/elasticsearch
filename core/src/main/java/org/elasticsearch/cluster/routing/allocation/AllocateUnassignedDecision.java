@@ -246,7 +246,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         } else if (allocationDecision == AllocationDecision.AWAITING_INFO) {
             return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
         } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
-            if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
+            if (hasNodeWithStaleOrCorruptShard()) {
                 return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
                 return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on " +
@@ -266,6 +266,13 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 return "cannot allocate because allocation is not permitted to any of the nodes";
             }
         }
+    }
+
+    private boolean hasNodeWithStaleOrCorruptShard() {
+        return getNodeDecisions() != null && getNodeDecisions().stream().anyMatch(result ->
+                result.getShardStoreInfo() != null
+                    && (result.getShardStoreInfo().getAllocationId() != null
+                            || result.getShardStoreInfo().getStoreException() != null));
     }
 
     @Override

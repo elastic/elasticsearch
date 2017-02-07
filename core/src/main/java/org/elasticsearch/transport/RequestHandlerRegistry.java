@@ -96,7 +96,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
         private final TaskManager taskManager;
 
-        public TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
+        TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
             super(channel);
             this.task = task;
             this.taskManager = taskManager;

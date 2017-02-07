@@ -401,7 +401,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         private final ActionListener<ClusterStateUpdateResponse> listener;
 
-        public VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
+        VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
             this.name = name;
             this.listener = listener;
         }

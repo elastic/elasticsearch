@@ -19,11 +19,14 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
@@ -34,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
@@ -42,12 +46,23 @@ public class SimulatePipelineRequest extends ActionRequest {
     private String id;
     private boolean verbose;
     private BytesReference source;
+    private XContentType xContentType;
 
+    /**
+     * Create a new request
+     * @deprecated use {@link #SimulatePipelineRequest(BytesReference, XContentType)} that does not attempt content autodetection
+     */
+    @Deprecated
     public SimulatePipelineRequest(BytesReference source) {
-        if (source == null) {
-            throw new IllegalArgumentException("source is missing");
-        }
-        this.source = source;
+        this(source, XContentFactory.xContentType(source));
+    }
+
+    /**
+     * Creates a new request with the given source and its content type
+     */
+    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+        this.source = Objects.requireNonNull(source);
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     SimulatePipelineRequest() {
@@ -78,12 +93,21 @@ public class SimulatePipelineRequest extends ActionRequest {
         return source;
     }
 
+    public XContentType getXContentType() {
+        return xContentType;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
+        if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
@@ -92,6 +116,9 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
+        if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+            xContentType.writeTo(out);
+        }
     }
 
     public static final class Fields {

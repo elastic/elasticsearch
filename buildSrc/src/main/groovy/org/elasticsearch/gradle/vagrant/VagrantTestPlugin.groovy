@@ -16,8 +16,10 @@ class VagrantTestPlugin implements Plugin<Project> {
     static List<String> BOXES = [
             'centos-6',
             'centos-7',
-            'debian-8',
-            'fedora-24',
+            // TODO: re-enable debian once it does not have broken openjdk packages
+            //'debian-8',
+            // TODO: re-enable fedora once it does not have broken openjdk packages
+            //'fedora-24',
             'oel-6',
             'oel-7',
             'opensuse-13',

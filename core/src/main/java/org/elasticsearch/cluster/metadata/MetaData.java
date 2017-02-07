@@ -600,7 +600,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
         private Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        public MetaDataDiff(MetaData before, MetaData after) {
+        MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
             version = after.version;
             transientSettings = after.transientSettings;
@@ -610,7 +610,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
-        public MetaDataDiff(StreamInput in) throws IOException {
+        MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);

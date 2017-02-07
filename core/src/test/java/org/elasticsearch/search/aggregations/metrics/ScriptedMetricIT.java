@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -228,24 +229,24 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("initScript_stored")
-                .setSource(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
+                .setContent(new BytesArray("{\"script\":\"vars.multiplier = 3\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("mapScript_stored")
-                .setSource(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
+                .setContent(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("combineScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("reduceScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}"), XContentType.JSON));
 
         indexRandom(true, builders);
         ensureSearchable();

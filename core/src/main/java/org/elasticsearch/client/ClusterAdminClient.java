@@ -112,6 +112,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 
 /**
@@ -545,8 +546,15 @@ public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * Stores an ingest pipeline
+     * @deprecated use {@link #preparePutPipeline(String, BytesReference, XContentType)}
      */
+    @Deprecated
     PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
 
     /**
      * Deletes a stored ingest pipeline
@@ -596,7 +604,13 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Simulates an ingest pipeline
      */
+    @Deprecated
     SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType);
 
     /**
      * Explain the allocation of a shard

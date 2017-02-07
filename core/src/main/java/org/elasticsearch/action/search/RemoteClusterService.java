@@ -97,6 +97,14 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node.attr",
         Setting.Property.NodeScope);
 
+    /**
+     * If <code>true</code> connecting to remote clusters is supported on this node. If <code>false</code> this node will not establish
+     * connections to any remote clusters configured. Search requests executed against this node (where this node is the coordinating node)
+     * will fail if remote cluster syntax is used as an index pattern. The default is <code>true</code>
+     */
+    public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS = Setting.boolSetting("search.remote.connect", true,
+        Setting.Property.NodeScope);
+
     private static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
 
     private final TransportService transportService;

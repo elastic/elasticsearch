@@ -144,7 +144,7 @@ public class ActionModuleTests extends ESTestCase {
 
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
-            public FakeHandler(RestController restController) {
+            FakeHandler(RestController restController) {
                 restController.registerHandler(Method.GET, "/_dummy", this);
             }
             @Override

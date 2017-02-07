@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
@@ -65,6 +64,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -533,15 +533,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-            assertAcked(client().admin().cluster().preparePutPipeline("barbaz", pipelineSource).get());
+            assertAcked(client().admin().cluster().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
         }
 
         if(testScript) {
             logger.info("-->  creating test script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(MockScriptEngine.NAME)
+                .setLang(MockScriptEngine.NAME)
                 .setId("foobar")
-                .setSource(new BytesArray("{\"script\":\"1\"}")));
+                .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
         }
 
         logger.info("--> snapshot without global state");
@@ -600,7 +600,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if (testScript) {
             logger.info("--> check that script is restored");
             GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get();
-            assertNotNull(getStoredScriptResponse.getStoredScript());
+            assertNotNull(getStoredScriptResponse.getSource());
         }
 
         createIndex("test-idx");
@@ -644,7 +644,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
-        assertNull(client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get().getStoredScript());
+        assertNull(client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get().getSource());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
     }
@@ -2449,7 +2449,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                            .get();
             fail("should not be allowed to create a snapshot with the same name as an already existing snapshot: " +
                  createSnapshotResponse.getSnapshotInfo().snapshotId());
-        } catch (SnapshotCreationException e) {
+        } catch (InvalidSnapshotNameException e) {
             assertThat(e.getMessage(), containsString("snapshot with the same name already exists"));
         }
 

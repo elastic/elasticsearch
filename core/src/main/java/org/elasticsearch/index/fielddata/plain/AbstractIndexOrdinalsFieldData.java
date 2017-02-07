@@ -132,7 +132,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
         private int minFreq;
         private int maxFreq;
-        public FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
+        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
             super(delegate, false);
             this.minFreq = minFreq;
             this.maxFreq = maxFreq;

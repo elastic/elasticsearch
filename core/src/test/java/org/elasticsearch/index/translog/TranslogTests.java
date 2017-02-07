@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -348,7 +349,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4L));
             assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
 
-            try (final XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
@@ -462,7 +463,7 @@ public class TranslogTests extends ESTestCase {
         final Translog.Operation operation;
         final Translog.Location location;
 
-        public LocationOperation(Translog.Operation operation, Translog.Location location) {
+        LocationOperation(Translog.Operation operation, Translog.Location location) {
             this.operation = operation;
             this.location = location;
         }
@@ -940,7 +941,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Index("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
 
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
-        try (final TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
+        try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
             Translog.Snapshot snapshot = reader.newSnapshot();
 
@@ -1354,7 +1355,7 @@ public class TranslogTests extends ESTestCase {
         private final Exception[] threadExceptions;
         private final Translog translog;
 
-        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, Collection<LocationOperation> writtenOperations, Exception[] threadExceptions) {
+        TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, Collection<LocationOperation> writtenOperations, Exception[] threadExceptions) {
             this.translog = translog;
             this.downLatch = downLatch;
             this.opsPerThread = opsPerThread;
@@ -2028,7 +2029,8 @@ public class TranslogTests extends ESTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", "type", null, Arrays.asList(document), B_1, null);
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", "type", null, Arrays.asList(document), B_1, XContentType.JSON,
+            null);
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
                 1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);

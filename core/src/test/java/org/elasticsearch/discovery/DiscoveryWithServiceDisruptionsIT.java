@@ -48,6 +48,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.MembershipAction;
@@ -56,6 +57,7 @@ import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
@@ -492,6 +494,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(),  randomBoolean() ? "5s" : "200ms")
             ));
         ensureGreen();
 
@@ -528,7 +531,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexResponse response =
-                                    client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
+                                    client.prepareIndex("test", "type", id).setSource("{}", XContentType.JSON).setTimeout(timeout).get(timeout);
                                 assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
@@ -1120,7 +1123,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc")
+                .setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
         SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, random());

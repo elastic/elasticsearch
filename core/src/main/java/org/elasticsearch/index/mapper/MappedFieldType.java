@@ -393,7 +393,7 @@ public abstract class MappedFieldType extends FieldType {
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */
-    public static enum Relation {
+    public enum Relation {
         WITHIN,
         INTERSECTS,
         DISJOINT;

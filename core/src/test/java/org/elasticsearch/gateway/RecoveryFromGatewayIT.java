@@ -339,9 +339,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
-        client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
+        // client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
+        logger.info("--> refreshing all indices after indexing is complete");
         client().admin().indices().prepareRefresh().execute().actionGet();
 
+        logger.info("--> checking if documents exist, there should be 3");
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
         }

@@ -32,7 +32,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -191,7 +191,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
 
                     final ValueSource valueSource;
-                    if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+                    if (fieldType instanceof GeoPointFieldType) {
                         // geo
                         if (methodname == null) {
                             valueSource = GeoField.getVariable(fieldData, fieldname, variablename);

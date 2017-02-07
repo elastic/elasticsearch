@@ -190,7 +190,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 return sb.toString();
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat);
+                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
                 sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
             } catch (IOException e) {
                 sb.append(", source[_failed_to_convert_]");

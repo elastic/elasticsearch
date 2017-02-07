@@ -322,7 +322,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         private final int id;
         public boolean loadedFromCache = true;
 
-        public Loader(DirectoryReader reader, int id) {
+        Loader(DirectoryReader reader, int id) {
             super();
             this.reader = reader;
             this.id = id;

@@ -136,7 +136,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         final Script script;
         final SearchScript searchScript;
 
-        public ScriptQuery(Script script, SearchScript searchScript) {
+        ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
             this.searchScript = searchScript;
         }

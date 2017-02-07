@@ -65,8 +65,11 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -81,10 +84,19 @@ public final class Settings implements ToXContent {
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
     /** The raw settings from the full key to raw string value. */
-    private Map<String, String> settings;
+    private final Map<String, String> settings;
 
     /** The secure settings storage associated with these settings. */
-    private SecureSettings secureSettings;
+    private final SecureSettings secureSettings;
+
+    /** The first level of setting names. This is constructed lazily in {@link #names()}. */
+    private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
+
+    /**
+     * Setting names found in this Settings for both string and secure settings.
+     * This is constructed lazily in {@link #keySet()}.
+     */
+    private final SetOnce<Set<String>> keys = new SetOnce<>();
 
     Settings(Map<String, String> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -205,16 +217,16 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix),
-            secureSettings == null ? null : new PrefixedSecureSettings(secureSettings, prefix));
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
+            new PrefixedSecureSettings(secureSettings, s -> prefix + s, s -> s.startsWith(prefix)));
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
-     * Secure settings may not be accessed through a filter.
      */
     public Settings filter(Predicate<String> predicate) {
-        return new Settings(new FilteredMap(this.settings, predicate, null), null);
+        return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
+            new PrefixedSecureSettings(secureSettings, UnaryOperator.identity(), predicate));
     }
 
     /**
@@ -540,16 +552,24 @@ public final class Settings implements ToXContent {
      * @return  The direct keys of this settings
      */
     public Set<String> names() {
-        Set<String> names = new HashSet<>();
-        for (String key : settings.keySet()) {
-            int i = key.indexOf(".");
-            if (i < 0) {
-                names.add(key);
-            } else {
-                names.add(key.substring(0, i));
+        synchronized (firstLevelNames) {
+            if (firstLevelNames.get() == null) {
+                Stream<String> stream = settings.keySet().stream();
+                if (secureSettings != null) {
+                    stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
+                }
+                Set<String> names = stream.map(k -> {
+                    int i = k.indexOf('.');
+                    if (i < 0) {
+                        return k;
+                    } else {
+                        return k.substring(0, i);
+                    }
+                }).collect(Collectors.toSet());
+                firstLevelNames.set(Collections.unmodifiableSet(names));
             }
         }
-        return names;
+        return firstLevelNames.get();
     }
 
     /**
@@ -626,12 +646,28 @@ public final class Settings implements ToXContent {
      * @return <tt>true</tt> if this settings object contains no settings
      */
     public boolean isEmpty() {
-        return this.settings.isEmpty(); // TODO: account for secure settings
+        return this.settings.isEmpty() && (secureSettings == null || secureSettings.getSettingNames().isEmpty());
     }
 
     /** Returns the number of settings in this settings object. */
     public int size() {
-        return this.settings.size(); // TODO: account for secure settings
+        return keySet().size();
+    }
+
+    /** Returns the fully qualified setting names contained in this settings object. */
+    public Set<String> keySet() {
+        synchronized (keys) {
+            if (keys.get() == null) {
+                if (secureSettings == null) {
+                    keys.set(settings.keySet());
+                } else {
+                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                    // uniquify, since for legacy reasons the same setting name may exist in both
+                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                }
+            }
+        }
+        return keys.get();
     }
 
     /**
@@ -1226,12 +1262,15 @@ public final class Settings implements ToXContent {
     }
 
     private static class PrefixedSecureSettings implements SecureSettings {
-        private SecureSettings delegate;
-        private String prefix;
+        private final SecureSettings delegate;
+        private final UnaryOperator<String> keyTransform;
+        private final Predicate<String> keyPredicate;
+        private final SetOnce<Set<String>> settingNames = new SetOnce<>();
 
-        PrefixedSecureSettings(SecureSettings delegate, String prefix) {
+        PrefixedSecureSettings(SecureSettings delegate, UnaryOperator<String> keyTransform, Predicate<String> keyPredicate) {
             this.delegate = delegate;
-            this.prefix = prefix;
+            this.keyTransform = keyTransform;
+            this.keyPredicate = keyPredicate;
         }
 
         @Override
@@ -1240,13 +1279,19 @@ public final class Settings implements ToXContent {
         }
 
         @Override
-        public boolean hasSetting(String setting) {
-            return delegate.hasSetting(prefix + setting);
+        public Set<String> getSettingNames() {
+            synchronized (settingNames) {
+                if (settingNames.get() == null) {
+                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    settingNames.set(Collections.unmodifiableSet(names));
+                }
+            }
+            return settingNames.get();
         }
 
         @Override
         public SecureString getString(String setting) throws GeneralSecurityException{
-            return delegate.getString(prefix + setting);
+            return delegate.getString(keyTransform.apply(setting));
         }
 
         @Override

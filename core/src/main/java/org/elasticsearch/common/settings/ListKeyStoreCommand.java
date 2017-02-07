@@ -49,7 +49,7 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
 
         keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
-        List<String> sortedEntries = new ArrayList<>(keystore.getSettings());
+        List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
         Collections.sort(sortedEntries);
         for (String entry : sortedEntries) {
             terminal.println(entry);

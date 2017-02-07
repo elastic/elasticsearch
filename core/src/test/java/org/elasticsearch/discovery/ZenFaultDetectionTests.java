@@ -244,7 +244,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         setState(clusterServiceA, state);
         MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
             clusterServiceA);
-        masterFD.start(nodeB, "test");
+        masterFD.restart(nodeB, "test");
 
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
@@ -290,14 +290,14 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
         MasterFaultDetection masterFDNodeA = new MasterFaultDetection(Settings.builder().put(settingsA).put(settings).build(),
             threadPool, serviceA, clusterServiceA);
-        masterFDNodeA.start(nodeB, "test");
+        masterFDNodeA.restart(nodeB, "test");
 
         final ClusterState stateNodeB = ClusterState.builder(clusterName).nodes(buildNodesForB(true)).build();
         setState(clusterServiceB, stateNodeB);
 
         MasterFaultDetection masterFDNodeB = new MasterFaultDetection(Settings.builder().put(settingsB).put(settings).build(),
             threadPool, serviceB, clusterServiceB);
-        masterFDNodeB.start(nodeB, "test");
+        masterFDNodeB.restart(nodeB, "test");
 
         // let's do a few pings
         pingProbeA.awaitMinCompletedPings();

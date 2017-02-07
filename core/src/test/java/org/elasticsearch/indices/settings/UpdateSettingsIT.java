@@ -199,6 +199,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(1));
+
         client()
             .admin()
             .indices()

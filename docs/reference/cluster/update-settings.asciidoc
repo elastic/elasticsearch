@@ -28,7 +28,6 @@ PUT /_cluster/settings?flat_settings=true
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
 
 The cluster responds with the settings updated. So the response for the
 last example will be:
@@ -61,7 +60,6 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
 
 Reset settings will not be included in the cluster response. So
 the response for the last example will be:
@@ -74,7 +72,6 @@ the response for the last example will be:
     "transient" : {}
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
 
 Settings can also be reset using simple wildcards. For instance to reset

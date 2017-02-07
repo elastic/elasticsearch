@@ -119,8 +119,12 @@ All parameters can also supplied as request parameters. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&text=this+is+a+test'
+GET /_analyze?tokenizer=keyword&filter=lowercase&text=this+is+a+test
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param]
+// TEST[warning:tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param]
+// TEST[warning:filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param]
 
 For backwards compatibility, we also accept the text parameter as the body of the request,
 provided it doesn't start with `{` :
@@ -129,6 +133,7 @@ provided it doesn't start with `{` :
 --------------------------------------------------
 curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------
+// NOTCONSOLE
 
 deprecated[5.1.0 the text parameter as the body of the request are deprecated and this feature will be removed in the next major release. please use JSON text param]
 

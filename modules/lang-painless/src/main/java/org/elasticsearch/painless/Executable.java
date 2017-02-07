@@ -19,11 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.Scorer;
-import org.elasticsearch.search.lookup.LeafDocLookup;
-
 import java.util.BitSet;
-import java.util.Map;
 
 /**
  * The superclass used to build all Painless scripts on top of.
@@ -65,6 +61,4 @@ public abstract class Executable {
     public int getNextStatement(int offset) {
         return statements.nextSetBit(offset+1);
     }
-
-    public abstract Object execute(Map<String, Object> params, Scorer scorer, LeafDocLookup doc, Object value);
 }

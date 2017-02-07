@@ -20,9 +20,9 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.MainMethod.DerivedArgument;
-import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Map;
@@ -38,7 +38,7 @@ public interface GenericElasticsearchScript {
     Object execute(
             @Arg(            name="params")  Map<String, Object> params,
             @Arg(type="def", name="#scorer") Scorer scorer,
-            @Arg(type="Map", name="doc")     LeafDocLookup doc,
+            @Arg(            name="doc")     Map<String, ScriptDocValues<?>> doc,
             @Arg(type="def", name="_value")  Object value);
 
     DerivedArgument[] DERIVED_ARGUMENTS = new DerivedArgument[] {

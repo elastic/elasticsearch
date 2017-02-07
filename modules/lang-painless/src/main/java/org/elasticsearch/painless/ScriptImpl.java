@@ -43,6 +43,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * The Painless Executable script that can be run.
      */
     private final Executable executable;
+    private final GenericElasticsearchScript script;
 
     /**
      * A map that can be used to access input parameters at run-time.
@@ -79,6 +80,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     ScriptImpl(final Executable executable, final Map<String, Object> vars, final LeafSearchLookup lookup) {
         this.executable = executable;
+        this.script = (GenericElasticsearchScript) executable;
         this.lookup = lookup;
         this.variables = new HashMap<>();
 
@@ -120,7 +122,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     @Override
     public Object run() {
         try {
-            return executable.execute(variables, scorer, doc, aggregationValue);
+            return script.execute(variables, scorer, doc, aggregationValue);
         } catch (PainlessExplainError e) {
             throw convertToScriptException(e, e.getHeaders());
             // Note that it is safe to catch any of the following errors since Painless is stateless.

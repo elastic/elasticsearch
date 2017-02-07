@@ -7,6 +7,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -172,7 +173,7 @@ public class KnownActionsTests extends SecurityIntegTestCase {
                 // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = createTempFile(null, ".jar");
-                try (InputStream in = codeLocation.openStream()) {
+                try (InputStream in = FileSystemUtils.openFileURLStream(codeLocation)) {
                     Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
                 }
                 fileSystem = FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.<String,Object>emptyMap());

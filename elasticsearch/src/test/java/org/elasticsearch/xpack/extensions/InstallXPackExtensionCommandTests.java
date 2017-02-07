@@ -9,6 +9,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -122,7 +123,7 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
         Path extDir = createTempDir();
         String extZip = createExtension("fake", extDir);
         Path extZipWithSpaces = createTempFile("foo bar", ".zip");
-        try (InputStream in = new URL(extZip).openStream()) {
+        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(extZip))) {
             Files.copy(in, extZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
         installExtension(extZipWithSpaces.toUri().toURL().toString(), home);

@@ -25,6 +25,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -134,6 +135,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             terminal.println("users and roles imported.");
         }
 
+        @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
         private String postURL(Settings settings, Environment env, String method, String urlString,
                                OptionSet options, @Nullable String bodyString) throws Exception {
             URI uri = new URI(urlString);

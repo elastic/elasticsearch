@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -70,6 +71,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "Allow opening socket for test")
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
         SocketAccess.doPrivileged(() -> socket.connect(address, 500));

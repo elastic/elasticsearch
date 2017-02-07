@@ -14,6 +14,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.env.Environment;
 
@@ -101,6 +102,7 @@ final class InstallXPackExtensionCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads the extension and returns the file it was downloaded to. */
+    @SuppressForbidden(reason = "We use openStream to download extensions")
     private Path download(Terminal terminal, String extensionURL, Path tmpDir) throws Exception {
         terminal.println("-> Downloading " + URLDecoder.decode(extensionURL, "UTF-8"));
         URL url = new URL(extensionURL);

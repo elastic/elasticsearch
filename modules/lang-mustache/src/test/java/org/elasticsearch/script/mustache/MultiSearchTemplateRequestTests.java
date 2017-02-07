@@ -70,4 +70,24 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals(1, request.requests().get(1).getScriptParams().size());
         assertEquals(1, request.requests().get(2).getScriptParams().size());
     }
+
+    public void testParseWithCarriageReturn() throws Exception {
+        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n" +
+            "{\"inline\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(content), XContentType.JSON).build();
+
+        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
+        assertThat(request.requests().get(0).getRequest().indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(0).getRequest().indices(), arrayContaining("test0", "test1"));
+        assertThat(request.requests().get(0).getRequest().requestCache(), equalTo(true));
+        assertThat(request.requests().get(0).getRequest().preference(), nullValue());
+        assertNotNull(request.requests().get(0).getScript());
+        assertEquals(ScriptType.INLINE, request.requests().get(0).getScriptType());
+        assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(0).getScript());
+        assertEquals(1, request.requests().get(0).getScriptParams().size());
+    }
 }

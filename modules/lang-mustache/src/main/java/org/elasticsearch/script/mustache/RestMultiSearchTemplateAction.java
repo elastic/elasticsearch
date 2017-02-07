@@ -81,4 +81,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 });
         return multiRequest;
     }
+
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
 }

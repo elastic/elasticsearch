@@ -133,7 +133,8 @@ public enum XContentType implements Writeable {
                 return type;
             }
         }
-        if(mediaType.toLowerCase(Locale.ROOT).startsWith("application/*")) {
+        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
+        if (lowercaseMediaType.startsWith("application/*")) {
             return JSON;
         }
 
@@ -152,6 +153,7 @@ public enum XContentType implements Writeable {
                 return type;
             }
         }
+
         return null;
     }
 

@@ -25,6 +25,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
@@ -41,7 +43,6 @@ import java.util.function.UnaryOperator;
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
-
     /**
      * Set the current doc ID.
      */
@@ -127,6 +128,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public static final class Longs extends ScriptDocValues<Long> {
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
         private final SortedNumericDocValues values;
         private Dates dates;
@@ -155,7 +157,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return values.valueAt(0);
         }
 
+        @Deprecated
         public ReadableDateTime getDate() {
+            deprecationLogger.deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(values);
                 dates.refreshArray();
@@ -163,7 +167,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return dates.getValue();
         }
 
+        @Deprecated
         public List<ReadableDateTime> getDates() {
+            deprecationLogger.deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
                 dates = new Dates(values);
                 dates.refreshArray();
@@ -183,6 +189,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public static final class Dates extends ScriptDocValues<ReadableDateTime> {
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 
         private final SortedNumericDocValues values;
@@ -204,6 +212,24 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return EPOCH;
             }
             return get(0);
+        }
+
+        /**
+         * Fetch the first value. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
+         */
+        @Deprecated
+        public ReadableDateTime getDate() {
+            deprecationLogger.deprecated("getDate is no longer necisary on date fields as the value is now a date.");
+            return getValue();
+        }
+
+        /**
+         * Fetch all the values. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
+         */
+        @Deprecated
+        public List<ReadableDateTime> getDates() {
+            deprecationLogger.deprecated("getDates is no longer necisary on date fields as the values are now dates.");
+            return this;
         }
 
         @Override

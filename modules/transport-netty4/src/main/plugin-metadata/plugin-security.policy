@@ -18,8 +18,8 @@
  */
 
 grant {
-   // netty accepts socket connections
-   permission java.net.SocketPermission "*", "accept";
+   // netty makes and accepts socket connections
+   permission java.net.SocketPermission "*", "accept,connect";
 };
 
 grant codeBase "${codebase.netty-common-4.1.7.Final.jar}" {

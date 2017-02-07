@@ -27,10 +27,10 @@ Integrations are not plugins, but are external tools or modules that make it eas
   Tiki has native support for Elasticsearch. This provides faster & better
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
-  
+
 * http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
   XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
- 
+
 [float]
 [[data-integrations]]
 === Data import/export and validation
@@ -41,13 +41,13 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
-* https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
+* {logstash}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
+* {logstash}/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
   The Logstash `elasticsearch` input plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
+* {logstash}/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
   The Logstash `elasticsearch` filter plugin.
-* https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
+* {logstash}/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
   The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 [float]

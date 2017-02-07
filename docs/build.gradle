@@ -35,7 +35,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/avg-aggregation.asciidoc',
   'reference/aggregations/metrics/cardinality-aggregation.asciidoc',
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
   'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
@@ -44,7 +43,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
   'reference/aggregations/metrics/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/sum-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/aggregations/pipeline.asciidoc',
   'reference/aggregations/pipeline/avg-bucket-aggregation.asciidoc',
@@ -111,9 +109,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/index-modules/similarity.asciidoc',
   'reference/index-modules/store.asciidoc',
   'reference/index-modules/translog.asciidoc',
-  'reference/indices/analyze.asciidoc',
   'reference/indices/flush.asciidoc',
-  'reference/indices/get-field-mapping.asciidoc',
   'reference/indices/get-settings.asciidoc',
   'reference/indices/put-mapping.asciidoc',
   'reference/indices/recovery.asciidoc',
@@ -287,7 +283,7 @@ buildRestTests.setups['ledger'] = '''
         {"index":{}}
         {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
 
-// Used by pipeline aggregation docs
+// Used by aggregation docs
 buildRestTests.setups['sales'] = '''
   - do:
     indices.create:
@@ -406,7 +402,7 @@ buildRestTests.setups['stackoverflow'] = '''
       type: question
       refresh: true
       body: |'''
-      
+
 // Make Kibana strongly connected to elasticsearch and logstash
 // Make Kibana rarer (and therefore higher-ranking) than Javascript
 // Make Javascript strongly connected to jquery and angular
@@ -439,4 +435,27 @@ for (int i = 0; i < 50; i++) {
 }
 buildRestTests.setups['stackoverflow'] += """
 """
-
+// Used by some aggregations
+buildRestTests.setups['exams'] = '''
+  - do:
+    indices.create:
+      index: exams
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 1
+        mappings:
+          exam:
+            properties:
+              grade:
+                type: byte
+  - do:
+    bulk:
+      index: exams
+      type: exam
+      refresh: true
+      body: |
+        {"index":{}}
+        {"grade": 100}
+        {"index":{}}
+        {"grade": 50}'''

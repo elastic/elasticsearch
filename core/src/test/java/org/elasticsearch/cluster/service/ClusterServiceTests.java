@@ -126,12 +126,12 @@ public class ClusterServiceTests extends ESTestCase {
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 // skip
             }
         });
@@ -604,7 +604,7 @@ public class ClusterServiceTests extends ESTestCase {
             private AtomicInteger batches = new AtomicInteger();
             private AtomicInteger published = new AtomicInteger();
 
-            public TaskExecutor(List<Set<Task>> taskGroups) {
+            TaskExecutor(List<Set<Task>> taskGroups) {
                 this.taskGroups = taskGroups;
             }
 
@@ -1059,12 +1059,12 @@ public class ClusterServiceTests extends ESTestCase {
         Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 discoveryNodes.forEach(currentNodes::add);
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 Set<DiscoveryNode> nodeSet = new HashSet<>();
                 nodesToKeep.iterator().forEachRemaining(nodeSet::add);
                 currentNodes.removeIf(node -> nodeSet.contains(node) == false);
@@ -1223,7 +1223,7 @@ public class ClusterServiceTests extends ESTestCase {
     private static class BlockingTask extends ClusterStateUpdateTask implements Releasable {
         private final CountDownLatch latch = new CountDownLatch(1);
 
-        public BlockingTask(Priority priority) {
+        BlockingTask(Priority priority) {
             super(priority);
         }
 
@@ -1271,7 +1271,7 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+        TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
                                    Supplier<DiscoveryNode> localNodeSupplier) {
             super(settings, clusterSettings, threadPool, localNodeSupplier);
         }

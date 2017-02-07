@@ -1642,7 +1642,7 @@ public class InternalEngineTests extends ESTestCase {
 
         public boolean sawIndexWriterIFDMessage;
 
-        public MockAppender(final String name) throws IllegalAccessException {
+        MockAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
@@ -1818,8 +1818,8 @@ public class InternalEngineTests extends ESTestCase {
     // this test writes documents to the engine while concurrently flushing/commit
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
-        try (final Store store = createStore();
-             final InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
+        try (Store store = createStore();
+             InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
                                                                      new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE),
                                                                      IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
 
@@ -2545,7 +2545,7 @@ public class InternalEngineTests extends ESTestCase {
     private static class ThrowingIndexWriter extends IndexWriter {
         private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
 
-        public ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
+        ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
         }
 
@@ -3090,7 +3090,7 @@ public class InternalEngineTests extends ESTestCase {
             IOUtils.close(initialEngine);
         }
 
-        try (final Engine recoveringEngine =
+        try (Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
         }
@@ -3128,7 +3128,7 @@ public class InternalEngineTests extends ESTestCase {
             IOUtils.close(initialEngine);
         }
 
-        try (final Engine recoveringEngine =
+        try (Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * (docs - 1) + 2 - 1)));
         }
@@ -3207,7 +3207,7 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
-        try (final Engine.GetResult result = engine.get(new Engine.Get(true, uid))) {
+        try (Engine.GetResult result = engine.get(new Engine.Get(true, uid))) {
             assertThat(result.exists(), equalTo(exists));
         }
     }

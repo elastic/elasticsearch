@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -61,10 +61,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField COERCE_FIELD =new ParseField("coerce", "normalize")
-            .withAllDeprecated("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("validation_method");
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
@@ -325,7 +321,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+        if (!(fieldType instanceof GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -387,8 +383,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
-        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
@@ -450,19 +444,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     queryName = parser.text();
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (COERCE_FIELD.match(currentFieldName)) {
-                    coerce = parser.booleanValue();
-                    if (coerce) {
-                        ignoreMalformed = true;
-                    }
                 } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
                 } else if (TYPE_FIELD.match(currentFieldName)) {
                     type = parser.text();
-                } else if (IGNORE_MALFORMED_FIELD.match(currentFieldName)) {
-                    ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
                             NAME, currentFieldName);
@@ -481,8 +468,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         if (validationMethod != null) {
             // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
             builder.setValidationMethod(validationMethod);
-        } else {
-            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         return builder;
     }

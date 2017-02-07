@@ -549,4 +549,10 @@ public class SettingsTests extends ESTestCase {
         }
         expectThrows(NoSuchElementException.class, () -> iterator.next());
     }
+
+    public void testEmpty() {
+        assertTrue(Settings.EMPTY.isEmpty());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
+    }
 }

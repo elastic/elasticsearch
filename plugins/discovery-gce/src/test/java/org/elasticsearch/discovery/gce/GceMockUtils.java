@@ -28,6 +28,7 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.Callback;
@@ -82,16 +83,10 @@ public class GceMockUtils {
         if (resource == null) {
             throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
         }
-        try (InputStream is = resource.openStream()) {
+        try (InputStream is = FileSystemUtils.openFileURLStream(resource)) {
             final StringBuilder sb = new StringBuilder();
-            Streams.readAllLines(is, new Callback<String>() {
-                @Override
-                public void handle(String s) {
-                    sb.append(s);
-                }
-            });
-            String response = sb.toString();
-            return response;
+            Streams.readAllLines(is, sb::append);
+            return sb.toString();
         }
     }
 }

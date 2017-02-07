@@ -56,7 +56,7 @@ public class CollapseTopFieldDocs extends TopFieldDocs {
         // Which hit within the shard:
         int hitIndex;
 
-        public ShardRef(int shardIndex) {
+        ShardRef(int shardIndex) {
             this.shardIndex = shardIndex;
         }
 
@@ -72,7 +72,7 @@ public class CollapseTopFieldDocs extends TopFieldDocs {
         final FieldComparator<?>[] comparators;
         final int[] reverseMul;
 
-        public MergeSortQueue(Sort sort, CollapseTopFieldDocs[] shardHits) throws IOException {
+        MergeSortQueue(Sort sort, CollapseTopFieldDocs[] shardHits) throws IOException {
             super(shardHits.length);
             this.shardHits = new ScoreDoc[shardHits.length][];
             for (int shardIDX = 0; shardIDX < shardHits.length; shardIDX++) {

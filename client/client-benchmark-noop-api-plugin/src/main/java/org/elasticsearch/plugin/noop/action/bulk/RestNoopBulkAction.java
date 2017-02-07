@@ -90,7 +90,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         private final RestRequest request;
 
 
-        public BulkRestBuilderListener(RestChannel channel, RestRequest request) {
+        BulkRestBuilderListener(RestChannel channel, RestRequest request) {
             super(channel);
             this.request = request;
         }

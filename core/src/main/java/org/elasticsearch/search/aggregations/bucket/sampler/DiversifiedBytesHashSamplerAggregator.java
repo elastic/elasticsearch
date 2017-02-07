@@ -70,7 +70,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -86,7 +86,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
 
             private SortedBinaryDocValues values;
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerValue) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerValue) {
                 super(numHits, maxHitsPerValue);
 
             }

@@ -1,5 +1,7 @@
 = Community Contributed Clients
 
+[preface]
+== Preface
 :client: https://www.elastic.co/guide/en/elasticsearch/client
 
 Besides the link:/guide[officially supported Elasticsearch clients], there are
@@ -194,7 +196,7 @@ The following projects appear to be abandoned:
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
-  
+
 The following projects appear to be abandoned:
 
 * https://github.com/Tomesch/elasticsearch[elasticsearch]

@@ -43,7 +43,7 @@ public enum SimpleQueryStringFlag {
 
     final int value;
 
-    private SimpleQueryStringFlag(int value) {
+    SimpleQueryStringFlag(int value) {
         this.value = value;
     }
 

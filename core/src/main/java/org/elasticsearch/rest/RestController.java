@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -179,6 +180,10 @@ public class RestController extends AbstractComponent {
 
             if (contentLength > 0 && hasContentTypeOrCanAutoDetect(request, handler) == false) {
                 sendContentTypeErrorMessage(request, responseChannel);
+            } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
+                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
+                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(RestStatus.NOT_ACCEPTABLE, "Content-Type [" +
+                    request.getXContentType() + "] does not support stream parsing. Use JSON or SMILE instead"));
             } else {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -242,18 +247,35 @@ public class RestController extends AbstractComponent {
                 // be removed!
                 deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
                     "in a supported format.");
+            } else if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
+                final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+                // we also support line-delimited JSON, which isn't official and has a few variations
+                // http://specs.okfnlabs.org/ndjson/
+                // https://github.com/ndjson/ndjson-spec/blob/48ea03cea6796b614cfbff4d4eb921f0b1d35c26/specification.md
+                if (lowercaseMediaType.equals("application/x-ldjson") || lowercaseMediaType.equals("application/x-ndjson")) {
+                    restRequest.setXContentType(XContentType.JSON);
+                } else if (isContentTypeRequired) {
+                    return false;
+                } else {
+                    return autoDetectXContentType(restRequest);
+                }
             } else if (isContentTypeRequired) {
                 return false;
             } else {
-                deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using " +
-                    "the [Content-Type] header.");
-                XContentType xContentType = XContentFactory.xContentType(restRequest.content());
-                if (xContentType == null) {
-                    return false;
-                } else {
-                    restRequest.setXContentType(xContentType);
-                }
+                return autoDetectXContentType(restRequest);
             }
+        }
+        return true;
+    }
+
+    private boolean autoDetectXContentType(RestRequest restRequest) {
+        deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using " +
+            "the [Content-Type] header.");
+        XContentType xContentType = XContentFactory.xContentType(restRequest.content());
+        if (xContentType == null) {
+            return false;
+        } else {
+            restRequest.setXContentType(xContentType);
         }
         return true;
     }
@@ -343,7 +365,7 @@ public class RestController extends AbstractComponent {
         private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;

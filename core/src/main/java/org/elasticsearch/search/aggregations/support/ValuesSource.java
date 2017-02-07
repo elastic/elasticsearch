@@ -318,7 +318,7 @@ public abstract class ValuesSource {
                 private final SortedNumericDocValues longValues;
                 private final LeafSearchScript script;
 
-                public LongValues(SortedNumericDocValues values, LeafSearchScript script) {
+                LongValues(SortedNumericDocValues values, LeafSearchScript script) {
                     this.longValues = values;
                     this.script = script;
                 }
@@ -346,7 +346,7 @@ public abstract class ValuesSource {
                 private final SortedNumericDoubleValues doubleValues;
                 private final LeafSearchScript script;
 
-                public DoubleValues(SortedNumericDoubleValues values, LeafSearchScript script) {
+                DoubleValues(SortedNumericDoubleValues values, LeafSearchScript script) {
                     this.doubleValues = values;
                     this.script = script;
                 }
@@ -462,7 +462,7 @@ public abstract class ValuesSource {
             private final SortedBinaryDocValues bytesValues;
             private final LeafSearchScript script;
 
-            public BytesValues(SortedBinaryDocValues bytesValues, LeafSearchScript script) {
+            BytesValues(SortedBinaryDocValues bytesValues, LeafSearchScript script) {
                 this.bytesValues = bytesValues;
                 this.script = script;
             }

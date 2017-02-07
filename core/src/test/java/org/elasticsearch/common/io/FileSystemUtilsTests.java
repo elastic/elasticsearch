@@ -113,7 +113,7 @@ public class FileSystemUtilsTests extends ESTestCase {
         try (InputStream is = FileSystemUtils.openFileURLStream(urlWithWrongProtocol)) {
             fail("Should throw IllegalArgumentException due to invalid protocol");
         } catch (IllegalArgumentException e) {
-            assertEquals("Invalid protocol [http], must be [file]", e.getMessage());
+            assertEquals("Invalid protocol [http], must be [file] or [jar]", e.getMessage());
         }
 
         URL urlWithHost = new URL("file", "localhost", txtFile.toString());

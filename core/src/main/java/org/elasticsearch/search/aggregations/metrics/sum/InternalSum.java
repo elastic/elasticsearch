@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
@@ -88,4 +89,14 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hashCode(sum);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSum that = (InternalSum) obj;
+        return Objects.equals(sum, that.sum);
+    }
 }

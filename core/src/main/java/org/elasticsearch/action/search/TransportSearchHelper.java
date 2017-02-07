@@ -34,19 +34,9 @@ final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
-        if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults);
-        } else if (searchType == SearchType.QUERY_AND_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults);
-        } else {
-            throw new IllegalStateException("search_type [" + searchType + "] not supported");
-        }
-    }
-
-    static String buildScrollId(String type, AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
         try (RAMOutputStream out = new RAMOutputStream()) {
-            out.writeString(type);
+            out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
                 SearchPhaseResult searchPhaseResult = entry.value;

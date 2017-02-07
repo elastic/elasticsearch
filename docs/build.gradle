@@ -26,7 +26,6 @@ apply plugin: 'elasticsearch.docs-test'
 buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
-  'reference/aggregations/bucket/histogram-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',
   'reference/aggregations/bucket/nested-aggregation.asciidoc',
@@ -35,7 +34,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/avg-aggregation.asciidoc',
   'reference/aggregations/metrics/cardinality-aggregation.asciidoc',
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
   'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
@@ -44,7 +42,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
   'reference/aggregations/metrics/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/sum-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/aggregations/pipeline.asciidoc',
   'reference/aggregations/pipeline/avg-bucket-aggregation.asciidoc',
@@ -93,12 +90,10 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/cluster/nodes-info.asciidoc',
   'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',
-  'reference/cluster/reroute.asciidoc',
   'reference/cluster/state.asciidoc',
   'reference/cluster/stats.asciidoc',
   'reference/cluster/tasks.asciidoc',
   'reference/cluster/update-settings.asciidoc',
-  'reference/docs/bulk.asciidoc',
   'reference/docs/delete-by-query.asciidoc',
   'reference/docs/delete.asciidoc',
   'reference/docs/index_.asciidoc',
@@ -111,7 +106,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/index-modules/similarity.asciidoc',
   'reference/index-modules/store.asciidoc',
   'reference/index-modules/translog.asciidoc',
-  'reference/indices/analyze.asciidoc',
   'reference/indices/flush.asciidoc',
   'reference/indices/get-settings.asciidoc',
   'reference/indices/put-mapping.asciidoc',
@@ -139,13 +133,11 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
-  'reference/query-dsl/terms-query.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/multi-search.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
-  'reference/search/request/rescore.asciidoc',
   'reference/search/search-template.asciidoc',
 ]
 
@@ -286,7 +278,7 @@ buildRestTests.setups['ledger'] = '''
         {"index":{}}
         {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
 
-// Used by pipeline aggregation docs
+// Used by aggregation docs
 buildRestTests.setups['sales'] = '''
   - do:
     indices.create:
@@ -307,19 +299,19 @@ buildRestTests.setups['sales'] = '''
       refresh: true
       body: |
         {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 200, "type": "hat"}
+        {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
         {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 200, "type": "t-shirt"}
+        {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
         {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 150, "type": "bag"}
+        {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
         {"index":{}}
-        {"date": "2015/02/01 00:00:00", "price": 50, "type": "hat"}
+        {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
         {"index":{}}
-        {"date": "2015/02/01 00:00:00", "price": 10, "type": "t-shirt"}
+        {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
         {"index":{}}
-        {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
+        {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
         {"index":{}}
-        {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''
+        {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
 
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
@@ -405,7 +397,7 @@ buildRestTests.setups['stackoverflow'] = '''
       type: question
       refresh: true
       body: |'''
-      
+
 // Make Kibana strongly connected to elasticsearch and logstash
 // Make Kibana rarer (and therefore higher-ranking) than Javascript
 // Make Javascript strongly connected to jquery and angular
@@ -439,3 +431,27 @@ for (int i = 0; i < 50; i++) {
 buildRestTests.setups['stackoverflow'] += """
 """
 
+// Used by some aggregations
+buildRestTests.setups['exams'] = '''
+  - do:
+    indices.create:
+      index: exams
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 1
+        mappings:
+          exam:
+            properties:
+              grade:
+                type: byte
+  - do:
+    bulk:
+      index: exams
+      type: exam
+      refresh: true
+      body: |
+        {"index":{}}
+        {"grade": 100}
+        {"index":{}}
+        {"grade": 50}'''

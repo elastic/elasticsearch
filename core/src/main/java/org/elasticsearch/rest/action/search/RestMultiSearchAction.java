@@ -186,6 +186,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
     private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
             if (data.get(i) == marker) {

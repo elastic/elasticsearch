@@ -24,11 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-public class FetchSearchResult extends TransportResponse implements FetchSearchResultProvider {
+public class FetchSearchResult extends QuerySearchResultProvider {
 
     private long id;
     private SearchShardTarget shardTarget;
@@ -43,6 +45,11 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     public FetchSearchResult(long id, SearchShardTarget shardTarget) {
         this.id = id;
         this.shardTarget = shardTarget;
+    }
+
+    @Override
+    public QuerySearchResult queryResult() {
+        return null;
     }
 
     @Override

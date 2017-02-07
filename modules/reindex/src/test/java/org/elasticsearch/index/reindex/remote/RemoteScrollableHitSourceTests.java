@@ -46,6 +46,7 @@ import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -522,7 +523,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 } else {
                     StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
                     HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(), contentType));
+                    httpResponse.setEntity(new InputStreamEntity(FileSystemUtils.openFileURLStream(resource), contentType));
                     futureCallback.completed(httpResponse);
                 }
                 return null;

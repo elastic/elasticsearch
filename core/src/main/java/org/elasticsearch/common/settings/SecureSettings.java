@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import java.io.Closeable;
 import java.security.GeneralSecurityException;
+import java.util.Set;
 
 /**
  * An accessor for settings which are securely stored. See {@link SecureSetting}.
@@ -30,8 +31,8 @@ public interface SecureSettings extends Closeable {
     /** Returns true iff the settings are loaded and retrievable. */
     boolean isLoaded();
 
-    /** Returns true iff the given setting exists in this secure settings. */
-    boolean hasSetting(String setting);
+    /** Returns the names of all secure settings available. */
+    Set<String> getSettingNames();
 
     /** Return a string setting. The {@link SecureString} should be closed once it is used. */
     SecureString getString(String setting) throws GeneralSecurityException;

@@ -376,7 +376,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
         }
 
         @Override

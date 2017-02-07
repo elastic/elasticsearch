@@ -85,6 +85,14 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsear
   List getDates()
 }
 
+class org.elasticsearch.index.fielddata.ScriptDocValues.Dates -> org.elasticsearch.index.fielddata.ScriptDocValues$Dates extends List,Collection,Iterable,Object {
+  org.joda.time.ReadableDateTime get(int)
+  org.joda.time.ReadableDateTime getValue()
+  List getValues()
+  org.joda.time.ReadableDateTime getDate()
+  List getDates()
+}
+
 class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
   Double get(int)
   double getValue()

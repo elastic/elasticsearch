@@ -56,9 +56,11 @@ public class MyNativeScriptPlugin extends Plugin implements ScriptPlugin {
 You can execute the script by specifying its `lang` as `native`, and the name
 of the script as the `id`:
 
+
 [source,js]
 --------------------------------------------------
-curl -XPOST localhost:9200/_search -d '{
+POST /_search
+{
   "query": {
     "function_score": {
       "query": {
@@ -78,5 +80,7 @@ curl -XPOST localhost:9200/_search -d '{
       ]
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have a native plugin installed to test this]

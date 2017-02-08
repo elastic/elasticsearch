@@ -123,7 +123,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
   'reference/mapping/types/percolator.asciidoc',
-  'reference/modules/scripting/native.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...

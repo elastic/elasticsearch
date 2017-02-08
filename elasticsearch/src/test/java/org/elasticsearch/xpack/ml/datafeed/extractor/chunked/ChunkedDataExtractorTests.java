@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.ESTestCase;
@@ -406,8 +407,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHits searchHits = mock(SearchHits.class);
-        when(searchHits.getTotalHits()).thenReturn(totalHits);
+        SearchHit[] hits = new SearchHit[(int)totalHits];
+        SearchHits searchHits = new SearchHits(hits, totalHits, 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         Aggregations aggs = mock(Aggregations.class);

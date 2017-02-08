@@ -282,7 +282,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAsciiOfLength(1000));
-        SearchHits searchHits = mock(SearchHits.class);
         List<SearchHit> hits = new ArrayList<>();
         for (int i = 0; i < timestamps.size(); i++) {
             SearchHit hit = new SearchHit(randomInt());
@@ -293,8 +292,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hit.fields(fields);
             hits.add(hit);
         }
-        when(searchHits.getHits()).thenReturn(hits.toArray(new SearchHit[hits.size()]));
-        when(searchHits.getHits()).thenReturn(hits.toArray(new SearchHit[hits.size()]));
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), hits.size(), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

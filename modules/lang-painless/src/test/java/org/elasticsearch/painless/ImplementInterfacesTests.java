@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -110,12 +109,14 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).test(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
-        assertEquals(singleton("a"),
-                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a", emptyMap())).getUsedVariables());
-        assertEquals(new HashSet<>(Arrays.asList("a", "b", "c")),
-                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a + b + c", emptyMap())).getUsedVariables());
-        assertEquals(new HashSet<>(Arrays.asList("a", "b", "c", "d")),
-                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap())).getUsedVariables());
+        assertUsedVariables(ManyArgs.class, "a", "a");
+        assertUsedVariables(ManyArgs.class, "a + b + c", "a", "b", "c");
+        assertUsedVariables(ManyArgs.class, "a + b + c + d", "a", "b", "c", "d");
+    }
+
+    private void assertUsedVariables(Class<?> iface, String script, String... usedVariables) {
+        assertEquals(new HashSet<>(Arrays.asList(usedVariables)),
+                ((PainlessScript) scriptEngine.compile(iface, null, script, emptyMap())).getMetadata().getUsedVariables());
     }
 
     @FunctionalInterface
@@ -148,5 +149,16 @@ public class ImplementInterfacesTests extends ScriptTestCase {
             scriptEngine.compile(UnknownArgTypeInArray.class, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
                 + "arguments that are of whitelisted types.", e.getMessage());
+    }
+
+    @FunctionalInterface
+    public interface MethodClash {
+        PainlessScript.ScriptMetadata getMetadata();
+    }
+    public void testMethodClash() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(MethodClash.class, null, "null", emptyMap()));
+        assertEquals("Painless cannot compile [" + MethodClash.class.getName() + "] because it contains a method named "
+                + "[getMetadata] which can collide with PainlessScript#getMetadata", e.getMessage());
     }
 }

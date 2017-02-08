@@ -189,13 +189,7 @@ public final class SSource extends AStatement {
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String classBase = BASE_CLASS_TYPE.getInternalName();
         String className = CLASS_TYPE.getInternalName();
-        String classInterfaces[];
-        // TODO generalize this or remove it from Elasticsearch
-        if (reserved.getUsedVariables().contains("_score")) {
-            classInterfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName(), Type.getType(iface).getInternalName() };
-        } else {
-            classInterfaces = new String[] { Type.getType(iface).getInternalName() };
-        }
+        String classInterfaces[] = new String[] { Type.getType(iface).getInternalName() };
 
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;

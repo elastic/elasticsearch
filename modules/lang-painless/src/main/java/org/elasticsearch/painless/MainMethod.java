@@ -23,7 +23,6 @@ import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -53,6 +52,10 @@ public class MainMethod {
         if (mainMethod.isVarArgs()) {
             throw new IllegalArgumentException(
                     "Painless doesn't know how to compile varargs methods but tried to compile to [" + mainMethod + "]");
+        }
+        if (mainMethod.getName().equals("getMetadata")) {
+            throw new IllegalArgumentException("Painless cannot compile [" + iface.getName() + "] because it contains a method named "
+                    + "[getMetadata] which can collide with PainlessScript#getMetadata");
         }
 
         MethodType methodType = MethodType.methodType(mainMethod.getReturnType(), mainMethod.getParameterTypes());

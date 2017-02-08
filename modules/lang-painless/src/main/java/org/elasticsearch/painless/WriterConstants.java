@@ -31,12 +31,10 @@ import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,18 +45,17 @@ public final class WriterConstants {
 
     public static final int CLASS_VERSION = Opcodes.V1_8;
     public static final int ASM_VERSION = Opcodes.ASM5;
-    public static final String BASE_CLASS_NAME = AbstractPainlessScript.class.getName();
-    public static final Type BASE_CLASS_TYPE   = Type.getType(AbstractPainlessScript.class);
+    public static final String BASE_CLASS_NAME = PainlessScript.class.getName();
+    public static final Type BASE_CLASS_TYPE   = Type.getType(PainlessScript.class);
 
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class, Set.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", PainlessScript.ScriptMetadata.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
-    public static final Type NEEDS_SCORE_TYPE = Type.getType(NeedsScore.class);
     public static final Type SCORER_TYPE = Type.getType(Scorer.class);
     public static final Method SCORER_SCORE = getAsmMethod(float.class, "score");
 

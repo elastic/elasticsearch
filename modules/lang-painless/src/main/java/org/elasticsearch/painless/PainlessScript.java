@@ -19,39 +19,76 @@
 
 package org.elasticsearch.painless;
 
+import java.util.BitSet;
 import java.util.Set;
 
 /**
- * Interface implemented by all Painless scripts for debugging information.
+ * Abstract superclass on top of which all Painless scripts are built.
  */
-public interface PainlessScript {
-    /**
-     * Name of the script set at compile time.
-     */
-    String getName();
+public abstract class PainlessScript {
+    private final ScriptMetadata metadata;
+
+    public PainlessScript(ScriptMetadata metadata) {
+        this.metadata = metadata;
+    }
 
     /**
-     * Source of the script.
+     * Get metadata about the script.
      */
-    String getSource();
+    public ScriptMetadata getMetadata() {
+        return metadata;
+    }
 
     /**
-     * Finds the start of the first statement boundary that is
-     * on or before {@code offset}. If one is not found, {@code -1}
-     * is returned.
+     * Metadata about the script.
      */
-    int getPreviousStatement(int offset);
+    public static class ScriptMetadata {
+        private final String name;
+        private final String source;
+        private final BitSet statements;
+        private final Set<String> usedVariables;
 
-    /**
-     * Finds the start of the first statement boundary that is
-     * after {@code offset}. If one is not found, {@code -1}
-     * is returned.
-     */
-    int getNextStatement(int offset);
+        protected ScriptMetadata(String name, String source, BitSet statements, Set<String> usedVariables) {
+            this.name = name;
+            this.source = source;
+            this.statements = statements;
+            this.usedVariables = usedVariables;
+        }
 
-    /**
-     * Variables used by the script's main method including arguments. If an argument to the script isn't in this then it wasn't used
-     * by the script and can safely be set to anything.
-     */
-    Set<String> getUsedVariables();
+        /**
+         * Name of the script set at compile time.
+         */
+        public String getName() {
+            return name;
+        }
+
+        /**
+         * Source of the script.
+         */
+        public String getSource() {
+            return source;
+        }
+
+        /**
+         * Finds the start of the first statement boundary that is on or before {@code offset}. If one is not found, {@code -1} is returned.
+         */
+        public int getPreviousStatement(int offset) {
+            return statements.previousSetBit(offset);
+        }
+
+        /**
+         * Finds the start of the first statement boundary that is after {@code offset}. If one is not found, {@code -1} is returned.
+         */
+        public int getNextStatement(int offset) {
+            return statements.nextSetBit(offset + 1);
+        }
+
+        /**
+         * Variables used by the script's main method including arguments. If an argument to the script isn't in this then it wasn't used by
+         * the script and can safely be set to anything.
+         */
+        public Set<String> getUsedVariables() {
+            return usedVariables;
+        }
+    }
 }

@@ -452,6 +452,7 @@ because we'll use it later.
 }
 --------------------------------------------------
 // TESTRESPONSE
+// TEST[continued]
 
 //////////////////////////
 
@@ -475,7 +476,8 @@ which is rendered as:
     "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
 }
 ------------------------------------------
-//TESTRESPONSE
+// TESTRESPONSE
+// TEST[continued]
 
 This template can be deleted by
 
@@ -484,7 +486,23 @@ This template can be deleted by
 DELETE _search/template/<templatename>
 ------------------------------------------
 // CONSOLE
-// TEST[catch:missing]
+// TEST[continued]
+
+//////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+// TEST[continued]
+
+//////////////////////////
 
 To use an indexed template at search time use:
 

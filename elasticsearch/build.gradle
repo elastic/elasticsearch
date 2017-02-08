@@ -8,15 +8,23 @@ esplugin {
     classname 'org.elasticsearch.xpack.ml.MlPlugin'
 }
 
+if (findProject(':machine-learning-cpp') != null) {
+  configurations.archives {
+      resolutionStrategy.dependencySubstitution {
+          substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
+      }
+  }
+  bundlePlugin.dependsOn ':machine-learning-cpp:buildUberZip'
+}
+
+
 configurations {
-    nativeBundle
+    archives
 }
 
 dependencies {
     compile group: 'net.sf.supercsv', name: 'super-csv', version:"${supercsvVersion}"
-    nativeBundle group: "${project.group}", name: 'ml-cpp', version:"${project.version}", classifier: 'darwin-x86_64', ext: 'zip'
-    nativeBundle group: "${project.group}", name: 'ml-cpp', version:"${project.version}", classifier: 'linux-x86_64', ext: 'zip'
-    nativeBundle group: "${project.group}", name: 'ml-cpp', version:"${project.version}", classifier: 'windows-x86_64', ext: 'zip'
+    archives group: "${project.group}", name: 'ml-cpp', version:"${project.version}", ext: 'zip'
     testCompile group: 'org.ini4j', name: 'ini4j', version:"${ini4jVersion}"
 }
 
@@ -28,18 +36,9 @@ integTest {
 }
 
 bundlePlugin {
-  if (project.cppLocalDists) {
-    def localCppBundles = fileTree(dir: cppLocalDists).matching { include "ml-cpp-${project.version}-*.zip" }
-    for (outputFile in localCppBundles) {
-      from(zipTree(outputFile)) {
-        duplicatesStrategy 'exclude'
-      }
-    }
-  } else {
-    for (outputFile in configurations.nativeBundle) {
-      from(zipTree(outputFile)) {
-        duplicatesStrategy 'exclude'
-      }
+  for (outputFile in configurations.archives) {
+    from(zipTree(outputFile)) {
+      duplicatesStrategy 'exclude'
     }
   }
 }

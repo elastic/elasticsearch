@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -41,7 +40,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
     private SearchShardTarget shardTarget;
@@ -56,7 +55,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
-    private boolean hasProfile;
+    private boolean hasProfileResults;
 
     public QuerySearchResult() {
     }
@@ -162,7 +161,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public boolean hasProfileResults() {
-        return hasProfile;
+        return hasProfileResults;
     }
 
     /**
@@ -171,7 +170,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      */
     public void profileResults(ProfileShardResult shardResults) {
         this.profileShardResults = shardResults;
-        hasProfile = shardResults != null;
+        hasProfileResults = shardResults != null;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -255,7 +254,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
-        hasProfile = profileShardResults != null;
+        hasProfileResults = profileShardResults != null;
     }
 
     @Override

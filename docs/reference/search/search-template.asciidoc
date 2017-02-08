@@ -91,6 +91,7 @@ which is rendered as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 A more complex example substitutes an array of JSON objects:
 
@@ -132,6 +133,7 @@ which is rendered as:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 [float]
 ===== Concatenating array of values
@@ -169,6 +171,7 @@ which is rendered as:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 The function also accepts a custom delimiter:
 
@@ -215,6 +218,7 @@ which is rendered as:
 }
 
 ------------------------------------------
+// NOTCONSOLE
 
 [float]
 ===== Default values
@@ -237,6 +241,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
   "params": { ... }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
 
@@ -251,6 +256,7 @@ When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 But when `params` is `{ "start": 10 }` this query would use the default value
 for `end`:
@@ -266,6 +272,7 @@ for `end`:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 [float]
 ===== Conditional clauses
@@ -288,6 +295,7 @@ The `params` would look like:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 <1> All three of these elements are optional.
 
 We could write the query as:
@@ -321,6 +329,7 @@ We could write the query as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 <1> Fill in the value of param `text`
 <2> Include the `range` filter only if `line_no` is specified
 <3> Include the `gte` clause only if `line_no.start` is specified
@@ -341,6 +350,7 @@ via the REST API, should be written as a string:
 --------------------
 "inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
+// NOTCONSOLE
 ==================================
 
 
@@ -431,6 +441,9 @@ POST _search/template/<templatename>
 // TEST[continued]
 
 //////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
 
 [source,js]
 --------------------------------------------------
@@ -555,6 +568,7 @@ GET _render/template/<template_name>
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 [float]
 ===== Explain
@@ -610,6 +624,7 @@ body\n
 header\n
 body\n
 --------------------------------------------------
+// NOTCONSOLE
 
 The header part supports the same `index`, `types`, `search_type`,
 `preference`, and `routing` options as the usual Multi Search API.
@@ -628,10 +643,7 @@ $ cat requests
 {"id": "template_1", "params": {"query_string": "search for these words" }} <2>
 {"types": "users"}
 {"file": "template_2", "params": {"field_name": "fullname", "field_value": "john smith" }} <3>
---------------------------------------------------
 
-[source,js]
---------------------------------------------------
 $ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch/template --data-binary "@requests"; echo
 --------------------------------------------------
 // NOTCONSOLE

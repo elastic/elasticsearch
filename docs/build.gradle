@@ -135,7 +135,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
-  'reference/search/search-template.asciidoc', // We don't want to consoleify the rendered templates in this doc
 ]
 
 integTest {

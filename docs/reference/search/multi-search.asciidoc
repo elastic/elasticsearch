@@ -123,6 +123,7 @@ POST /_search/template/my_template_1
 }
 ------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [source,js]
 ------------------------------------------
@@ -138,6 +139,7 @@ POST /_search/template/my_template_2
 }
 ------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 and later use them in a _msearch:
 
@@ -150,4 +152,4 @@ GET _msearch/template
 { "id": "my_template_2", "params": { "field": "user", "value": "test" } }
 ----------------------------------------------
 // CONSOLE
-// TEST[setup:twitter]
+// TEST[continued]

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,7 +32,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-@Repeat(iterations=100)
 public class SuggestionOptionTests extends ESTestCase {
 
     public static Option createTestItem() {

@@ -152,9 +152,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
          */
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
 
-            public static class Fields {
-                public static final ParseField FREQ = new ParseField("freq");
-            }
+            public static final ParseField FREQ = new ParseField("freq");
 
             private int freq;
 
@@ -199,12 +197,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 builder = super.innerToXContent(builder, params);
-                builder.field(Fields.FREQ.getPreferredName(), freq);
+                builder.field(FREQ.getPreferredName(), freq);
                 return builder;
             }
 
-            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("TermSuggestOptionParser",
-                    true, args -> {
+            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
+                    "TermSuggestionOptionParser", true,
+                    args -> {
                         Text text = new Text((String) args[0]);
                         int freq = (Integer) args[1];
                         float score = (Float) args[2];
@@ -212,9 +211,9 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                     });
 
             static {
-                PARSER.declareString(constructorArg(), Suggestion.Entry.Option.Fields.TEXT);
-                PARSER.declareInt(constructorArg(), TermSuggestion.Entry.Option.Fields.FREQ);
-                PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.Fields.SCORE);
+                PARSER.declareString(constructorArg(), Suggestion.Entry.Option.TEXT);
+                PARSER.declareInt(constructorArg(), FREQ);
+                PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.SCORE);
             }
 
             public static final Option fromXContent(XContentParser parser) {

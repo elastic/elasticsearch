@@ -534,12 +534,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
              */
             public static class Option implements Streamable, ToXContentObject {
 
-                public static class Fields {
-                    public static final ParseField TEXT = new ParseField("text");
-                    public static final ParseField HIGHLIGHTED = new ParseField("highlighted");
-                    public static final ParseField SCORE = new ParseField("score");
-                    public static final ParseField COLLATE_MATCH = new ParseField("collate_match");
-                }
+                public static final ParseField TEXT = new ParseField("text");
+                public static final ParseField HIGHLIGHTED = new ParseField("highlighted");
+                public static final ParseField SCORE = new ParseField("score");
+                public static final ParseField COLLATE_MATCH = new ParseField("collate_match");
 
                 private Text text;
                 private Text highlighted;
@@ -558,7 +556,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 public Option(Text text, float score) {
-                    this(text, null, score, null);
+                    this(text, null, score);
                 }
 
                 public Option() {
@@ -623,13 +621,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.field(Fields.TEXT.getPreferredName(), text);
+                    builder.field(TEXT.getPreferredName(), text);
                     if (highlighted != null) {
-                        builder.field(Fields.HIGHLIGHTED.getPreferredName(), highlighted);
+                        builder.field(HIGHLIGHTED.getPreferredName(), highlighted);
                     }
-                    builder.field(Fields.SCORE.getPreferredName(), score);
+                    builder.field(SCORE.getPreferredName(), score);
                     if (collateMatch != null) {
-                        builder.field(Fields.COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
+                        builder.field(COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
                     }
                     return builder;
                 }
@@ -645,10 +643,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         });
 
                 static {
-                    PARSER.declareString(constructorArg(), Fields.TEXT);
-                    PARSER.declareFloat(constructorArg(), Fields.SCORE);
-                    PARSER.declareString(optionalConstructorArg(), Fields.HIGHLIGHTED);
-                    PARSER.declareBoolean(optionalConstructorArg(), Fields.COLLATE_MATCH);
+                    PARSER.declareString(constructorArg(), TEXT);
+                    PARSER.declareFloat(constructorArg(), SCORE);
+                    PARSER.declareString(optionalConstructorArg(), HIGHLIGHTED);
+                    PARSER.declareBoolean(optionalConstructorArg(), COLLATE_MATCH);
                 }
 
                 public static Option fromXContent(XContentParser parser) {

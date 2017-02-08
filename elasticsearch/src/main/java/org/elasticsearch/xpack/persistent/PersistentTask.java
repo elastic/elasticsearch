@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 /**
@@ -25,6 +24,15 @@ public class PersistentTask extends CancellableTask {
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
+    }
+
+    // In case of persistent tasks we always need to return: `false`
+    // because in case of persistent task the parent task isn't a task in the task manager, but in cluster state.
+    // This instructs the task manager not to try to kill this persistent task when the task manager cannot find
+    // a fake parent node id "cluster" in the cluster state
+    @Override
+    public final boolean cancelOnParentLeaving() {
+        return false;
     }
 
     @Override

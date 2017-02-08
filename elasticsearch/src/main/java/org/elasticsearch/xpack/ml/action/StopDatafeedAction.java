@@ -146,14 +146,14 @@ public class StopDatafeedAction
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             validate(datafeedId, mlMetadata);
 
-            PersistentTasksInProgress tasksInProgress = state.custom(PersistentTasksInProgress.TYPE);
-            if (tasksInProgress != null) {
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findTasks(StartDatafeedAction.NAME, p -> true)) {
-                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
+            PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
+            if (tasks != null) {
+                for (PersistentTaskInProgress<?> task : tasks.findTasks(StartDatafeedAction.NAME, p -> true)) {
+                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) task.getRequest();
                     if (storedRequest.getDatafeedId().equals(datafeedId)) {
-                        RemovePersistentTaskAction.Request cancelTasksRequest = new RemovePersistentTaskAction.Request();
-                        cancelTasksRequest.setTaskId(taskInProgress.getId());
-                        removePersistentTaskAction.execute(cancelTasksRequest, listener);
+                        RemovePersistentTaskAction.Request removeTaskRequest = new RemovePersistentTaskAction.Request();
+                        removeTaskRequest.setTaskId(task.getId());
+                        removePersistentTaskAction.execute(removeTaskRequest, listener);
                         return;
                     }
                 }
@@ -164,6 +164,7 @@ public class StopDatafeedAction
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            // Remove persistent action actually updates cs, here we just read it.
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         }
 

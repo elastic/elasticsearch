@@ -89,6 +89,11 @@ setup:
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
 
   - do:
+      xpack.ml.flush_job:
+        job_id: job-stats-test
+  - match: { flushed: true }
+
+  - do:
       xpack.ml.close_job:
         job_id: job-stats-test
   - match: { closed: true }

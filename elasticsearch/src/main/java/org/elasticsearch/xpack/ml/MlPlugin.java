@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -30,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +53,6 @@ import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.action.InternalOpenJobAction;
 import org.elasticsearch.xpack.ml.action.MlDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
@@ -60,7 +62,6 @@ import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlInitializationService;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -179,11 +181,13 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(PersistentActionCoordinator.Status.class,
-                        PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentActionCoordinator.Status.NAME,
+                        PersistentActionCoordinator.Status::new),
                 new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
-                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new)
+                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, JobState.NAME, JobState::fromStream)
                 );
     }
 
@@ -204,8 +208,15 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
+        // Whether we are using native process is a good way to detect whether we are in dev / test mode:
+        TimeValue delayedNodeTimeOutSetting;
+        if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
+            delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
+        } else {
+            delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
+        }
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        JobProvider jobProvider = new JobProvider(client, 0);
+        JobProvider jobProvider = new JobProvider(client, 1, delayedNodeTimeOutSetting);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
@@ -233,7 +244,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis);
-        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, clusterService, client);
+        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService, client);
         PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
 
         return Arrays.asList(
@@ -301,8 +312,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(UpdateJobAction.INSTANCE, UpdateJobAction.TransportAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
-                new ActionHandler<>(InternalOpenJobAction.INSTANCE, InternalOpenJobAction.TransportAction.class),
-                new ActionHandler<>(UpdateJobStateAction.INSTANCE, UpdateJobStateAction.TransportAction.class),
                 new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),

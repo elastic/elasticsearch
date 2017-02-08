@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -18,30 +17,45 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelT
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.JobStateObserver;
+import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.io.IOException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
@@ -62,10 +76,27 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         return new Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContent {
+
+        public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setJobId, Job.ID);
+            PARSER.declareString((request, val) ->
+                    request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
+            return request;
+        }
 
         private String jobId;
-        private TimeValue closeTimeout = TimeValue.timeValueMinutes(20);
+        private TimeValue timeout = TimeValue.timeValueMinutes(20);
 
         Request() {}
 
@@ -77,12 +108,16 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             return jobId;
         }
 
-        public TimeValue getCloseTimeout() {
-            return closeTimeout;
+        public void setJobId(String jobId) {
+            this.jobId = jobId;
         }
 
-        public void setCloseTimeout(TimeValue closeTimeout) {
-            this.closeTimeout = closeTimeout;
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
         }
 
         @Override
@@ -94,19 +129,28 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            closeTimeout = new TimeValue(in);
+            timeout = new TimeValue(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            closeTimeout.writeTo(out);
+            timeout.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Job.ID.getPreferredName(), jobId);
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            builder.endObject();
+            return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, closeTimeout);
+            return Objects.hash(jobId, timeout);
         }
 
         @Override
@@ -119,7 +163,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(closeTimeout, other.closeTimeout);
+                    Objects.equals(timeout, other.timeout);
         }
     }
 
@@ -179,71 +223,135 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final ClusterService clusterService;
-        private final JobStateObserver jobStateObserver;
         private final TransportListTasksAction listTasksAction;
         private final TransportCancelTasksAction cancelTasksAction;
+        private final PersistentTaskClusterService persistentTaskClusterService;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService,  ThreadPool threadPool,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, TransportCancelTasksAction cancelTasksAction,
-                               TransportListTasksAction listTasksAction) {
-            super(settings, CloseJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+                               ClusterService clusterService, TransportListTasksAction listTasksAction,
+                               TransportCancelTasksAction cancelTasksAction, PersistentTaskClusterService persistentTaskClusterService) {
+            super(settings, CloseJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                    indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
-            this.jobStateObserver = new JobStateObserver(threadPool, clusterService);
-            this.cancelTasksAction = cancelTasksAction;
             this.listTasksAction = listTasksAction;
+            this.cancelTasksAction = cancelTasksAction;
+            this.persistentTaskClusterService = persistentTaskClusterService;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-            validate(request.jobId, mlMetadata);
+        protected String executor() {
+            return ThreadPool.Names.SAME;
+        }
 
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setActions(InternalOpenJobAction.NAME);
-            listTasksRequest.setDetailed(true);
-            listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
-                String expectedJobDescription = "job-" + request.jobId;
-                for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                    if (expectedJobDescription.equals(taskInfo.getDescription())) {
-                        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                        cancelTasksRequest.setTaskId(taskInfo.getTaskId());
-                        cancelTasksAction.execute(cancelTasksRequest, ActionListener.wrap(
-                            cancelTasksResponse -> {
-                                jobStateObserver.waitForState(request.jobId, request.closeTimeout, JobState.CLOSED,
-                                    e -> {
-                                        if (e != null) {
-                                            listener.onFailure(e);
-                                        } else {
-                                            listener.onResponse(new CloseJobAction.Response(true));
-                                        }
-                                    }
-                                );
-                            },
-                            listener::onFailure)
-                        );
-                        return;
-                    }
+        @Override
+        protected Response newResponse() {
+            return new Response();
+        }
+
+        @Override
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            PersistentTaskInProgress<?> task = validateAndFindTask(request.getJobId(), state);
+            clusterService.submitStateUpdateTask("closing job [" + request.getJobId() + "]", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return moveJobToClosingState(request.getJobId(), currentState);
                 }
-                listener.onFailure(new ResourceNotFoundException("No job [" + request.jobId + "] running"));
-            }, listener::onFailure));
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    ListTasksRequest listTasksRequest = new ListTasksRequest();
+                    listTasksRequest.setDetailed(true);
+                    listTasksRequest.setActions(OpenJobAction.NAME + "[c]");
+                    listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
+                        String expectedDescription = "job-" + request.getJobId();
+                        for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                            if (expectedDescription.equals(taskInfo.getDescription())) {
+                                CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                                cancelTasksRequest.setTaskId(taskInfo.getTaskId());
+                                cancelTasksAction.execute(cancelTasksRequest, ActionListener.wrap(cancelTaskResponse -> {
+                                    persistentTaskClusterService.completeOrRestartPersistentTask(task.getId(), null,
+                                            ActionListener.wrap(
+                                                    empty -> listener.onResponse(new CloseJobAction.Response(true)),
+                                                    listener::onFailure
+                                            )
+                                    );
+                                }, listener::onFailure));
+                                return;
+                            }
+                        }
+                        listener.onFailure(new ResourceNotFoundException("task not found for job [" + request.getJobId() + "]"));
+                    }, listener::onFailure));
+                }
+            });
         }
 
-        static void validate(String jobId, MlMetadata mlMetadata) {
-            Allocation allocation = mlMetadata.getAllocations().get(jobId);
-            if (allocation == null) {
-                throw ExceptionsHelper.missingJobException(jobId);
-            }
+        @Override
+        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+    }
 
-            if (allocation.getState() != JobState.OPENED) {
-                throw new ElasticsearchStatusException("job not opened, expected job state [{}], but got [{}]",
-                        RestStatus.CONFLICT, JobState.OPENED, allocation.getState());
+    static PersistentTaskInProgress<?> validateAndFindTask(String jobId, ClusterState state) {
+        MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        if (mlMetadata.getJobs().containsKey(jobId) == false) {
+            throw ExceptionsHelper.missingJobException(jobId);
+        }
+
+        PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
+        if (tasks != null) {
+            Predicate<PersistentTaskInProgress<?>> p = t -> {
+                OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
+                return storedRequest.getJobId().equals(jobId);
+            };
+            for (PersistentTaskInProgress<?> task : tasks.findTasks(OpenJobAction.NAME, p)) {
+                OpenJobAction.Request storedRequest = (OpenJobAction.Request) task.getRequest();
+                if (storedRequest.getJobId().equals(jobId)) {
+                    JobState jobState = (JobState) task.getStatus();
+                    if (jobState != JobState.OPENED) {
+                        throw new ElasticsearchStatusException("cannot close job, expected job state [{}], but got [{}]",
+                                RestStatus.CONFLICT, JobState.OPENED, jobState);
+                    }
+                    return task;
+                }
             }
         }
+        throw new ElasticsearchStatusException("cannot close job, expected job state [{}], but got [{}]",
+                RestStatus.CONFLICT, JobState.OPENED, JobState.CLOSED);
+    }
+
+    static ClusterState moveJobToClosingState(String jobId, ClusterState currentState) {
+        PersistentTaskInProgress<?> task = validateAndFindTask(jobId, currentState);
+        PersistentTasksInProgress currentTasks = currentState.custom(PersistentTasksInProgress.TYPE);
+        Map<Long, PersistentTaskInProgress<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
+        for (PersistentTaskInProgress<?> taskInProgress : currentTasks.tasks()) {
+            if (taskInProgress.getId() == task.getId()) {
+                updatedTasks.put(taskInProgress.getId(), new PersistentTaskInProgress<>(taskInProgress, JobState.CLOSING));
+            }
+        }
+        PersistentTasksInProgress newTasks = new PersistentTasksInProgress(currentTasks.getCurrentId(), updatedTasks);
+
+        MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+        Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+        jobBuilder.setFinishedTime(new Date());
+        MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
+        mlMetadataBuilder.putJob(jobBuilder.build(), true);
+
+        ClusterState.Builder builder = ClusterState.builder(currentState);
+        return builder
+                .putCustom(PersistentTasksInProgress.TYPE, newTasks)
+                .metaData(new MetaData.Builder(currentState.metaData())
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                .build();
     }
 }
 

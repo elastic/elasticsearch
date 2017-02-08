@@ -6,15 +6,17 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -38,7 +40,12 @@ public class JobStateObserver {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                handler.accept(null);
+                if (jobStatePredicate.failed) {
+                    handler.accept(new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.OPENED +
+                            "] but got [" + JobState.FAILED +"]", RestStatus.CONFLICT));
+                } else {
+                    handler.accept(null);
+                }
             }
 
             @Override
@@ -51,7 +58,12 @@ public class JobStateObserver {
             @Override
             public void onTimeout(TimeValue timeout) {
                 if (jobStatePredicate.test(clusterService.state())) {
-                    handler.accept(null);
+                    if (jobStatePredicate.failed) {
+                        handler.accept(new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.OPENED +
+                                "] but got [" + JobState.FAILED +"]", RestStatus.CONFLICT));
+                    } else {
+                        handler.accept(null);
+                    }
                 } else {
                     Exception e = new IllegalArgumentException("Timeout expired while waiting for job state to change to ["
                             + expectedState + "]");
@@ -66,6 +78,8 @@ public class JobStateObserver {
         private final String jobId;
         private final JobState expectedState;
 
+        private volatile boolean failed;
+
         JobStatePredicate(String jobId, JobState expectedState) {
             this.jobId = jobId;
             this.expectedState = expectedState;
@@ -73,14 +87,14 @@ public class JobStateObserver {
 
         @Override
         public boolean test(ClusterState newState) {
-            MlMetadata metadata = newState.getMetaData().custom(MlMetadata.TYPE);
-            if (metadata != null) {
-                Allocation allocation = metadata.getAllocations().get(jobId);
-                if (allocation != null) {
-                    return allocation.getState() == expectedState;
-                }
+            PersistentTasksInProgress tasks = newState.custom(PersistentTasksInProgress.TYPE);
+            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            if (jobState == JobState.FAILED) {
+                failed = true;
+                return true;
+            } else {
+                return jobState == expectedState;
             }
-            return false;
         }
 
     }

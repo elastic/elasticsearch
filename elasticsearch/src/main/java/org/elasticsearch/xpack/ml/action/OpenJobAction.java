@@ -5,38 +5,55 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.LoggingTaskListener;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
+import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
+import org.elasticsearch.xpack.persistent.PersistentActionRequest;
+import org.elasticsearch.xpack.persistent.PersistentActionResponse;
+import org.elasticsearch.xpack.persistent.PersistentActionService;
+import org.elasticsearch.xpack.persistent.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
-public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
+public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActionResponse, OpenJobAction.RequestBuilder> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/ml/anomaly_detectors/open";
@@ -51,20 +68,41 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public PersistentActionResponse newResponse() {
+        return new PersistentActionResponse();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends PersistentActionRequest {
 
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setJobId, Job.ID);
+            PARSER.declareBoolean(Request::setIgnoreDowntime, IGNORE_DOWNTIME);
+            PARSER.declareString((request, val) ->
+                    request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
+            return request;
+        }
 
         private String jobId;
         private boolean ignoreDowntime;
-        private TimeValue openTimeout = TimeValue.timeValueSeconds(20);
+        private TimeValue timeout = TimeValue.timeValueSeconds(20);
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+        }
+
+        public Request(StreamInput in) throws IOException {
+            readFrom(in);
         }
 
        Request() {}
@@ -85,12 +123,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             this.ignoreDowntime = ignoreDowntime;
         }
 
-        public TimeValue getOpenTimeout() {
-            return openTimeout;
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
-        public void setOpenTimeout(TimeValue openTimeout) {
-            this.openTimeout = openTimeout;
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new JobTask(getJobId(), id, type, action, parentTaskId);
         }
 
         @Override
@@ -103,7 +146,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             super.readFrom(in);
             jobId = in.readString();
             ignoreDowntime = in.readBoolean();
-            openTimeout = TimeValue.timeValueMillis(in.readVLong());
+            timeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
         @Override
@@ -111,12 +154,27 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(ignoreDowntime);
-            out.writeVLong(openTimeout.millis());
+            out.writeVLong(timeout.millis());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Job.ID.getPreferredName(), jobId);
+            builder.field(IGNORE_DOWNTIME.getPreferredName(), ignoreDowntime);
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, ignoreDowntime, openTimeout);
+            return Objects.hash(jobId, ignoreDowntime, timeout);
         }
 
         @Override
@@ -130,107 +188,131 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             OpenJobAction.Request other = (OpenJobAction.Request) obj;
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
-                    Objects.equals(openTimeout, other.openTimeout);
+                    Objects.equals(timeout, other.timeout);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class JobTask extends PersistentTask {
+
+        private volatile Consumer<String> cancelHandler;
+
+        JobTask(String jobId, long id, String type, String action, TaskId parentTask) {
+            super(id, type, action, "job-" + jobId, parentTask);
+        }
+
+        @Override
+        protected void onCancelled() {
+            String reason = CancelTasksRequest.DEFAULT_REASON.equals(getReasonCancelled()) ? null : getReasonCancelled();
+            cancelHandler.accept(reason);
+        }
+
+        static boolean match(Task task, String expectedJobId) {
+            String expectedDescription = "job-" + expectedJobId;
+            return task instanceof JobTask && expectedDescription.equals(task.getDescription());
+        }
+
+    }
+
+    static class RequestBuilder extends ActionRequestBuilder<Request, PersistentActionResponse, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private boolean opened;
-
-        Response() {}
-
-        Response(boolean opened) {
-            this.opened = opened;
-        }
-
-        public boolean isOpened() {
-            return opened;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            opened = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(opened);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("opened", opened);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return opened == response.opened;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(opened);
-        }
-    }
-
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends TransportPersistentAction<Request> {
 
         private final JobStateObserver observer;
-        private final ClusterService clusterService;
-        private final InternalOpenJobAction.TransportAction internalOpenJobAction;
+        private final AutodetectProcessManager autodetectProcessManager;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                               PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, InternalOpenJobAction.TransportAction internalOpenJobAction) {
-            super(settings, OpenJobAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
-            this.clusterService = clusterService;
+                               ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
+            super(settings, OpenJobAction.NAME, false, threadPool, transportService, persistentActionService,
+                    persistentActionRegistry, actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+            this.autodetectProcessManager = autodetectProcessManager;
             this.observer = new JobStateObserver(threadPool, clusterService);
-            this.internalOpenJobAction = internalOpenJobAction;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
-            // This validation happens also in InternalOpenJobAction, the reason we do it here too is that if it fails there
-            // we are unable to provide the user immediate feedback. We would create the task and the validation would fail
-            // in the background, whereas now the validation failure is part of the response being returned.
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-            validate(mlMetadata, request.getJobId());
+        protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
+            ActionListener<PersistentActionResponse> finalListener =
+                    ActionListener.wrap(response -> waitForJobStarted(request, response, listener), listener::onFailure);
+            super.doExecute(request, finalListener);
+        }
 
-            InternalOpenJobAction.Request internalRequest = new InternalOpenJobAction.Request(request.jobId);
-            internalOpenJobAction.execute(internalRequest, LoggingTaskListener.instance());
-            observer.waitForState(request.getJobId(), request.openTimeout, JobState.OPENED, e -> {
+        void waitForJobStarted(Request request, PersistentActionResponse response, ActionListener<PersistentActionResponse> listener) {
+            observer.waitForState(request.getJobId(), request.timeout, JobState.OPENED, e -> {
                 if (e != null) {
                     listener.onFailure(e);
                 } else {
-                    listener.onResponse(new Response(true));
+                    listener.onResponse(response);
                 }
             });
         }
 
-        /**
-         * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
-         * is not what it should be.
-         */
-        public static void validate(MlMetadata mlMetadata, String jobId) {
-            MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
-            builder.updateState(jobId, JobState.OPENING, null);
+        @Override
+        public void validate(Request request, ClusterState clusterState) {
+            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            OpenJobAction.validate(request.getJobId(), mlMetadata, tasks, clusterState.nodes());
+        }
+
+        @Override
+        protected void nodeOperation(PersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
+            autodetectProcessManager.setJobState(task.getPersistentTaskId(), JobState.OPENING, e1 -> {
+                if (e1 != null) {
+                    listener.onFailure(e1);
+                    return;
+                }
+
+                JobTask jobTask = (JobTask) task;
+                jobTask.cancelHandler = (reason) -> autodetectProcessManager.closeJob(request.getJobId(), reason);
+                autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
+                    if (e2 == null) {
+                        listener.onResponse(new TransportResponse.Empty());
+                    } else {
+                        listener.onFailure(e2);
+                    }
+                });
+            });
+        }
+
+    }
+
+    /**
+     * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
+     * is not what it should be.
+     */
+    static void validate(String jobId, MlMetadata mlMetadata, @Nullable PersistentTasksInProgress tasks, DiscoveryNodes nodes) {
+        Job job = mlMetadata.getJobs().get(jobId);
+        if (job == null) {
+            throw ExceptionsHelper.missingJobException(jobId);
+        }
+        if (job.isDeleted()) {
+            throw new ElasticsearchStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted",
+                    RestStatus.CONFLICT);
+        }
+        PersistentTaskInProgress<?> task = MlMetadata.getTask(jobId, tasks);
+        JobState jobState = MlMetadata.getJobState(jobId, tasks);
+        if (task != null && task.getExecutorNode() != null && jobState == JobState.OPENED) {
+            if (nodes.nodeExists(task.getExecutorNode()) == false) {
+                // The state is open and the node were running on no longer exists.
+                // We can skip the job state check below, because when the node
+                // disappeared we didn't have time to set the status to failed.
+                return;
+            }
+        }
+        if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
+            throw new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.CLOSED
+                    + "] or [" + JobState.FAILED + "], but got [" + jobState +"]", RestStatus.CONFLICT);
         }
     }
 }

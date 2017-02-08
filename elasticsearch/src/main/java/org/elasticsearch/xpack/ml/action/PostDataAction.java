@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -26,12 +27,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -218,14 +219,14 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
     }
 
 
-    public static class TransportAction extends TransportJobTaskAction<InternalOpenJobAction.JobTask, Request, Response> {
+    public static class TransportAction extends TransportJobTaskAction<OpenJobAction.JobTask, Request, Response> {
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, AutodetectProcessManager processManager) {
+                               JobManager jobManager, AutodetectProcessManager processManager, TransportListTasksAction listTasksAction) {
             super(settings, PostDataAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MlPlugin.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId);
+                    Request::new, Response::new, MlPlugin.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId, listTasksAction);
         }
 
         @Override
@@ -236,17 +237,15 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         @Override
-        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task, ActionListener<Response> listener) {
+        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
-            threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
-                try {
-                    DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);
-                    listener.onResponse(new Response(dataCounts));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            try {
+                DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);
+                listener.onResponse(new Response(dataCounts));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
     }

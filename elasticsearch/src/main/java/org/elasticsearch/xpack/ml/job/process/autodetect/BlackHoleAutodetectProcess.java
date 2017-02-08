@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -30,8 +28,8 @@ import java.util.concurrent.BlockingQueue;
  */
 public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
-    private static final Logger LOGGER = Loggers.getLogger(BlackHoleAutodetectProcess.class);
     private static final String FLUSH_ID = "flush-1";
+    private static final AutodetectResult EMPTY = new AutodetectResult(null, null, null, null, null, null, null, null, null);
 
     private final ZonedDateTime startTime;
 
@@ -76,6 +74,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void close() throws IOException {
+        results.add(EMPTY);
     }
 
     @Override
@@ -89,10 +88,11 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
             public boolean hasNext() {
                 try {
                     result = results.take();
+                    return result != EMPTY;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    return false;
                 }
-                return true;
             }
 
             @Override

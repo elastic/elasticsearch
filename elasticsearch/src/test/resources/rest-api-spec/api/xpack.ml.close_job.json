@@ -10,7 +10,7 @@
           "required": true,
           "description": "The name of the job to close"
         },
-        "close_timeout": {
+        "timeout": {
           "type": "time",
           "description": "Controls the time to wait until a job has closed. Default to 30 minutes"
         }

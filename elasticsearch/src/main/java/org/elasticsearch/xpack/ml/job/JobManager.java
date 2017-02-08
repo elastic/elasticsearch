@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,14 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.Collections;
 import java.util.List;
@@ -134,8 +134,9 @@ public class JobManager extends AbstractComponent {
         return getJobOrThrowIfUnknown(clusterService.state(), jobId);
     }
 
-    public Allocation getJobAllocation(String jobId) {
-        return getAllocation(clusterService.state(), jobId);
+    public JobState getJobState(String jobId) {
+        PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
+        return MlMetadata.getJobState(jobId, tasks);
     }
 
     /**
@@ -258,47 +259,54 @@ public class JobManager extends AbstractComponent {
                         return acknowledged && response;
                     }
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return removeJobFromState(jobId, currentState);
-                    }
-                });
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
+                    builder.deleteJob(jobId, currentState.custom(PersistentTasksInProgress.TYPE));
+                    return buildNewClusterState(currentState, builder);
+                }
+            });
 
-        // Step 1. When the job's status updates to DELETING, begin deleting the physical storage
+        // Step 1. When the job has been marked as deleted then begin deleting the physical storage
         // -------
-        CheckedConsumer<UpdateJobStateAction.Response, Exception> updateHandler = response -> {
+        CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             // Successfully updated the status to DELETING, begin actually deleting
-            if (response.isAcknowledged()) {
-                logger.info("Job [" + jobId + "] set to [" + JobState.DELETING + "]");
+            if (response) {
+                logger.info("Job [" + jobId + "] is successfully marked as deleted");
             } else {
-                logger.warn("Job [" + jobId + "] change to [" + JobState.DELETING + "] was not acknowledged.");
+                logger.warn("Job [" + jobId + "] marked as deleted wan't acknowledged");
             }
 
             // This task manages the physical deletion of the job (removing the results, then the index)
             task.delete(jobId, indexName, client, deleteJobStateHandler::accept, actionListener::onFailure);
-
         };
 
         // Step 0. Kick off the chain of callbacks with the initial UpdateStatus call
         // -------
-        UpdateJobStateAction.Request updateStateListener = new UpdateJobStateAction.Request(jobId, JobState.DELETING);
-        setJobState(updateStateListener, ActionListener.wrap(updateHandler, actionListener::onFailure));
+        clusterService.submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+                PersistentTasksInProgress tasks = currentState.custom(PersistentTasksInProgress.TYPE);
+                MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                builder.markJobAsDeleted(jobId, tasks);
+                return buildNewClusterState(currentState, builder);
+            }
 
-    }
+            @Override
+            public void onFailure(String source, Exception e) {
+                actionListener.onFailure(e);
+            }
 
-    ClusterState removeJobFromState(String jobId, ClusterState currentState) {
-        MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-        builder.deleteJob(jobId);
-        return buildNewClusterState(currentState, builder);
-    }
-
-    private Allocation getAllocation(ClusterState state, String jobId) {
-        MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-        Allocation allocation = mlMetadata.getAllocations().get(jobId);
-        if (allocation == null) {
-            throw new ResourceNotFoundException("No allocation found for job with id [" + jobId + "]");
-        }
-        return allocation;
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+                try {
+                    updateHandler.accept(true);
+                } catch (Exception e) {
+                    actionListener.onFailure(e);
+                }
+            }
+        });
     }
 
     public Auditor audit(String jobId) {
@@ -336,26 +344,6 @@ public class JobManager extends AbstractComponent {
                 return updateClusterState(builder.build(), true, currentState);
             }
         });
-    }
-
-    public void setJobState(UpdateJobStateAction.Request request, ActionListener<UpdateJobStateAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("set-job-state-" + request.getState() + "-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<UpdateJobStateAction.Response>(request, actionListener) {
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
-                        builder.updateState(request.getJobId(), request.getState(), request.getReason());
-                        return ClusterState.builder(currentState)
-                                .metaData(MetaData.builder(currentState.metaData()).putCustom(MlMetadata.TYPE, builder.build()))
-                                .build();
-                    }
-
-                    @Override
-                    protected UpdateJobStateAction.Response newResponse(boolean acknowledged) {
-                        return new UpdateJobStateAction.Response(acknowledged);
-                    }
-                });
     }
 
     /**

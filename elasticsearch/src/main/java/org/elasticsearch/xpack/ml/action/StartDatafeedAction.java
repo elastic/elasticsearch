@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
@@ -206,11 +205,6 @@ public class StartDatafeedAction
         }
 
         @Override
-        public boolean shouldCancelChildrenOnCancellation() {
-            return true;
-        }
-
-        @Override
         protected void onCancelled() {
             stop();
         }
@@ -241,7 +235,8 @@ public class StartDatafeedAction
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata);
+            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
             PersistentTasksInProgress persistentTasksInProgress = clusterState.custom(PersistentTasksInProgress.TYPE);
             if (persistentTasksInProgress == null) {
                 return;
@@ -273,7 +268,7 @@ public class StartDatafeedAction
 
     }
 
-    public static void validate(String datafeedId, MlMetadata mlMetadata) {
+    public static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -282,10 +277,10 @@ public class StartDatafeedAction
         if (job == null) {
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
-        Allocation allocation = mlMetadata.getAllocations().get(datafeed.getJobId());
-        if (allocation.getState() != JobState.OPENED) {
+        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
+        if (jobState != JobState.OPENED) {
             throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
-                    RestStatus.CONFLICT, JobState.OPENED, allocation.getState());
+                    RestStatus.CONFLICT, JobState.OPENED, jobState);
         }
         DatafeedJobValidator.validate(datafeed, job);
     }

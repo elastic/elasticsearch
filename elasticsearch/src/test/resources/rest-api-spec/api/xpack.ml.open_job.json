@@ -14,7 +14,7 @@
           "type": "boolean",
           "description": "Controls if gaps in data are treated as anomalous or as a maintenance window after a job re-start"
         },
-        "open_timeout": {
+        "timeout": {
           "type": "time",
           "description": "Controls the time to wait until a job has opened. Default to 30 minutes"
         }

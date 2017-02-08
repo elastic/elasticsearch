@@ -146,7 +146,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             return null;
         }).when(executorService).execute(any(Runnable.class));
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
-        return new AutodetectCommunicator(createJobDetails(), autodetectProcess, dataCountsReporter, autoDetectResultProcessor, e -> {});
+        return new AutodetectCommunicator(0L, createJobDetails(), autodetectProcess, dataCountsReporter, autoDetectResultProcessor,
+                e -> {});
     }
 
     public void testWriteToJobInUse() throws IOException {

@@ -22,18 +22,17 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -43,8 +42,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
@@ -94,21 +91,6 @@ public class JobManagerTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata)).build();
 
         assertEquals(job, jobManager.getJobOrThrowIfUnknown(cs, "foo"));
-    }
-
-    public void tesGetJobAllocation() {
-        JobManager jobManager = createJobManager();
-        Job job = buildJobBuilder("foo").build();
-        MlMetadata mlMetadata = new MlMetadata.Builder()
-                .putJob(job, false)
-                .assignToNode("foo", "nodeId")
-                .build();
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata)).build();
-        when(clusterService.state()).thenReturn(cs);
-
-        assertEquals("nodeId", jobManager.getJobAllocation("foo").getNodeId());
-        expectThrows(ResourceNotFoundException.class, () -> jobManager.getJobAllocation("bar"));
     }
 
     public void testGetJob_GivenJobIdIsAll() {

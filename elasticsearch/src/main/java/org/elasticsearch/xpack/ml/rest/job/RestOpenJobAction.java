@@ -8,14 +8,18 @@ package org.elasticsearch.xpack.ml.rest.job;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 
 import java.io.IOException;
 
@@ -29,14 +33,28 @@ public class RestOpenJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        OpenJobAction.Request request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        request.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.Request.IGNORE_DOWNTIME.getPreferredName(), false));
-        if (restRequest.hasParam("open_timeout")) {
-            TimeValue openTimeout = restRequest.paramAsTime("open_timeout", TimeValue.timeValueSeconds(30));
-            request.setOpenTimeout(openTimeout);
+        OpenJobAction.Request request;
+        if (restRequest.hasContentOrSourceParam()) {
+            request = OpenJobAction.Request.parseRequest(restRequest.param(Job.ID.getPreferredName()), restRequest.contentParser());
+        } else {
+            request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
+            request.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.Request.IGNORE_DOWNTIME.getPreferredName(), false));
+            if (restRequest.hasParam("timeout")) {
+                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(30));
+                request.setTimeout(openTimeout);
+            }
         }
         return channel -> {
-            client.execute(OpenJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+            client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<PersistentActionResponse>(channel) {
+
+                @Override
+                public RestResponse buildResponse(PersistentActionResponse r, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    builder.field("opened", true);
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
         };
     }
 }

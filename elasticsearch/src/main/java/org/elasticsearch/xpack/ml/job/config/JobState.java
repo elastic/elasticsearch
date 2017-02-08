@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -18,9 +19,11 @@ import java.util.Locale;
  * When a job is created it is initialised in to the state closed
  * i.e. it is not running.
  */
-public enum JobState implements Writeable {
+public enum JobState implements Task.Status {
 
-    CLOSING, CLOSED, OPENING, OPENED, FAILED, DELETING;
+    CLOSING, CLOSED, OPENING, OPENED, FAILED;
+
+    public static final String NAME = "JobState";
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -35,8 +38,19 @@ public enum JobState implements Writeable {
     }
 
     @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(ordinal());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.value(this.toString().toLowerCase(Locale.ROOT));
+        return builder;
     }
 
     /**

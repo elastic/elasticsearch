@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -21,13 +25,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -46,17 +50,50 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
     protected final JobManager jobManager;
     protected final AutodetectProcessManager processManager;
     private final Function<Request, String> jobIdFromRequest;
+    private final TransportListTasksAction listTasksAction;
 
     TransportJobTaskAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> requestSupplier,
                            Supplier<Response> responseSupplier, String nodeExecutor, JobManager jobManager,
-                           AutodetectProcessManager processManager, Function<Request, String> jobIdFromRequest) {
+                           AutodetectProcessManager processManager, Function<Request, String> jobIdFromRequest,
+                           TransportListTasksAction listTasksAction) {
         super(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 requestSupplier, responseSupplier, nodeExecutor);
         this.jobManager = jobManager;
         this.processManager = processManager;
         this.jobIdFromRequest = jobIdFromRequest;
+        this.listTasksAction = listTasksAction;
+    }
+
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // the same validation that exists in AutodetectProcessManager#processData(...) and flush(...) methods
+        // is required here too because if the job hasn't been opened yet then no task exist for it yet and then
+        // #taskOperation(...) method will not be invoked, returning an empty result to the client.
+        // This ensures that we return an understandable error:
+        String jobId = jobIdFromRequest.apply(request);
+        jobManager.getJobOrThrowIfUnknown(jobId);
+        JobState jobState = jobManager.getJobState(jobId);
+        if (jobState != JobState.OPENED) {
+            listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + jobState +
+                    "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
+        } else {
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setDetailed(true);
+            listTasksRequest.setActions(OpenJobAction.NAME + "[c]");
+            listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
+                String expectedDescription = "job-" + jobId;
+                for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                    if (expectedDescription.equals(taskInfo.getDescription())) {
+                        request.setTaskId(taskInfo.getTaskId());
+                        super.doExecute(task, request, listener);
+                        return;
+                    }
+                }
+                listener.onFailure(new ResourceNotFoundException("task not found for job [" + jobId + "] " + listTasksResponse));
+            }, listener::onFailure));
+        }
     }
 
     @Override
@@ -71,19 +108,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
             } else if (failedNodeExceptions.isEmpty() == false) {
                 throw new ElasticsearchException(failedNodeExceptions.get(0).getCause());
             } else {
-                // the same validation that exists in AutodetectProcessManager#processData(...) and flush(...) methods
-                // is required here too because if the job hasn't been opened yet then no task exist for it yet and then
-                // #taskOperation(...) method will not be invoked, returning an empty result to the client.
-                // This ensures that we return an understandable error:
-                String jobId = jobIdFromRequest.apply(request);
-                jobManager.getJobOrThrowIfUnknown(jobId);
-                Allocation allocation = jobManager.getJobAllocation(jobId);
-                if (allocation.getState() != JobState.OPENED) {
-                    throw new ElasticsearchStatusException("job [" + jobId + "] state is [" + allocation.getState() +
-                            "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT);
-                } else {
-                    throw new IllegalStateException("No errors or response");
-                }
+                throw new IllegalStateException("No errors or response");
             }
         } else {
             if (tasks.size() > 1) {
@@ -127,7 +152,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
 
         @Override
         public boolean match(Task task) {
-            return InternalOpenJobAction.JobTask.match(task, jobId);
+            return OpenJobAction.JobTask.match(task, jobId);
         }
     }
 }

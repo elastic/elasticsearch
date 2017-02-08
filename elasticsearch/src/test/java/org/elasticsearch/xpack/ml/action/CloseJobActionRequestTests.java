@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.CloseJobAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class CloseJobActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setCloseTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
         return request;
     }
@@ -23,5 +24,10 @@ public class CloseJobActionRequestTests extends AbstractStreamableTestCase<Reque
     @Override
     protected Request createBlankInstance() {
         return new Request();
+    }
+
+    @Override
+    protected Request parseInstance(XContentParser parser) {
+        return Request.parseRequest(null, parser);
     }
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         public boolean match(Task task) {
-            return jobId.equals(Job.ALL) || InternalOpenJobAction.JobTask.match(task, jobId);
+            return jobId.equals(Job.ALL) || OpenJobAction.JobTask.match(task, jobId);
         }
 
         @Override
@@ -290,7 +291,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class TransportAction extends TransportTasksAction<InternalOpenJobAction.JobTask, Request, Response,
+    public static class TransportAction extends TransportTasksAction<OpenJobAction.JobTask, Request, Response,
             QueryPage<Response.JobStats>> {
 
         private final ClusterService clusterService;
@@ -342,13 +343,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
 
         @Override
-        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task,
+        protected void taskOperation(Request request, OpenJobAction.JobTask task,
                                      ActionListener<QueryPage<Response.JobStats>> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(request.getJobId());
             if (stats.isPresent()) {
-                JobState jobState = mlMetadata.getAllocations().get(request.jobId).getState();
+                JobState jobState = MlMetadata.getJobState(request.jobId, tasks);
                 Response.JobStats jobStats = new Response.JobStats(request.jobId, stats.get().v1(), stats.get().v2(), jobState);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             } else {
@@ -365,14 +366,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return;
             }
 
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
             AtomicInteger counter = new AtomicInteger(jobIds.size());
             AtomicArray<Response.JobStats> jobStats = new AtomicArray<>(jobIds.size());
+            PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
             for (int i = 0; i < jobIds.size(); i++) {
                 int slot = i;
                 String jobId = jobIds.get(i);
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                    JobState jobState = mlMetadata.getAllocations().get(jobId).getState();
+                    JobState jobState = MlMetadata.getJobState(request.jobId, tasks);
                     jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobState));
                     if (counter.decrementAndGet() == 0) {
                         List<Response.JobStats> results = response.getResponse().results();

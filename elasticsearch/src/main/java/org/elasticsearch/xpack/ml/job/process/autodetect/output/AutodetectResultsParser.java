@@ -46,7 +46,7 @@ public class AutodetectResultsParser extends AbstractComponent {
         }
     }
 
-    private void consumeAndCloseStream(InputStream in) {
+    static void consumeAndCloseStream(InputStream in) {
         try {
             // read anything left in the stream before
             // closing the stream otherwise if the process
@@ -58,7 +58,7 @@ public class AutodetectResultsParser extends AbstractComponent {
             }
             in.close();
         } catch (IOException e) {
-            logger.warn("Error closing result parser input stream", e);
+            throw new RuntimeException("Error closing result parser input stream", e);
         }
     }
 
@@ -79,13 +79,16 @@ public class AutodetectResultsParser extends AbstractComponent {
             try {
                 token = parser.nextToken();
             } catch (IOException e) {
-                throw new ElasticsearchParseException(e.getMessage(), e);
+                logger.debug("io error while parsing", e);
+                consumeAndCloseStream(in);
+                return false;
             }
             if (token == XContentParser.Token.END_ARRAY) {
                 consumeAndCloseStream(in);
                 return false;
             } else if (token != XContentParser.Token.START_OBJECT) {
                 logger.error("Expecting Json Field name token after the Start Object token");
+                consumeAndCloseStream(in);
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
             return true;

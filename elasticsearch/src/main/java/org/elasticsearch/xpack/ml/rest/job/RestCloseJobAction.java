@@ -29,8 +29,8 @@ public class RestCloseJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         CloseJobAction.Request request = new CloseJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        if (restRequest.hasParam("close_timeout")) {
-            request.setCloseTimeout(TimeValue.parseTimeValue(restRequest.param("close_timeout"), "close_timeout"));
+        if (restRequest.hasParam("timeout")) {
+            request.setTimeout(TimeValue.parseTimeValue(restRequest.param("timeout"), "timeout"));
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -176,14 +177,15 @@ public class UpdateProcessAction extends
         }
     }
 
-    public static class TransportAction extends TransportJobTaskAction<InternalOpenJobAction.JobTask, Request, Response> {
+    public static class TransportAction extends TransportJobTaskAction<OpenJobAction.JobTask, Request, Response> {
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, AutodetectProcessManager processManager) {
+                               JobManager jobManager, AutodetectProcessManager processManager, TransportListTasksAction listTasksAction) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MlPlugin.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId);
+                    Request::new, Response::new, MlPlugin.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId,
+                    listTasksAction);
         }
 
         @Override
@@ -194,7 +196,7 @@ public class UpdateProcessAction extends
         }
 
         @Override
-        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task, ActionListener<Response> listener) {
+        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
                     if (request.getModelDebugConfig() != null) {

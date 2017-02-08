@@ -9,6 +9,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -17,14 +18,12 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
-import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
-import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -116,15 +116,15 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @return Count of records, fields, bytes, etc written
      */
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
-        Allocation allocation = jobManager.getJobAllocation(jobId);
-        if (allocation.getState() != JobState.OPENED) {
-            throw new IllegalArgumentException("job [" + jobId + "] state is [" + allocation.getState() + "], but must be ["
+        JobState jobState = jobManager.getJobState(jobId);
+        if (jobState != JobState.OPENED) {
+            throw new IllegalArgumentException("job [" + jobId + "] state is [" + jobState + "], but must be ["
                     + JobState.OPENED + "] for processing data");
         }
 
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            throw new IllegalStateException("job [" +  jobId + "] with state [" + allocation.getState() + "] hasn't been started");
+            throw new IllegalStateException("job [" +  jobId + "] with state [" + jobState + "] hasn't been started");
         }
         try {
             return communicator.writeToJob(input, params);
@@ -188,21 +188,22 @@ public class AutodetectProcessManager extends AbstractComponent {
         // TODO check for errors from autodetects
     }
 
-    public void openJob(String jobId, boolean ignoreDowntime, Consumer<Exception> handler) {
+    public void openJob(String jobId, long taskId, boolean ignoreDowntime, Consumer<Exception> handler) {
         gatherRequiredInformation(jobId, (dataCounts, modelSnapshot, quantiles, filters) -> {
-            autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
-                AutodetectCommunicator communicator =
-                        create(id, dataCounts, modelSnapshot, quantiles, filters, ignoreDowntime, handler);
-                try {
-                    communicator.writeJobInputHeader();
-                } catch (IOException ioe) {
+            try {
+                AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
+                        create(id, taskId, dataCounts, modelSnapshot, quantiles, filters, ignoreDowntime, handler));
+                communicator.writeJobInputHeader();
+                setJobState(taskId, jobId, JobState.OPENED);
+            } catch (Exception e1) {
+                if (e1 instanceof ElasticsearchStatusException) {
+                    logger.info(e1.getMessage());
+                } else {
                     String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
-                    logger.error(msg);
-                    throw ExceptionsHelper.serverError(msg, ioe);
+                    logger.error(msg, e1);
                 }
-                setJobState(jobId, JobState.OPENED);
-                return communicator;
-            });
+                setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+            }
         }, handler);
     }
 
@@ -228,11 +229,11 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     }
 
-    AutodetectCommunicator create(String jobId, DataCounts dataCounts, ModelSnapshot modelSnapshot, Quantiles quantiles,
+    AutodetectCommunicator create(String jobId, long taskId, DataCounts dataCounts, ModelSnapshot modelSnapshot, Quantiles quantiles,
                                   Set<MlFilter> filters, boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
-                    RestStatus.CONFLICT);
+                    RestStatus.TOO_MANY_REQUESTS);
         }
 
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
@@ -261,26 +262,26 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 throw e;
             }
-            return new AutodetectCommunicator(job, process, dataCountsReporter, processor, handler);
+            return new AutodetectCommunicator(taskId, job, process, dataCountsReporter, processor, handler);
         }
     }
 
     /**
      * Stop the running job and mark it as finished.<br>
-     *  @param jobId The job to stop
-     *
+     * @param jobId         The job to stop
+     * @param errorReason   If caused by failure, the reason for closing the job
      */
-    public void closeJob(String jobId) {
-        logger.debug("Closing job {}", jobId);
+    public void closeJob(String jobId, String errorReason) {
+        logger.debug("Attempting to close job [{}], because [{}]", jobId, errorReason);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
         if (communicator == null) {
             logger.debug("Cannot close: no active autodetect process for job {}", jobId);
             return;
         }
 
+        logger.info("Closing job [{}], because [{}]", jobId, errorReason);
         try {
-            communicator.close();
-            setJobState(jobId, JobState.CLOSED);
+            communicator.close(errorReason);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
@@ -303,11 +304,11 @@ public class AutodetectProcessManager extends AbstractComponent {
         return Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now());
     }
 
-    private void setJobState(String jobId, JobState state) {
-        UpdateJobStateAction.Request request = new UpdateJobStateAction.Request(jobId, state);
-        client.execute(UpdateJobStateAction.INSTANCE, request, new ActionListener<UpdateJobStateAction.Response>() {
+    private void setJobState(long taskId, String jobId, JobState state) {
+        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, state);
+        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request, new ActionListener<UpdatePersistentTaskStatusAction.Response>() {
             @Override
-            public void onResponse(UpdateJobStateAction.Response response) {
+            public void onResponse(UpdatePersistentTaskStatusAction.Response response) {
                 if (response.isAcknowledged()) {
                     logger.info("Successfully set job state to [{}] for job [{}]", state, jobId);
                 } else {
@@ -322,9 +323,16 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void setJobState(String jobId, JobState state, Consumer<Void> handler, Consumer<Exception> errorHandler) {
-        UpdateJobStateAction.Request request = new UpdateJobStateAction.Request(jobId, state);
-        client.execute(UpdateJobStateAction.INSTANCE, request, ActionListener.wrap(r -> handler.accept(null), errorHandler));
+    public void setJobState(long taskId, JobState state, CheckedConsumer<Exception, IOException> handler) {
+        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, state);
+        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request,
+                ActionListener.wrap(r -> handler.accept(null), e -> {
+                    try {
+                        handler.accept(e);
+                    } catch (IOException e1) {
+                        logger.warn("Error while delagating exception [" + e.getMessage() + "]", e1);
+                    }
+                }));
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {

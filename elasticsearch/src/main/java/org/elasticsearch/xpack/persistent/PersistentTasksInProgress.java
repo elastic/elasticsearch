@@ -109,7 +109,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<Clust
 
         public PersistentTaskInProgress(PersistentTaskInProgress<Request> persistentTaskInProgress, String newExecutorNode) {
             this(persistentTaskInProgress.id, persistentTaskInProgress.allocationId + 1L,
-                    persistentTaskInProgress.action, persistentTaskInProgress.request, null, newExecutorNode);
+                    persistentTaskInProgress.action, persistentTaskInProgress.request, persistentTaskInProgress.status, newExecutorNode);
         }
 
         public PersistentTaskInProgress(PersistentTaskInProgress<Request> persistentTaskInProgress, Status status) {

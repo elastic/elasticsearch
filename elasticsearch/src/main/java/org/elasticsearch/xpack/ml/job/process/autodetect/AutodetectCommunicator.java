@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
@@ -44,6 +45,7 @@ public class AutodetectCommunicator implements Closeable {
     private static final Logger LOGGER = Loggers.getLogger(AutodetectCommunicator.class);
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
+    private final long taskId;
     private final Job job;
     private final DataCountsReporter dataCountsReporter;
     private final AutodetectProcess autodetectProcess;
@@ -52,8 +54,9 @@ public class AutodetectCommunicator implements Closeable {
 
     final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
-    public AutodetectCommunicator(Job job, AutodetectProcess process, DataCountsReporter dataCountsReporter,
+    public AutodetectCommunicator(long taskId, Job job, AutodetectProcess process, DataCountsReporter dataCountsReporter,
                                   AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler) {
+        this.taskId = taskId;
         this.job = job;
         this.autodetectProcess = process;
         this.dataCountsReporter = dataCountsReporter;
@@ -86,11 +89,15 @@ public class AutodetectCommunicator implements Closeable {
 
     @Override
     public void close() throws IOException {
+        close(null);
+    }
+
+    public void close(String errorReason) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_CLOSE, job.getId()), () -> {
             dataCountsReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
-            handler.accept(null);
+            handler.accept(errorReason != null ? new ElasticsearchException(errorReason) : null);
             return null;
         }, true);
     }
@@ -160,6 +167,10 @@ public class AutodetectCommunicator implements Closeable {
 
     public DataCounts getDataCounts() {
         return dataCountsReporter.runningTotalStats();
+    }
+
+    public long getTaskId() {
+        return taskId;
     }
 
     private <T> T checkAndRun(Supplier<String> errorMessage, CheckedSupplier<T, IOException> callback, boolean wait) throws IOException {

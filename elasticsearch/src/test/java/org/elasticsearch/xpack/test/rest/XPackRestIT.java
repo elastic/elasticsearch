@@ -26,7 +26,7 @@ public class XPackRestIT extends XPackRestTestCase {
 
     @After
     public void clearMlState() throws IOException {
-        new MlRestTestStateCleaner(client(), this).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, client(), this).clearMlMetadata();
     }
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

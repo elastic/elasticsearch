@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -27,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -242,15 +243,15 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
     }
 
-    public static class TransportAction extends TransportJobTaskAction<InternalOpenJobAction.JobTask, Request, Response> {
+    public static class TransportAction extends TransportJobTaskAction<OpenJobAction.JobTask, Request, Response> {
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutodetectProcessManager processManager, JobManager jobManager) {
+                               AutodetectProcessManager processManager, JobManager jobManager, TransportListTasksAction listTasksAction) {
             super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, FlushJobAction.Request::new, FlushJobAction.Response::new, MlPlugin.THREAD_POOL_NAME,
-                    jobManager, processManager, Request::getJobId);
+                    jobManager, processManager, Request::getJobId, listTasksAction);
         }
 
         @Override
@@ -261,7 +262,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         }
 
         @Override
-        protected void taskOperation(Request request, InternalOpenJobAction.JobTask task,
+        protected void taskOperation(Request request, OpenJobAction.JobTask task,
                                      ActionListener<FlushJobAction.Response> listener) {
             jobManager.getJobOrThrowIfUnknown(request.getJobId());
 

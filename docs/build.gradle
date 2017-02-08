@@ -101,7 +101,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/docs/index_.asciidoc',
   'reference/docs/multi-get.asciidoc',
   'reference/docs/reindex.asciidoc',
-  'reference/docs/termvectors.asciidoc',
   'reference/docs/update-by-query.asciidoc',
   'reference/docs/update.asciidoc',
   'reference/index-modules/similarity.asciidoc',

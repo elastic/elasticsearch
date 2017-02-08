@@ -222,7 +222,7 @@ public class ElasticsearchAssertions {
 
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat("id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType() + "], index [" + hit.index() + "])"
+            assertThat("id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType() + "], index [" + hit.getIndex() + "])"
                             + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
@@ -244,17 +244,17 @@ public class ElasticsearchAssertions {
 
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
-        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().getHits().length, equalTo(ids.length));
         for (int i = 0; i < ids.length; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
+            SearchHit hit = searchResponse.getHits().getHits()[i];
             assertThat("Expected id: " + ids[i] + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
         }
         assertVersionSerializable(searchResponse);
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
-        if (countResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Count is " + countResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        if (countResponse.getHits().getTotalHits() != expectedHitCount) {
+            fail("Count is " + countResponse.getHits().getTotalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
     }
@@ -287,7 +287,7 @@ public class ElasticsearchAssertions {
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo((long) number));
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
         assertVersionSerializable(searchResponse);
     }
@@ -375,21 +375,21 @@ public class ElasticsearchAssertions {
 
     private static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
         assertNoFailures(resp);
-        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertHighlight(resp.getHits().hits()[hit], field, fragment, fragmentsMatcher, matcher);
+        assertThat("not enough hits", resp.getHits().getHits().length, greaterThan(hit));
+        assertHighlight(resp.getHits().getHits()[hit], field, fragment, fragmentsMatcher, matcher);
         assertVersionSerializable(resp);
     }
 
     private static void assertHighlight(SearchHit hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
         assertThat(hit.getHighlightFields(), hasKey(field));
         assertThat(hit.getHighlightFields().get(field).fragments().length, fragmentsMatcher);
-        assertThat(hit.highlightFields().get(field).fragments()[fragment].string(), matcher);
+        assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
         assertNoFailures(resp);
-        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields(), not(hasKey(field)));
+        assertThat("not enough hits", resp.getHits().getHits().length, greaterThan(hit));
+        assertThat(resp.getHits().getHits()[hit].getHighlightFields(), not(hasKey(field)));
     }
 
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {

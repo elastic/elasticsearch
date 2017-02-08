@@ -78,7 +78,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
             Analyzer analyzer =
-                context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+                context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             fieldValues = fieldValues.stream().map(obj -> {
                 if (obj instanceof BytesRef) {

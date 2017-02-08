@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.internal;
+package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -34,11 +34,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.elasticsearch.search.internal.InternalSearchHit.InternalNestedIdentity;
+import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -61,13 +59,13 @@ public class InternalSearchHitTests extends ESTestCase {
 
     private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_all", "_parent", "_routing", "_size", "_timestamp", "_ttl");
 
-    public static InternalSearchHit createTestItem(boolean withOptionalInnerHits) {
+    public static SearchHit createTestItem(boolean withOptionalInnerHits) {
         int internalId = randomInt();
         String uid = randomAsciiOfLength(10);
         Text type = new Text(randomAsciiOfLengthBetween(5, 10));
-        InternalNestedIdentity nestedIdentity = null;
+        NestedIdentity nestedIdentity = null;
         if (randomBoolean()) {
-            nestedIdentity = InternalNestedIdentityTests.createTestItem(randomIntBetween(0, 2));
+            nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
         Map<String, SearchHitField> fields = new HashMap<>();
         if (randomBoolean()) {
@@ -77,14 +75,14 @@ public class InternalSearchHitTests extends ESTestCase {
                         XContentType.JSON);
                 if (randomBoolean()) {
                     String metaField = randomFrom(META_FIELDS);
-                    fields.put(metaField, new InternalSearchHitField(metaField, values.v1()));
+                    fields.put(metaField, new SearchHitField(metaField, values.v1()));
                 } else {
                     String fieldName = randomAsciiOfLengthBetween(5, 10);
-                    fields.put(fieldName, new InternalSearchHitField(fieldName, values.v1()));
+                    fields.put(fieldName, new SearchHitField(fieldName, values.v1()));
                 }
             }
         }
-        InternalSearchHit hit = new InternalSearchHit(internalId, uid, type, nestedIdentity, fields);
+        SearchHit hit = new SearchHit(internalId, uid, type, nestedIdentity, fields);
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
@@ -122,7 +120,7 @@ public class InternalSearchHitTests extends ESTestCase {
         }
         if (withOptionalInnerHits) {
             int innerHitsSize = randomIntBetween(0, 3);
-            Map<String, InternalSearchHits> innerHits = new HashMap<>(innerHitsSize);
+            Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
             for (int i = 0; i < innerHitsSize; i++) {
                 innerHits.put(randomAsciiOfLength(5), InternalSearchHitsTests.createTestItem());
             }
@@ -136,15 +134,15 @@ public class InternalSearchHitTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        InternalSearchHit searchHit = createTestItem(true);
+        SearchHit searchHit = createTestItem(true);
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toXContent(searchHit, xContentType, humanReadable);
 
-        InternalSearchHit parsed;
+        SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parser.nextToken(); // jump to first START_OBJECT
-            parsed = InternalSearchHit.fromXContent(parser);
+            parsed = SearchHit.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -152,66 +150,66 @@ public class InternalSearchHitTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        InternalSearchHit internalSearchHit = new InternalSearchHit(1, "id1", new Text("type"), Collections.emptyMap());
-        internalSearchHit.score(1.5f);
+        SearchHit searchHit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
-        internalSearchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", builder.string());
     }
 
     public void testSerializeShardTarget() throws Exception {
         SearchShardTarget target = new SearchShardTarget("_node_id", new Index("_index", "_na_"), 0);
 
-        Map<String, InternalSearchHits> innerHits = new HashMap<>();
-        InternalSearchHit innerHit1 = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        Map<String, SearchHits> innerHits = new HashMap<>();
+        SearchHit innerHit1 = new SearchHit(0, "_id", new Text("_type"), null);
         innerHit1.shard(target);
-        InternalSearchHit innerInnerHit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", new Text("_type"), null);
         innerInnerHit2.shard(target);
-        innerHits.put("1", new InternalSearchHits(new InternalSearchHit[]{innerInnerHit2}, 1, 1f));
+        innerHits.put("1", new SearchHits(new SearchHit[]{innerInnerHit2}, 1, 1f));
         innerHit1.setInnerHits(innerHits);
-        InternalSearchHit innerHit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit innerHit2 = new SearchHit(0, "_id", new Text("_type"), null);
         innerHit2.shard(target);
-        InternalSearchHit innerHit3 = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit innerHit3 = new SearchHit(0, "_id", new Text("_type"), null);
         innerHit3.shard(target);
 
         innerHits = new HashMap<>();
-        InternalSearchHit hit1 = new InternalSearchHit(0, "_id", new Text("_type"), null);
-        innerHits.put("1", new InternalSearchHits(new InternalSearchHit[]{innerHit1, innerHit2}, 1, 1f));
-        innerHits.put("2", new InternalSearchHits(new InternalSearchHit[]{innerHit3}, 1, 1f));
+        SearchHit hit1 = new SearchHit(0, "_id", new Text("_type"), null);
+        innerHits.put("1", new SearchHits(new SearchHit[]{innerHit1, innerHit2}, 1, 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[]{innerHit3}, 1, 1f));
         hit1.shard(target);
         hit1.setInnerHits(innerHits);
 
-        InternalSearchHit hit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit hit2 = new SearchHit(0, "_id", new Text("_type"), null);
         hit2.shard(target);
 
-        InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit1, hit2}, 2, 1f);
+        SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
 
         BytesStreamOutput output = new BytesStreamOutput();
         hits.writeTo(output);
         InputStream input = output.bytes().streamInput();
-        InternalSearchHits results = InternalSearchHits.readSearchHits(new InputStreamStreamInput(input));
-        assertThat(results.getAt(0).shard(), equalTo(target));
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).shard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).shard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).shard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).shard(), notNullValue());
-        assertThat(results.getAt(1).shard(), equalTo(target));
+        SearchHits results = SearchHits.readSearchHits(new InputStreamStreamInput(input));
+        assertThat(results.getAt(0).getShard(), equalTo(target));
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 
     public void testNullSource() throws Exception {
-        InternalSearchHit searchHit = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit searchHit = new SearchHit(0, "_id", new Text("_type"), null);
 
-        assertThat(searchHit.source(), nullValue());
-        assertThat(searchHit.sourceRef(), nullValue());
-        assertThat(searchHit.sourceAsMap(), nullValue());
-        assertThat(searchHit.sourceAsString(), nullValue());
-        assertThat(searchHit.getSource(), nullValue());
+        assertThat(searchHit.getSourceAsMap(), nullValue());
+        assertThat(searchHit.getSourceRef(), nullValue());
+        assertThat(searchHit.getSourceAsMap(), nullValue());
+        assertThat(searchHit.getSourceAsString(), nullValue());
+        assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
     }
 
     public void testHasSource() {
-        InternalSearchHit searchHit = new InternalSearchHit(randomInt());
+        SearchHit searchHit = new SearchHit(randomInt());
         assertFalse(searchHit.hasSource());
         searchHit.sourceRef(new BytesArray("{}"));
         assertTrue(searchHit.hasSource());

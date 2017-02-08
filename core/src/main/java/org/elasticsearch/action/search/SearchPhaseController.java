@@ -45,8 +45,8 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -386,7 +386,7 @@ public class SearchPhaseController extends AbstractComponent {
             return InternalSearchResponse.empty();
         }
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> fetchResults = fetchResultsArr.asList();
-        InternalSearchHits hits = getHits(reducedQueryPhase, ignoreFrom, sortedDocs, fetchResultsArr);
+        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, sortedDocs, fetchResultsArr);
         if (reducedQueryPhase.suggest != null) {
             if (!fetchResults.isEmpty()) {
                 int currentOffset = hits.getHits().length;
@@ -401,7 +401,7 @@ public class SearchPhaseController extends AbstractComponent {
                         FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                         int fetchResultIndex = fetchResult.counterGetAndIncrement();
                         if (fetchResultIndex < fetchResult.hits().internalHits().length) {
-                            InternalSearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
+                            SearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
                             CompletionSuggestion.Entry.Option suggestOption =
                                 suggestionOptions.get(scoreDocIndex - currentOffset);
                             hit.score(shardDoc.score);
@@ -417,8 +417,8 @@ public class SearchPhaseController extends AbstractComponent {
         return reducedQueryPhase.buildResponse(hits);
     }
 
-    private InternalSearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom, ScoreDoc[] sortedDocs,
-                                      AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
+    private SearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom, ScoreDoc[] sortedDocs,
+                               AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> fetchResults = fetchResultsArr.asList();
         boolean sorted = false;
         int sortScoreIndex = -1;
@@ -445,7 +445,7 @@ public class SearchPhaseController extends AbstractComponent {
         // with collapsing we can have more fetch hits than sorted docs
         numSearchHits = Math.min(sortedDocs.length, numSearchHits);
         // merge hits
-        List<InternalSearchHit> hits = new ArrayList<>();
+        List<SearchHit> hits = new ArrayList<>();
         if (!fetchResults.isEmpty()) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedDocs[i];
@@ -456,7 +456,7 @@ public class SearchPhaseController extends AbstractComponent {
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 int index = fetchResult.counterGetAndIncrement();
                 if (index < fetchResult.hits().internalHits().length) {
-                    InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
+                    SearchHit searchHit = fetchResult.hits().internalHits()[index];
                     searchHit.score(shardDoc.score);
                     searchHit.shard(fetchResult.shardTarget());
                     if (sorted) {
@@ -470,7 +470,7 @@ public class SearchPhaseController extends AbstractComponent {
                 }
             }
         }
-        return new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), reducedQueryPhase.totalHits,
+        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore);
     }
 
@@ -596,7 +596,7 @@ public class SearchPhaseController extends AbstractComponent {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ScoreDoc[], ReducedQueryPhase, AtomicArray)
          */
-        public InternalSearchResponse buildResponse(InternalSearchHits hits) {
+        public InternalSearchResponse buildResponse(SearchHits hits) {
             return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
         }
 

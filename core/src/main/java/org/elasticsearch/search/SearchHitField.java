@@ -19,49 +19,108 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.index.mapper.MapperService;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A single field name and values part of a {@link SearchHit}.
  *
  * @see SearchHit
  */
-public interface SearchHitField extends Streamable, Iterable<Object> {
+public final class SearchHitField implements Streamable, Iterable<Object> {
+
+    private String name;
+    private List<Object> values;
+
+    private SearchHitField() {
+    }
+
+    public SearchHitField(String name, List<Object> values) {
+        this.name = name;
+        this.values = values;
+    }
 
     /**
      * The name of the field.
      */
-    String name();
-
-    /**
-     * The name of the field.
-     */
-    String getName();
+    public String getName() {
+        return name;
+    }
 
     /**
      * The first value of the hit.
      */
-    <V> V value();
-
-    /**
-     * The first value of the hit.
-     */
-    <V> V getValue();
-
-    /**
-     * The field values.
-     */
-    List<Object> values();
+    public <V> V getValue() {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return (V)values.get(0);
+    }
 
     /**
      * The field values.
      */
-    List<Object> getValues();
+    public List<Object> getValues() {
+        return values;
+    }
 
     /**
      * @return The field is a metadata field
      */
-    boolean isMetadataField();
+    public boolean isMetadataField() {
+        return MapperService.isMetadataField(name);
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+        return values.iterator();
+    }
+
+    public static SearchHitField readSearchHitField(StreamInput in) throws IOException {
+        SearchHitField result = new SearchHitField();
+        result.readFrom(in);
+        return result;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        int size = in.readVInt();
+        values = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            values.add(in.readGenericValue());
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeVInt(values.size());
+        for (Object value : values) {
+            out.writeGenericValue(value);
+        }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        SearchHitField other = (SearchHitField) obj;
+        return Objects.equals(name, other.name)
+                && Objects.equals(values, other.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, values);
+    }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -56,9 +55,8 @@ public class ExpandCollapseSearchResponseListener implements BiConsumer<SearchRe
             return ;
         }
         for (SearchHit hit : searchResponse.getHits()) {
-            InternalSearchHit internalHit = (InternalSearchHit) hit;
             BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-            Object collapseValue = internalHit.field(collapseBuilder.getField()).getValue();
+            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
             if (collapseValue != null) {
                 groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
             } else {
@@ -75,10 +73,10 @@ public class ExpandCollapseSearchResponseListener implements BiConsumer<SearchRe
                 .source(sourceBuilder);
             SearchResponse groupResponse = client.search(groupRequest).actionGet();
             SearchHits innerHits = groupResponse.getHits();
-            if (internalHit.getInnerHits() == null) {
-                internalHit.setInnerHits(new HashMap<>(1));
+            if (hit.getInnerHits() == null) {
+                hit.setInnerHits(new HashMap<>(1));
             }
-            internalHit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
+            hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
         }
     }
 

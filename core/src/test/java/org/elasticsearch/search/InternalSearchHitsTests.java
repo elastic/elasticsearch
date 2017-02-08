@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.internal;
+package org.elasticsearch.search;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
@@ -36,25 +36,25 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class InternalSearchHitsTests extends ESTestCase {
 
-    public static InternalSearchHits createTestItem() {
+    public static SearchHits createTestItem() {
         int searchHits = randomIntBetween(0, 5);
-        InternalSearchHit[] hits = new InternalSearchHit[searchHits];
+        SearchHit[] hits = new SearchHit[searchHits];
         for (int i = 0; i < searchHits; i++) {
             hits[i] = InternalSearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
         long totalHits = randomLong();
         float maxScore = frequently() ? randomFloat() : Float.NaN;
-        return new InternalSearchHits(hits, totalHits, maxScore);
+        return new SearchHits(hits, totalHits, maxScore);
     }
 
     public void testFromXContent() throws IOException {
-        InternalSearchHits searchHits = createTestItem();
+        SearchHits searchHits = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toXContent(searchHits, xcontentType, humanReadable);
-        InternalSearchHits parsed;
+        SearchHits parsed;
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            parsed = InternalSearchHits.fromXContent(parser);
+            parsed = SearchHits.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -63,13 +63,13 @@ public class InternalSearchHitsTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        InternalSearchHit[] hits = new InternalSearchHit[] {
-                new InternalSearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-                new InternalSearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
+        SearchHit[] hits = new SearchHit[] {
+                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
+                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
-        InternalSearchHits searchHits = new InternalSearchHits(hits, totalHits, maxScore);
+        SearchHits searchHits = new SearchHits(hits, totalHits, maxScore);
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);

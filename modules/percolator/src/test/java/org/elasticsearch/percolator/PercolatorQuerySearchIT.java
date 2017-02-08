@@ -383,13 +383,13 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(response, 4);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(0).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(1).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(2).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
-        assertThat(response.getHits().getAt(3).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(3).getScore(), equalTo(Float.NaN));
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {
@@ -524,8 +524,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).type(), equalTo("query_type"));
-        assertThat(response.getHits().getAt(0).index(), equalTo("test1"));
+        assertThat(response.getHits().getAt(0).getType(), equalTo("query_type"));
+        assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
 
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("object_field." + queryFieldName, "doc_type", source, XContentType.JSON))
@@ -533,8 +533,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).type(), equalTo("query_type"));
-        assertThat(response.getHits().getAt(0).index(), equalTo("test2"));
+        assertThat(response.getHits().getAt(0).getType(), equalTo("query_type"));
+        assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {

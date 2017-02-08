@@ -4,7 +4,7 @@ Elasticsearch documentation build process.
 See: https://github.com/elastic/docs
 
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
-SENSE" in the documentation and are automatically tested by the command
+CONSOLE" in the documentation and are automatically tested by the command
 `gradle :docs:check`. To test just the docs from a single page, use e.g.
 `gradle :docs:check -Dtests.method=*rollover*`.
 

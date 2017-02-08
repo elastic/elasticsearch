@@ -565,8 +565,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 @Override
                 public void doRun() throws IOException {
                     final boolean isScrollRequest = request.scroll() != null;
-                    final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, reducedQueryPhase,
-                        fetchResultsArr);
+                    final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs,
+                        reducedQueryPhase, fetchResultsArr);
                     listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                         buildTookInMillis(), buildShardFailures()));
                 }

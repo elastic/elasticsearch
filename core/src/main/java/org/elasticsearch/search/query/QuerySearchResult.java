@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -41,7 +40,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
     private SearchShardTarget shardTarget;
@@ -50,14 +49,15 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private TopDocs topDocs;
     private DocValueFormat[] sortValueFormats;
     private InternalAggregations aggregations;
+    private boolean hasAggs;
     private List<SiblingPipelineAggregator> pipelineAggregators;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
+    private boolean hasProfileResults;
 
     public QuerySearchResult() {
-
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
@@ -121,20 +121,47 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return sortValueFormats;
     }
 
-    public Aggregations aggregations() {
-        return aggregations;
+    /**
+     * Retruns <code>true</code> if this query result has unconsumed aggregations
+     */
+    public boolean hasAggs() {
+        return hasAggs;
+    }
+
+    /**
+     * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
+     * @throws IllegalStateException if the aggregations have already been consumed.
+     */
+    public Aggregations consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already consumed");
+        }
+        Aggregations aggs = aggregations;
+        aggregations = null;
+        return aggs;
     }
 
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
+        hasAggs = aggregations != null;
     }
 
     /**
-     * Returns the profiled results for this search, or potentially null if result was empty
-     * @return The profiled results, or null
+     * Returns and nulls out the profiled results for this search, or potentially null if result was empty.
+     * This allows to free up memory once the profiled result is consumed.
+     * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    @Nullable public ProfileShardResult profileResults() {
-        return profileShardResults;
+    public ProfileShardResult consumeProfileResult() {
+        if (profileShardResults == null) {
+            throw new IllegalStateException("profile results already consumed");
+        }
+        ProfileShardResult result = profileShardResults;
+        profileShardResults = null;
+        return result;
+    }
+
+    public boolean hasProfileResults() {
+        return hasProfileResults;
     }
 
     /**
@@ -143,6 +170,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      */
     public void profileResults(ProfileShardResult shardResults) {
         this.profileShardResults = shardResults;
+        hasProfileResults = shardResults != null;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -170,6 +198,9 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    /**
+     * Returns the maximum size of this results top docs.
+     */
     public int size() {
         return size;
     }
@@ -212,7 +243,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             }
         }
         topDocs = readTopDocs(in);
-        if (in.readBoolean()) {
+        if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
         pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream().map(a -> (SiblingPipelineAggregator) a)
@@ -223,6 +254,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        hasProfileResults = profileShardResults != null;
     }
 
     @Override

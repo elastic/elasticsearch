@@ -98,8 +98,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
         }
         ScoreDoc[] sortedDocs = mergedScoreDocs.toArray(new ScoreDoc[mergedScoreDocs.size()]);
-
-        InternalSearchResponse mergedResponse = searchPhaseController.merge(true, sortedDocs, queryResults,
+        InternalSearchResponse mergedResponse = searchPhaseController.merge(true, sortedDocs,
+            searchPhaseController.reducedQueryPhase(queryResults.asList()),
             generateFetchResults(nShards, mergedSearchDocs, mergedSuggest));
         assertThat(mergedResponse.hits().getHits().length, equalTo(mergedSearchDocs.length));
         Suggest suggestResult = mergedResponse.suggest();

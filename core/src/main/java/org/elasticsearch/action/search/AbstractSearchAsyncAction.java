@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 
-
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     protected final Logger logger;
@@ -319,10 +318,10 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
     }
 
-    protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, int index, IntArrayList entry,
+    protected ShardFetchSearchRequest createFetchRequest(long queryId, int index, IntArrayList entry,
                                                          ScoreDoc[] lastEmittedDocPerShard) {
         final ScoreDoc lastEmittedDoc = (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[index] : null;
-        return new ShardFetchSearchRequest(request, queryResult.id(), entry, lastEmittedDoc);
+        return new ShardFetchSearchRequest(request, queryId, entry, lastEmittedDoc);
     }
 
     protected abstract void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
@@ -435,24 +434,51 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
         @Override
         public void run() throws Exception {
+            getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
+                @Override
+                public void doRun() throws IOException {
+                    // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
+                    // off immediately instead of forking when we send back the response to the user since there we only need
+                    // to merge together the fetched results which is a linear operation.
+                    innerRun();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("failed to reduce search", failure);
+                    }
+                    super.onFailure(failure);
+                }
+            });
+        }
+
+        private void innerRun() throws IOException{
+            final int numShards = shardsIts.size();
             final boolean isScrollRequest = request.scroll() != null;
             ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
-            if (queryResults.length() == 1) {
+            String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(queryResults) : null;
+            List<AtomicArray.Entry<QuerySearchResultProvider>> queryResultsAsList = queryResults.asList();
+            final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResultsAsList);
+            final boolean queryAndFetchOptimization = queryResults.length() == 1;
+            final IntConsumer finishPhase = successOpts
+                -> sendResponse(searchPhaseController, sortedShardDocs, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
+                    queryResults : fetchResults);
+            if (queryAndFetchOptimization) {
                 assert queryResults.get(0) == null || queryResults.get(0).fetchResult() != null;
                 // query AND fetch optimization
-                sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, queryResults);
+                finishPhase.accept(successfulOps.get());
             } else {
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-                final IntConsumer finishPhase = successOpts
-                    -> sendResponseAsync("fetch", searchPhaseController, sortedShardDocs, queryResults, fetchResults);
+                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, sortedShardDocs);
                 if (sortedShardDocs.length == 0) { // no docs to fetch -- sidestep everything and return
-                    queryResults.asList().stream()
+                    queryResultsAsList.stream()
                         .map(e -> e.value.queryResult())
                         .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
                     finishPhase.accept(successfulOps.get());
                 } else {
                     final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
-                        searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, queryResults.length())
+                        searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs, numShards)
                         : null;
                     final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
                         docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
@@ -471,7 +497,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                             counter.countDown();
                         } else {
                             Transport.Connection connection = nodeIdToConnection.apply(queryResult.shardTarget().getNodeId());
-                            ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), i, entry,
+                            ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().id(), i, entry,
                                 lastEmittedDocPerShard);
                             executeFetch(i, queryResult.shardTarget(), counter, fetchSearchRequest, queryResult.queryResult(),
                                 connection);
@@ -524,34 +550,20 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 }
             }
         }
+
+        /**
+         * Sends back a result to the user.
+         */
+        private void sendResponse(SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
+                                String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+                                AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
+            final boolean isScrollRequest = request.scroll() != null;
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, reducedQueryPhase,
+                fetchResultsArr);
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
+                buildTookInMillis(), buildShardFailures()));
+        }
     }
 
-    /**
-     * Sends back a result to the user. This method will create the sorted docs if they are null and will build the scrollID for the
-     * response. Note: This method will send the response in a different thread depending on the executor.
-     */
-    final void sendResponseAsync(String phase, SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
-                                  AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-                                  AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
-        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
-            @Override
-            public void doRun() throws IOException {
-                final boolean isScrollRequest = request.scroll() != null;
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, queryResultsArr,
-                    fetchResultsArr);
-                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(queryResultsArr) : null;
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
-                    buildTookInMillis(), buildShardFailures()));
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException(phase, "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
-                }
-                super.onFailure(failure);
-            }
-        });
-    }
 }

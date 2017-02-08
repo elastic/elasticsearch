@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -170,13 +171,14 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private void executeFetchPhase() throws Exception {
         sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
         if (sortedShardDocs.length == 0) {
-            finishHim();
+            finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
             return;
         }
 
         final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
-            sortedShardDocs, queryResults.length());
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList());
+        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs,
+            queryResults.length());
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.length);
         for (int i = 0; i < docIdsToLoad.length; i++) {
             final int index = i;
@@ -192,7 +194,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                         result.shardTarget(querySearchResult.shardTarget());
                         fetchResults.set(index, result);
                         if (counter.decrementAndGet() == 0) {
-                            finishHim();
+                            finishHim(reducedQueryPhase);
                         }
                     }
 
@@ -203,34 +205,30 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                         }
                         successfulOps.decrementAndGet();
                         if (counter.decrementAndGet() == 0) {
-                            finishHim();
+                            finishHim(reducedQueryPhase);
                         }
                     }
                 });
             } else {
                 // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
                 if (counter.decrementAndGet() == 0) {
-                    finishHim();
+                    finishHim(reducedQueryPhase);
                 }
             }
         }
     }
 
-    private void finishHim() {
+    private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            innerFinishHim();
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            String scrollId = null;
+            if (request.scroll() != null) {
+                scrollId = request.scrollId();
+            }
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
+                buildTookInMillis(), buildShardFailures()));
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }
-    }
-
-    private void innerFinishHim() {
-        InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryResults, fetchResults);
-        String scrollId = null;
-        if (request.scroll() != null) {
-            scrollId = request.scrollId();
-        }
-        listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-            buildTookInMillis(), buildShardFailures()));
     }
 }

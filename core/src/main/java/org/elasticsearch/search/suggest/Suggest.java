@@ -19,13 +19,17 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -41,6 +45,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
@@ -525,16 +532,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             /**
              * Contains the suggested text with its document frequency and score.
              */
-            public static class Option implements Streamable, ToXContent {
+            public static class Option implements Streamable, ToXContentObject {
 
-                static class Fields {
-
-                    static final String TEXT = "text";
-                    static final String HIGHLIGHTED = "highlighted";
-                    static final String SCORE = "score";
-                    static final String COLLATE_MATCH = "collate_match";
-
-                }
+                public static final ParseField TEXT = new ParseField("text");
+                public static final ParseField HIGHLIGHTED = new ParseField("highlighted");
+                public static final ParseField SCORE = new ParseField("score");
+                public static final ParseField COLLATE_MATCH = new ParseField("collate_match");
 
                 private Text text;
                 private Text highlighted;
@@ -618,15 +621,36 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.field(Fields.TEXT, text);
+                    builder.field(TEXT.getPreferredName(), text);
                     if (highlighted != null) {
-                        builder.field(Fields.HIGHLIGHTED, highlighted);
+                        builder.field(HIGHLIGHTED.getPreferredName(), highlighted);
                     }
-                    builder.field(Fields.SCORE, score);
+                    builder.field(SCORE.getPreferredName(), score);
                     if (collateMatch != null) {
-                        builder.field(Fields.COLLATE_MATCH, collateMatch.booleanValue());
+                        builder.field(COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
                     }
                     return builder;
+                }
+
+                private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("SuggestOptionParser",
+                        true, args -> {
+                            Text text = new Text((String) args[0]);
+                            float score = (Float) args[1];
+                            String highlighted = (String) args[2];
+                            Text highlightedText = highlighted == null ? null : new Text(highlighted);
+                            Boolean collateMatch = (Boolean) args[3];
+                            return new Option(text, highlightedText, score, collateMatch);
+                        });
+
+                static {
+                    PARSER.declareString(constructorArg(), TEXT);
+                    PARSER.declareFloat(constructorArg(), SCORE);
+                    PARSER.declareString(optionalConstructorArg(), HIGHLIGHTED);
+                    PARSER.declareBoolean(optionalConstructorArg(), COLLATE_MATCH);
+                }
+
+                public static Option fromXContent(XContentParser parser) {
+                    return PARSER.apply(parser, null);
                 }
 
                 protected void mergeInto(Option otherOption) {
@@ -640,7 +664,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                     Option that = (Option) o;
                     return text.equals(that.text);
-
                 }
 
                 @Override

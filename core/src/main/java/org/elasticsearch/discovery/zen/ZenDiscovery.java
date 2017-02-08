@@ -727,12 +727,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 if (shouldIgnoreOrRejectNewClusterState(logger, currentState, newClusterState)) {
                     return unchanged();
                 }
-
-                // check to see that we monitor the correct master of the cluster
-                if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
-                    masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
-                }
-
                 if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                     // its a fresh update from the master as we transition from a start of not having a master to having one
                     logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
@@ -786,6 +780,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 try {
                     if (newClusterState != null) {
+                        // check to see that we monitor the correct master of the cluster
+                        if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                            masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+                        }
                         publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                     }
                 } catch (Exception e) {

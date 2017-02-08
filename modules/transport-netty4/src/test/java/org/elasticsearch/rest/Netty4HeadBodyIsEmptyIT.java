@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +44,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     }
 
     private void createTestDoc() throws IOException {
-        client().performRequest("PUT", "test/test/1", emptyMap(), new StringEntity("{\"test\": \"test\"}"));
+        client().performRequest("PUT", "test/test/1", emptyMap(), new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON));
     }
 
     public void testDocumentExists() throws IOException {
@@ -86,7 +87,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
             headTestCase("/_alias/test_alias", emptyMap(), greaterThan(0));
             headTestCase("/test/_alias/test_alias", emptyMap(), greaterThan(0));
         }
@@ -105,7 +106,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("PUT", "/_template/template", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("PUT", "/_template/template", emptyMap(),
+                new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
             headTestCase("/_template/template", emptyMap(), greaterThan(0));
         }
     }

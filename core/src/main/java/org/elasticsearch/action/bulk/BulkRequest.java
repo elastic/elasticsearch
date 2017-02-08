@@ -245,27 +245,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(byte[] data, int from, int length) throws IOException {
-        return add(data, from, length, null, null);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
         return add(data, from, length, null, null, xContentType);
-    }
-
-    /**
-     * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, String, String, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, defaultType);
     }
 
     /**
@@ -278,16 +260,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     *
-     * @deprecated use {@link #add(BytesReference, String, String, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, true);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                            XContentType xContentType) throws IOException {
@@ -296,27 +268,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
-     *
-     * @deprecated use {@link #add(BytesReference, String, String, boolean, XContentType)}
-     */
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex);
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex, xContentType);
-    }
-
-    @Deprecated
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws IOException {
-        XContentType xContentType = XContentFactory.xContentType(data);
-        return add(data, defaultIndex, defaultType, defaultRouting, defaultFields, defaultFetchSourceContext, defaultPipeline, payload,
-            allowExplicitIndex, xContentType);
     }
 
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String

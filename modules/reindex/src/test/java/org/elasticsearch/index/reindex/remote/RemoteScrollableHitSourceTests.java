@@ -389,7 +389,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertEquals("No error body.", wrapped.getMessage());
 
         // Successfully get the status without a body
-        HttpEntity okEntity = new StringEntity("test body", StandardCharsets.UTF_8);
+        HttpEntity okEntity = new StringEntity("test body", ContentType.TEXT_PLAIN);
         wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), okEntity, cause);
         assertEquals(status, wrapped.status());
         assertEquals(cause, wrapped.getCause());

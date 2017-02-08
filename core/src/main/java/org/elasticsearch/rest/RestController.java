@@ -44,8 +44,6 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -72,10 +70,6 @@ public class RestController extends AbstractComponent {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
 
-    private final boolean isContentTypeRequired;
-
-    private final DeprecationLogger deprecationLogger;
-
     public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
                           NodeClient client, CircuitBreakerService circuitBreakerService) {
         super(settings);
@@ -86,8 +80,6 @@ public class RestController extends AbstractComponent {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        this.isContentTypeRequired = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.get(settings);
-        this.deprecationLogger = new DeprecationLogger(logger);
     }
 
     /**
@@ -178,7 +170,7 @@ public class RestController extends AbstractComponent {
             assert contentLength >= 0 : "content length was negative, how is that possible?";
             final RestHandler handler = getHandler(request);
 
-            if (contentLength > 0 && hasContentTypeOrCanAutoDetect(request, handler) == false) {
+            if (contentLength > 0 && hasContentType(request, handler) == false) {
                 sendContentTypeErrorMessage(request, responseChannel);
             } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
                 request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
@@ -237,43 +229,19 @@ public class RestController extends AbstractComponent {
 
     /**
      * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present, matches an
-     * {@link XContentType} or the request is plain text, and content type is required. If content type is not required then this method
-     * returns true unless a content type could not be inferred from the body and the rest handler does not support plain text
+     * {@link XContentType} or the handler supports a content stream and the content type header is for newline delimited JSON,
      */
-    private boolean hasContentTypeOrCanAutoDetect(final RestRequest restRequest, final RestHandler restHandler) {
+    private boolean hasContentType(final RestRequest restRequest, final RestHandler restHandler) {
         if (restRequest.getXContentType() == null) {
-            if (restHandler != null && restHandler.supportsPlainText()) {
-                // content type of null with a handler that supports plain text gets through for now. Once we remove plain text this can
-                // be removed!
-                deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
-                    "in a supported format.");
-            } else if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
+            if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
                 final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
                 // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
                 if (lowercaseMediaType.equals("application/x-ndjson")) {
                     restRequest.setXContentType(XContentType.JSON);
-                } else if (isContentTypeRequired) {
-                    return false;
-                } else {
-                    return autoDetectXContentType(restRequest);
+                    return true;
                 }
-            } else if (isContentTypeRequired) {
-                return false;
-            } else {
-                return autoDetectXContentType(restRequest);
             }
-        }
-        return true;
-    }
-
-    private boolean autoDetectXContentType(RestRequest restRequest) {
-        deprecationLogger.deprecated("Content type detection for rest requests is deprecated. Specify the content type using " +
-            "the [Content-Type] header.");
-        XContentType xContentType = XContentFactory.xContentType(restRequest.content());
-        if (xContentType == null) {
             return false;
-        } else {
-            restRequest.setXContentType(xContentType);
         }
         return true;
     }

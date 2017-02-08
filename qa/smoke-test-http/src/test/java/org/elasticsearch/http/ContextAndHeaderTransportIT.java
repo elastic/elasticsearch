@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -109,9 +110,9 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
             .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         ensureGreen(queryIndex, lookupIndex);
         requests.clear();
     }

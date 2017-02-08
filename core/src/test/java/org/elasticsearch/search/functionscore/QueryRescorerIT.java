@@ -514,8 +514,10 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[1].getValue(), equalTo(0.5f));
                 } else {
                     assertThat(searchResponse.getHits().getAt(i).getExplanation().getDescription(), equalTo("sum of:"));
-                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[0].getDetails()[1].getValue(), equalTo(0.5f));
-                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[1].getDetails()[1].getValue(), equalTo(0.4f));
+                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[0].getDetails()[1].getValue(),
+                        equalTo(0.5f));
+                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[1].getDetails()[1].getValue(),
+                        equalTo(0.4f));
                 }
             }
         }

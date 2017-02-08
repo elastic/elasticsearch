@@ -127,7 +127,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/migration/migrate_5_0/mapping.asciidoc',
   'reference/migration/migrate_5_0/scripting.asciidoc',
   'reference/release-notes/5.0.0-alpha5.asciidoc',
-  'reference/modules/scripting/native.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...

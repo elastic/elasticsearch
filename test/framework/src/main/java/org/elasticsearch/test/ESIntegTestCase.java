@@ -857,7 +857,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
-                    .append("] id [").append(hit.id()).append("]");
+                    .append("] id [").append(hit.getId()).append("]");
             }
             logger.warn("{}", sb);
             fail(failMsg);
@@ -1014,7 +1014,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             if (lastKnownCount.get() >= numDocs) {
                 try {
-                    long count = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits();
+                    long count = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits();
                     if (count == lastKnownCount.get()) {
                         // no progress - try to refresh for the next time
                         client().admin().indices().prepareRefresh().get();

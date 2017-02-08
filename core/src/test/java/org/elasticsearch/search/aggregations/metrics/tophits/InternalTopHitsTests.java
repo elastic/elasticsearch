@@ -33,8 +33,8 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
         float maxScore = Float.MIN_VALUE;
         ScoreDoc[] scoreDocs = new ScoreDoc[actualSize];
-        InternalSearchHit[] hits = new InternalSearchHit[actualSize];
+        SearchHit[] hits = new SearchHit[actualSize];
         Set<Integer> usedDocIds = new HashSet<>();
         for (int i = 0; i < actualSize; i++) {
             float score = randomFloat();
@@ -87,12 +87,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             } else {
                 scoreDocs[i] = new ScoreDoc(docId, score);
             }
-            hits[i] = new InternalSearchHit(docId, Integer.toString(i), new Text("test"), searchHitFields);
+            hits[i] = new SearchHit(docId, Integer.toString(i), new Text("test"), searchHitFields);
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
-        InternalSearchHits internalSearchHits = new InternalSearchHits(hits, totalHits, maxScore);
-        
+        SearchHits searchHits = new SearchHits(hits, totalHits, maxScore);
+
         TopDocs topDocs;
         Arrays.sort(scoreDocs, scoreDocComparator());
         if (testInstancesLookSortedByField) {
@@ -101,7 +101,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             topDocs = new TopDocs(totalHits, scoreDocs, maxScore);
         }
 
-        return new InternalTopHits(name, from, requestedSize, topDocs, internalSearchHits, pipelineAggregators, metaData);
+        return new InternalTopHits(name, from, requestedSize, topDocs, searchHits, pipelineAggregators, metaData);
     }
 
     private Object randomOfType(SortField.Type type) {
@@ -133,14 +133,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
     @Override
     protected void assertReduced(InternalTopHits reduced, List<InternalTopHits> inputs) {
-        InternalSearchHits actualHits = (InternalSearchHits) reduced.getHits();
-        List<Tuple<ScoreDoc, InternalSearchHit>> allHits = new ArrayList<>();
+        SearchHits actualHits = reduced.getHits();
+        List<Tuple<ScoreDoc, SearchHit>> allHits = new ArrayList<>();
         float maxScore = Float.MIN_VALUE;
         long totalHits = 0;
         for (int input = 0; input < inputs.size(); input++) {
-            InternalSearchHits internalHits = (InternalSearchHits) inputs.get(input).getHits();
-            totalHits += internalHits.totalHits();
-            maxScore = max(maxScore, internalHits.maxScore());
+            SearchHits internalHits = inputs.get(input).getHits();
+            totalHits += internalHits.getTotalHits();
+            maxScore = max(maxScore, internalHits.getMaxScore());
             for (int i = 0; i < internalHits.internalHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().scoreDocs[i];
                 if (testInstancesLookSortedByField) {
@@ -152,11 +152,11 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             }
         }
         allHits.sort(comparing(Tuple::v1, scoreDocComparator()));
-        InternalSearchHit[] expectedHitsHits = new InternalSearchHit[min(inputs.get(0).getSize(), allHits.size())];
+        SearchHit[] expectedHitsHits = new SearchHit[min(inputs.get(0).getSize(), allHits.size())];
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
         }
-        InternalSearchHits expectedHits = new InternalSearchHits(expectedHitsHits, totalHits, maxScore);
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 
@@ -181,7 +181,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     private Comparator<ScoreDoc> scoreDocComparator() {
         return innerScoreDocComparator().thenComparing(s -> s.shardIndex);
     }
-    
+
     private Comparator<ScoreDoc> innerScoreDocComparator() {
         if (testInstancesLookSortedByField) {
             // Values passed to getComparator shouldn't matter

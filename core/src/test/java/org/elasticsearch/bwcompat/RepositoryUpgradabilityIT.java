@@ -86,7 +86,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             assertThat(restoredIndices, equalTo(indices));
             // make sure it has documents
             for (final String searchIdx : restoredIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(), greaterThan(0L));
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(), greaterThan(0L));
             }
             deleteIndices(restoredIndices); // delete so we can restore again later
 
@@ -134,7 +134,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             Set<String> oldRestoredIndices = Sets.newHashSet(restoreSnapshot(repoName, originalSnapshot.snapshotId().getName()));
             assertThat(oldRestoredIndices, equalTo(Sets.newHashSet(originalIndex)));
             for (final String searchIdx : oldRestoredIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(),
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(),
                            greaterThanOrEqualTo((long)addedDocSize));
             }
             deleteIndices(oldRestoredIndices);
@@ -143,7 +143,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             Set<String> newSnapshotIndices = Sets.newHashSet(restoreSnapshot(repoName, snapshotName3));
             assertThat(newSnapshotIndices, equalTo(Sets.newHashSet(originalIndex, indexName2)));
             for (final String searchIdx : newSnapshotIndices) {
-                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().totalHits(),
+                assertThat(client().prepareSearch(searchIdx).setSize(0).get().getHits().getTotalHits(),
                            greaterThanOrEqualTo((long)addedDocSize));
             }
             deleteIndices(newSnapshotIndices); // clean up indices before starting again

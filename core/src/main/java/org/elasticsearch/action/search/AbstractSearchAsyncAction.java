@@ -559,13 +559,25 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         private void sendResponse(SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
                                 String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
                                 AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
-            final boolean isScrollRequest = request.scroll() != null;
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, reducedQueryPhase,
-                fetchResultsArr);
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
-                buildTookInMillis(), buildShardFailures()));
+            // this is only a temporary fix since field collapsing executes a blocking call on response
+            // which could be a network thread. we are fixing this but for now we just fork off again.
+            // this should be removed once https://github.com/elastic/elasticsearch/issues/23048 is fixed
+            getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
+                @Override
+                public void doRun() throws IOException {
+                    final boolean isScrollRequest = request.scroll() != null;
+                    final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs,
+                        reducedQueryPhase, fetchResultsArr);
+                    listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
+                        buildTookInMillis(), buildShardFailures()));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    raisePhaseFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+                }
+            });
         }
+
     }
-
-
 }

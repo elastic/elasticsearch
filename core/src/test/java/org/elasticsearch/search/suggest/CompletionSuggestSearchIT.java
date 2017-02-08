@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -218,7 +217,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
+            assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -253,7 +252,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNull(option.getHit().source());
+            assertNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -290,8 +289,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
-            Set<String> sourceFields = option.getHit().sourceAsMap().keySet();
+            assertNotNull(option.getHit().getSourceAsMap());
+            Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));
             assertThat(sourceFields, not(contains("b")));
             id--;
@@ -973,7 +972,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {

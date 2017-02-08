@@ -99,7 +99,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/docs/index_.asciidoc',
   'reference/docs/multi-get.asciidoc',
   'reference/docs/reindex.asciidoc',
-  'reference/docs/termvectors.asciidoc',
   'reference/docs/update-by-query.asciidoc',
   'reference/docs/update.asciidoc',
   'reference/index-modules/similarity.asciidoc',
@@ -132,11 +131,9 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
   'reference/search/field-stats.asciidoc',
-  'reference/search/multi-search.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
-  'reference/search/search-template.asciidoc',
 ]
 
 integTest {

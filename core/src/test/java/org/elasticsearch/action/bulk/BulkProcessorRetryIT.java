@@ -152,7 +152,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(0)
                 .get();
-        assertThat(results.getHits().totalHits(), searchResultCount);
+        assertThat(results.getHits().getTotalHits(), searchResultCount);
     }
 
     private static void indexDocs(BulkProcessor processor, int numDocs) {

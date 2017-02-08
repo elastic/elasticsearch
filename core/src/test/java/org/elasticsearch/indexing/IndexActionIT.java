@@ -18,28 +18,20 @@
  */
 package org.elasticsearch.indexing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -78,8 +70,8 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().totalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().totalHits() + " but " + numOfDocs + " was expected. "
+                    if (response.getHits().getTotalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
                             + ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
@@ -93,8 +85,8 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").setTypes("type").get();
-                    if (response.getHits().totalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().totalHits() + " but " + numOfDocs + " was expected. "
+                    if (response.getHits().getTotalHits() != numOfDocs) {
+                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
                             + ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);

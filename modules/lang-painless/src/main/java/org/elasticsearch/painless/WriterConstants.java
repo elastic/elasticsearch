@@ -47,8 +47,8 @@ public final class WriterConstants {
 
     public static final int CLASS_VERSION = Opcodes.V1_8;
     public static final int ASM_VERSION = Opcodes.ASM5;
-    public static final String BASE_CLASS_NAME = Executable.class.getName();
-    public static final Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
+    public static final String BASE_CLASS_NAME = AbstractPainlessScript.class.getName();
+    public static final Type BASE_CLASS_TYPE   = Type.getType(AbstractPainlessScript.class);
 
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));

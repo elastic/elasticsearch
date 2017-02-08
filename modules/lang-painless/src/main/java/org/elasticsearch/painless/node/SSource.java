@@ -23,7 +23,6 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Executable;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -217,7 +216,7 @@ public final class SSource extends AStatement {
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
-        constructor.invokeConstructor(org.objectweb.asm.Type.getType(Executable.class), CONSTRUCTOR);
+        constructor.invokeConstructor(BASE_CLASS_TYPE, CONSTRUCTOR);
         constructor.returnValue();
         constructor.endMethod();
 

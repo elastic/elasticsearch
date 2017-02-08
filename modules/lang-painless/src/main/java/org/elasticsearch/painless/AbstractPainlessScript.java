@@ -23,15 +23,15 @@ import java.util.BitSet;
 import java.util.Set;
 
 /**
- * The superclass used to build all Painless scripts on top of.
+ * Abstract superclass on top of which all Painless scripts are built.
  */
-public abstract class Executable implements PainlessScript { // NOCOMMIT rename class
+public abstract class AbstractPainlessScript implements PainlessScript {
     private final String name;
     private final String source;
     private final BitSet statements;
     private final Set<String> usedVariables;
 
-    public Executable(String name, String source, BitSet statements, Set<String> usedVariables) {
+    protected AbstractPainlessScript(String name, String source, BitSet statements, Set<String> usedVariables) {
         this.name = name;
         this.source = source;
         this.statements = statements;
@@ -53,6 +53,7 @@ public abstract class Executable implements PainlessScript { // NOCOMMIT rename 
         return statements.previousSetBit(offset);
     }
 
+    @Override
     public int getNextStatement(int offset) {
         return statements.nextSetBit(offset+1);
     }

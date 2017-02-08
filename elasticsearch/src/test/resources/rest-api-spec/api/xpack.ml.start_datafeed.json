@@ -1,0 +1,31 @@
+{
+  "xpack.ml.start_datafeed": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ml/datafeeds/{datafeed_id}/_start",
+      "paths": [ "/_xpack/ml/datafeeds/{datafeed_id}/_start" ],
+      "parts": {
+        "datafeed_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the datafeed to start"
+        }
+      },
+      "params": {
+        "start": {
+          "type": "string",
+          "required": false,
+          "description": "The start time from where the datafeed should begin"
+        },
+        "end": {
+          "type": "string",
+          "required": false,
+          "description": "The end time when the datafeed should stop. When not set, the datafeed continues in real time"
+        }
+      }
+    },
+    "body": {
+      "description": "The start datafeed parameters"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "xpack.ml.update_model_snapshot": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_update",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_update" ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to fetch"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the snapshot whose description is to be updated"
+        }
+      },
+      "params": {}
+    },
+    "body": {
+      "description" : "A JSON object containing the description to update with",
+      "required" : true
+    }
+  }
+}

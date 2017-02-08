@@ -1,0 +1,63 @@
+{
+  "xpack.ml.get_records": {
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/records",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/records"
+      ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "params": {
+        "expand": {
+          "type": "boolean"
+        },
+        "include_interim": {
+          "type": "boolean",
+          "description": "Include interim results"
+        },
+        "from": {
+          "type": "int",
+          "description": "skips a number of records"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of records to get"
+        },
+        "start": {
+          "type": "string",
+          "description": "Start time filter for records"
+        },
+        "end": {
+          "type": "string",
+          "description": "End time filter for records"
+        },
+        "anomaly_score": {
+          "type": "double"
+        },
+        "max_normalized_probability": {
+          "type": "double"
+        },
+        "partition_value": {
+          "type": "string",
+          "description": "Filter anomaly records by the partitionFieldValue"
+        },
+        "sort": {
+          "type": "string",
+          "description": "Sort records by a particular field"
+        },
+        "desc": {
+          "type": "boolean",
+          "description": "Set the sort direction"
+        }
+      }
+    },
+    "body": {
+      "description": "Record selection criteria"
+    }
+  }
+}

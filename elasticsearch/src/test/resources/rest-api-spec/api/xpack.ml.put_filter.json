@@ -1,0 +1,14 @@
+{
+  "xpack.ml.put_filter": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/ml/filters",
+      "paths": [ "/_xpack/ml/filters" ],
+      "params": {}
+    },
+    "body": {
+      "description" : "The filter details",
+      "required" : true
+    }
+  }
+}

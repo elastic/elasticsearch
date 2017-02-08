@@ -1,10 +1,18 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.VersionProperties
+import com.bettercloud.vault.Vault
+import com.bettercloud.vault.VaultConfig
+import com.bettercloud.vault.response.LogicalResponse
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 
 group 'org.elasticsearch.plugin'
 
@@ -16,6 +24,65 @@ esplugin {
 }
 archivesBaseName = 'x-pack' // for api jar
 
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath group: 'com.bettercloud', name: 'vault-java-driver', version:"1.1.0"
+  }
+}
+
+// Vault auth to get keys for access to cpp artifacts
+
+// first need to get an authentication token with vault
+String homePath = System.properties['user.home']
+File githubToken = file("${homePath}/.elastic/github.token")
+final String VAULT_URL = 'https://secrets.elastic.co:8200'
+final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
+final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
+String authBody = null
+URL vaultUrl = null
+if (githubToken.exists()) {
+  Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
+  if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
+      throw new GradleException('github.token must have 600 permissions')
+  }
+  vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
+  authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
+} else if (VAULT_SECRET_ID != null) {
+  vaultUrl = new URL(VAULT_URL + '/v1/auth/approle/login')
+  authBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
+} else {
+    throw new GradleException('Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
+}
+HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
+vaultConn.setRequestProperty('Content-Type', 'application/json')
+vaultConn.setRequestMethod('PUT')
+vaultConn.setDoOutput(true)
+vaultConn.outputStream.withWriter('UTF-8') { writer ->
+    writer.write(authBody)
+}
+vaultConn.connect()
+Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
+VaultConfig config = new VaultConfig(VAULT_URL, authResponse.auth.client_token)
+Vault vault = new Vault(config)
+LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
+String mlAwsAccessKey = secret.data.get('access_key')
+String mlAwsSecretKey = secret.data.get('secret_key')
+// Sleeping to give AWS a chance to propagate the credentials
+sleep(3000)
+
+repositories {
+  maven {
+      url "s3://prelert-artifacts/maven"
+      credentials(AwsCredentials) {
+          accessKey "${mlAwsAccessKey}"
+          secretKey "${mlAwsSecretKey}"
+      }
+  }
+}
+
 // TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
@@ -24,6 +91,19 @@ dependencyLicenses.enabled = false
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
   additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+}
+
+configurations {
+  nativeBundle
+}
+
+if (findProject(':machine-learning-cpp') != null) {
+  configurations.nativeBundle {
+    resolutionStrategy.dependencySubstitution {
+      substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
+    }
+  }
+  bundlePlugin.dependsOn ':machine-learning-cpp:buildUberZip'
 }
 
 dependencies {
@@ -49,6 +129,11 @@ dependencies {
   // monitoring deps
   compile "org.elasticsearch.client:rest:${version}"
   compile "org.elasticsearch.client:sniffer:${version}"
+
+  // ml deps
+  compile group: 'net.sf.supercsv', name: 'super-csv', version:'2.4.0'
+  nativeBundle group: 'org.elasticsearch.ml', name: 'ml-cpp', version:"${project.version}", ext: 'zip'
+  testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'
@@ -92,6 +177,11 @@ forbiddenPatterns {
 
 // TODO: standardize packaging config for plugins
 bundlePlugin {
+  for (outputFile in configurations.nativeBundle) {
+      from(zipTree(outputFile)) {
+        duplicatesStrategy 'exclude'
+      }
+    }
   from(project(':x-pack').projectDir) {
     include 'LICENSE.txt'
   }
@@ -142,6 +232,7 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
   cluster {
+    setting 'xpack.ml.enabled', 'true'
     setting 'xpack.monitoring.collection.interval', '3s'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
@@ -241,6 +332,7 @@ thirdPartyAudit.excludes = [
 ]
 
 run {
+  setting 'xpack.ml.enabled', 'true'
   setting 'xpack.graph.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.enabled', 'true'

@@ -1,0 +1,155 @@
+setup:
+  - do:
+      xpack.ml.put_job:
+        job_id: foo
+        body:  >
+          {
+            "job_id": "foo",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span" : 3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: foo
+
+  - do:
+      xpack.ml.close_job:
+        job_id: foo
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "foo1"
+        body: >
+          {
+            "job_id": "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restore_priority": "1",
+            "snapshot_id": "foo1",
+            "description": "first",
+            "latest_record_time_stamp": "2016-06-02T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-02T00:00:00Z",
+            "snapshot_doc_count": 2
+          }
+
+  - do:
+      index:
+        index:  .ml-state
+        type:   model_state
+        id:     "foo1_0"
+        body: >
+          {
+            "state": "foo"
+          }
+
+  - do:
+      index:
+        index:  .ml-state
+        type:   model_state
+        id:     "foo1_1"
+        body: >
+          {
+            "state": "foo"
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "foo2"
+        body: >
+          {
+            "job_id": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restore_priority": "2",
+            "snapshot_id": "foo2",
+            "description": "second",
+            "latest_record_time_stamp": "2016-06-01T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
+          }
+
+  - do:
+      indices.refresh:
+        index: .ml-state
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+---
+"Test delete snapshot missing snapshotId":
+  - do:
+      catch: param
+      xpack.ml.delete_model_snapshot:
+        job_id: "foo"
+
+---
+"Test delete snapshot missing job_id":
+  - do:
+      catch: param
+      xpack.ml.delete_model_snapshot:
+        snapshot_id: "foo"
+
+---
+"Test valid delete snapshot":
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: .ml-state
+        type: model_state
+
+  - match: { count: 2 }
+
+  - do:
+      xpack.ml.delete_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo1"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+  - do:
+      indices.refresh:
+        index: .ml-state
+
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+  - match: { count: 1 }
+  - match: { model_snapshots.0.snapshot_id: "foo2"}
+
+  - do:
+      count:
+        index: .ml-state
+        type: model_state
+
+  - match: { count: 0 }
+
+---
+"Test delete with in-use model":
+  - do:
+      xpack.ml.revert_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo2"
+
+  - do:
+      catch: request
+      xpack.ml.delete_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo2"

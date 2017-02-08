@@ -1,0 +1,225 @@
+setup:
+  - do:
+      xpack.ml.put_job:
+        job_id: foo
+        body:  >
+          {
+            "job_id":"foo",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: foo
+
+  - do:
+      xpack.ml.close_job:
+        job_id: foo
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "1"
+        body: >
+          {
+            "job_id": "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restore_priority": "1",
+            "snapshot_id": "foo1",
+            "description": "first",
+            "latest_record_time_stamp": "2016-06-02T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-02T00:00:00Z"
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "2"
+        body: >
+          {
+            "job_id": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restore_priority": "2",
+            "snapshot_id": "foo2",
+            "description": "second",
+            "latest_record_time_stamp": "2016-06-01T00:00:00Z",
+            "latest_result_time_stamp": "2016-06-01T00:00:00Z"
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1464825600000_1"
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1 }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1464782400000_1"
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z", "bucket_span":1 }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1462060800000_1"
+        body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1 }
+
+  - do:
+       index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1464825600000_1_1"
+        body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1, "sequence_num":1 }
+
+  - do:
+       index:
+         index:  .ml-anomalies-foo
+         type:   result
+         id:     "foo_1462060800000_1_2"
+         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1, "sequence_num":2 }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1464825600000_1_3"
+        body:   {
+                  "job_id": "foo",
+                  "result_type": "influencer",
+                  "timestamp": "2016-06-02T00:00:00Z",
+                  "influencer_field_name": "foo",
+                  "influencer_field_value": "zoo",
+                  "anomaly_score": 50.0,
+                  "bucket_span": 1,
+                  "sequence_num": 3
+                }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   result
+        id:     "foo_1462060800000_1_4"
+        body:
+           {
+              "job_id": "foo",
+              "result_type": "influencer",
+              "timestamp": "2016-05-01T00:00:00Z",
+              "influencer_field_name": "foo",
+              "influencer_field_value": "zoo",
+              "anomaly_score": 50.0,
+              "bucket_span": 1,
+              "sequence_num": 4
+            }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+  - do:
+      indices.refresh:
+        index: .ml-state
+
+---
+"Test revert model with invalid snapshotId":
+  - do:
+      catch: /resource_not_found_exception/
+      xpack.ml.revert_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "not_exist"
+
+---
+"Test revert model with valid snapshotId":
+  - do:
+      xpack.ml.revert_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo1"
+
+  - match: { acknowledged: true }
+  - match: { model.job_id: "foo" }
+  - match: { model.timestamp: 1464825600000 }
+  - match: { model.restore_priority: 1 }
+  - match: { model.snapshot_id: "foo1" }
+  - match: { model.snapshot_doc_count: 0 }
+
+  - do:
+      xpack.ml.revert_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo2"
+
+  - match: { acknowledged: true }
+  - match: { model.job_id: "foo" }
+  - match: { model.timestamp: 1464739200000 }
+  - match: { model.restore_priority: 2 }
+  - match: { model.snapshot_id: "foo2" }
+  - match: { model.snapshot_doc_count: 0 }
+
+---
+"Test revert model with delete_intervening_results":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { count: 3 }
+
+  - do:
+      xpack.ml.revert_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo2"
+        delete_intervening_results: true
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { count: 1 }
+  - match: { buckets.0.job_id: "foo" }
+  - match: { buckets.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.ml.get_records:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T00:00:00Z"
+
+  - match: { count: 1 }
+  - match: { records.0.job_id: "foo" }
+  - match: { records.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "foo"
+        start: "2016-01-01T00:00:00Z"
+        end: "2016-12-01T01:00:00Z"
+
+  - match: { count: 1 }
+  - match: { influencers.0.job_id: "foo" }
+  - match: { influencers.0.timestamp: 1462060800000 }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: foo
+
+  - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }
+

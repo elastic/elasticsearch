@@ -1,0 +1,56 @@
+{
+  "xpack.ml.get_model_snapshots": {
+    "methods": [ "GET", "POST" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+        "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots"
+      ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to fetch"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "description": "The ID of the snapshot to fetch"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "integer",
+          "description": "Skips a number of documents"
+        },
+        "size": {
+          "type": "integer",
+          "description": "The default number of documents returned in queries as a string."
+        },
+        "start": {
+          "type": "date",
+          "description": "The filter 'start' query parameter"
+        },
+        "end": {
+          "type": "date",
+          "description": "The filter 'end' query parameter"
+        },
+        "sort": {
+          "type": "string",
+          "description": "Name of the field to sort on"
+        },
+        "desc": {
+          "type": "boolean",
+          "description": "True if the results should be sorted in descending order"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description to filter on"
+        }
+      }
+    },
+    "body": {
+      "description": "Model snapshot selection criteria"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "xpack.ml.flush_job": {
+    "methods": [
+      "POST"
+    ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_flush",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/{job_id}/_flush"
+      ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the job to flush"
+        }
+      },
+      "params": {
+        "calc_interim": {
+          "type": "boolean",
+          "description": "Calculates interim results for the most recent bucket or all buckets within the latency period"
+        },
+        "start": {
+          "type": "string",
+          "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
+        },
+        "end": {
+          "type": "string",
+          "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
+        },
+        "advance_time": {
+          "type": "string",
+          "description": "Setting this tells the Engine API that no data prior to advance_time is expected"
+        }
+      }
+    },
+    "body": {
+      "description": "Flush parameters"
+    }
+  }
+}

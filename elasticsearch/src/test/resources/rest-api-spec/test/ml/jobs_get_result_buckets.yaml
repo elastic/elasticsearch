@@ -1,0 +1,149 @@
+setup:
+  - do:
+      indices.create:
+        index:  .ml-anomalies-farequote
+        body:
+          mappings:
+            results:
+              properties:
+                "job_id":
+                  type: keyword
+                "result_type":
+                  type: keyword
+                "timestamp":
+                  type: date
+
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   result
+        id:     "farequote_1464739200000_1"
+        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucket_span":1 }
+
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   result
+        id:     "farequote_1464739200000_2"
+        body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucket_span":1 }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-farequote
+
+---
+"Test result buckets api with time range":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-07-01T00:00:00Z"
+
+  - match: { count: 1 }
+  - match: { buckets.0.timestamp: 1464739200000 }
+  - match: { buckets.0.job_id: farequote}
+  - match: { buckets.0.result_type: bucket}
+
+---
+"Test result buckets api":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { buckets.0.timestamp: 1464739200000 }
+  - match: { buckets.0.job_id: farequote}
+  - match: { buckets.0.result_type: bucket}
+  - match: { buckets.1.timestamp: 1470009600000 }
+  - match: { buckets.1.job_id: farequote}
+  - match: { buckets.1.result_type: bucket}
+
+---
+"Test result single bucket api":
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+
+  - match: { buckets.0.timestamp: 1464739200000}
+  - match: { buckets.0.job_id: farequote }
+  - match: { buckets.0.result_type: bucket}
+
+---
+"Test mutually-exclusive params":
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        start: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        from: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        anomaly_score: "80.0"
+
+---
+"Test mutually-exclusive params (via body)":
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          start: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          from: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          anomaly_score: "80.0"

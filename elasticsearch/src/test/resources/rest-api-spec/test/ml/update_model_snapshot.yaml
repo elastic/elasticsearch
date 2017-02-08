@@ -1,0 +1,112 @@
+setup:
+  - do:
+      indices.create:
+        index:  .ml-anomalies-foo
+        body:
+          mappings:
+            model_snapshot:
+              properties:
+                "timestamp":
+                  type: date
+                "restore_priority":
+                  type: integer
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "1"
+        body: >
+          {
+            "job_id" : "foo",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "restore_priority": "1",
+            "snapshot_id": "foo"
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-foo
+        type:   model_snapshot
+        id:     "2"
+        body: >
+          {
+            "job_id": "foo",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "restore_priority": "2",
+            "snapshot_id": "bar",
+            "description": "bar"
+          }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+---
+"Test without description":
+  - do:
+      catch: request
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo"
+        body: >
+          {
+            "some_field": "foo"
+          }
+
+---
+"Test with valid description":
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+        description: "new_description"
+
+  - match: { count: 0 }
+  - length: { model_snapshots: 0 }
+
+  - do:
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo"
+        body: >
+          {
+            "description": "new_description"
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.description: "new_description" }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-foo
+
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+        description: "new_description"
+
+  - match: { count: 1 }
+  - match: { model_snapshots.0.restore_priority: 1 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+
+---
+"Test with conflict against existing description":
+  - do:
+      xpack.ml.get_model_snapshots:
+        job_id: "foo"
+        description: "bar"
+
+  - match: { count: 1 }
+  - length: { model_snapshots: 1 }
+  - match: { model_snapshots.0.job_id: "foo" }
+  - match: { model_snapshots.0.description: "bar" }
+
+  - do:
+      catch: request
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo"
+        body: >
+          {
+            "description": "bar"
+          }

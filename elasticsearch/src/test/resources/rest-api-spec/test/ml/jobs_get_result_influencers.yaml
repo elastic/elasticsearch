@@ -1,0 +1,73 @@
+setup:
+  - do:
+      indices.create:
+        index:  .ml-anomalies-farequote
+        body:
+          mappings:
+            result:
+              properties:
+                "job_id":
+                  type: keyword
+                "timestamp":
+                  type: date
+                "anomaly_score":
+                  type: float
+                "result_type":
+                  type: keyword
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   result
+        id:     farequote_1464739200000_1_1
+        body:
+          {
+            "job_id": "farequote",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "influencer_field_name": "foo",
+            "influencer_field_value": "bar",
+            "anomaly_score": 80.0,
+            "result_type" : "influencer",
+            "bucket_span" : 1,
+            "sequence_num" : 1
+          }
+
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   result
+        id:     farequote_1464825600000_1_2
+        body:
+          {
+            "job_id": "farequote",
+            "timestamp": "2016-06-02T00:00:00Z",
+            "influencer_field_name": "foo",
+            "influencer_field_value": "zoo",
+            "anomaly_score": 50.0,
+            "result_type" : "influencer",
+            "bucket_span" : 1,
+            "sequence_num" : 2
+          }
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-farequote
+
+---
+"Test result influencers api":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { influencers.0.timestamp: 1464739200000 }
+  - match: { influencers.1.timestamp: 1464825600000 }
+
+---
+"Test result influencers api with time range":
+  - do:
+      xpack.ml.get_influencers:
+        job_id: "farequote"
+        start: "2016-06-01T00:00:00Z"
+        end: "2016-06-01T01:00:00Z"
+
+  - match: { count: 1 }
+  - match: { influencers.0.timestamp: 1464739200000 }

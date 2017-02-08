@@ -1,0 +1,96 @@
+setup:
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   category_definition
+        id:     farequote-1
+        body:   { "job_id": "farequote", "category_id": 1 }
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   category_definition
+        id:     farequote-2
+        body:   { "job_id": "farequote", "category_id": 2 }
+  - do:
+      index:
+        index:  .ml-anomalies-unrelated
+        type:   category_definition
+        id:     farequote-3
+        body:   { "job_id": "unrelated", "category_id": 1 }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-farequote
+
+---
+"Test result categories api":
+  - do:
+      xpack.ml.get_categories:
+        job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.category_id: 1 }
+  - match: { categories.1.job_id: farequote }
+  - match: { categories.1.category_id: 2 }
+
+---
+"Test result category api":
+  - do:
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+
+  - match: { categories.0.job_id: farequote }
+  - match: { categories.0.category_id: 1 }
+
+---
+"Test with invalid param combinations":
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        from: 0
+
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        size: 1
+
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        from: 0
+        size: 1
+
+---
+"Test with invalid param combinations (via body)":
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          from: 0
+
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          size: 1
+
+  - do:
+      catch: request
+      xpack.ml.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          from: 0
+          size: 1

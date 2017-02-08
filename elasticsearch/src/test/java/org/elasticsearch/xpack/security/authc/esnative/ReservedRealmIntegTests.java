@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
@@ -30,6 +31,25 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testAuthenticate() {
         for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
+            ClusterHealthResponse response = client()
+                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
+                    .admin()
+                    .cluster()
+                    .prepareHealth()
+                    .get();
+
+            assertThat(response.getClusterName(), is(cluster().getClusterName()));
+        }
+    }
+
+    /**
+     * Enabling a user forces a doc to be written to the security index, and "user doc with default password" has a special case code in
+     * the reserved realm.
+     */
+    public void testAuthenticateAfterEnablingUser() {
+        final SecurityClient c = securityClient();
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
+            c.prepareSetEnabled(username, true).get();
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
                     .admin()

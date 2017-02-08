@@ -32,6 +32,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.when;
 public class ReservedRealmTests extends ESTestCase {
 
     private static final SecuredString DEFAULT_PASSWORD = new SecuredString("changeme".toCharArray());
+    public static final String ACCEPT_DEFAULT_PASSWORDS = ReservedRealm.ACCEPT_DEFAULT_PASSWORD_SETTING.getKey();
     private NativeUsersStore usersStore;
 
     @Before
@@ -90,7 +92,7 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(future.get().enabled(), equalTo(false));
     }
 
-    public void testDefaultPasswordAuthentication() throws Throwable {
+    public void testSuccessfulDefaultPasswordAuthentication() throws Throwable {
         final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expected.principal();
         final boolean securityIndexExists = randomBoolean();
@@ -105,7 +107,6 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
 
-
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
         final User authenticated = listener.actionGet();
@@ -119,6 +120,29 @@ public class ReservedRealmTests extends ESTestCase {
         verify(usersStore).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
+    }
+
+    public void testDisableDefaultPasswordAuthentication() throws Throwable {
+        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+
+        final Environment environment = mock(Environment.class);
+        final AnonymousUser anonymousUser = new AnonymousUser(Settings.EMPTY);
+        final Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, false).build();
+        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, usersStore, anonymousUser);
+
+        final ActionListener<User> listener = new ActionListener<User>() {
+            @Override
+            public void onResponse(User user) {
+                fail("Authentication should have failed because default-password is not allowed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(e.getMessage(), containsString("failed to authenticate"));
+            }
+        };
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(expected.principal(), DEFAULT_PASSWORD), listener);
     }
 
     public void testAuthenticationDisabled() throws Throwable {
@@ -147,15 +171,15 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifySuccessfulAuthentication(boolean enabled) {
-        final ReservedRealm reservedRealm =
-                new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
+        final Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, randomBoolean()).build();
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
         final User expectedUser = randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled));
         final String principal = expectedUser.principal();
         final SecuredString newPassword = new SecuredString("foobar".toCharArray());
         when(usersStore.securityIndexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), enabled));
+            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), enabled, false));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -168,7 +192,7 @@ public class ReservedRealmTests extends ESTestCase {
         // the realm assumes it owns the hashed password so it fills it with 0's
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true, false));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 

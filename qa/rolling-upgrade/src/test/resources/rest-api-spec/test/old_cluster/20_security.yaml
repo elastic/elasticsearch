@@ -57,3 +57,34 @@
         index: ".security"
         wait_for_active_shards: 2 # 1 primary and 1 replica since we have two nodes
         timeout: 25s
+
+---
+"default password migration":
+  # Check that enabling a user in old cluster will not prevent the user from having a "default password" in the new cluster.
+  # See: org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator.doConvertDefaultPasswords
+  - do:
+      xpack.security.disable_user:
+        username: "kibana"
+
+  - do:
+      xpack.security.get_user:
+        username: "kibana"
+  - match: { kibana.enabled: false }
+
+  - do:
+      xpack.security.change_password:
+        username: "logstash_system"
+        body: >
+            {
+              "password" : "changed-it"
+            }
+
+  - do:
+      xpack.security.enable_user:
+        username: "logstash_system"
+
+  - do:
+      xpack.security.get_user:
+        username: "logstash_system"
+  - match: { logstash_system.enabled: true }
+

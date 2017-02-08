@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -12,14 +18,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 
 /**
  * Performs migration steps for the {@link NativeRealm} and {@link ReservedRealm}.
  * When upgrading an Elasticsearch/X-Pack installation from a previous version, this class is responsible for ensuring that user/role
  * data stored in the security index is converted to a format that is appropriate for the newly installed version.
+ *
  * @see SecurityTemplateService
  */
 public class NativeRealmMigrator {
@@ -48,29 +58,32 @@ public class NativeRealmMigrator {
      */
     public void performUpgrade(@Nullable Version previousVersion, ActionListener<Boolean> listener) {
         try {
-            if (shouldDisableLogstashUser(previousVersion)) {
-                logger.info("Upgrading security from version [{}] - new reserved user [{}] will default to disabled",
-                        previousVersion, LogstashSystemUser.NAME);
-                // Only clear the cache is authentication is allowed by the current license
-                // otherwise the license management checks will prevent it from completing successfully.
-                final boolean clearCache = licenseState.isAuthAllowed();
-                nativeUsersStore.ensureReservedUserIsDisabled(LogstashSystemUser.NAME, clearCache, new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                listener.onResponse(true);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        });
-            } else {
+            List<BiConsumer<Version, ActionListener<Void>>> tasks = collectUpgradeTasks(previousVersion);
+            if (tasks.isEmpty()) {
                 listener.onResponse(false);
+            } else {
+                final GroupedActionListener<Void> countDownListener = new GroupedActionListener<>(
+                        ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure),
+                        tasks.size(),
+                        Collections.emptyList()
+                );
+                logger.info("Performing {} security migration task(s)", tasks.size());
+                tasks.forEach(t -> t.accept(previousVersion, countDownListener));
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private List<BiConsumer<Version, ActionListener<Void>>> collectUpgradeTasks(@Nullable Version previousVersion) {
+        List<BiConsumer<Version, ActionListener<Void>>> tasks = new ArrayList<>();
+        if (shouldDisableLogstashUser(previousVersion)) {
+            tasks.add(this::doDisableLogstashUser);
+        }
+        if (shouldConvertDefaultPasswords(previousVersion)) {
+            tasks.add(this::doConvertDefaultPasswords);
+        }
+        return tasks;
     }
 
     /**
@@ -80,6 +93,69 @@ public class NativeRealmMigrator {
      */
     private boolean shouldDisableLogstashUser(@Nullable Version previousVersion) {
         return previousVersion != null && previousVersion.before(LogstashSystemUser.DEFINED_SINCE);
+    }
+
+    private void doDisableLogstashUser(@Nullable Version previousVersion, ActionListener<Void> listener) {
+        logger.info("Upgrading security from version [{}] - new reserved user [{}] will default to disabled",
+                previousVersion, LogstashSystemUser.NAME);
+        // Only clear the cache is authentication is allowed by the current license
+        // otherwise the license management checks will prevent it from completing successfully.
+        final boolean clearCache = licenseState.isAuthAllowed();
+        nativeUsersStore.ensureReservedUserIsDisabled(LogstashSystemUser.NAME, clearCache, listener);
+    }
+
+    /**
+     * Old versions of X-Pack security would assign the default password content to a user if it was enabled/disabled before the password
+     * was explicitly set to another value. If upgrading from one of those versions, then we want to change those users to be flagged as
+     * having a "default password" (which is stored as blank) so that {@link ReservedRealm#ACCEPT_DEFAULT_PASSWORD_SETTING} does the
+     * right thing.
+     */
+    private boolean shouldConvertDefaultPasswords(@Nullable Version previousVersion) {
+        return previousVersion != null && previousVersion.before(Version.V_6_0_0_alpha1_UNRELEASED);
+    }
+
+    @SuppressWarnings("unused")
+    private void doConvertDefaultPasswords(@Nullable Version previousVersion, ActionListener<Void> listener) {
+        nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap(
+                users -> {
+                    final List<String> toConvert = users.entrySet().stream()
+                            .filter(entry -> hasOldStyleDefaultPassword(entry.getValue()))
+                            .map(entry -> entry.getKey())
+                            .collect(Collectors.toList());
+                    if (toConvert.isEmpty()) {
+                        listener.onResponse(null);
+                    } else {
+                        GroupedActionListener countDownListener = new GroupedActionListener(
+                                ActionListener.wrap((r) -> listener.onResponse(null), listener::onFailure),
+                                toConvert.size(), Collections.emptyList()
+                        );
+                        toConvert.forEach(username -> {
+                            logger.debug(
+                                    "Upgrading security from version [{}] - marking reserved user [{}] as having default password",
+                                    previousVersion, username);
+                            resetReservedUserPassword(username, countDownListener);
+                        });
+                    }
+                }, listener::onFailure)
+        );
+    }
+
+    /**
+     * Determines whether the supplied {@link NativeUsersStore.ReservedUserInfo} has its password set to be the default password, without
+     * having the {@link NativeUsersStore.ReservedUserInfo#hasDefaultPassword} flag set.
+     */
+    private boolean hasOldStyleDefaultPassword(NativeUsersStore.ReservedUserInfo userInfo) {
+        return userInfo.hasDefaultPassword == false && Hasher.BCRYPT.verify(ReservedRealm.DEFAULT_PASSWORD_TEXT, userInfo.passwordHash);
+    }
+
+    /**
+     * Sets a reserved user's password back to blank, so that the default password functionality applies.
+     */
+    void resetReservedUserPassword(String username, ActionListener<Void> listener) {
+        final ChangePasswordRequest request = new ChangePasswordRequest();
+        request.username(username);
+        request.passwordHash(new char[0]);
+        nativeUsersStore.changePassword(request, true, listener);
     }
 
 }

@@ -29,3 +29,14 @@
   - do:
       xpack.security.clear_cached_realms:
         realms: "_all"
+
+---
+"verify users for default password migration in mixed cluster":
+  - do:
+      xpack.security.get_user:
+        username: "kibana,logstash_system"
+  - match: { kibana.enabled: false }
+  - match: { logstash_system.enabled: true }
+
+ 
+

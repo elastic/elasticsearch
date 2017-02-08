@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.bootstrap.DefaultPasswordBootstrapCheck;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -416,6 +418,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         AnonymousUser.addSettings(settingsList);
         RealmSettings.addSettings(settingsList, extensionsService == null ? null : extensionsService.getExtensions());
         NativeRolesStore.addSettings(settingsList);
+        ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
         settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
@@ -452,7 +455,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     public List<BootstrapCheck> getBootstrapChecks() {
         if (enabled) {
-            return Collections.singletonList(new SSLBootstrapCheck(sslService, settings, env));
+            return Arrays.asList(
+                new DefaultPasswordBootstrapCheck(settings),
+                new SSLBootstrapCheck(sslService, settings, env)
+            );
         } else {
             return Collections.emptyList();
         }

@@ -9,9 +9,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -30,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -39,26 +40,34 @@ import java.util.function.Predicate;
 public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
-    static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()));
-    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true);
-    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, false);
+
+    static final SecuredString DEFAULT_PASSWORD_TEXT = new SecuredString("changeme".toCharArray());
+    static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(DEFAULT_PASSWORD_TEXT);
+
+    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true, true);
+    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, false, true);
+
+    public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
+            Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
+    private final boolean realmEnabled;
     private final boolean anonymousEnabled;
-    private final boolean enabled;
+    private final boolean defaultPasswordEnabled;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
         this.nativeUsersStore = nativeUsersStore;
-        this.enabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
+        this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
+        this.defaultPasswordEnabled = ACCEPT_DEFAULT_PASSWORD_SETTING.get(settings);
     }
 
     @Override
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
-        if (enabled == false) {
+        if (realmEnabled == false) {
             listener.onResponse(null);
         } else if (isReserved(token.principal(), config.globalSettings()) == false) {
             listener.onResponse(null);
@@ -67,7 +76,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 Runnable action;
                 if (userInfo != null) {
                     try {
-                        if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
+                        if (verifyPassword(userInfo, token)) {
                             final User user = getUser(token.principal(), userInfo);
                             action = () -> listener.onResponse(user);
                         } else {
@@ -89,9 +98,19 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
+    private boolean verifyPassword(ReservedUserInfo userInfo, UsernamePasswordToken token) {
+        if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
+            if (userInfo.hasDefaultPassword && this.defaultPasswordEnabled == false) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
-        if (enabled == false) {
+        if (realmEnabled == false) {
             if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
                 listener.onResponse(anonymousUser);
             }
@@ -143,7 +162,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     public void users(ActionListener<Collection<User>> listener) {
-        if (nativeUsersStore.started() == false || enabled == false) {
+        if (nativeUsersStore.started() == false || realmEnabled == false) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
         } else {
             nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
@@ -206,5 +225,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             default:
                 return Version.V_5_0_0;
         }
+    }
+
+    public static void addSettings(List<Setting<?>> settingsList) {
+        settingsList.add(ACCEPT_DEFAULT_PASSWORD_SETTING);
     }
 }

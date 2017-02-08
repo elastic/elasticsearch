@@ -21,3 +21,30 @@
   - match: { native_role.cluster.0:  "all" }
   - match: { native_role.indices.0.names.0: "test_index" }
   - match: { native_role.indices.0.privileges.0:  "all" }
+
+---
+"Verify default password migration results in upgraded cluster":
+  - do:
+      headers:
+        Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+        timeout: 25s
+  - match: { timed_out: false }
+
+  - do:
+      get:
+        index: ".security"
+        type: "reserved-user"
+        id: "kibana"
+  - match: { _source.password: "" }
+  - match: { _source.enabled: false }
+
+  - do:
+      get:
+        index: ".security"
+        type: "reserved-user"
+        id: "logstash_system"
+  - match: { _source.password: "/^\\$2a\\$10\\$[a-zA-Z0-9/.]{53}$/" }
+  - match: { _source.enabled: true }

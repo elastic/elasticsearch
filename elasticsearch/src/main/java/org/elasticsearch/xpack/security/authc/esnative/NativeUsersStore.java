@@ -41,11 +41,13 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -89,7 +91,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     }
 
     private static final String USER_DOC_TYPE = "user";
-    private static final String RESERVED_USER_DOC_TYPE = "reserved-user";
+    static final String RESERVED_USER_DOC_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
@@ -210,6 +212,15 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      * with a hash of the provided password.
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
+        changePassword(request, false, listener);
+    }
+
+    /**
+     * This version of {@link #changePassword(ChangePasswordRequest, ActionListener)} exists to that the {@link NativeRealmMigrator}
+     * can force change passwords before the security mapping is {@link #canWrite ready for writing}
+     * @param forceWrite If <code>true</code>, allow the change to take place even if the store is currently read-only.
+     */
+    void changePassword(final ChangePasswordRequest request, boolean forceWrite, final ActionListener<Void> listener) {
         final String username = request.username();
         assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
         if (state() != State.STARTED) {
@@ -218,7 +229,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        } else if (canWrite == false) {
+        } else if (canWrite == false && forceWrite == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
                     "mappings are up to date"));
             return;
@@ -449,7 +460,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
                     .setUpsert(XContentType.JSON,
-                            User.Fields.PASSWORD.getPreferredName(), String.valueOf(ReservedRealm.DEFAULT_PASSWORD_HASH),
+                            User.Fields.PASSWORD.getPreferredName(), "",
                             User.Fields.ENABLED.getPreferredName(), enabled)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {
@@ -620,12 +631,14 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                             Map<String, Object> sourceMap = getResponse.getSourceAsMap();
                             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
-                            if (password == null || password.isEmpty()) {
-                                listener.onFailure(new IllegalStateException("password hash must not be empty!"));
+                            if (password == null) {
+                                listener.onFailure(new IllegalStateException("password hash must not be null!"));
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
+                            } else if (password.isEmpty()) {
+                                listener.onResponse(new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
                             } else {
-                                listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled));
+                                listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
                         } else {
                             listener.onResponse(null);
@@ -671,7 +684,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                 break;
                             } else {
-                                userInfos.put(searchHit.getId(), new ReservedUserInfo(password.toCharArray(), enabled));
+                                userInfos.put(searchHit.getId(), new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
                         }
                         listener.onResponse(userInfos);
@@ -786,10 +799,12 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
         final char[] passwordHash;
         final boolean enabled;
+        final boolean hasDefaultPassword;
 
-        ReservedUserInfo(char[] passwordHash, boolean enabled) {
+        ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasDefaultPassword) {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
+            this.hasDefaultPassword = hasDefaultPassword;
         }
     }
 }

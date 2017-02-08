@@ -255,7 +255,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         private <T> T fieldValue(String fieldName) {
             SearchHitField field = delegate.field(fieldName);
-            return field == null ? null : field.value();
+            return field == null ? null : field.getValue();
         }
     }
 }

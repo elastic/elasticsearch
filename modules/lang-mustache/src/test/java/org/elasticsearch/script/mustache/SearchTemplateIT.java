@@ -86,7 +86,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScriptParams(Collections.singletonMap("my_size", 1))
                 .get();
 
-        assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
     /**
@@ -104,7 +104,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
     /**
@@ -125,7 +125,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
     /**
@@ -146,7 +146,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
     public void testIndexedTemplateClient() throws Exception {

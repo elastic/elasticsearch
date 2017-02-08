@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -63,7 +62,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 hitContext.hit().fields(new HashMap<>(2));
             }
 
-            SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
+            SearchHitField hitField = hitContext.hit().getFields().get(scriptField.name());
             if (hitField == null) {
                 final List<Object> values;
                 if (value instanceof Collection) {
@@ -72,8 +71,8 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 } else {
                     values = Collections.singletonList(value);
                 }
-                hitField = new InternalSearchHitField(scriptField.name(), values);
-                hitContext.hit().fields().put(scriptField.name(), hitField);
+                hitField = new SearchHitField(scriptField.name(), values);
+                hitContext.hit().getFields().put(scriptField.name(), hitField);
             }
         }
     }

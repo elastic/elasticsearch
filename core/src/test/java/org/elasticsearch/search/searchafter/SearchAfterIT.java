@@ -154,8 +154,8 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .get();
         assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field1"), Matchers.equalTo(100));
-        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field2"), Matchers.equalTo("toto"));
+        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
+        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
     }
 
     public void testWithSimpleTypes() throws Exception {
@@ -262,9 +262,9 @@ public class SearchAfterIT extends ESIntegTestCase {
             SearchResponse searchResponse = req.get();
             for (SearchHit hit : searchResponse.getHits()) {
                 List toCompare = convertSortValues(documents.get(offset++));
-                assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.sortValues())), equalTo(0));
+                assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
             }
-            sortValues = searchResponse.getHits().hits()[searchResponse.getHits().hits().length-1].getSortValues();
+            sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length-1].getSortValues();
         }
     }
 

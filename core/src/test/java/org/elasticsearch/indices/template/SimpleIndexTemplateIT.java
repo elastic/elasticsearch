@@ -128,7 +128,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -146,8 +146,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
         }
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
     }
 
     public void testDeleteIndexTemplate() throws Exception {
@@ -409,7 +409,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("filtered_alias").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
 
         // Search the complex filter alias
         searchResponse = client().prepareSearch("complex_filtered_alias").get();
@@ -455,7 +455,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("my_alias").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
     }
 
     public void testIndexTemplateWithAliasesSource() {
@@ -493,7 +493,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("alias2").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
     }
 
     public void testDuplicateAlias() throws Exception {
@@ -769,7 +769,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").value().toString());
+        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
         assertNull(searchResponse.getHits().getAt(0).field("field2"));
 
         // bx -> matches template
@@ -780,7 +780,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").value().toString());
+        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
         assertNull(searchResponse.getHits().getAt(0).field("field2"));
     }
 

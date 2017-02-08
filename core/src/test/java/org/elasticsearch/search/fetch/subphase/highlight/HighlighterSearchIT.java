@@ -972,7 +972,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < COUNT; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
-            assertHighlight(searchResponse, i, "field1", 0, 1, equalTo("<em>test</em> " + hit.id()));
+            assertHighlight(searchResponse, i, "field1", 0, 1, equalTo("<em>test</em> " + hit.getId()));
         }
     }
 
@@ -1599,7 +1599,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(
                     new HighlightBuilder().field(new HighlightBuilder.Field("highlight_field").fragmentSize(-1).numOfFragments(1)
                         .fragmenter("simple")).highlighterType(type)).get();
-            assertThat(response.getHits().hits()[0].highlightFields().isEmpty(), equalTo(true));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().isEmpty(), equalTo(true));
         }
     }
 
@@ -2151,11 +2151,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 2L);
 
             for (SearchHit searchHit : searchResponse.getHits()) {
-                if ("1".equals(searchHit.id())) {
+                if ("1".equals(searchHit.getId())) {
                     assertHighlight(searchHit, "field1", 0, 1, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. "
                         + "The lazy red <field1>fox</field1> jumps over the quick dog. "
                         + "The quick brown dog jumps over the lazy <field1>fox</field1>."));
-                } else if ("2".equals(searchHit.id())) {
+                } else if ("2".equals(searchHit.getId())) {
                     assertHighlight(searchHit, "field1", 0, 3,
                         equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. Second sentence not finished"));
                     assertHighlight(searchHit, "field1", 1, 3, equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
@@ -2244,7 +2244,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-            Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).highlightFields();
+            Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).getHighlightFields();
             assertThat(highlightFieldMap.size(), equalTo(1));
             HighlightField field1 = highlightFieldMap.get("field1");
             assertThat(field1.fragments().length, equalTo(5));
@@ -2663,9 +2663,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             SearchResponse searchResponse =
                 searchRequestBuilder.get();
             assertHitCount(searchResponse, COUNT);
-            assertThat(searchResponse.getHits().hits().length, equalTo(COUNT));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(COUNT));
             for (SearchHit hit : searchResponse.getHits()) {
-                String prefix = prefixes.get(hit.id());
+                String prefix = prefixes.get(hit.getId());
                 assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
             }
         }
@@ -2817,8 +2817,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             new SearchSourceBuilder().query(query)
                 .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
-        assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
     public void testGeoFieldHighlightingWhenQueryGetsRewritten() throws IOException {
@@ -2853,7 +2853,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setSource(
             new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
     }
 
 
@@ -2880,7 +2880,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(QueryBuilders.matchQuery("keyword_field", "some text"))
                 .highlighter(new HighlightBuilder().field("*"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
                 equalTo("<em>some text</em>"));
     }
@@ -2918,7 +2918,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .requireFieldMatch(false))
                 .get();
         assertHitCount(searchResponse, 1);
-        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("foo_text");
+        HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo_text");
         assertThat(field.getFragments().length, equalTo(2));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
@@ -2937,7 +2937,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .field(new Field("text")).highlighterType(type))
                 .get();
             assertHitCount(searchResponse, 1);
-            HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }
@@ -2960,7 +2960,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .field(new Field("text")).highlighterType(type))
                 .get();
             assertHitCount(searchResponse, 1);
-            HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }

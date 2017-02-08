@@ -110,8 +110,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test").setTypes("type1")
                 .setQuery(geoShapeQuery("location", shape))
@@ -119,8 +119,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
     public void testEdgeCases() throws Exception {
@@ -156,8 +156,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("blakely"));
     }
 
     public void testIndexedShapeReference() throws Exception {
@@ -189,8 +189,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
@@ -198,8 +198,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
@@ -369,7 +369,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .setPostFilter(filter).get();
         assertSearchResponse(response);
 
-        assertThat(response.getHits().totalHits(), greaterThan(0L));
+        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {

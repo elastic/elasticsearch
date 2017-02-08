@@ -60,7 +60,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                         .collectMode(aggCollectionMode))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) recordCount));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) recordCount));
 
         assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
         assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
@@ -84,7 +84,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
         SearchResponse response = client().prepareSearch("test-idx")
             .setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
-        assertThat(response.getHits().totalHits(), equalTo(1L));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {

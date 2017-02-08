@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -56,7 +55,7 @@ public class ExpandCollapseSearchResponseListener implements BiConsumer<SearchRe
             return ;
         }
         for (SearchHit hit : searchResponse.getHits()) {
-            InternalSearchHit internalHit = (InternalSearchHit) hit;
+            SearchHit internalHit = (SearchHit) hit;
             BoolQueryBuilder groupQuery = new BoolQueryBuilder();
             Object collapseValue = internalHit.field(collapseBuilder.getField()).getValue();
             if (collapseValue != null) {

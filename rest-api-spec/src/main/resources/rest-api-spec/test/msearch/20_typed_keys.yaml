@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 5.3.99"
+      reason: typed_keys parameter was added in 5.4.0
+
   - do:
       indices.put_template:
         name: index_template

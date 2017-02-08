@@ -208,26 +208,34 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testMonitoringUpdateRetention() {
-        OperationMode mode = randomFrom(STANDARD, GOLD, PLATINUM, TRIAL);
-        assertAllowed(mode, true, XPackLicenseState::isUpdateRetentionAllowed, true);
+        assertAllowed(STANDARD, true, XPackLicenseState::isUpdateRetentionAllowed, true);
+        assertAllowed(GOLD, true, XPackLicenseState::isUpdateRetentionAllowed, true);
+        assertAllowed(PLATINUM, true, XPackLicenseState::isUpdateRetentionAllowed, true);
+        assertAllowed(TRIAL, true, XPackLicenseState::isUpdateRetentionAllowed, true);
         assertAllowed(BASIC, true, XPackLicenseState::isUpdateRetentionAllowed, false);
         assertAllowed(MISSING, false, XPackLicenseState::isUpdateRetentionAllowed, false);
     }
 
-    public void testWatcherPlatinumGoldTrial() throws Exception {
-        assertAllowed(randomFrom(TRIAL, GOLD, PLATINUM), true, XPackLicenseState::isWatcherAllowed, true);
+    public void testWatcherPlatinumGoldTrialStandard() throws Exception {
+        assertAllowed(TRIAL, true, XPackLicenseState::isWatcherAllowed, true);
+        assertAllowed(GOLD, true, XPackLicenseState::isWatcherAllowed, true);
+        assertAllowed(PLATINUM, true, XPackLicenseState::isWatcherAllowed, true);
+        assertAllowed(STANDARD, true, XPackLicenseState::isWatcherAllowed, true);
     }
 
-    public void testWatcherBasicStandardLicense() throws Exception {
-        assertAllowed(randomFrom(BASIC, STANDARD), true, XPackLicenseState::isWatcherAllowed, false);
+    public void testWatcherBasicLicense() throws Exception {
+        assertAllowed(BASIC, true, XPackLicenseState::isWatcherAllowed, false);
     }
 
     public void testWatcherInactive() {
-        assertAllowed(randomFrom(BASIC, STANDARD), false, XPackLicenseState::isWatcherAllowed, false);
+        assertAllowed(BASIC, false, XPackLicenseState::isWatcherAllowed, false);
     }
 
     public void testWatcherInactivePlatinumGoldTrial() throws Exception {
-        assertAllowed(randomFrom(TRIAL, GOLD, PLATINUM), false, XPackLicenseState::isWatcherAllowed, false);
+        assertAllowed(TRIAL, false, XPackLicenseState::isWatcherAllowed, false);
+        assertAllowed(GOLD, false, XPackLicenseState::isWatcherAllowed, false);
+        assertAllowed(PLATINUM, false, XPackLicenseState::isWatcherAllowed, false);
+        assertAllowed(STANDARD, false, XPackLicenseState::isWatcherAllowed, false);
     }
 
     public void testGraphPlatinumTrial() throws Exception {

@@ -285,6 +285,7 @@ public class XPackLicenseState {
      * <p>
      * Watcher is available if the license is active (hasn't expired) and of one of the following types:
      * <ul>
+     * <li>{@link OperationMode#STANDARD}</li>
      * <li>{@link OperationMode#PLATINUM}</li>
      * <li>{@link OperationMode#GOLD}</li>
      * <li>{@link OperationMode#TRIAL}</li>
@@ -304,6 +305,7 @@ public class XPackLicenseState {
             case TRIAL:
             case GOLD:
             case PLATINUM:
+            case STANDARD:
                 return true;
             default:
                 return false;

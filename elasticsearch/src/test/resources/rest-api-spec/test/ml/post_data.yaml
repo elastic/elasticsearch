@@ -1,0 +1,185 @@
+setup:
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: closed_job
+        body:  >
+          {
+            "job_id":"closed_job",
+            "description":"A closed job",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON"
+            }
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote
+
+---
+"Test POST data job api, flush, close and verify DataCounts doc":
+  - do:
+      xpack.ml.post_data:
+        job_id: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - match: { processed_record_count: 2 }
+  - match: { processed_field_count: 4}
+  - match: { input_bytes: 178 }
+  - match: { input_field_count: 6 }
+  - match: { invalid_date_count: 0 }
+  - match: { missing_field_count: 0 }
+  - match: { out_of_order_timestamp_count: 0}
+  - match: { earliest_record_timestamp: 1403481600000}
+  - match: { latest_record_timestamp: 1403481700000}
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: farequote
+  - match: { jobs.0.state: "closed" }
+
+  - do:
+    get:
+      index: .ml-anomalies-farequote
+      type: data_counts
+      id: farequote-data-counts
+
+  - match: { _source.processed_record_count: 2 }
+  - match: { _source.processed_field_count: 4}
+  - match: { _source.input_bytes: 178 }
+  - match: { _source.input_field_count: 6 }
+  - match: { _source.invalid_date_count: 0 }
+  - match: { _source.missing_field_count: 0 }
+  - match: { _source.out_of_order_timestamp_count: 0}
+  - match: { _source.earliest_record_timestamp: 1403481600000}
+  - match: { _source.latest_record_timestamp: 1403481700000}
+
+---
+"Test flush and close job WITHOUT sending any data":
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: farequote
+  - match: { jobs.0.state: "closed" }
+
+---
+"Test POST data with invalid parameters":
+  - do:
+      catch: missing
+      xpack.ml.post_data:
+        job_id: not_a_job
+        body: {}
+
+  - do:
+      catch: /parse_exception/
+      xpack.ml.post_data:
+        job_id: farequote
+        reset_start: not_a_date
+        body:  >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+
+  - do:
+      catch: /parse_exception/
+      xpack.ml.post_data:
+        job_id: farequote
+        reset_end: end_not_a_date
+        body:  >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+
+---
+"Test Flush data with invalid parameters":
+  - do:
+      catch: missing
+      xpack.ml.flush_job:
+        job_id: not_a_job
+
+  - do:
+      catch: /parse_exception/
+      xpack.ml.flush_job:
+        job_id: farequote
+        start: not_a_date
+
+  - do:
+      catch: /parse_exception/
+      xpack.ml.flush_job:
+        job_id: farequote
+        end: end_not_a_date
+
+  - do:
+      catch: /parse_exception/
+      xpack.ml.flush_job:
+        job_id: farequote
+        advance_time: advance_time_not_a_date
+
+---
+"Test open and close with non-existent job id":
+  - do:
+      catch: missing
+      xpack.ml.open_job:
+        job_id: not_a_job
+
+  - do:
+      catch: missing
+      xpack.ml.close_job:
+        job_id: not_a_job
+
+---
+"Test flushing, posting and closing a closed job":
+  - do:
+      catch: /status_exception/
+      xpack.ml.flush_job:
+        job_id: closed_job
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.close_job:
+        job_id: closed_job
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.post_data:
+        job_id: closed_job
+        body: {}

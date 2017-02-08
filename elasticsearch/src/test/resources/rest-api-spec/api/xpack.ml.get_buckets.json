@@ -1,0 +1,64 @@
+{
+  "xpack.ml.get_buckets": {
+    "methods": [ "GET", "POST" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/buckets/{timestamp}",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/buckets/{timestamp}",
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/buckets"
+      ],
+      "parts": {
+        "job_id": {
+          "type" : "string",
+          "required": true,
+          "description": "ID of the job to get bucket results from"
+        },
+        "timestamp": {
+          "type" : "string",
+          "description" : "The timestamp of the desired single bucket result"
+        }
+      },
+      "params": {
+        "expand": {
+          "type": "boolean",
+          "description" : "Include anomaly records"
+        },
+        "include_interim": {
+          "type": "boolean",
+          "description" : "Include interim results"
+        },
+        "partition_value": {
+          "type": "string",
+          "description": "If expand is true filter anomaly records by the partitionFieldValue"
+        },
+        "from": {
+          "type": "int",
+          "description": "skips a number of buckets"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of buckets to get"
+        },
+        "start": {
+          "type": "string",
+          "description" : "Start time filter for buckets"
+        },
+        "end": {
+          "type": "string",
+          "description" : "End time filter for buckets"
+        },
+        "anomaly_score": {
+          "type": "double",
+          "description": "Filter for the most anomalous buckets"
+        },
+        "max_normalized_probability": {
+          "type": "double",
+          "description": "Filter for buckets containing the most anomalous records"
+        }
+      }
+    },
+    "body": {
+      "description" : "Bucket selection details if not provided in URI"
+    }
+  }
+}

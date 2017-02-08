@@ -1,0 +1,21 @@
+{
+  "xpack.ml.stop_datafeed": {
+    "methods": [
+      "POST"
+    ],
+    "url": {
+      "path": "/_xpack/ml/datafeeds/{datafeed_id}/_stop",
+      "paths": [
+        "/_xpack/ml/datafeeds/{datafeed_id}/_stop"
+      ],
+      "parts": {
+        "datafeed_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the datafeed to stop"
+        }
+      },
+      "body": null
+    }
+  }
+}

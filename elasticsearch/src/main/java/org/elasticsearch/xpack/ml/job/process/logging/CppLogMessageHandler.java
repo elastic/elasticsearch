@@ -1,0 +1,232 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.ml.job.process.logging;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.Deque;
+import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * Handle a stream of C++ log messages that arrive via a named pipe in JSON format.
+ * Retains the last few error messages so that they can be passed back in a REST response
+ * if the C++ process dies.
+ */
+public class CppLogMessageHandler implements Closeable {
+
+    private static final Logger LOGGER = Loggers.getLogger(CppLogMessageHandler.class);
+    private static final int DEFAULT_READBUF_SIZE = 1024;
+    private static final int DEFAULT_ERROR_STORE_SIZE = 5;
+
+    private final String jobId;
+    private final InputStream inputStream;
+    private final int readBufSize;
+    private final int errorStoreSize;
+    private final Deque<String> errorStore;
+    private final CountDownLatch pidLatch;
+    private volatile boolean hasLogStreamEnded;
+    private volatile boolean seenFatalError;
+    private volatile long pid;
+    private volatile String cppCopyright;
+
+    /**
+     * @param jobId May be null or empty if the logs are from a process not associated with a job.
+     * @param inputStream May not be null.
+     */
+    public CppLogMessageHandler(String jobId, InputStream inputStream) {
+        this(inputStream, jobId, DEFAULT_READBUF_SIZE, DEFAULT_ERROR_STORE_SIZE);
+    }
+
+    /**
+     * For testing - allows meddling with the logger, read buffer size and error store size.
+     */
+    CppLogMessageHandler(InputStream inputStream, String jobId, int readBufSize, int errorStoreSize) {
+        this.jobId = jobId;
+        this.inputStream = Objects.requireNonNull(inputStream);
+        this.readBufSize = readBufSize;
+        this.errorStoreSize = errorStoreSize;
+        errorStore = ConcurrentCollections.newDeque();
+        pidLatch = new CountDownLatch(1);
+        hasLogStreamEnded = false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        inputStream.close();
+    }
+
+    /**
+     * Tail the InputStream provided to the constructor, handling each complete log document as it arrives.
+     * This method will not return until either end-of-file is detected on the InputStream or the
+     * InputStream throws an exception.
+     */
+    public void tailStream() throws IOException {
+        try {
+            XContent xContent = XContentFactory.xContent(XContentType.JSON);
+            BytesReference bytesRef = null;
+            byte[] readBuf = new byte[readBufSize];
+            for (int bytesRead = inputStream.read(readBuf); bytesRead != -1; bytesRead = inputStream.read(readBuf)) {
+                if (bytesRef == null) {
+                    bytesRef = new BytesArray(readBuf, 0, bytesRead);
+                } else {
+                    bytesRef = new CompositeBytesReference(bytesRef, new BytesArray(readBuf, 0, bytesRead));
+                }
+                bytesRef = parseMessages(xContent, bytesRef);
+                readBuf = new byte[readBufSize];
+            }
+        } finally {
+            hasLogStreamEnded = true;
+        }
+    }
+
+    public boolean hasLogStreamEnded() {
+        return hasLogStreamEnded;
+    }
+
+    public boolean seenFatalError() {
+        return seenFatalError;
+    }
+
+    /**
+     * Get the process ID of the C++ process whose log messages are being read.  This will
+     * arrive in the first log message logged by the C++ process.  They all log their version
+     * number immediately on startup so it should not take long to arrive, but will not be
+     * available instantly after the process starts.
+     */
+    public long getPid(Duration timeout) throws TimeoutException {
+        // There's an assumption here that 0 is not a valid PID.  This is certainly true for
+        // userland processes.  On Windows the "System Idle Process" has PID 0 and on *nix
+        // PID 0 is for "sched", which is part of the kernel.
+        if (pid == 0) {
+            try {
+                pidLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (pid == 0) {
+                throw new TimeoutException("Timed out waiting for C++ process PID");
+            }
+        }
+        return pid;
+    }
+
+    public String getCppCopyright() {
+        return cppCopyright;
+    }
+
+    /**
+     * Expected to be called very infrequently.
+     */
+    public String getErrors() {
+        String[] errorSnapshot = errorStore.toArray(new String[0]);
+        StringBuilder errors = new StringBuilder();
+        for (String error : errorSnapshot) {
+            errors.append(error).append('\n');
+        }
+        return errors.toString();
+    }
+
+    private BytesReference parseMessages(XContent xContent, BytesReference bytesRef) {
+        byte marker = xContent.streamSeparator();
+        int from = 0;
+        while (true) {
+            int nextMarker = findNextMarker(marker, bytesRef, from);
+            if (nextMarker == -1) {
+                // No more markers in this block
+                break;
+            }
+            // Ignore blank lines
+            if (nextMarker > from) {
+                parseMessage(xContent, bytesRef.slice(from, nextMarker - from));
+            }
+            from = nextMarker + 1;
+        }
+        if (from >= bytesRef.length()) {
+            return null;
+        }
+        return bytesRef.slice(from, bytesRef.length() - from);
+    }
+
+    private void parseMessage(XContent xContent, BytesReference bytesRef) {
+        try {
+            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, bytesRef);
+            CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
+            Level level = Level.getLevel(msg.getLevel());
+            if (level == null) {
+                // This isn't expected to ever happen
+                level = Level.WARN;
+            } else if (level.isMoreSpecificThan(Level.ERROR)) {
+                // Keep the last few error messages to report if the process dies
+                storeError(msg.getMessage());
+                if (level.isMoreSpecificThan(Level.FATAL)) {
+                    seenFatalError = true;
+                }
+            }
+            long latestPid = msg.getPid();
+            if (pid != latestPid) {
+                pid = latestPid;
+                pidLatch.countDown();
+            }
+            String latestMessage = msg.getMessage();
+            if (cppCopyright == null && latestMessage.contains("Copyright")) {
+                cppCopyright = latestMessage;
+            }
+            // TODO: Is there a way to preserve the original timestamp when re-logging?
+            if (jobId != null) {
+                LOGGER.log(level, "[{}] {}/{} {}@{} {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
+            } else {
+                LOGGER.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
+            }
+            // TODO: Could send the message for indexing instead of or as well as logging it
+        } catch (IOException e) {
+            if (jobId != null) {
+                LOGGER.warn(new ParameterizedMessage("[{}] Failed to parse C++ log message: {}",
+                        new Object[] {jobId, bytesRef.utf8ToString()}), e);
+            } else {
+                LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}), e);
+            }
+        }
+    }
+
+    private void storeError(String error) {
+        if (Strings.isNullOrEmpty(error) || errorStoreSize <= 0) {
+            return;
+        }
+        if (errorStore.size() >= errorStoreSize) {
+            errorStore.removeFirst();
+        }
+        errorStore.offerLast(error);
+    }
+
+    private static int findNextMarker(byte marker, BytesReference bytesRef, int from) {
+        for (int i = from; i < bytesRef.length(); ++i) {
+            if (bytesRef.get(i) == marker) {
+                return i;
+            }
+        }
+        return -1;
+    }
+}

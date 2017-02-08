@@ -1,0 +1,20 @@
+{
+  "xpack.ml.close_job": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_close",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/_close" ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the job to close"
+        },
+        "close_timeout": {
+          "type": "time",
+          "description": "Controls the time to wait until a job has closed. Default to 30 minutes"
+        }
+      }
+    }
+  }
+}

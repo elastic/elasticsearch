@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+}
+
+integTest {
+    cluster {
+        setting 'xpack.security.enabled', 'false'
+        setting 'xpack.ml.enabled', 'true'
+        numNodes = 3
+        distribution = 'zip'
+        plugin ':x-pack:elasticsearch'
+    }
+}

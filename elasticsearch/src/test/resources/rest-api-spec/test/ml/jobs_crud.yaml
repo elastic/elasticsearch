@@ -1,0 +1,288 @@
+---
+"Test get all jobs and stats given no job exists":
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: "_all"
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: "_all"
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+---
+"Test job crud apis":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+  - do:
+      indices.get:
+        index: ".ml-anomalies-farequote"
+
+  - do:
+      indices.get:
+        index: ".ml-state"
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: "farequote"
+  - match: { count: 1 }
+  - match: { jobs.0.job_id: "farequote" }
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "farequote"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_false: ''
+
+---
+"Test get job API with non existing job id":
+  - do:
+      catch: missing
+      xpack.ml.get_jobs:
+        job_id: "non-existing"
+
+---
+"Test put job with inconsistent body/param ids":
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_job:
+        job_id: an_id
+        body:  >
+          {
+            "job_id":"a_different_id",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+  - do:
+      catch: /Inconsistent job_id; 'a_different_id' specified in the body differs from 'an_id' specified as a URL argument/
+      xpack.ml.put_job:
+        job_id: an_id
+        body:  >
+          {
+            "job_id":"a_different_id",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test put job with id that is already taken":
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+  - do:
+      catch: /resource_already_exists_exception/
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: /The job cannot be created with the Id 'farequote'. The Id is already used./
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: param
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test update job":
+  - do:
+      xpack.ml.put_job:
+        job_id: to-update
+        body:  >
+          {
+            "description":"Pre update description",
+            "analysis_config" : {
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"}, {"function":"count"}],
+                "categorization_field_name": "some_category",
+                "categorization_filters" : ["cat1.*", "cat2.*"]
+            },
+            "data_description" : {
+              "field_delimiter":","
+            },
+            "model_debug_config": {
+              "bounds_percentile": 95.0
+            },
+            "analysis_limits": {
+              "model_memory_limit": 10
+            },
+            "renormalization_window_days": 1,
+            "background_persist_interval": 7200,
+            "model_snapshot_retention_days": 3,
+            "results_retention_days": 4,
+            "custom_settings": {
+              "setting1": "custom1",
+              "setting2": "custom2"
+            }
+          }
+  - match: { job_id: "to-update" }
+
+  - do:
+      xpack.ml.update_job:
+        job_id: to-update
+        body:  >
+          {
+            "description":"Post update description",
+            "analysis_limits": {
+              "model_memory_limit": 20
+            },
+            "renormalization_window_days": 10,
+            "background_persist_interval": 10800,
+            "model_snapshot_retention_days": 30,
+            "results_retention_days": 40,
+            "categorization_filters" : ["cat3.*"],
+            "custom_settings": {
+              "setting3": "custom3"
+            }
+          }
+  - match: { job_id: "to-update" }
+  - match: { description: "Post update description" }
+  - match: { analysis_limits.model_memory_limit: 20 }
+  - match: { analysis_config.categorization_filters: ["cat3.*"] }
+  - match: { renormalization_window_days: 10 }
+  - match: { background_persist_interval: 10800 }
+  - match: { model_snapshot_retention_days: 30 }
+  - match: { results_retention_days: 40 }
+
+  - do:
+      catch: request
+      xpack.ml.update_job:
+        job_id: _all
+        body:  >
+          {
+            "description":"Can't update all description"
+          }
+
+---
+"Test delete job that is referred by a datafeed":
+  - do:
+      xpack.ml.put_job:
+        job_id: datafeed-job
+        body:  >
+          {
+            "job_id":"datafeed-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "datafeed-job" }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeed-job",
+            "indexes":["index-foo"],
+            "types":["type-bar"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      catch: /Cannot delete job \[datafeed-job\] while datafeed \[test-datafeed-1\] refers to it/
+      xpack.ml.delete_job:
+        job_id: datafeed-job

@@ -1,0 +1,89 @@
+setup:
+  - do:
+      indices.create:
+        index:  .ml-anomalies-farequote
+        body:
+          mappings:
+            record:
+              properties:
+                "job_id":
+                  type: keyword
+                "result_type":
+                  type: keyword
+                "timestamp":
+                  type: date
+                "normalized_probability":
+                  type: float
+                "anomaly_score":
+                  type: float
+                "over_field_value":
+                  type: keyword
+                "partition_field_value":
+                  type: keyword
+                "by_field_value":
+                  type: keyword
+                "field_name":
+                  type: keyword
+                "function":
+                  type: keyword
+
+  - do:
+      index:
+        index:  .ml-anomalies-farequote
+        type:   result
+        id:     farequote_1464739200000_1_1
+        body:
+          {
+            "job_id": "farequote",
+            "result_type": "record",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 60.0,
+            "bucket_span": 1,
+            "sequence_num": 1
+          }
+
+  - do:
+        index:
+          index:  .ml-anomalies-farequote
+          type:   result
+          id:     farequote_1464825600000_1_2
+          body:
+            {
+              "job_id": "farequote",
+              "result_type": "record",
+              "timestamp": "2016-06-02T00:00:00Z",
+              "anomaly_score": 80.0,
+              "bucket_span": 1,
+              "sequence_num": 2
+            }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-farequote
+
+---
+"Test result records api":
+  - do:
+      xpack.ml.get_records:
+        job_id: "farequote"
+
+  - match: { count: 2 }
+  - match: { records.0.timestamp: 1464825600000 }
+  - match: { records.0.job_id: farequote}
+  - match: { records.0.result_type: record}
+  - match: { records.1.timestamp: 1464739200000 }
+  - match: { records.1.job_id: farequote}
+  - match: { records.1.result_type: record}
+
+---
+"Test result records api with time range":
+  - do:
+      xpack.ml.get_records:
+        job_id: "farequote"
+        start: "2016-05-01T00:00:00Z"
+        end: "2016-06-01T01:00:00Z"
+
+  - match: { count: 1 }
+  - match: { records.0.timestamp: 1464739200000 }
+  - match: { records.0.job_id: farequote}
+  - match: { records.0.result_type: record}

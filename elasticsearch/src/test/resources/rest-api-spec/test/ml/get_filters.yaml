@@ -1,0 +1,19 @@
+---
+"Test get all filter given no filter exists":
+
+  - do:
+      xpack.ml.put_filter:
+        body:  >
+          {
+            "id": "foo",
+            "items": ["abc", "xyz"]
+          }
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: "foo"
+
+  - do:
+      xpack.ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }

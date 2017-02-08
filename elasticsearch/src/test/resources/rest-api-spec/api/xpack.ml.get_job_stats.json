@@ -1,0 +1,19 @@
+{
+  "xpack.ml.get_job_stats": {
+    "methods": [ "GET"],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_stats",
+      "paths": [
+        "/_xpack/ml/anomaly_detectors/_stats",
+        "/_xpack/ml/anomaly_detectors/{job_id}/_stats"
+      ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "description": "The ID of the jobs stats to fetch"
+        }
+      }
+    },
+    "body": null
+  }
+}

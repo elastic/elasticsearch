@@ -1,0 +1,17 @@
+{
+  "xpack.ml.delete_job": {
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}" ],
+      "parts": {
+        "job_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to delete"
+        }
+      }
+    },
+    "body": null
+  }
+}

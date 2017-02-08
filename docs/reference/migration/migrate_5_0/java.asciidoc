@@ -228,7 +228,7 @@ Use the `field(String, float)` method instead.
 ===== MissingQueryBuilder
 
 The MissingQueryBuilder which was deprecated in 2.2.0 is removed. As a replacement use ExistsQueryBuilder
-inside a mustNot() clause. So instead of using `new ExistsQueryBuilder(name)` now use
+inside a mustNot() clause. So instead of using `new MissingQueryBuilder(name)` now use
 `new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(name))`.
 
 ===== NotQueryBuilder
@@ -306,7 +306,7 @@ The `setExtraSource(SearchSourceBuilder)` method has been removed.
 
 The `setTemplateSource(String)` and `setTemplateSource(BytesReference)` methods have been removed. Use `setTemplate(Template)` instead.
 
-`setRescorer(Rescorer)` and `setRescorer(Rescorer, int)` have been removed infavor of `setRescorer(RescoreBuilder)` and `setRescorer(RescoreBuilder, int)`
+`setRescorer(Rescorer)` and `setRescorer(Rescorer, int)` have been removed in favor of `setRescorer(RescoreBuilder)` and `setRescorer(RescoreBuilder, int)`
 
 ==== SearchRequest
 

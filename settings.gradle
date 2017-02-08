@@ -1,7 +1,0 @@
-File extrasDir = new File(settingsDir, '..').getCanonicalFile()
-if (extrasDir.name.endsWith('-extra') == false) {
-  throw new GradleException("prelert-legacy must be checked out under an elasticsearch-extra directory, found ${extrasDir.name}")
-}
-File elasticsearchDir = new File(extrasDir.parentFile, extrasDir.name[0..-7])
-project(':').projectDir = elasticsearchDir
-apply from: "${elasticsearchDir}/settings.gradle"

@@ -85,7 +85,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param GenericElasticsearchScript The previously compiled Painless script.
+     * @param script The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
      * @param lookup The lookup to allow search fields to be available if this is run as a search script.
      */

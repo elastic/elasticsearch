@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -155,7 +156,13 @@ public class MultiPercolateRequest extends ActionRequest implements CompositeInd
                 break;
             }
 
-            percolateRequest.source(data.slice(from, nextMarker - from));
+            final BytesReference sliced;
+            if (XContentType.JSON == xContent.type() && data.get(nextMarker - 1) == (byte) '\r') {
+                sliced = data.slice(from, nextMarker - from - 1);
+            } else {
+                sliced = data.slice(from, nextMarker - from);
+            }
+            percolateRequest.source(sliced);
             // move pointers
             from = nextMarker + 1;
 

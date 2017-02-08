@@ -53,7 +53,6 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.Before;
 
 import static org.mockito.Matchers.any;
@@ -314,7 +313,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWorksWithNewlineDelimitedJson() {
-        final String mimeType = randomFrom("application/x-ldjson", "application/x-ndjson");
+        final String mimeType = "application/x-ndjson";
         String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
@@ -335,6 +334,31 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(channel.sendResponseCalled.get());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.sendResponseCalled.get());
+    }
+
+    public void testDispatchWorksWithLineDelimitedJsonDeprecated() {
+        final String mimeType = "application/x-ldjson";
+        String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean supportsContentStream() {
+                return true;
+            }
+        });
+
+        assertFalse(channel.sendResponseCalled.get());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.sendResponseCalled.get());
+        assertWarnings("The Content-Type [application/x-ldjson] has been superseded by [application/x-ndjson]");
     }
 
     public void testDispatchWithContentStream() {

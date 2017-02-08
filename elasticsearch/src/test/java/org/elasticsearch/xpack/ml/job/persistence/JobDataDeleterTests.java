@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
@@ -24,7 +23,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static org.elasticsearch.mock.orig.Mockito.mock;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
@@ -32,7 +30,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "[zach] fixing mocking")
 public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteResultsFromTime() {
@@ -110,8 +107,6 @@ public class JobDataDeleterTests extends ESTestCase {
 
     private SearchHits mockSearchHits(long totalHitCount, int hitsPerSearchResult) {
 
-        SearchHits hits = new SearchHits(new SearchHit[(int)totalHitCount], totalHitCount, 1);
-
         List<SearchHit> hitList = new ArrayList<>();
         for (int i=0; i<20; i++) {
             SearchHit hit = new SearchHit(123, "mockSeachHit-" + i,
@@ -119,6 +114,6 @@ public class JobDataDeleterTests extends ESTestCase {
             hitList.add(hit);
         }
 
-        return hits;
+        return new SearchHits(hitList.toArray(new SearchHit[0]), totalHitCount, 1);
     }
 }

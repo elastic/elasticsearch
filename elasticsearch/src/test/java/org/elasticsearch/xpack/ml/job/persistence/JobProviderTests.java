@@ -70,7 +70,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "[Zach] Fixing mocking")
 public class JobProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
@@ -1179,11 +1178,6 @@ public class JobProviderTests extends ESTestCase {
         }
         SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), source.size(), 1);
         when(response.getHits()).thenReturn(hits);
-
-        doAnswer(invocation -> {
-            Integer idx = (Integer) invocation.getArguments()[0];
-            return list.get(idx);
-        }).when(hits).getAt(any(Integer.class));
 
         return response;
     }

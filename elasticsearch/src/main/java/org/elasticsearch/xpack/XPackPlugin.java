@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.graph.GraphFeatureSet;
+import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -135,6 +136,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     /** Name constant for the graph feature. */
     public static final String GRAPH = "graph";
 
+    /** Name constant for the machine learning feature. */
+    public static final String MACHINE_LEARNING = "ml";
+
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
 
@@ -183,6 +187,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Monitoring monitoring;
     protected Watcher watcher;
     protected Graph graph;
+    protected MlPlugin machineLearning;
 
     public XPackPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException,
             KeyStoreException, DestroyFailedException, OperatorCreationException {
@@ -197,6 +202,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.monitoring = new Monitoring(settings, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
+        this.machineLearning = new MlPlugin(settings, env);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -223,6 +229,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         modules.addAll(monitoring.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(graph.createGuiceModules());
+        modules.addAll(machineLearning.createGuiceModules());
 
         if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
@@ -271,6 +278,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                 httpClient, httpTemplateParser, threadPool, clusterService, security.getCryptoService(), xContentRegistry, components));
 
 
+        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
+                scriptService, xContentRegistry));
+
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
         return components;
@@ -303,6 +313,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         Settings.Builder builder = Settings.builder();
         builder.put(security.additionalSettings());
         builder.put(watcher.additionalSettings());
+        builder.put(machineLearning.additionalSettings());
         return builder.build();
     }
 
@@ -332,6 +343,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(Security.getSettings(transportClientMode, extensionsService));
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
+        settings.addAll(machineLearning.getSettings());
         settings.addAll(licensing.getSettings());
         settings.addAll(XPackSettings.getAllSettings());
 
@@ -364,6 +376,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.add("xpack.notification.hipchat.account.*.auth_token");
         filters.addAll(security.getSettingsFilter());
         filters.addAll(MonitoringSettings.getSettingsFilter());
+        filters.addAll(machineLearning.getSettingsFilter());
         if (transportClientMode == false) {
             for (XPackExtension extension : extensionsService.getExtensions()) {
                 filters.addAll(extension.getSettingsFilter());
@@ -374,7 +387,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
-        return watcher.getExecutorBuilders(settings);
+        List<ExecutorBuilder<?>> executorBuilders = new ArrayList<ExecutorBuilder<?>>();
+        executorBuilders.addAll(watcher.getExecutorBuilders(settings));
+        executorBuilders.addAll(machineLearning.getExecutorBuilders(settings));
+        return executorBuilders;
     }
 
     @Override
@@ -387,6 +403,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         actions.addAll(security.getActions());
         actions.addAll(watcher.getActions());
         actions.addAll(graph.getActions());
+        actions.addAll(machineLearning.getActions());
         return actions;
     }
 
@@ -397,6 +414,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.addAll(monitoring.getActionFilters());
         filters.addAll(security.getActionFilters());
         filters.addAll(watcher.getActionFilters());
+        filters.addAll(machineLearning.getActionFilters());
         return filters;
     }
 
@@ -417,6 +435,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                 indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(graph.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(machineLearning.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 
@@ -433,6 +453,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new));
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new));
         entries.addAll(watcher.getNamedWriteables());
+        entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
         return entries;
     }
@@ -441,6 +462,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(watcher.getNamedXContent());
+        entries.addAll(machineLearning.getNamedXContent());
         entries.addAll(licensing.getNamedXContent());
         return entries;
 

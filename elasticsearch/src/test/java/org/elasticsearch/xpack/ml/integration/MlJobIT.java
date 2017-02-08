@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 
 import java.io.BufferedReader;
@@ -23,12 +26,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 
 public class MlJobIT extends ESRestTestCase {
+
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
 
     private static final String RESULT_MAPPING = "{ \"mappings\": {\"result\": { \"properties\": { " +
             "\"result_type\": { \"type\" : \"keyword\" }," +

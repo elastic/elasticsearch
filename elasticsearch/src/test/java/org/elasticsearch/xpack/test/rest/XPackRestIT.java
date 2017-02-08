@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.test.rest;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,6 +23,11 @@ import static java.util.Collections.singletonMap;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends XPackRestTestCase {
+
+    @After
+    public void clearMlState() throws IOException {
+        new MlRestTestStateCleaner(client(), this).clearMlMetadata();
+    }
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

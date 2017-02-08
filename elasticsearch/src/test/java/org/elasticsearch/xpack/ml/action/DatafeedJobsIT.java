@@ -15,12 +15,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.After;
@@ -45,15 +50,25 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.integration.TooManyJobsIT.ensureClusterStateConsistencyWorkAround;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
-public class DatafeedJobsIT extends ESIntegTestCase {
+public class DatafeedJobsIT extends SecurityIntegTestCase {
+
+    @Override
+    protected Settings externalClusterClientSettings() {
+        return Settings.builder().put(super.externalClusterClientSettings()).put("transport.type", "security4")
+                .put(MlPlugin.ML_ENABLED.getKey(), true)
+                .put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray())))
+                .build();
+    }
+
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MlPlugin.class);
+        return Collections.singleton(XPackPlugin.class);
     }
 
     @Override

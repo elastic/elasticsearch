@@ -11,9 +11,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
+  import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.DatafeedJobsIT;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
@@ -40,13 +44,24 @@ import java.util.Map;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
-public class TooManyJobsIT extends ESIntegTestCase {
+public class TooManyJobsIT extends SecurityIntegTestCase {
+  
+      @Override
+      protected Settings externalClusterClientSettings() {
+          return Settings.builder().put(super.externalClusterClientSettings()).put("transport.type", "security4")
+                  .put(MlPlugin.ML_ENABLED.getKey(), true)
+                  .put(ThreadContext.PREFIX + ".Authorization", 
+                          basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray())))
+                  .build();
+      }
+  
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MlPlugin.class);
+        return Collections.singleton(XPackPlugin.class);
     }
 
     @Override

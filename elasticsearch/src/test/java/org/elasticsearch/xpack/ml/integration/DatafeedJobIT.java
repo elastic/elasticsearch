@@ -9,8 +9,11 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
 
@@ -21,10 +24,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedJobIT extends ESRestTestCase {
+
+
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
 
     @Before
     public void setUpData() throws Exception {

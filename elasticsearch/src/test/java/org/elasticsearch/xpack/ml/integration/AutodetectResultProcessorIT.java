@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -38,6 +42,7 @@ import org.elasticsearch.xpack.ml.job.results.ModelDebugOutputTests;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -59,6 +64,17 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private Renormalizer renormalizer;
     private JobResultsPersister jobResultsPersister;
     private JobProvider jobProvider;
+
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(XPackPlugin.class);
+    }
 
     @Before
     public void createComponents() {

@@ -299,7 +299,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Expands collapsed using the {@link CollapseBuilder#innerHit} options.
      * Iterates over the hits one by one and sends an asynchronous request to get the top hits per group.
      */
-    void expandCollapsedHits(SearchRequest originalSearchRequest, Iterator<SearchHit> hits, SearchResponse searchResponse, ActionListener<SearchResponse> finalListener) {
+    void expandCollapsedHits(SearchRequest originalSearchRequest, Iterator<SearchHit> hits,
+                             SearchResponse searchResponse, ActionListener<SearchResponse> finalListener) {
         if (hits.hasNext() == false) {
             finalListener.onResponse(searchResponse);
             return;

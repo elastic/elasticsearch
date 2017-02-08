@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,8 +37,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,8 +58,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -212,17 +220,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return connection;
         };
 
+        // Only enrich the search response iff collapsing has been specified:
         final ActionListener<SearchResponse> wrapper;
-        if (searchPhaseController.getSearchResponseListener().size() > 0) {
-            wrapper = ActionListener.wrap(searchResponse -> {
-                List<BiConsumer<SearchRequest, SearchResponse>> responseListeners =
-                    searchPhaseController.getSearchResponseListener();
-                for (BiConsumer<SearchRequest, SearchResponse> respListener : responseListeners) {
-                    respListener.accept(searchRequest, searchResponse);
-                }
-                listener.onResponse(searchResponse);
-
-            }, listener::onFailure);
+        if (searchRequest.source() != null &&
+            searchRequest.source().collapse() != null &&
+            searchRequest.source().collapse().getInnerHit() != null) {
+            wrapper = ActionListener.wrap(
+                searchResponse -> expandCollapseHits(listener, searchRequest, searchResponse),
+                listener::onFailure
+            );
         } else {
             wrapper = listener;
         }
@@ -283,5 +289,96 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 + "have a smaller number of larger shards. Update [" + SHARD_COUNT_LIMIT_SETTING.getKey()
                 + "] to a greater value if you really want to query that many shards at the same time.");
         }
+    }
+
+    /**
+     * Expands collapsed using the {@link CollapseBuilder#innerHit} options.
+     * Sends asynchronous requests to get the inner hits per group.
+     */
+    private void expandCollapseHits(ActionListener<SearchResponse> finalListener,
+                                    SearchRequest searchRequest,
+                                    SearchResponse searchResponse) throws InterruptedException {
+        int numHits = searchResponse.getHits().internalHits().length;
+        if (numHits == 0) {
+            finalListener.onResponse(searchResponse);
+            return ;
+        }
+        CountDownLatch latch = new CountDownLatch(numHits);
+        LatchedActionListener<SearchResponse> latchListener =
+            new LatchedActionListener<>(new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    if (latch.getCount() == 0) {
+                        finalListener.onResponse(searchResponse);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    finalListener.onFailure(e);
+                }
+            }, latch);
+
+        CollapseBuilder collapseBuilder = searchRequest.source().collapse();
+        for (SearchHit hit : searchResponse.getHits()) {
+            BoolQueryBuilder groupQuery = new BoolQueryBuilder();
+            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
+            if (collapseValue != null) {
+                groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
+            } else {
+                groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
+            }
+            QueryBuilder origQuery = searchRequest.source().query();
+            if (origQuery != null) {
+                groupQuery.must(origQuery);
+            }
+            SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(collapseBuilder.getInnerHit())
+                .query(groupQuery);
+            SearchRequest groupRequest = new SearchRequest(searchRequest.indices())
+                .types(searchRequest.types())
+                .source(sourceBuilder);
+            execute(groupRequest, ActionListener.wrap(innerHitsSearchResponse -> {
+                    SearchHits innerHits = innerHitsSearchResponse.getHits();
+                    if (hit.getInnerHits() == null) {
+                        hit.setInnerHits(new HashMap<>(1));
+                    }
+                    hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
+                    latchListener.onResponse(searchResponse);
+                }, latchListener::onFailure));
+        }
+    }
+
+    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options) {
+        SearchSourceBuilder groupSource = new SearchSourceBuilder();
+        groupSource.from(options.getFrom());
+        groupSource.size(options.getSize());
+        if (options.getSorts() != null) {
+            options.getSorts().forEach(groupSource::sort);
+        }
+        if (options.getFetchSourceContext() != null) {
+            if (options.getFetchSourceContext().includes() == null && options.getFetchSourceContext().excludes() == null) {
+                groupSource.fetchSource(options.getFetchSourceContext().fetchSource());
+            } else {
+                groupSource.fetchSource(options.getFetchSourceContext().includes(),
+                    options.getFetchSourceContext().excludes());
+            }
+        }
+        if (options.getDocValueFields() != null) {
+            options.getDocValueFields().forEach(groupSource::docValueField);
+        }
+        if (options.getStoredFieldsContext() != null && options.getStoredFieldsContext().fieldNames() != null) {
+            options.getStoredFieldsContext().fieldNames().forEach(groupSource::storedField);
+        }
+        if (options.getScriptFields() != null) {
+            for (SearchSourceBuilder.ScriptField field : options.getScriptFields()) {
+                groupSource.scriptField(field.fieldName(), field.script());
+            }
+        }
+        if (options.getHighlightBuilder() != null) {
+            groupSource.highlighter(options.getHighlightBuilder());
+        }
+        groupSource.explain(options.isExplain());
+        groupSource.trackScores(options.isTrackScores());
+        return groupSource;
     }
 }

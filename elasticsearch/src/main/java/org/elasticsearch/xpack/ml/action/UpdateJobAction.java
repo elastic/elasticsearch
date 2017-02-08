@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -132,14 +133,16 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
     public static class TransportAction extends TransportMasterNodeAction<UpdateJobAction.Request, PutJobAction.Response> {
 
         private final JobManager jobManager;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
+                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               JobManager jobManager, Client client) {
             super(settings, UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, UpdateJobAction.Request::new);
             this.jobManager = jobManager;
+            this.client = client;
         }
 
         @Override
@@ -153,13 +156,38 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         }
 
         @Override
-        protected void masterOperation(UpdateJobAction.Request request, ClusterState state,
+        protected void masterOperation(Request request, ClusterState state,
                                        ActionListener<PutJobAction.Response> listener) throws Exception {
             if (request.getJobId().equals(Job.ALL)) {
                 throw new IllegalArgumentException("Job Id " + Job.ALL + " cannot be for update");
             }
 
-            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, listener);
+            ActionListener<PutJobAction.Response> wrappedListener = listener;
+            if (request.getJobUpdate().isAutodetectProcessUpdate()) {
+                 wrappedListener = ActionListener.wrap(
+                        response -> updateProcess(request, response, listener),
+                        listener::onFailure);
+            }
+
+            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, wrappedListener);
+        }
+
+        private void updateProcess(Request request, PutJobAction.Response updateConfigResponse,
+                                   ActionListener<PutJobAction.Response> listener) {
+
+            UpdateProcessAction.Request updateProcessRequest = new UpdateProcessAction.Request(request.getJobId(),
+                    request.getJobUpdate().getModelDebugConfig(), request.getJobUpdate().getDetectorUpdates());
+            client.execute(UpdateProcessAction.INSTANCE, updateProcessRequest, new ActionListener<UpdateProcessAction.Response>() {
+                @Override
+                public void onResponse(UpdateProcessAction.Response response) {
+                    listener.onResponse(updateConfigResponse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
 
         @Override

@@ -12,7 +12,9 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -30,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,9 +95,17 @@ public class AutodetectCommunicator implements Closeable {
         }, true);
     }
 
-    public void writeUpdateConfigMessage(String config) throws IOException {
+
+    public void writeUpdateModelDebugMessage(ModelDebugConfig config) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, job.getId()), () -> {
-            autodetectProcess.writeUpdateConfigMessage(config);
+            autodetectProcess.writeUpdateModelDebugMessage(config);
+            return null;
+        }, false);
+    }
+
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+        checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, job.getId()), () -> {
+            autodetectProcess.writeUpdateDetectorRulesMessage(detectorIndex, rules);
             return null;
         }, false);
     }

@@ -10,8 +10,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -49,12 +52,22 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         }
     }
 
-    public void tesWriteUpdateConfigMessage() throws IOException {
+    public void tesWriteUpdateModelDebugMessage() throws IOException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            String config = "";
-            communicator.writeUpdateConfigMessage(config);
-            Mockito.verify(process).writeUpdateConfigMessage(config);
+            ModelDebugConfig config = new ModelDebugConfig(10.0, "apple,peach");
+            communicator.writeUpdateModelDebugMessage(config);
+            Mockito.verify(process).writeUpdateModelDebugMessage(config);
+        }
+    }
+
+    public void testWriteUpdateDetectorRulesMessage() throws IOException {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
+
+            List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
+            communicator.writeUpdateDetectorRulesMessage(1, rules);
+            Mockito.verify(process).writeUpdateDetectorRulesMessage(1, rules);
         }
     }
 
@@ -179,17 +192,28 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         communicator.close();
     }
 
-    public void testWriteUpdateConfigMessageInUse() throws Exception {
+    public void testWriteUpdateModelDebugConfigMessageInUse() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
         communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateConfigMessage(""));
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class)));
 
         communicator.inUse.set(null);
-        communicator.writeUpdateConfigMessage("");
+        communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class));
     }
 
+    public void testWriteUpdateDetectorRulesMessageInUse() throws Exception {
+        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
+        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
+        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
+
+        List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
+        communicator.inUse.set(new CountDownLatch(1));
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateDetectorRulesMessage(0, rules));
+
+        communicator.inUse.set(null);
+        communicator.writeUpdateDetectorRulesMessage(0, rules);
+    }
 }

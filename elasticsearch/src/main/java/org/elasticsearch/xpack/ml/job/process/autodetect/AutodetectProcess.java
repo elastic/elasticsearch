@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -13,6 +15,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Interface representing the native C++ autodetect process
@@ -31,17 +34,28 @@ public interface AutodetectProcess extends Closeable {
 
     /**
      * Write the reset buckets control message
+     *
      * @param params Reset bucket options
-     * @throws IOException If write reset mesage fails
+     * @throws IOException If write reset message fails
      */
     void writeResetBucketsControlMessage(DataLoadParams params) throws IOException;
 
     /**
-     * Write an update configuration message
-     * @param config Config message
-     * @throws IOException If the write config message fails
+     * Update the model debug configuration
+     *
+     * @param modelDebugConfig New model debug config
+     * @throws IOException If the write fails
      */
-    void writeUpdateConfigMessage(String config) throws IOException;
+    void writeUpdateModelDebugMessage(ModelDebugConfig modelDebugConfig) throws IOException;
+
+    /**
+     * Write message to update the detector rules
+     *
+     * @param detectorIndex Index of the detector to update
+     * @param rules Detector rules
+     * @throws IOException If the write fails
+     */
+    void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException;
 
     /**
      * Flush the job pushing any stale data into autodetect.

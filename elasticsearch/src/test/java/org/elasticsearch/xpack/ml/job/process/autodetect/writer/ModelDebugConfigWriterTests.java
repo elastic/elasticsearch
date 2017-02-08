@@ -16,7 +16,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig.DebugDestination;
 
 public class ModelDebugConfigWriterTests extends ESTestCase {
     private OutputStreamWriter writer;
@@ -30,23 +29,12 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
     public void verifyNoMoreWriterInteractions() {
         verifyNoMoreInteractions(writer);
     }
-
-    public void testWrite_GivenFileConfig() throws IOException {
+    public void testWrite_GivenFullConfig() throws IOException {
         ModelDebugConfig modelDebugConfig = new ModelDebugConfig(65.0, "foo,bar");
         ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
 
         writer.write();
 
-        verify(this.writer).write("writeto = file\nboundspercentile = 65.0\nterms = foo,bar\n");
+        verify(this.writer).write("boundspercentile = 65.0\nterms = foo,bar\n");
     }
-
-    public void testWrite_GivenFullConfig() throws IOException {
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(DebugDestination.DATA_STORE, 65.0, "foo,bar");
-        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
-
-        writer.write();
-
-        verify(this.writer).write("writeto = data_store\nboundspercentile = 65.0\nterms = foo,bar\n");
-    }
-
 }

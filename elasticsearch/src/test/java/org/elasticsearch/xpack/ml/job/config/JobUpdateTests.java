@@ -16,6 +16,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.Mockito.mock;
+
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
@@ -138,5 +140,14 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             assertEquals(detectorUpdate.getRules(),
                     updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorRules());
         }
+    }
+
+    public void testIsAutodetectProcessUpdate() {
+        JobUpdate update = new JobUpdate(null, null, null, null, null, null, null, null, null, null);
+        assertFalse(update.isAutodetectProcessUpdate());
+        update = new JobUpdate(null, null, new ModelDebugConfig(1.0, "ff"), null, null, null, null, null, null, null);
+        assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate(null, Arrays.asList(mock(JobUpdate.DetectorUpdate.class)), null, null, null, null, null, null, null, null);
+        assertTrue(update.isAutodetectProcessUpdate());
     }
 }

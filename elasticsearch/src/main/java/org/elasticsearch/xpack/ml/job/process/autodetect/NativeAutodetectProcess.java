@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -89,9 +91,15 @@ class NativeAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeUpdateConfigMessage(String config) throws IOException {
+    public void writeUpdateModelDebugMessage(ModelDebugConfig modelDebugConfig) throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
-        writer.writeUpdateConfigMessage(config);
+        writer.writeUpdateModelDebugMessage(modelDebugConfig);
+    }
+
+    @Override
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
+        writer.writeUpdateDetectorRulesMessage(detectorIndex, rules);
     }
 
     @Override

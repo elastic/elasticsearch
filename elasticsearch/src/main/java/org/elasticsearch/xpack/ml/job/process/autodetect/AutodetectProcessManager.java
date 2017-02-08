@@ -19,9 +19,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.UpdateJobStateAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -45,6 +47,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -165,14 +168,24 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public void writeUpdateConfigMessage(String jobId, String config) throws IOException {
+    public void writeUpdateModelDebugMessage(String jobId, ModelDebugConfig config) throws IOException {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            logger.debug("Cannot update config: no active autodetect process for job {}", jobId);
+            logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
             return;
         }
-        communicator.writeUpdateConfigMessage(config);
-        // TODO check for errors from autodetect
+        communicator.writeUpdateModelDebugMessage(config);
+        // TODO check for errors from autodetects
+    }
+
+    public void writeUpdateDetectorRulesMessage(String jobId, int detectorIndex, List<DetectionRule> rules) throws IOException {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
+        if (communicator == null) {
+            logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
+            return;
+        }
+        communicator.writeUpdateDetectorRulesMessage(detectorIndex, rules);
+        // TODO check for errors from autodetects
     }
 
     public void openJob(String jobId, boolean ignoreDowntime, Consumer<Exception> handler) {

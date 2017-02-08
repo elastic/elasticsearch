@@ -8,35 +8,10 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig.DebugDestination;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 public class ModelDebugConfigTests extends AbstractSerializingTestCase<ModelDebugConfig> {
-
-    public void testEquals() {
-        assertFalse(new ModelDebugConfig(0d, null).equals(null));
-        assertFalse(new ModelDebugConfig(0d, null).equals("a string"));
-        assertFalse(new ModelDebugConfig(80.0, "").equals(new ModelDebugConfig(81.0, "")));
-        assertFalse(new ModelDebugConfig(80.0, "foo").equals(new ModelDebugConfig(80.0, "bar")));
-        assertFalse(new ModelDebugConfig(DebugDestination.FILE, 80.0, "foo")
-                .equals(new ModelDebugConfig(DebugDestination.DATA_STORE, 80.0, "foo")));
-
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(0d, null);
-        assertTrue(modelDebugConfig.equals(modelDebugConfig));
-        assertTrue(new ModelDebugConfig(0d, null).equals(new ModelDebugConfig(0d, null)));
-        assertTrue(new ModelDebugConfig(80.0, "foo").equals(new ModelDebugConfig(80.0, "foo")));
-        assertTrue(new ModelDebugConfig(DebugDestination.FILE, 80.0, "foo").equals(new ModelDebugConfig(80.0, "foo")));
-        assertTrue(new ModelDebugConfig(DebugDestination.DATA_STORE, 80.0, "foo")
-                .equals(new ModelDebugConfig(DebugDestination.DATA_STORE, 80.0, "foo")));
-    }
-
-    public void testHashCode() {
-        assertEquals(new ModelDebugConfig(80.0, "foo").hashCode(), new ModelDebugConfig(80.0, "foo").hashCode());
-        assertEquals(new ModelDebugConfig(DebugDestination.FILE, 80.0, "foo").hashCode(), new ModelDebugConfig(80.0, "foo").hashCode());
-        assertEquals(new ModelDebugConfig(DebugDestination.DATA_STORE, 80.0, "foo").hashCode(),
-                new ModelDebugConfig(DebugDestination.DATA_STORE, 80.0, "foo").hashCode());
-    }
 
     public void testVerify_GivenBoundPercentileLessThanZero() {
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> new ModelDebugConfig(-1.0, ""));
@@ -55,7 +30,7 @@ public class ModelDebugConfigTests extends AbstractSerializingTestCase<ModelDebu
 
     @Override
     protected ModelDebugConfig createTestInstance() {
-        return new ModelDebugConfig(randomFrom(DebugDestination.values()), randomDouble(), randomAsciiOfLengthBetween(1, 30));
+        return new ModelDebugConfig(randomDouble(), randomAsciiOfLengthBetween(1, 30));
     }
 
     @Override

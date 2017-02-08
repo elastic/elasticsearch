@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -144,7 +145,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 new AutodetectResultsParser(Settings.EMPTY))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
-            process.writeUpdateConfigMessage("");
+            process.writeUpdateModelDebugMessage(new ModelDebugConfig(1.0, "term,s"));
             process.flushStream();
 
             String message = new String(bos.toByteArray(), StandardCharsets.UTF_8);

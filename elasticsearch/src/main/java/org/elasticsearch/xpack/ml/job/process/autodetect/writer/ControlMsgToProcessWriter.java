@@ -7,10 +7,18 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 
@@ -48,6 +56,10 @@ public class ControlMsgToProcessWriter {
      * This must match the code defined in the api::CAnomalyDetector C++ class.
      */
     public static final String UPDATE_MESSAGE_CODE = "u";
+
+
+    private static final String EQUALS = " = ";
+    private static final char NEW_LINE = '\n';
 
     /**
      * An number to uniquely identify each flush so that subsequent code can
@@ -122,10 +134,6 @@ public class ControlMsgToProcessWriter {
         return flushId;
     }
 
-    public void writeUpdateConfigMessage(String config) throws IOException {
-        writeMessage(UPDATE_MESSAGE_CODE + config);
-    }
-
     public void writeResetBucketsMessage(DataLoadParams params) throws IOException {
         writeControlCodeFollowedByTimeRange(RESET_BUCKETS_MESSAGE_CODE, params.getStart(), params.getEnd());
     }
@@ -139,6 +147,31 @@ public class ControlMsgToProcessWriter {
             message.append(end);
         }
         writeMessage(message.toString());
+    }
+
+    public void writeUpdateModelDebugMessage(ModelDebugConfig modelDebugConfig) throws IOException {
+        StringWriter configWriter = new StringWriter();
+        configWriter.append(UPDATE_MESSAGE_CODE).append("[modelDebugConfig]\n");
+        new ModelDebugConfigWriter(modelDebugConfig, configWriter).write();
+        writeMessage(configWriter.toString());
+    }
+
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+        StringWriter configWriter = new StringWriter();
+        configWriter.append(UPDATE_MESSAGE_CODE).append("[detectorRules]\n");
+        configWriter.append("detectorIndex=").append(Integer.toString(detectorIndex)).append("\n");
+
+        configWriter.append("rulesJson=");
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startArray();
+        for (DetectionRule rule : rules) {
+            rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        builder.endArray();
+        configWriter.append(builder.string());
+
+        writeMessage(configWriter.toString());
     }
 
     /**
@@ -163,5 +196,4 @@ public class ControlMsgToProcessWriter {
         // The control field comes last
         lengthEncodedWriter.writeField(message);
     }
-
 }

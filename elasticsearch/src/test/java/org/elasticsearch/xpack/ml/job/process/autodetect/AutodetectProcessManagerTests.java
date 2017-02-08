@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -44,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -259,11 +262,20 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals("[foo] exception while flushing job", e.getMessage());
     }
 
-    public void testWriteUpdateConfigMessage() throws IOException {
+    public void testWriteUpdateModelDebugMessage() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
-        manager.writeUpdateConfigMessage("foo", "go faster");
-        verify(communicator).writeUpdateConfigMessage("go faster");
+        ModelDebugConfig debugConfig = mock(ModelDebugConfig.class);
+        manager.writeUpdateModelDebugMessage("foo", debugConfig);
+        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
+    }
+
+    public void testWriteUpdateDetectorRulesMessage() throws IOException {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
+        List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
+        manager.writeUpdateDetectorRulesMessage("foo", 2, rules);
+        verify(communicator).writeUpdateDetectorRulesMessage(2, rules);
     }
 
     public void testJobHasActiveAutodetectProcess() throws IOException {

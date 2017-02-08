@@ -16,8 +16,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -287,16 +285,16 @@ public class ScrollDataExtractorTests extends ESTestCase {
         SearchHits searchHits = mock(SearchHits.class);
         List<SearchHit> hits = new ArrayList<>();
         for (int i = 0; i < timestamps.size(); i++) {
-            InternalSearchHit hit = new InternalSearchHit(randomInt());
+            SearchHit hit = new SearchHit(randomInt());
             Map<String, SearchHitField> fields = new HashMap<>();
-            fields.put(extractedFields.timeField(), new InternalSearchHitField("time", Arrays.asList(timestamps.get(i))));
-            fields.put("field_1", new InternalSearchHitField("field_1", Arrays.asList(field1Values.get(i))));
-            fields.put("field_2", new InternalSearchHitField("field_2", Arrays.asList(field2Values.get(i))));
+            fields.put(extractedFields.timeField(), new SearchHitField("time", Arrays.asList(timestamps.get(i))));
+            fields.put("field_1", new SearchHitField("field_1", Arrays.asList(field1Values.get(i))));
+            fields.put("field_2", new SearchHitField("field_2", Arrays.asList(field2Values.get(i))));
             hit.fields(fields);
             hits.add(hit);
         }
         when(searchHits.getHits()).thenReturn(hits.toArray(new SearchHit[hits.size()]));
-        when(searchHits.hits()).thenReturn(hits.toArray(new SearchHit[hits.size()]));
+        when(searchHits.getHits()).thenReturn(hits.toArray(new SearchHit[hits.size()]));
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

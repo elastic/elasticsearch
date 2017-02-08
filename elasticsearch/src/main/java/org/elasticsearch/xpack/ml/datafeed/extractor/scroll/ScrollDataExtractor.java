@@ -118,7 +118,7 @@ class ScrollDataExtractor implements DataExtractor {
     private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         scrollId = searchResponse.getScrollId();
-        if (searchResponse.getHits().hits().length == 0) {
+        if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
             clearScroll(scrollId);
             return null;
@@ -126,7 +126,7 @@ class ScrollDataExtractor implements DataExtractor {
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (SearchHit hit : searchResponse.getHits().hits()) {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {

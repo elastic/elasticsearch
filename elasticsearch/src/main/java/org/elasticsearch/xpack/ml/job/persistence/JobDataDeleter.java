@@ -85,7 +85,7 @@ public class JobDataDeleter {
     }
 
     private void addDeleteRequestForSearchHits(SearchHits hits, String index) {
-        for (SearchHit hit : hits.hits()) {
+        for (SearchHit hit : hits.getHits()) {
             LOGGER.trace("Search hit for result: {}", hit.getId());
             addDeleteRequest(hit, index);
         }
@@ -140,7 +140,7 @@ public class JobDataDeleter {
                 .get();
 
         String scrollId = searchResponse.getScrollId();
-        long totalHits = searchResponse.getHits().totalHits();
+        long totalHits = searchResponse.getHits().getTotalHits();
         long totalDeletedCount = 0;
         while (totalDeletedCount < totalHits) {
             for (SearchHit hit : searchResponse.getHits()) {
@@ -211,8 +211,8 @@ public class JobDataDeleter {
         public void onResponse(SearchResponse searchResponse) {
             addDeleteRequestForSearchHits(searchResponse.getHits(), index);
 
-            totalDeletedCount.addAndGet(searchResponse.getHits().hits().length);
-            if (totalDeletedCount.get() < searchResponse.getHits().totalHits()) {
+            totalDeletedCount.addAndGet(searchResponse.getHits().getHits().length);
+            if (totalDeletedCount.get() < searchResponse.getHits().getTotalHits()) {
                 client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(SCROLL_CONTEXT_DURATION).execute(this);
             }
             else {

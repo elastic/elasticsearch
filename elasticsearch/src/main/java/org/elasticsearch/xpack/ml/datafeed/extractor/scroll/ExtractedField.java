@@ -66,7 +66,7 @@ abstract class ExtractedField {
         public Object[] value(SearchHit hit) {
             SearchHitField keyValue = hit.field(name);
             if (keyValue != null) {
-                List<Object> values = keyValue.values();
+                List<Object> values = keyValue.getValues();
                 return values.toArray(new Object[values.size()]);
             }
             return new Object[0];
@@ -101,7 +101,7 @@ abstract class ExtractedField {
 
         @Override
         public Object[] value(SearchHit hit) {
-            Map<String, Object> source = hit.getSource();
+            Map<String, Object> source = hit.getSourceAsMap();
             int level = 0;
             while (source != null && level < namePath.length - 1) {
                 source = getNextLevel(source, namePath[level]);

@@ -120,7 +120,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         Aggregations aggregations = response.getAggregations();
         long earliestTime = 0;
         long latestTime = 0;
-        long totalHits = response.getHits().totalHits();
+        long totalHits = response.getHits().getTotalHits();
         if (totalHits > 0) {
             earliestTime = (long) Double.parseDouble(aggregations.getProperty(EARLIEST_TIME + VALUE_SUFFIX).toString());
             latestTime = (long) Double.parseDouble(aggregations.getProperty(LATEST_TIME + VALUE_SUFFIX).toString());

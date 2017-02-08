@@ -309,7 +309,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                     try {
                         List<MlFilter> docs = new ArrayList<>();
                         for (SearchHit hit : response.getHits().getHits()) {
-                            BytesReference docSource = hit.sourceRef();
+                            BytesReference docSource = hit.getSourceRef();
                             XContentParser parser =
                                     XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
                             docs.add(MlFilter.PARSER.apply(parser, null));

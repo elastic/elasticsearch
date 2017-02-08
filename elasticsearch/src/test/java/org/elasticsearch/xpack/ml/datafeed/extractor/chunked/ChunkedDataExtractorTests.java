@@ -407,7 +407,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHits searchHits = mock(SearchHits.class);
-        when(searchHits.totalHits()).thenReturn(totalHits);
+        when(searchHits.getTotalHits()).thenReturn(totalHits);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         Aggregations aggs = mock(Aggregations.class);

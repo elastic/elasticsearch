@@ -107,7 +107,7 @@ public class JobDataDeleterTests extends ESTestCase {
     private SearchHits mockSearchHits(long totalHitCount, int hitsPerSearchResult) {
 
         SearchHits hits = Mockito.mock(SearchHits.class);
-        when(hits.totalHits()).thenReturn(totalHitCount);
+        when(hits.getTotalHits()).thenReturn(totalHitCount);
 
         List<SearchHit> hitList = new ArrayList<>();
         for (int i=0; i<20; i++) {
@@ -117,7 +117,7 @@ public class JobDataDeleterTests extends ESTestCase {
             hitList.add(hit);
         }
         when(hits.getHits()).thenReturn(hitList.toArray(new SearchHit[hitList.size()]));
-        when(hits.hits()).thenReturn(hitList.toArray(new SearchHit[hitList.size()]));
+        when(hits.getHits()).thenReturn(hitList.toArray(new SearchHit[hitList.size()]));
 
         return hits;
     }

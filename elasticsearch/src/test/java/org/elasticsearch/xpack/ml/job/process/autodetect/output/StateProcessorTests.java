@@ -42,7 +42,7 @@ public class StateProcessorTests extends ESTestCase {
             + "\0";
 
     private static final int NUM_LARGE_DOCS = 2;
-    private static final int LARGE_DOC_SIZE = 16000000;
+    private static final int LARGE_DOC_SIZE = 1000000;
 
     private StateProcessor stateProcessor;
 

@@ -146,7 +146,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
             Property.Deprecated);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> ML_ENABLED = Setting.boolSetting("xpack.ml.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> ML_ENABLED = Setting.boolSetting("xpack.ml.enabled", false, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;

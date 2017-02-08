@@ -1,3 +1,0 @@
-= Elasticsearch Ml Plugin
-
-Behavioral Analytics for Elasticsearch

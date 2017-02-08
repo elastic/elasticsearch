@@ -1,4 +1,0 @@
-grant {
-  // needed for Windows named pipes
-  permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
-};

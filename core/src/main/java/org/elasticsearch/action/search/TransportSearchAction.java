@@ -303,12 +303,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             finalListener.onResponse(searchResponse);
             return ;
         }
-        CountDownLatch latch = new CountDownLatch(numHits);
+        final CountDownLatch latch = new CountDownLatch(numHits);
         LatchedActionListener<SearchResponse> latchListener =
             new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    if (latch.getCount() == 0) {
+                    if (latch.getCount() == 1) {
                         finalListener.onResponse(searchResponse);
                     }
                 }

@@ -169,9 +169,11 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         final int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
         if (xTotalOps == expectedTotalOps) {
             executePhase(initialPhaseName(), innerGetNextPhase(), null);
+        } else if (xTotalOps > expectedTotalOps) {
+            // this is fatal - something is completely wrong here?
+            throw new AssertionError( "unexpected higher total ops [" + xTotalOps + "] compared to expected ["
+                + expectedTotalOps + "]");
         }
-        assert xTotalOps <= expectedTotalOps : "unexpected higher total ops [" + xTotalOps + "] compared to expected ["
-            + expectedTotalOps + "]";
     }
 
     protected void executePhase(String phaseName, CheckedRunnable<Exception> phase, Exception suppressedException) {

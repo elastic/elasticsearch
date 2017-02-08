@@ -24,10 +24,8 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -176,15 +174,23 @@ public class RequestTests extends ESTestCase {
         String id = randomBoolean() ? randomAsciiOfLengthBetween(3, 10) : null;
         indexRequest.id(id);
 
+        Map<String, String> expectedParams = new HashMap<>();
+        long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+        indexRequest.version(version);
+        expectedParams.put("version", Long.toString(version));
+
         String method = "POST";
         if (id != null) {
             method = "PUT";
             if (randomBoolean()) {
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                if (version ==  Versions.MATCH_ANY) {
+                    // When op_type is create and version match_any, version is deleted (see IndexRequest.version())
+                    expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+                }
             }
         }
 
-        Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             indexRequest.timeout(timeout);
@@ -215,13 +221,6 @@ public class RequestTests extends ESTestCase {
                 indexRequest.setRefreshPolicy(refreshPolicy);
                 if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
                     expectedParams.put("refresh", refreshPolicy.toString());
-                }
-            }
-            if (randomBoolean()) {
-                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-                indexRequest.version(version);
-                if (version != Versions.MATCH_ANY) {
-                    expectedParams.put("version", Long.toString(version));
                 }
             }
             if (randomBoolean()) {

@@ -132,11 +132,10 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
   'reference/search/field-stats.asciidoc',
-  'reference/search/multi-search.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
-  'reference/search/search-template.asciidoc',
+  'reference/search/search-template.asciidoc', // We don't want to consoleify the rendered templates in this doc
 ]
 
 integTest {

@@ -26,7 +26,6 @@ import java.util.Set;
  * The superclass used to build all Painless scripts on top of.
  */
 public abstract class Executable implements PainlessScript { // NOCOMMIT rename class
-
     private final String name;
     private final String source;
     private final BitSet statements;
@@ -39,28 +38,21 @@ public abstract class Executable implements PainlessScript { // NOCOMMIT rename 
         this.usedVariables = usedVariables;
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
+    @Override
     public String getSource() {
         return source;
     }
 
-    /**
-     * Finds the start of the first statement boundary that is
-     * on or before {@code offset}. If one is not found, {@code -1}
-     * is returned.
-     */
+    @Override
     public int getPreviousStatement(int offset) {
         return statements.previousSetBit(offset);
     }
 
-    /**
-     * Finds the start of the first statement boundary that is
-     * after {@code offset}. If one is not found, {@code -1}
-     * is returned.
-     */
     public int getNextStatement(int offset) {
         return statements.nextSetBit(offset+1);
     }

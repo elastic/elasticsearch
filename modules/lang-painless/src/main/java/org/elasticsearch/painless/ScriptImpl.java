@@ -44,7 +44,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     /**
      * The Painless Executable script that can be run.
      */
-    private final Executable executable;
     private final GenericElasticsearchScript script;
 
     /**
@@ -86,13 +85,12 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param executable The previously compiled Painless script.
+     * @param GenericElasticsearchScript The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
      * @param lookup The lookup to allow search fields to be available if this is run as a search script.
      */
-    ScriptImpl(final Executable executable, final Map<String, Object> vars, final LeafSearchLookup lookup) {
-        this.executable = executable;
-        this.script = (GenericElasticsearchScript) executable;
+    ScriptImpl(final GenericElasticsearchScript script, final Map<String, Object> vars, final LeafSearchLookup lookup) {
+        this.script = script;
         this.lookup = lookup;
         this.variables = new HashMap<>();
 
@@ -107,8 +105,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
             doc = null;
         }
 
-        scoreLookup = script.getUsedVariables().contains("_score") ? scorer -> scorer.score() : scorer -> 0.0;
-        ctxLookup = script.getUsedVariables().contains("ctx") ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
+        scoreLookup = ((PainlessScript) script).getUsedVariables().contains("_score") ? scorer -> scorer.score() : scorer -> 0.0;
+        ctxLookup = ((PainlessScript) script).getUsedVariables().contains("ctx") ?
+                variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     /**
@@ -163,17 +162,17 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
                     offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = executable.getPreviousStatement(offset);
+                    int startOffset = ((PainlessScript) script).getPreviousStatement(offset);
                     if (startOffset == -1) {
                         assert false; // should never happen unless we hit exc in ctor prologue...
                         startOffset = 0;
                     }
-                    int endOffset = executable.getNextStatement(startOffset);
+                    int endOffset = ((PainlessScript) script).getNextStatement(startOffset);
                     if (endOffset == -1) {
-                        endOffset = executable.getSource().length();
+                        endOffset = ((PainlessScript) script).getSource().length();
                     }
                     // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = executable.getSource().substring(startOffset, endOffset);
+                    String snippet = ((PainlessScript) script).getSource().substring(startOffset, endOffset);
                     scriptStack.add(snippet);
                     StringBuilder pointer = new StringBuilder();
                     for (int i = startOffset; i < offset; i++) {
@@ -190,10 +189,10 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         }
         // build a name for the script:
         final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(executable.getName())) {
-            name = executable.getSource();
+        if (PainlessScriptEngineService.INLINE_NAME.equals(((PainlessScript) script).getName())) {
+            name = ((PainlessScript) script).getSource();
         } else {
-            name = executable.getName();
+            name = ((PainlessScript) script).getName();
         }
         ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
@@ -258,7 +257,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         }
     }
 
-    static interface ScoreLookup {
+    interface ScoreLookup {
         double apply(Scorer scorer) throws IOException;
     }
 }

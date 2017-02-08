@@ -27,7 +27,7 @@ import java.util.Map;
  * Generic script interface that all scripts that elasticsearch uses implement.
  */
 @FunctionalInterface
-public interface GenericElasticsearchScript extends PainlessScript {
+public interface GenericElasticsearchScript {
     Object execute(
             @Arg(name="params")  Map<String, Object> params,
             @Arg(name="_score")  double _score,

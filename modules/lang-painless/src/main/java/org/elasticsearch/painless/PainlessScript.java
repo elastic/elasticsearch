@@ -21,15 +21,37 @@ package org.elasticsearch.painless;
 
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
-
+/**
+ * Interface implemented by all Painless scripts for debugging information.
+ */
 public interface PainlessScript {
+    /**
+     * Name of the script set at compile time.
+     */
+    String getName();
+
+    /**
+     * Source of the script.
+     */
+    String getSource();
+
+    /**
+     * Finds the start of the first statement boundary that is
+     * on or before {@code offset}. If one is not found, {@code -1}
+     * is returned.
+     */
+    int getPreviousStatement(int offset);
+
+    /**
+     * Finds the start of the first statement boundary that is
+     * after {@code offset}. If one is not found, {@code -1}
+     * is returned.
+     */
+    int getNextStatement(int offset);
+
     /**
      * Variables used by the script's main method including arguments. If an argument to the script isn't in this then it wasn't used
      * by the script and can safely be set to anything.
      */
-    public default Set<String> getUsedVariables() {
-        // Implemented by Painless
-        return emptySet(); 
-    }
+    Set<String> getUsedVariables();
 }

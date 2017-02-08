@@ -97,7 +97,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     @FunctionalInterface
-    public interface ManyArgs extends PainlessScript {
+    public interface ManyArgs {
         Object test(
                 @Arg(name = "a") int a,
                 @Arg(name = "b") int b,
@@ -110,11 +110,12 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).test(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
-        assertEquals(singleton("a"), scriptEngine.compile(ManyArgs.class, null, "a", emptyMap()).getUsedVariables());
+        assertEquals(singleton("a"),
+                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a", emptyMap())).getUsedVariables());
         assertEquals(new HashSet<>(Arrays.asList("a", "b", "c")),
-                scriptEngine.compile(ManyArgs.class, null, "a + b + c", emptyMap()).getUsedVariables());
+                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a + b + c", emptyMap())).getUsedVariables());
         assertEquals(new HashSet<>(Arrays.asList("a", "b", "c", "d")),
-                scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).getUsedVariables());
+                ((PainlessScript) scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap())).getUsedVariables());
     }
 
     @FunctionalInterface

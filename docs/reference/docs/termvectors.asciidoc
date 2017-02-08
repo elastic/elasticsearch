@@ -121,8 +121,8 @@ whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
 from is randomly selected. Use `routing` only to hit a particular shard.
 
-.Returning stored term vectors
-==================================================
+[float]
+==== Example: Returning stored term vectors
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -270,10 +270,8 @@ Response:
 // TEST[continued]
 // TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
-==================================================
-
-.Generating term vectors on the fly
-==================================================
+[float]
+==== Example: Generating term vectors on the fly
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -293,12 +291,10 @@ GET /twitter/tweet/1/_termvectors
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-==================================================
 
 [[docs-termvectors-artificial-doc]]
-[example]
-.Artificial documents
---
+[float]
+==== Example: Artificial documents
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index.  For example, the following request would
@@ -320,11 +316,10 @@ GET /twitter/tweet/_termvectors
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
---
 
 [[docs-termvectors-per-field-analyzer]]
-.Per-field analyzer
-==================================================
+[float]
+===== Per-field analyzer
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to
@@ -387,11 +382,11 @@ Response:
 // TESTRESPONSE[s/"sum_doc_freq": 2/"sum_doc_freq": "$body.term_vectors.fullname.field_statistics.sum_doc_freq"/]
 // TESTRESPONSE[s/"doc_count": 4/"doc_count": "$body.term_vectors.fullname.field_statistics.doc_count"/]
 // TESTRESPONSE[s/"sum_ttf": 4/"sum_ttf": "$body.term_vectors.fullname.field_statistics.sum_ttf"/]
-==================================================
+
 
 [[docs-termvectors-terms-filtering]]
-.Terms filtering
-==================================================
+[float]
+==== Example: Terms filtering
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
@@ -461,4 +456,3 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE
-==================================================

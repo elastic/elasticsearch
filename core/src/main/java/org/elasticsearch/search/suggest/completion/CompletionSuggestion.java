@@ -21,16 +21,16 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,7 +43,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -262,55 +263,65 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return builder;
             }
 
-            private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
-                    true, HashMap::new);
-
-            static {
-                SearchHit.declareInnerHitsParseFields(PARSER);
-                PARSER.declareString((map, value) -> map.put(Suggestion.Entry.Option.TEXT.getPreferredName(), value),
-                        Suggestion.Entry.Option.TEXT);
-                PARSER.declareFloat((map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
-                        Suggestion.Entry.Option.SCORE);
-                PARSER.declareObject((map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName(), value),
-                        Option::parseContext, CompletionSuggestion.Entry.Option.CONTEXT);
-            }
-
-            private static Map<String, Set<CharSequence>> parseContext(XContentParser parser, Void context) throws IOException {
+            public static Option fromXContent(XContentParser parser) throws IOException  {
+                XContentParser.Token token = parser.nextToken();
+                String currentFieldName = null;
+                String text = null;
+                float score = -1;
                 Map<String, Set<CharSequence>> contexts = new HashMap<>();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-                while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-                    String key = parser.currentName();
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-                    Set<CharSequence> values = new HashSet<>();
-                    for (Object value : parser.list()) {
-                        values.add((String) value);
+                SearchHit searchHit = null;
+                boolean foundHit = false;
+                try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).startObject()) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                            if ("text".equals(currentFieldName) == false && "score".equals(currentFieldName) == false
+                                    && "contexts".equals(currentFieldName) == false) {
+                                builder.copyCurrentStructure(parser);
+                                foundHit = true;
+                            }
+                        } else if (token.isValue()) {
+                            if ("text".equals(currentFieldName)) {
+                                text = parser.text();
+                            } else if ("score".equals(currentFieldName)) {
+                                score = parser.floatValue();
+                            } else {
+                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            }
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            if ("contexts".equals(currentFieldName)) {
+                                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                    if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                        currentFieldName = parser.currentName();
+                                    } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                                        Set<CharSequence> set = new HashSet<>();
+                                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                            set.add(parser.text());
+                                        }
+                                        contexts.put(currentFieldName, set);
+                                    } else {
+                                        throw new IllegalStateException();
+                                    }
+                                }
+                            } else {
+                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            throwUnknownToken(token, parser.getTokenLocation());
+                        }
                     }
-                    contexts.put(key, values);
+                    BytesReference bytes = builder.endObject().bytes();
+                    if (foundHit) {
+                        try (XContentParser hitsParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(),
+                                bytes)) {
+                            hitsParser.nextToken();
+                            searchHit = SearchHit.fromXContent(hitsParser);
+                            score = searchHit.getScore();
+                        }
+                    }
                 }
-                return contexts;
-            }
-
-            public static Option fromXContent(XContentParser parser) {
-                Map<String, Object> values = PARSER.apply(parser, null);
-
-                Text text = new Text((String) values.get(Suggestion.Entry.Option.TEXT.getPreferredName()));
-                Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
-                @SuppressWarnings("unchecked")
-                Map<String, Set<CharSequence>> contexts = (Map<String, Set<CharSequence>>) values
-                        .get(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName());
-                if (contexts == null) {
-                    contexts = Collections.emptyMap();
-                }
-
-                SearchHit hit = null;
-                // the option either prints SCORE or inlines the search hit
-                if (score == null) {
-                    hit = SearchHit.createFromMap(values);
-                    score = hit.getScore();
-                }
-                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
-                option.setHit(hit);
+                Option option = new Option(1, new Text(text), score, contexts);
+                option.setHit(searchHit);
                 return option;
             }
 

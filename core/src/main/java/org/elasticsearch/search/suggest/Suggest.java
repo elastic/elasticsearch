@@ -649,7 +649,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     PARSER.declareBoolean(optionalConstructorArg(), COLLATE_MATCH);
                 }
 
-                public static Option fromXContent(XContentParser parser) {
+                public static Option fromXContent(XContentParser parser) throws IOException {
                     return PARSER.apply(parser, null);
                 }
 

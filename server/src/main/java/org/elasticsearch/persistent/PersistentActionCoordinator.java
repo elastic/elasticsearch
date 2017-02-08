@@ -21,6 +21,7 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -32,11 +33,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -224,7 +225,11 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
                             "cancelled task {} failed with an exception, cancellation reason [{}]",
                             task.getId(), task.getTask().getReasonCancelled()), e);
                 }
-                startCompletionNotification(task, null);
+                if (CancelTasksRequest.DEFAULT_REASON.equals(task.getTask().getReasonCancelled())) {
+                    startCompletionNotification(task, null);
+                } else {
+                    startCompletionNotification(task, e);
+                }
             } else {
                 startCompletionNotification(task, e);
             }

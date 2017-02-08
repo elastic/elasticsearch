@@ -21,8 +21,8 @@ Python::
 
 *********************************************
 
-The REST API endpoint is `/_bulk`, and it expects the following JSON
-structure:
+The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
+(NDJSON) structure:
 
 [source,js]
 --------------------------------------------------
@@ -36,7 +36,9 @@ optional_source\n
 --------------------------------------------------
 // NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`.
+*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+may be preceded by a carriage return `\r`. When sending requests to this endpoint the
+`Content-Type` header should be set to `application/x-ndjson`.
 
 The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next

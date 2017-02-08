@@ -198,8 +198,7 @@
               "field_delimiter":","
             },
             "model_debug_config": {
-              "bounds_percentile": 95.0,
-              "write_to" : "data_store"
+              "bounds_percentile": 95.0
             },
             "analysis_limits": {
               "model_memory_limit": 10
@@ -221,14 +220,6 @@
         body:  >
           {
             "description":"Post update description",
-            "detectors": [{"index": 0, "rules": {"target_field_name": "airline",
-                                      "rule_conditions": [ { "condition_type": "numerical_actual",
-                                                             "condition": {"operator": "gt", "value": "10" } } ] } },
-                          {"index": 1, "description": "updated description"}],
-            "model_debug_config": {
-              "write_to" : "data_store",
-              "bounds_percentile": 99.0
-            },
             "analysis_limits": {
               "model_memory_limit": 20
             },
@@ -243,11 +234,8 @@
           }
   - match: { job_id: "to-update" }
   - match: { description: "Post update description" }
-  - match: { model_debug_config.bounds_percentile: 99.0 }
   - match: { analysis_limits.model_memory_limit: 20 }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
-  - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }
-  - match: { analysis_config.detectors.1.detector_description: "updated description" }
   - match: { renormalization_window_days: 10 }
   - match: { background_persist_interval: 10800 }
   - match: { model_snapshot_retention_days: 30 }

@@ -214,7 +214,8 @@ public class IndexRequestTests extends ESTestCase {
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source);
-        assertEquals("index {[index][type][null], source[too big: " + ByteSizeValue.formatBytesSizeValue(source.getBytes("UTF-8").length) +
-                "]}", request.toString());
+        int actualBytes = source.getBytes("UTF-8").length;
+        assertEquals("index {[index][type][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
+                "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
     }
 }

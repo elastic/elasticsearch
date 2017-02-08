@@ -616,7 +616,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         String sSource = "_na_";
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
-                sSource = "too big: " + ByteSizeValue.formatBytesSizeValue(source.length());
+                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
+                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }

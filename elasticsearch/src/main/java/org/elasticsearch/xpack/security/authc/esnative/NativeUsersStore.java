@@ -162,7 +162,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         .request();
                 request.indicesOptions().ignoreUnavailable();
                 InternalClient.fetchAllByEntity(client, request, listener, (hit) -> {
-                    UserAndPassword u = transformUser(hit.getId(), hit.getSource());
+                    UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMap());
                     return u != null ? u.user() : null;
                 });
             } catch (Exception e) {
@@ -674,7 +674,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         assert searchResponse.getHits().getTotalHits() <= 10 : "there are more than 10 reserved users we need to change " +
                                 "this to retrieve them all!";
                         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-                            Map<String, Object> sourceMap = searchHit.getSource();
+                            Map<String, Object> sourceMap = searchHit.getSourceAsMap();
                             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                             if (password == null || password.isEmpty()) {

@@ -109,16 +109,16 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "2");
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
@@ -126,8 +126,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
-        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
-        assertThat(response.getHits().getAt(1).getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
     }
 
     public void testDLSIsAppliedBeforeFLS() throws Exception {
@@ -147,8 +147,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "2");
-        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value2"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value2"));
 
         response = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
@@ -178,15 +178,15 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
             response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .prepareSearch("test")
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).sourceAsMap().get("field2"), equalTo("value2"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2"), equalTo("value2"));
 
             // this is a bit weird the document level permission (all docs with field2:value2) don't match with the field level
             // permissions (field1),
@@ -196,7 +196,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(0));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(0));
 
             // user4 has all roles
             response = client().filterWithHeader(
@@ -206,11 +206,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .get();
             assertHitCount(response, 2);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
             assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(1).sourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(1).sourceAsMap().get("field2"), equalTo("value2"));
+            assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
         }
     }
 

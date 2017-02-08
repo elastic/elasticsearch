@@ -146,7 +146,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
 
         assertThat(searchResponse.getHits().getTotalHits(), is(1L));
 
-        Map<String, Object> source = searchResponse.getHits().getAt(0).getSource();
+        Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
 
         assertValue(source, "watch_id", is("_id"));
         assertValue(source, "state", is("executed"));

@@ -13,8 +13,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -78,12 +78,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
     public void testExecuteAccessHits() throws Exception {
         CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1,
                 Clock.systemUTC());
-        InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
+        SearchHit hit = new SearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                new InternalSearchHits(new InternalSearchHit[]{hit}, 1L, 1f), null, null, null, false, false);
+                new SearchHits(new SearchHit[]{hit}, 1L, 1f), null, null, null, false, false);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500L, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));

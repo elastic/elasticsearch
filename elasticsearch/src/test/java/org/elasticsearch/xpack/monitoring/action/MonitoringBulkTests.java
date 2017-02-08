@@ -56,7 +56,7 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         for (SearchHit searchHit : searchResponse.getHits()) {
-            Map<String, Object> source = searchHit.sourceAsMap();
+            Map<String, Object> source = searchHit.getSourceAsMap();
             assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.CLUSTER_UUID));
             assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.TIMESTAMP));
             assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.SOURCE_NODE));

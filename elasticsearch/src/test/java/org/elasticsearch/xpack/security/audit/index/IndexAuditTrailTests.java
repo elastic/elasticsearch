@@ -319,7 +319,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
             assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
@@ -342,7 +342,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "anonymous_access_denied");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(NetworkAddress.format(InetAddress.getLoopbackAddress()), equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
         assertThat(sourceMap.get("origin_type"), is("rest"));
@@ -354,7 +354,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         auditor.authenticationFailed(new MockToken(), "_action", message);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
@@ -376,7 +376,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "transport", "authentication_failed");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
             assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
@@ -400,7 +400,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_failed");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(sourceMap.get("principal"), is((Object) "_principal"));
         assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
@@ -415,7 +415,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_failed");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(sourceMap.get("principal"), nullValue());
         assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
@@ -430,7 +430,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "transport", "realm_authentication_failed");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
 
         if (message instanceof RemoteHostMockMessage) {
             assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
@@ -456,7 +456,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "realm_authentication_failed");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
         assertEquals("_realm", sourceMap.get("realm"));
@@ -479,7 +479,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
             assertThat(sourceMap.get("principal"), is("running as"));
@@ -502,7 +502,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertEquals(SystemUser.INSTANCE.principal(), sourceMap.get("principal"));
         assertEquals("internal:_action", sourceMap.get("action"));
@@ -523,7 +523,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.accessDenied(user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertAuditMessage(hit, "transport", "access_denied");
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
@@ -547,7 +547,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "rest", "tampered_request");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(sourceMap.get("principal"), nullValue());
         assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
@@ -561,7 +561,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.tamperedRequest("_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertAuditMessage(hit, "transport", "tampered_request");
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is(nullValue()));
@@ -585,7 +585,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "transport", "tampered_request");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
             assertThat(sourceMap.get("principal"), is("running as"));
@@ -606,7 +606,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "ip_filter", "connection_granted");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("allow default:accept_all", sourceMap.get("rule"));
         assertEquals("default", sourceMap.get("transport_profile"));
     }
@@ -620,7 +620,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "ip_filter", "connection_denied");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("deny _all", sourceMap.get("rule"));
         assertEquals("default", sourceMap.get("transport_profile"));
     }
@@ -633,7 +633,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_granted");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is("_username"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
@@ -649,7 +649,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_denied");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is("_username"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
@@ -672,7 +672,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
         assertAuditMessage(hit, "rest", "authentication_success");
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat("_uri", equalTo(sourceMap.get("uri")));
         assertRequestBody(sourceMap);
         if (runAs) {
@@ -698,7 +698,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.authenticationSuccess(realm, user, "_action", message);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertAuditMessage(hit, "transport", "authentication_success");
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
@@ -713,7 +713,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     }
 
     private void assertAuditMessage(SearchHit hit, String layer, String type) {
-        Map<String, Object> sourceMap = hit.sourceAsMap();
+        Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(sourceMap.get("@timestamp"), notNullValue());
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
@@ -805,7 +805,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .prepareSearch(indexName)
                         .setTypes(IndexAuditTrail.DOC_TYPE)
                         .get();
-                if (searchResponse.getHits().totalHits() > 0L) {
+                if (searchResponse.getHits().getTotalHits() > 0L) {
                     searchResponseSetOnce.set(searchResponse);
                     return true;
                 }

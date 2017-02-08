@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -31,8 +30,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
@@ -224,7 +223,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getSuccessfulShards()).thenReturn(1);
         when(searchResponse.getTotalShards()).thenReturn(1);
-        when(searchResponse.getHits()).thenReturn(InternalSearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
@@ -263,21 +262,21 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
-        InternalSearchHit hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        SearchHit hit = new SearchHit(0, "_id", new Text("_type"), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
         hit.sourceRef(new BytesArray("{}"));
-        InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new InternalSearchHit(0, "_id", new Text("_type"), null);
+        hit = new SearchHit(0, "_id", new Text("_type"), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", index, 0));
         hit.sourceRef(new BytesArray("{}"));
-        hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
+        hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
                 new InternalSearchResponse(hits, null, null, null, false, null), "_scrollId", 1, 1, 1, null);
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId", 1, 1, 1, null);

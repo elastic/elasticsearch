@@ -455,12 +455,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
                     assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
-                            searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                            searchResponse.getHits().getAt(0).getSourceAsMap()), greaterThanOrEqualTo(1));
                 }
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().totalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -522,7 +522,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
-            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().totalHits(), watchName);
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits(), watchName);
             int counter = 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));

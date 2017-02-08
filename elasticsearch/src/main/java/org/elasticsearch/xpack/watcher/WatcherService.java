@@ -133,12 +133,12 @@ public class WatcherService extends AbstractComponent {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            while (response.getHits().hits().length != 0) {
+            while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     String id = hit.getId();
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON);
-                        watch.version(hit.version());
+                        watch.version(hit.getVersion());
                         watches.add(watch);
                     } catch (Exception e) {
                         logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);

@@ -122,7 +122,7 @@ public class OldWatcherIndicesBackwardsCompatibilityTests extends AbstractOldXPa
 
         String watchHistoryPattern = version.onOrAfter(Version.V_5_0_0_alpha1) ? ".watcher-history*" : ".watch_history*";
         SearchResponse history = client().prepareSearch(watchHistoryPattern).get();
-        assertThat(history.getHits().totalHits(), greaterThanOrEqualTo(10L));
+        assertThat(history.getHits().getTotalHits(), greaterThanOrEqualTo(10L));
     }
 
     void assertBasicWatchInteractions() throws Exception {

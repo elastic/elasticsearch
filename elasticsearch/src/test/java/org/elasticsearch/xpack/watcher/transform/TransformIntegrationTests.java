@@ -169,14 +169,14 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).sourceAsMap().get("key3").toString(), equalTo("20"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).sourceAsMap().get("key3").toString(), equalTo("20"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
     }
 
     public void testSearchTransform() throws Exception {
@@ -218,12 +218,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsString(), containsString("mytestresult"));
+        assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsString(), containsString("mytestresult"));
+        assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
     }
 
     public void testChainTransform() throws Exception {
@@ -264,14 +264,14 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).sourceAsMap().get("key4").toString(), equalTo("30"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).sourceAsMap().get("key4").toString(), equalTo("30"));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
     }
 
 }

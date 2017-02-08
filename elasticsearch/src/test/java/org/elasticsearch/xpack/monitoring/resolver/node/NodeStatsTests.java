@@ -62,7 +62,7 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.sourceAsMap();
+            Map<String, Object> fields = searchHit.getSourceAsMap();
 
             for (String filter : nodeStatsFilters(watcherEnabled)) {
                 if (Constants.WINDOWS) {

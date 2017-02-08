@@ -56,7 +56,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
                 QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
-        assertThat(response.getHits().hits().length, is(1));
+        assertThat(response.getHits().getHits().length, is(1));
 
         // Repeat with unauthorized user!!!!
         try {

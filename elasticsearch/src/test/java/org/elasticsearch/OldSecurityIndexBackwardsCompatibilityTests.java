@@ -153,12 +153,12 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
         // check that index permissions work as expected
         SearchResponse searchResponse = bwcTestUserClient.prepareSearch("index1", "index2").get();
         assertEquals(2, searchResponse.getHits().getTotalHits());
-        assertEquals("foo", searchResponse.getHits().getHits()[0].getSource().get("title"));
-        assertEquals("bwc_test_user should be able to see this field", searchResponse.getHits().getHits()[0].getSource().get("body"));
-        assertNull(searchResponse.getHits().getHits()[0].getSource().get("secured_body"));
-        assertEquals("foo", searchResponse.getHits().getHits()[1].getSource().get("title"));
-        assertEquals("bwc_test_user should be able to see this field", searchResponse.getHits().getHits()[1].getSource().get("body"));
-        assertNull(searchResponse.getHits().getHits()[1].getSource().get("secured_body"));
+        assertEquals("foo", searchResponse.getHits().getHits()[0].getSourceAsMap().get("title"));
+        assertEquals("bwc_test_user should be able to see this field", searchResponse.getHits().getHits()[0].getSourceAsMap().get("body"));
+        assertNull(searchResponse.getHits().getHits()[0].getSourceAsMap().get("secured_body"));
+        assertEquals("foo", searchResponse.getHits().getHits()[1].getSourceAsMap().get("title"));
+        assertEquals("bwc_test_user should be able to see this field", searchResponse.getHits().getHits()[1].getSourceAsMap().get("body"));
+        assertNull(searchResponse.getHits().getHits()[1].getSourceAsMap().get("secured_body"));
 
         Exception e = expectThrows(ElasticsearchSecurityException.class, () -> bwcTestUserClient.prepareSearch("index3").get());
         assertEquals("action [indices:data/read/search] is unauthorized for user [bwc_test_user]", e.getMessage());
@@ -180,7 +180,7 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
                         basicAuthHeaderValue("another_bwc_test_user", "123123")
                 )).prepareSearch("index3").get();
         assertEquals(1, searchResponse.getHits().getTotalHits());
-        assertEquals("bwc_test_user should not see this index", searchResponse.getHits().getHits()[0].getSource().get("title"));
+        assertEquals("bwc_test_user should not see this index", searchResponse.getHits().getHits()[0].getSourceAsMap().get("title"));
 
         userResponse = securityClient.preparePutUser("meta_bwc_test_user", "123123".toCharArray(), "test_role").email("a@b.c")
                 .metadata(singletonMap("test", 1)).get();

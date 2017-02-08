@@ -67,7 +67,7 @@ public class IndexAuditIT extends ESIntegTestCase {
             lastClusterState.set(state);
             client().admin().indices().prepareRefresh().get();
             return client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
-                    .get().getHits().totalHits() > 0;
+                    .get().getHits().getTotalHits() > 0;
         }, 10L, TimeUnit.SECONDS);
 
         if (!found) {
@@ -78,7 +78,7 @@ public class IndexAuditIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
                 QueryBuilders.matchQuery("principal", USER)).get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-        assertThat((String) searchResponse.getHits().getAt(0).sourceAsMap().get("principal"), is(USER));
+        assertThat((String) searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
     }
 
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {

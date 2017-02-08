@@ -413,7 +413,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {
         List<String> foundIndices = new ArrayList<>();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            foundIndices.add(searchHit.index());
+            foundIndices.add(searchHit.getIndex());
         }
         assertThat(foundIndices.size(), equalTo(indices.length));
         assertThat(foundIndices, hasItems(indices));

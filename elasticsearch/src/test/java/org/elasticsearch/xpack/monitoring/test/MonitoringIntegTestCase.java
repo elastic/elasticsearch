@@ -243,7 +243,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertMonitoringDocsCount(Matcher<Long> matcher, String... types) {
         flushAndRefresh(MONITORING_INDICES_PREFIX + "*");
-        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types).get().getHits().totalHits();
+        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types).get().getHits().getTotalHits();
         logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
         assertThat(count, matcher);
     }

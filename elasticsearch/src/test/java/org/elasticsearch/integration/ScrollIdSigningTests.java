@@ -36,7 +36,7 @@ public class ScrollIdSigningTests extends SecurityIntegTestCase {
             while (true) {
                 assertSigned(response.getScrollId());
                 assertHitCount(response, docs.length);
-                hits += response.getHits().hits().length;
+                hits += response.getHits().getHits().length;
                 response = client().prepareSearchScroll(response.getScrollId())
                         .setScroll(TimeValue.timeValueMinutes(2)).get();
                 if (response.getHits().getHits().length == 0) {

@@ -95,7 +95,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed")));
 
         assertNoFailures(response);
-        XContentSource source = xContentSource(response.getHits().getAt(0).sourceRef());
+        XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
         String body = source.getValue("result.actions.0.webhook.response.body");
         assertThat(body, notNullValue());
         assertThat(body, is("body"));

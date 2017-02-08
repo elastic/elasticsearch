@@ -89,7 +89,7 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.sourceAsMap();
+            Map<String, Object> fields = searchHit.getSourceAsMap();
             for (String filter : filters) {
                 assertContains(filter, fields);
             }

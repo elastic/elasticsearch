@@ -81,7 +81,7 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
         SearchRequest searchRequest =
                 Requests.searchRequest(Watch.INDEX).types(Watch.DOC_TYPE).source(new SearchSourceBuilder().size(0));
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                    statsResponse.setWatchesCount(searchResponse.getHits().totalHits());
+                    statsResponse.setWatchesCount(searchResponse.getHits().getTotalHits());
                     listener.onResponse(statsResponse);
                 },
                 e -> listener.onResponse(statsResponse)));

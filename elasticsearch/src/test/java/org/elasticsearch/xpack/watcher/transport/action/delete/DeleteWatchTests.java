@@ -112,7 +112,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setQuery(matchAllQuery()).get();
             assertHitCount(searchResponse, 1);
 
-            Map<String, Object> source = searchResponse.getHits().getAt(0).sourceAsMap();
+            Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
             // watch has been executed successfully
             String state = ObjectPath.eval("state", source);
             assertThat(state, is("executed"));

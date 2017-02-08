@@ -98,7 +98,7 @@ public class IndexActionTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = searchRequestbuilder.get();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         SearchHit hit = searchResponse.getHits().getAt(0);
 
         if (customId) {
@@ -106,9 +106,9 @@ public class IndexActionTests extends ESIntegTestCase {
         }
 
         if (customTimestampField) {
-            assertThat(hit.getSource().size(), is(2));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
-            assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+            assertThat(hit.getSourceAsMap().size(), is(2));
+            assertThat(hit.getSourceAsMap(), hasEntry("foo", (Object) "bar"));
+            assertThat(hit.getSourceAsMap(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
 
             Terms terms = searchResponse.getAggregations().get("timestamps");
             assertThat(terms, notNullValue());
@@ -116,8 +116,8 @@ public class IndexActionTests extends ESIntegTestCase {
             assertThat(terms.getBuckets().get(0).getKeyAsNumber().longValue(), is(executionTime.getMillis()));
             assertThat(terms.getBuckets().get(0).getDocCount(), is(1L));
         } else {
-            assertThat(hit.getSource().size(), is(1));
-            assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
+            assertThat(hit.getSourceAsMap().size(), is(1));
+            assertThat(hit.getSourceAsMap(), hasEntry("foo", (Object) "bar"));
         }
     }
 
@@ -170,21 +170,21 @@ public class IndexActionTests extends ESIntegTestCase {
                         .query(matchAllQuery()))
                 .get();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         final int fields = customTimestampField ? 2 : 1;
         for (int i = 0; i < 2; ++i) {
             final SearchHit hit = searchResponse.getHits().getAt(i);
             final String value = "bar" + (i != 0 ? i : "");
 
-            assertThat(hit.getSource().size(), is(fields));
+            assertThat(hit.getSourceAsMap().size(), is(fields));
 
             if (customId) {
                 assertThat(hit.getId(), is(Integer.toString(i)));
             }
             if (customTimestampField) {
-                assertThat(hit.getSource(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
+                assertThat(hit.getSourceAsMap(), hasEntry(timestampField, (Object) WatcherDateTimeUtils.formatDate(executionTime)));
             }
-            assertThat(hit.getSource(), hasEntry("foo", (Object) value));
+            assertThat(hit.getSourceAsMap(), hasEntry("foo", (Object) value));
         }
     }
 

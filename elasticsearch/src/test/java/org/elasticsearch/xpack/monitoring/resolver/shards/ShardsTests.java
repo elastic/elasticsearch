@@ -76,7 +76,7 @@ public class ShardsTests extends MonitoringIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.sourceAsMap();
+            Map<String, Object> fields = searchHit.getSourceAsMap();
 
             for (String filter : ShardsResolver.FILTERS) {
                 assertContains(filter, fields);

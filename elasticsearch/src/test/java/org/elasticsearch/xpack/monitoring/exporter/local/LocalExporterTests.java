@@ -88,8 +88,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         awaitMonitoringDocsCount(is((long) monitoringDocs.size()));
 
         SearchResponse response = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").get();
-        for (SearchHit hit : response.getHits().hits()) {
-            Map<String, Object> source = hit.sourceAsMap();
+        for (SearchHit hit : response.getHits().getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
             assertNotNull(source.get("cluster_uuid"));
             assertNotNull(source.get("timestamp"));
             assertNotNull(source.get("source_node"));

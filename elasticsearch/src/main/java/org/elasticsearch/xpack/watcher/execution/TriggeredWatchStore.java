@@ -201,12 +201,12 @@ public class TriggeredWatchStore extends AbstractComponent {
                         response.getSuccessfulShards());
             }
 
-            while (response.getHits().hits().length != 0) {
+            while (response.getHits().getHits().length != 0) {
                 for (SearchHit sh : response.getHits()) {
                     String id = sh.getId();
                     try {
-                        TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.version(), sh.getSourceRef());
-                        logger.trace("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
+                        TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.getVersion(), sh.getSourceRef());
+                        logger.trace("loaded triggered watch [{}/{}/{}]", sh.getIndex(), sh.getType(), sh.getId());
                         triggeredWatches.add(triggeredWatch);
                     } catch (Exception e) {
                         logger.error(

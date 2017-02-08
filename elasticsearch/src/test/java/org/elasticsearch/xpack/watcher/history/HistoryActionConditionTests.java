@@ -115,7 +115,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertThat(response.getHits().getTotalHits(), is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
-        final List<Object> actions = getActionsFromHit(hit.getSource());
+        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
             final Map<String, Object> action = (Map<String, Object>)actions.get(i);
@@ -160,7 +160,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertThat(response.getHits().getTotalHits(), is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
-        final List<Object> actions = getActionsFromHit(hit.getSource());
+        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
             final Map<String, Object> action = (Map<String, Object>)actions.get(i);
@@ -206,7 +206,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         assertThat(response.getHits().getTotalHits(), is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
-        final List<Object> actions = getActionsFromHit(hit.getSource());
+        final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditions.size(); ++i) {
             final Map<String, Object> action = (Map<String, Object>)actions.get(i);

@@ -78,7 +78,7 @@ public class IndexStatsTests extends MonitoringIntegTestCase {
                             .setTypes(IndexStatsResolver.TYPE)
                             .setQuery(QueryBuilders.termQuery("index_stats.index", indices[i]))
                             .get();
-                    assertThat(count.getHits().totalHits(), greaterThan(0L));
+                    assertThat(count.getHits().getTotalHits(), greaterThan(0L));
                 }
             }
         });
@@ -89,7 +89,7 @@ public class IndexStatsTests extends MonitoringIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         for (SearchHit searchHit : response.getHits().getHits()) {
-            Map<String, Object> fields = searchHit.sourceAsMap();
+            Map<String, Object> fields = searchHit.getSourceAsMap();
 
             for (String filter : IndexStatsResolver.FILTERS) {
                 assertContains(filter, fields);

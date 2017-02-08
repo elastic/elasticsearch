@@ -160,8 +160,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).id(), Matchers.equalTo(wid.value()));
-        assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(),
+        assertThat(searchResponse.getHits().getAt(0).getId(), Matchers.equalTo(wid.value()));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(),
                 equalTo(ExecutionState.NOT_EXECUTED_WATCH_MISSING.toString()));
     }
 
@@ -284,15 +284,15 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // because we try to execute a single watch in parallel, only one execution should happen
             refresh();
             SearchResponse searchResponse = client().prepareSearch("output").get();
-            assertThat(searchResponse.getHits().totalHits(), is(greaterThanOrEqualTo(numberOfWatches)));
-            long successfulWatchExecutions = searchResponse.getHits().totalHits();
+            assertThat(searchResponse.getHits().getTotalHits(), is(greaterThanOrEqualTo(numberOfWatches)));
+            long successfulWatchExecutions = searchResponse.getHits().getTotalHits();
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
             SearchResponse historySearchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                     .setSize(expectedWatchHistoryCount).get();
             assertHitCount(historySearchResponse, expectedWatchHistoryCount);
             long notExecutedCount = Arrays.asList(historySearchResponse.getHits().getHits()).stream()
-                    .filter(hit -> hit.getSource().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
+                    .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
                     .count();
             logger.info("Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch exections",
                     notExecutedCount, expectedWatchHistoryCount, successfulWatchExecutions);
@@ -360,7 +360,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
             assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
             for (int i = 0; i < numRecords; i++) {
-                assertThat(searchResponse.getHits().getAt(i).getSource().get("state"),  is(ExecutionState.EXECUTED_MULTIPLE_TIMES.id()));
+                assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"),
+                        is(ExecutionState.EXECUTED_MULTIPLE_TIMES.id()));
             }
         });
     }

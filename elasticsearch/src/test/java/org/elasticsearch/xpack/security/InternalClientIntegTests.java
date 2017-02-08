@@ -6,19 +6,16 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class InternalClientIntegTests extends ESSingleNodeTestCase {
@@ -38,7 +35,8 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
                 .request();
         request.indicesOptions().ignoreUnavailable();
         PlainActionFuture<Collection<Integer>> future = new PlainActionFuture<>();
-        InternalClient.fetchAllByEntity(client(), request, future, (hit) -> Integer.parseInt(hit.sourceAsMap().get("number").toString()));
+        InternalClient.fetchAllByEntity(client(), request, future,
+                (hit) -> Integer.parseInt(hit.getSourceAsMap().get("number").toString()));
         Collection<Integer> integers = future.actionGet();
         ArrayList<Integer> list = new ArrayList<>(integers);
         CollectionUtil.timSort(list);

@@ -70,7 +70,7 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
                 logger.debug("--> checking that every document contains the expected fields");
                 SearchResponse response = client().prepareSearch().setTypes(ClusterStatsResolver.TYPE).get();
                 for (SearchHit searchHit : response.getHits().getHits()) {
-                    Map<String, Object> fields = searchHit.sourceAsMap();
+                    Map<String, Object> fields = searchHit.getSourceAsMap();
 
                     for (String filter : ClusterStatsResolver.FILTERS) {
                         assertContains(filter, fields);

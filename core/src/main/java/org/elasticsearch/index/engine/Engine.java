@@ -391,6 +391,15 @@ public abstract class Engine implements Closeable {
             this.created = created;
         }
 
+        /**
+         * use in case of index operation failed before getting to internal engine
+         * (e.g while preparing operation or updating mappings)
+         * */
+        public IndexResult(Exception failure, long version) {
+            super(Operation.TYPE.INDEX, failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            this.created = false;
+        }
+
         public IndexResult(Exception failure, long version, long seqNo) {
             super(Operation.TYPE.INDEX, failure, version, seqNo);
             this.created = false;

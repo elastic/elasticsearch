@@ -487,6 +487,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     class IndexingAction extends ReplicationAction<IndexRequest, IndexRequest, IndexResponse> {
+        private IndexResponse response;
 
         IndexingAction(IndexRequest request, ActionListener<IndexResponse> listener, ReplicationGroup replicationGroup) {
             super(request, listener, replicationGroup, "indexing");
@@ -496,12 +497,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
             IndexResponse response = indexOnPrimary(request, primary);
+            this.response = response;
             return new PrimaryResult(request, response);
         }
 
         @Override
         protected void performOnReplica(IndexRequest request, IndexShard replica) throws IOException {
-            indexOnReplica(request, replica);
+            indexOnReplica(response, request, replica);
         }
     }
 
@@ -511,14 +513,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     protected IndexResponse indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
                 null);
-        if (indexResult.hasFailure() == false) {
-            // update the version on request so it will happen on the replicas
-            final long version = indexResult.getVersion();
-            request.version(version);
-            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-            request.setSeqNo(indexResult.getSeqNo());
-            assert request.versionType().validateVersionForWrites(request.version());
-        }
         request.primaryTerm(primary.getPrimaryTerm());
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
         return new IndexResponse(
@@ -533,8 +527,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied replica shard
      */
-    protected void indexOnReplica(IndexRequest request, IndexShard replica) throws IOException {
-        final Engine.IndexResult result = executeIndexRequestOnReplica(request, replica);
+    protected void indexOnReplica(DocWriteResponse response, IndexRequest request, IndexShard replica) throws IOException {
+        final Engine.IndexResult result = executeIndexRequestOnReplica(response, request, replica);
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
     }
 

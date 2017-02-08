@@ -312,7 +312,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWorksWithNewlineDelimitedJson() {
-        final String mimeType = randomFrom("application/x-ldjson", "application/x-ndjson");
+        final String mimeType = "application/x-ndjson";
         String content = randomAsciiOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")

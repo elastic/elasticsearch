@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -127,10 +128,9 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     /**
      * Represents a part from the suggest text with suggested options.
      */
-    public static class Entry extends
-            org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
+    public static class Entry extends Suggestion.Entry<TermSuggestion.Entry.Option> {
 
-        Entry(Text text, int offset, int length) {
+        public Entry(Text text, int offset, int length) {
             super(text, offset, length);
         }
 
@@ -147,13 +147,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
          */
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
 
-            static class Fields {
-                static final String FREQ = "freq";
+            public static class Fields {
+                public static final ParseField FREQ = new ParseField("freq");
             }
 
             private int freq;
 
-            protected Option(Text text, int freq, float score) {
+            public Option(Text text, int freq, float score) {
                 super(text, score);
                 this.freq = freq;
             }
@@ -194,7 +194,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 builder = super.innerToXContent(builder, params);
-                builder.field(Fields.FREQ, freq);
+                builder.field(Fields.FREQ.getPreferredName(), freq);
                 return builder;
             }
         }

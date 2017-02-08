@@ -20,26 +20,28 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
+import static org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option.Fields.SCORE;
+import static org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option.Fields.TEXT;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results
@@ -192,14 +194,18 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts;
+            private Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
             private ScoreDoc doc;
             private InternalSearchHit hit;
+
+            public static class Fields {
+                public static final ParseField CONTEXT = new ParseField("contexts");
+            }
 
             public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
-                this.contexts = contexts;
+                this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
             }
 
             protected Option() {
@@ -235,14 +241,14 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("text", getText());
+                builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
                     hit.toInnerXContent(builder, params);
                 } else {
-                    builder.field("score", getScore());
+                    builder.field(SCORE.getPreferredName(), getScore());
                 }
                 if (contexts.size() > 0) {
-                    builder.startObject("contexts");
+                    builder.startObject(Fields.CONTEXT.getPreferredName());
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                         builder.startArray(entry.getKey());
                         for (CharSequence context : entry.getValue()) {

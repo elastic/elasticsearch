@@ -71,7 +71,7 @@ LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
 String mlAwsAccessKey = secret.data.get('access_key')
 String mlAwsSecretKey = secret.data.get('secret_key')
 // Sleeping to give AWS a chance to propagate the credentials
-sleep(3000)
+sleep(10000)
 
 repositories {
   maven {

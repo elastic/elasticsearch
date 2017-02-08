@@ -132,7 +132,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/modules/scripting/native.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
-  'reference/modules/transport.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',

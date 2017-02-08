@@ -79,7 +79,7 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
      * The maximum score of this query.
      */
     public float getMaxScore() {
-        return getMaxScore();
+        return maxScore;
     }
 
     /**

@@ -563,7 +563,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
                                         + currentFieldName + "]");
                             }
-                            Script template = Script.parse(parser, "mustache");
+                            Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                             tmpSuggestion.collateQuery(template);
                         } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName)) {
                             tmpSuggestion.collateParams(parser.map());

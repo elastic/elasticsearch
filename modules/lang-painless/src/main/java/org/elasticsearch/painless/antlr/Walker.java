@@ -246,7 +246,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitSource(SourceContext ctx) {
-        reserved.push(new MainMethodReserved(mainMethod));
+        reserved.push(new MainMethodReserved());
 
         List<SFunction> functions = new ArrayList<>();
 

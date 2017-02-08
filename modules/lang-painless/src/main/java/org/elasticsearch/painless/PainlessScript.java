@@ -19,19 +19,17 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import java.util.Set;
 
-import java.util.Map;
+import static java.util.Collections.emptySet;
 
-/**
- * Generic script interface that all scripts that elasticsearch uses implement.
- */
-@FunctionalInterface
-public interface GenericElasticsearchScript extends PainlessScript {
-    Object execute(
-            @Arg(name="params")  Map<String, Object> params,
-            @Arg(name="_score")  double _score,
-            @Arg(name="doc")     Map<String, ScriptDocValues<?>> doc,
-            @Arg(name="_value")  Object _value,
-            @Arg(name="ctx")     Map<?, ?> ctx);
+public interface PainlessScript {
+    /**
+     * Variables used by the script's main method including arguments. If an argument to the script isn't in this then it wasn't used
+     * by the script and can safely be set to anything.
+     */
+    public default Set<String> getUsedVariables() {
+        // Implemented by Painless
+        return emptySet(); 
+    }
 }

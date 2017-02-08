@@ -24,7 +24,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -110,11 +109,10 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
 
     @Override
     public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
-        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params, GenericElasticsearchScript.DERIVED_ARGUMENTS);
+        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
     }
 
-    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params,
-            DerivedArgument... derivedArguments) {
+    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -171,7 +169,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 @Override
                 public T run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings, derivedArguments);
+                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings);
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.

@@ -19,18 +19,15 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.MainMethod.DerivedArgument;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.GeneratorAdapter;
-
-import java.util.function.Function;
+import java.util.Arrays;
+import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Tests for Painless implementing different interfaces and for {@link DerivedArgument}s.
+ * Tests for Painless implementing different interfaces.
  */
 public class ImplementInterfacesTests extends ScriptTestCase {
     @FunctionalInterface
@@ -52,7 +49,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
 
     @FunctionalInterface
     public interface OneArg {
-        Object test(@Arg(name = "arg", type = "def") Object foo);
+        Object test(@Arg(name = "arg") Object foo);
     }
     public void testOneArg() {
         Object rando = randomInt();
@@ -70,16 +67,37 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     @FunctionalInterface
-    public interface DefPrimitive {
-        Object test(@Arg(name = "arg", type = "def") int foo);
+    public interface ArrayArg {
+        Object test(@Arg(name = "arg") String[] arg);
     }
-    public void testDefPrimitive() {
-        Object rando = randomInt();
-        assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).test(rando));
+    public void testArrayArg() {
+        String rando = randomAsciiOfLength(5);
+        assertEquals(rando, scriptEngine.compile(ArrayArg.class, null, "arg[0]", emptyMap()).test(new String[] {rando, "foo"}));
     }
 
     @FunctionalInterface
-    public interface ManyArgs {
+    public interface PrimitiveArrayArg {
+        Object test(@Arg(name = "arg") int[] arg);
+    }
+    public void testPrimitiveArrayArg() {
+        int rando = randomInt();
+        assertEquals(rando, scriptEngine.compile(PrimitiveArrayArg.class, null, "arg[0]", emptyMap()).test(new int[] {rando, 10}));
+    }
+
+    @FunctionalInterface
+    public interface DefArrayArg {
+        Object test(@Arg(name = "arg") Object[] arg);
+    }
+    public void testDefArrayArg() {
+        Object rando = randomInt();
+        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).test(new Object[] {rando, 10}));
+        rando = randomAsciiOfLength(5);
+        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).test(new Object[] {rando, 10}));
+        assertEquals(5, scriptEngine.compile(DefArrayArg.class, null, "arg[0].length()", emptyMap()).test(new Object[] {rando, 10}));
+    }
+
+    @FunctionalInterface
+    public interface ManyArgs extends PainlessScript {
         Object test(
                 @Arg(name = "a") int a,
                 @Arg(name = "b") int b,
@@ -90,37 +108,13 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         int rando = randomInt();
         assertEquals(rando, scriptEngine.compile(ManyArgs.class, null, "a", emptyMap()).test(rando, 0, 0, 0));
         assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).test(1, 2, 3, 4));
-    }
 
-    public void testDerivedArgument() {
-        ManyArgs script = scriptEngine.compile(ManyArgs.class, null, "a2", emptyMap(),
-                new DerivedArgument(Definition.INT_TYPE, "a2", (writer, locals) -> {
-                    // final int a2 = 2 * a;
-                    Variable a = locals.getVariable(null, "a");
-                    Variable a2 = locals.getVariable(null, "a2");
-
-                    writer.push(2);
-                    writer.visitVarInsn(Opcodes.ILOAD, a.getSlot());
-                    writer.math(GeneratorAdapter.MUL, Definition.INT_TYPE.type);
-                    writer.visitVarInsn(Opcodes.ISTORE, a2.getSlot());
-                }));
-        assertEquals(2, script.test(1, 0, 0, 0));
-    }
-
-    public void testManyDerivedArguments() {
-        Function<String, DerivedArgument> build = varName -> new DerivedArgument(Definition.INT_TYPE, varName + "2", (writer, locals) -> {
-            // final int a2 = 2 * a;
-            Variable a = locals.getVariable(null, varName);
-            Variable a2 = locals.getVariable(null, varName + "2");
-
-            writer.push(2);
-            writer.visitVarInsn(Opcodes.ILOAD, a.getSlot());
-            writer.math(GeneratorAdapter.MUL, Definition.INT_TYPE.type);
-            writer.visitVarInsn(Opcodes.ISTORE, a2.getSlot());
-        });
-        ManyArgs script = scriptEngine.compile(ManyArgs.class, null, "a2 + b2 + c2 + d2", emptyMap(),
-                build.apply("a"), build.apply("b"), build.apply("c"), build.apply("d"));
-        assertEquals(20, script.test(1, 2, 3, 4));
+        // While we're here we can verify that painless correctly finds used variables
+        assertEquals(singleton("a"), scriptEngine.compile(ManyArgs.class, null, "a", emptyMap()).getUsedVariables());
+        assertEquals(new HashSet<>(Arrays.asList("a", "b", "c")),
+                scriptEngine.compile(ManyArgs.class, null, "a + b + c", emptyMap()).getUsedVariables());
+        assertEquals(new HashSet<>(Arrays.asList("a", "b", "c", "d")),
+                scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).getUsedVariables());
     }
 
     @FunctionalInterface
@@ -134,62 +128,24 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     @FunctionalInterface
-    public interface CannotInferArgType {
-        Object test(@Arg(name = "foo") CannotInferArgType foo);
-    }
-    public void testCannotInferArgType() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(CannotInferArgType.class, null, "1", emptyMap()));
-        assertEquals("Can't infer Painless type for argument [foo]. Use the 'type' element of the "
-                + "@Arg annotation to specify a whitelisted type.", e.getMessage());
-    }
-
-    @FunctionalInterface
     public interface UnknownArgType {
-        Object test(@Arg(type = "UnknownArgType", name = "foo") UnknownArgType foo);
+        Object test(@Arg(name = "foo") UnknownArgType foo);
     }
     public void testUnknownArgType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(UnknownArgType.class, null, "1", emptyMap()));
-        assertEquals("Argument type [UnknownArgType] on [foo] isn't whitelisted.", e.getMessage());
+        assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
+                + "that are of whitelisted types.", e.getMessage());
     }
 
     @FunctionalInterface
-    public interface ArgNotAssignable {
-        Object test(@Arg(type = "String", name = "foo") Object foo);
+    public interface UnknownArgTypeInArray {
+        Object test(@Arg(name = "foo") UnknownArgTypeInArray[] foo);
     }
-    public void testArgNotAssignable() {
+    public void testUnknownArgTypeInArray() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ArgNotAssignable.class, null, "foo", emptyMap()));
-        assertEquals("Painless argument type [String] not assignable from interface argument type [java.lang.Object] for [foo].",
-                e.getMessage());
-    }
-
-    @FunctionalInterface
-    public interface ArgNotAssignableDimsBig {
-        Object test(@Arg(type = "int[]", name = "foo") int foo);
-    }
-    public void testArgNotAssignableDimsBig() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ArgNotAssignableDimsBig.class, null, "foo", emptyMap()));
-        assertEquals("Painless argument type [int[]] not assignable from interface argument type [int] for [foo].",
-                e.getMessage());
-    }
-
-    @FunctionalInterface
-    public interface ArgNotAssignableDimsSmall {
-        Object test(@Arg(type = "int", name = "foo") int[] foo);
-    }
-    public void testArgNotAssignableDimsSmall() {
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ArgNotAssignableDimsSmall.class, null, "foo", emptyMap()));
-        assertEquals("Painless argument type [int] not assignable from interface argument type [int[]] for [foo].",
-                e.getMessage());
-    }
-
-    public void testDerivedArgumentUncalledIfUnused() {
-        ManyArgs script = scriptEngine.compile(ManyArgs.class, null, "a", emptyMap(),
-                new DerivedArgument(Definition.INT_TYPE, "a2", (writer, locals) -> fail("shouldn't be called")));
-        assertEquals(1, script.test(1, 0, 0, 0));
+            scriptEngine.compile(UnknownArgTypeInArray.class, null, "1", emptyMap()));
+        assertEquals("[foo] is of unknown type [" + UnknownArgTypeInArray.class.getName() + ". Painless interfaces can only accept "
+                + "arguments that are of whitelisted types.", e.getMessage());
     }
 }

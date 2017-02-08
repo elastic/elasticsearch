@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.util.Printer;
@@ -31,6 +30,7 @@ import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.BitSet;
+import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 
@@ -87,22 +87,21 @@ final class Compiler {
 
     /**
      * Runs the two-pass compiler to generate a Painless script.
+     * @param <T> the type of the script
      * @param loader The ClassLoader used to define the script.
      * @param iface Interface the compiled script should implement
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @param derivedArguments Parameters to the script that are derived from other parameters
-     * @return An {@link Executable} Painless script.
+     * @return An executable script that implements both {@code <T>} and {@link PainlessScript}
      */
-    static <T> T compile(Loader loader, Class<T> iface, String name, String source, CompilerSettings settings,
-            DerivedArgument... derivedArguments) {
+    static <T> T compile(Loader loader, Class<T> iface, String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        MainMethod mainMethod = new MainMethod(iface, derivedArguments);
+        MainMethod mainMethod = new MainMethod(iface);
 
         SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, null);
 
@@ -112,9 +111,9 @@ final class Compiler {
         try {
             Class<? extends Executable> clazz = loader.define(CLASS_NAME, root.getBytes());
             java.lang.reflect.Constructor<? extends Executable> constructor =
-                    clazz.getConstructor(String.class, String.class, BitSet.class);
+                    clazz.getConstructor(String.class, String.class, BitSet.class, Set.class);
 
-            return iface.cast(constructor.newInstance(name, source, root.getStatements()));
+            return iface.cast(constructor.newInstance(name, source, root.getStatements(), root.getUsedVariables()));
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
@@ -125,17 +124,15 @@ final class Compiler {
      * @param iface Interface the compiled script should implement
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @param derivedArguments Parameters to the script that are derived from other parameters
      * @return The bytes for compilation.
      */
-    static byte[] compile(Class<?> iface, String name, String source, CompilerSettings settings, Printer debugStream,
-            DerivedArgument... derivedArguments) {
+    static byte[] compile(Class<?> iface, String name, String source, CompilerSettings settings, Printer debugStream) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        MainMethod mainMethod = new MainMethod(iface, derivedArguments);
+        MainMethod mainMethod = new MainMethod(iface);
 
         SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, debugStream);
 

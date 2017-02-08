@@ -20,20 +20,23 @@
 package org.elasticsearch.painless;
 
 import java.util.BitSet;
+import java.util.Set;
 
 /**
  * The superclass used to build all Painless scripts on top of.
  */
-public abstract class Executable {
+public abstract class Executable implements PainlessScript { // NOCOMMIT rename class
 
     private final String name;
     private final String source;
     private final BitSet statements;
+    private final Set<String> usedVariables;
 
-    public Executable(String name, String source, BitSet statements) {
+    public Executable(String name, String source, BitSet statements, Set<String> usedVariables) {
         this.name = name;
         this.source = source;
         this.statements = statements;
+        this.usedVariables = usedVariables;
     }
 
     public String getName() {
@@ -60,5 +63,10 @@ public abstract class Executable {
      */
     public int getNextStatement(int offset) {
         return statements.nextSetBit(offset+1);
+    }
+
+    @Override
+    public Set<String> getUsedVariables() {
+        return usedVariables;
     }
 }

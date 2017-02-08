@@ -896,7 +896,7 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
-        MainMethod mainMethod = new MainMethod(GenericElasticsearchScript.class, GenericElasticsearchScript.DERIVED_ARGUMENTS);
+        MainMethod mainMethod = new MainMethod(GenericElasticsearchScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {

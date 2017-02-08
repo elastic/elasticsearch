@@ -26,10 +26,12 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -59,6 +61,16 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * the 'doc' object accessed by the script, if available.
      */
     private final LeafDocLookup doc;
+
+    /**
+     * Looks up the {@code _score} from {@link #scorer} if {@code _score} is used, otherwise returns {@code 0.0}.
+     */
+    private final ScoreLookup scoreLookup;
+
+    /**
+     * Looks up the {@code ctx} from the {@link #variables} if {@code ctx} is used, otherwise return {@code null}.
+     */
+    private final Function<Map<String, Object>, Map<?, ?>> ctxLookup;
 
     /**
      * Current scorer being used
@@ -94,6 +106,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         } else {
             doc = null;
         }
+
+        scoreLookup = script.getUsedVariables().contains("_score") ? scorer -> scorer.score() : scorer -> 0.0;
+        ctxLookup = script.getUsedVariables().contains("ctx") ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     /**
@@ -122,7 +137,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     @Override
     public Object run() {
         try {
-            return script.execute(variables, scorer, doc, aggregationValue);
+            return script.execute(variables, scoreLookup.apply(scorer), doc, aggregationValue, ctxLookup.apply(variables));
         } catch (PainlessExplainError e) {
             throw convertToScriptException(e, e.getHeaders());
             // Note that it is safe to catch any of the following errors since Painless is stateless.
@@ -241,5 +256,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         if (lookup != null) {
             lookup.source().setSource(source);
         }
+    }
+
+    static interface ScoreLookup {
+        double apply(Scorer scorer) throws IOException;
     }
 }

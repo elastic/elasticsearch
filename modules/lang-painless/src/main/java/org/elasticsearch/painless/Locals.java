@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.painless.MainMethod.MethodArgument;
 
 import java.util.Arrays;
@@ -92,8 +91,7 @@ public final class Locals {
     }
 
     /** Creates a new main method scope */
-    public static Locals newMainMethodScope(MainMethod mainMethod, Locals programScope, Iterable<DerivedArgument> usedDerivedArguments,
-            int maxLoopCounter) {
+    public static Locals newMainMethodScope(MainMethod mainMethod, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(programScope, Definition.OBJECT_TYPE, KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Definition.getType("Object"), THIS, true);
@@ -101,11 +99,6 @@ public final class Locals {
         // Method arguments
         for (MethodArgument arg : mainMethod.getArguments()) {
             locals.defineVariable(null, arg.getType(), arg.getName(), true);
-        }
-
-        // Derived arguments
-        for (DerivedArgument darg : usedDerivedArguments) {
-            locals.defineVariable(null, darg.getType(), darg.getName(), true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.

@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,7 +53,7 @@ public final class WriterConstants {
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class, Set.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);

@@ -33,12 +33,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.PARAMETER)
 public @interface Arg {
     /**
-     * The whitelisted type of the parameter. The default if unspecified is to look for an exact match for the type from the whitelist. If
-     * there is no exact match then the compilation will fail.
-     */
-    String type() default "$infer$";
-
-    /**
      * The name of the parameter.
      */
     String name();

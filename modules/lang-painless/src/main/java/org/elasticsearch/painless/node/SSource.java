@@ -29,7 +29,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MainMethod;
-import org.elasticsearch.painless.MainMethod.DerivedArgument;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
@@ -45,14 +44,14 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
@@ -76,20 +75,12 @@ public final class SSource extends AStatement {
     }
 
     public static final class MainMethodReserved implements Reserved {
-        private final Map<String, DerivedArgument> usedDerivedArguments = new LinkedHashMap<>();
-        private final Map<String, DerivedArgument> possibleDefivedArguments;
+        private final Set<String> usedVariables = new HashSet<>();
         private int maxLoopCounter = 0;
-
-        public MainMethodReserved(MainMethod mainMethod) {
-            this.possibleDefivedArguments = mainMethod.getDerivedArguments();
-        }
 
         @Override
         public void markUsedVariable(String name) {
-            DerivedArgument deriver = possibleDefivedArguments.get(name);
-            if (deriver != null) {
-                usedDerivedArguments.putIfAbsent(name, deriver);
-            }
+            usedVariables.add(name);
         }
 
         @Override
@@ -102,8 +93,8 @@ public final class SSource extends AStatement {
             return maxLoopCounter;
         }
 
-        public Map<String, DerivedArgument> getUsedDerivedArguments() {
-            return unmodifiableMap(usedDerivedArguments);
+        public Set<String> getUsedVariables() {
+            return unmodifiableSet(usedVariables);
         }
     }
 
@@ -172,8 +163,7 @@ public final class SSource extends AStatement {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
-        mainMethodLocals = Locals.newMainMethodScope(mainMethod, program, reserved.getUsedDerivedArguments().values(),
-                reserved.getMaxLoopCounter());
+        mainMethodLocals = Locals.newMainMethodScope(mainMethod, program, reserved.getMaxLoopCounter());
 
         AStatement last = statements.get(statements.size() - 1);
 
@@ -202,7 +192,7 @@ public final class SSource extends AStatement {
         String className = CLASS_TYPE.getInternalName();
         String classInterfaces[];
         // TODO generalize this or remove it from Elasticsearch
-        if (reserved.getUsedDerivedArguments().containsKey("_score")) {
+        if (reserved.getUsedVariables().contains("_score")) {
             classInterfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName(), Type.getType(iface).getInternalName() };
         } else {
             classInterfaces = new String[] { Type.getType(iface).getInternalName() };
@@ -286,10 +276,6 @@ public final class SSource extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        for (DerivedArgument darg : reserved.getUsedDerivedArguments().values()) {
-            darg.getDeriver().accept(writer, mainMethodLocals);
-        }
-
         if (reserved.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
@@ -316,6 +302,10 @@ public final class SSource extends AStatement {
 
     public byte[] getBytes() {
         return bytes;
+    }
+
+    public Set<String> getUsedVariables() {
+        return reserved.getUsedVariables();
     }
 
     @Override

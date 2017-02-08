@@ -130,7 +130,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
                 do {
                     position = tracker[scoreDoc.shardIndex]++;
                 } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-                hits[i] = (SearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
+                hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
             }
             return new InternalTopHits(name, from, size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
                     reducedTopDocs.getMaxScore()),

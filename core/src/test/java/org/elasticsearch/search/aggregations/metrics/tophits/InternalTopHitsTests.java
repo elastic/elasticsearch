@@ -133,12 +133,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
     @Override
     protected void assertReduced(InternalTopHits reduced, List<InternalTopHits> inputs) {
-        SearchHits actualHits = (SearchHits) reduced.getHits();
+        SearchHits actualHits = reduced.getHits();
         List<Tuple<ScoreDoc, SearchHit>> allHits = new ArrayList<>();
         float maxScore = Float.MIN_VALUE;
         long totalHits = 0;
         for (int input = 0; input < inputs.size(); input++) {
-            SearchHits internalHits = (SearchHits) inputs.get(input).getHits();
+            SearchHits internalHits = inputs.get(input).getHits();
             totalHits += internalHits.getTotalHits();
             maxScore = max(maxScore, internalHits.getMaxScore());
             for (int i = 0; i < internalHits.internalHits().length; i++) {

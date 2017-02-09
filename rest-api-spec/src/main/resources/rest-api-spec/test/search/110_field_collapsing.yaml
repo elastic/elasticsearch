@@ -47,11 +47,7 @@ setup:
 
   - skip:
       version: " - 5.2.99"
-<<<<<<< HEAD
-      reason:  this uses a new API that has been added in 5.3.0
-=======
       reason:  this uses a new API that has been added in 5.3
->>>>>>> 94087b3... Removes ExpandCollapseSearchResponseListener, search response listeners and blocking calls
 
   - do:
       search:

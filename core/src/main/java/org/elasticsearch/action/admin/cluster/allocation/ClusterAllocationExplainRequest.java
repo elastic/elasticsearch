@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -225,12 +224,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        ClusterAllocationExplainRequest req = PARSER.parse(parser, new ClusterAllocationExplainRequest(), () -> ParseFieldMatcher.STRICT);
-        Exception e = req.validate();
-        if (e != null) {
-            throw new ElasticsearchParseException("'index', 'shard', and 'primary' must be specified in allocation explain request", e);
-        }
-        return req;
+        return PARSER.parse(parser, new ClusterAllocationExplainRequest(), () -> ParseFieldMatcher.STRICT);
     }
 
     @Override

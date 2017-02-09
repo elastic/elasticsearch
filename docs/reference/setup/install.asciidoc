@@ -43,6 +43,7 @@ large deployments:
 [horizontal]
 Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
 Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
 include::install/zip-targz.asciidoc[]

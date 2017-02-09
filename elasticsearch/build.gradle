@@ -40,79 +40,96 @@ buildscript {
   }
 }
 
-// Vault auth to get keys for access to cpp artifacts
-
+Closure setAwsCreds = {
 // first need to get an authentication token with vault
-String homePath = System.properties['user.home']
-File githubToken = file("${homePath}/.elastic/github.token")
-final String VAULT_URL = 'https://secrets.elastic.co:8200'
-final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
-final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
-String authBody = null
-URL vaultUrl = null
-if (githubToken.exists()) {
-  try {
-    Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
-    if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
-      throw new GradleException('github.token must have 600 permissions')
-    }
-  } catch (UnsupportedOperationException e) {
-    // Assume this isn't a POSIX file system
-  }
-  vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
-  authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
-} else if (VAULT_SECRET_ID != null) {
-  vaultUrl = new URL(VAULT_URL + '/v1/auth/approle/login')
-  authBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
-} else {
-    throw new GradleException('Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
-}
-HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
-vaultConn.setRequestProperty('Content-Type', 'application/json')
-vaultConn.setRequestMethod('PUT')
-vaultConn.setDoOutput(true)
-vaultConn.outputStream.withWriter('UTF-8') { writer ->
-    writer.write(authBody)
-}
-vaultConn.connect()
-Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
-VaultConfig config = new VaultConfig(VAULT_URL, authResponse.auth.client_token)
-Vault vault = new Vault(config)
-LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
-String mlAwsAccessKey = secret.data.get('access_key')
-String mlAwsSecretKey = secret.data.get('secret_key')
-// Retrying 10 times to give AWS a chance to propagate the credentials
-int retries = 60
-while (retries > 0) {
-  AWSCredentials creds = new BasicAWSCredentials(mlAwsAccessKey, mlAwsSecretKey)
-
-  ClientConfiguration clientConfiguration = new ClientConfiguration()
-  // the response metadata cache is only there for diagnostics purposes,
-  // but can force objects from every response to the old generation.
-  clientConfiguration.setResponseMetadataCacheSize(0)
-
-  AmazonS3Client client = new AmazonS3Client(creds, clientConfiguration)
-  try {
-    client.headBucket(new HeadBucketRequest('prelert-artifacts'))
-    break;
-  } catch (AmazonServiceException e) {
-    if (e.getStatusCode() != 403 || retries == 0) {
-      throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 attempts', e)
-    }
-  }
-  sleep(500)
-  retries--
-}
-
-
-
-repositories {
-  maven {
-      url "s3://prelert-artifacts/maven"
-      credentials(AwsCredentials) {
-          accessKey "${mlAwsAccessKey}"
-          secretKey "${mlAwsSecretKey}"
+  String homePath = System.properties['user.home']
+  File githubToken = file("${homePath}/.elastic/github.token")
+  final String VAULT_URL = 'https://secrets.elastic.co:8200'
+  final String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
+  final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
+  String authBody = null
+  URL vaultUrl = null
+  if (githubToken.exists()) {
+    try {
+      Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
+      if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
+        throw new GradleException('github.token must have 600 permissions')
       }
+    } catch (UnsupportedOperationException e) {
+      // Assume this isn't a POSIX file system
+    }
+    vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
+    authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
+  } else if (VAULT_SECRET_ID != null) {
+    vaultUrl = new URL(VAULT_URL + '/v1/auth/approle/login')
+    authBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
+  } else {
+    throw new GradleException('Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
+  }
+  HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
+  vaultConn.setRequestProperty('Content-Type', 'application/json')
+  vaultConn.setRequestMethod('PUT')
+  vaultConn.setDoOutput(true)
+  vaultConn.outputStream.withWriter('UTF-8') { writer ->
+    writer.write(authBody)
+  }
+  vaultConn.connect()
+  Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
+  VaultConfig config = new VaultConfig(VAULT_URL, authResponse.auth.client_token)
+  Vault vault = new Vault(config)
+  LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
+  project.ext.mlAwsAccessKey = secret.data.get('access_key')
+  project.ext.mlAwsSecretKey = secret.data.get('secret_key')
+  // Retrying 10 times to give AWS a chance to propagate the credentials
+  int retries = 60
+  while (retries > 0) {
+    AWSCredentials creds = new BasicAWSCredentials(project.mlAwsAccessKey, project.mlAwsSecretKey)
+
+    ClientConfiguration clientConfiguration = new ClientConfiguration()
+    // the response metadata cache is only there for diagnostics purposes,
+    // but can force objects from every response to the old generation.
+    clientConfiguration.setResponseMetadataCacheSize(0)
+
+    AmazonS3Client client = new AmazonS3Client(creds, clientConfiguration)
+    try {
+      client.headBucket(new HeadBucketRequest('prelert-artifacts'))
+      break;
+    } catch (AmazonServiceException e) {
+      if (e.getStatusCode() != 403 || retries == 0) {
+        throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 attempts', e)
+      }
+    }
+    sleep(500)
+    retries--
+  }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+  // Vault auth to get keys for access to cpp artifacts
+
+  if (taskGraph.hasTask(bundlePlugin)) {
+    if (project.hasProperty("mlAwsAccessKey") == false && project.hasProperty("mlAwsSecretKey") == false) {
+      setAwsCreds()
+    }
+
+    repositories {
+      maven {
+        url "s3://prelert-artifacts/maven"
+        credentials(AwsCredentials) {
+          accessKey "${project.mlAwsAccessKey}"
+          secretKey "${project.mlAwsSecretKey}"
+        }
+      }
+    }
+    // For some unknown reason, this from statement triggers
+    // a resolve of the nativeBundle configuration. It should
+    // be delayed until the bundlePlugin task is executed, but
+    // it is not. So for now, we add the extra files to bundlePlugin
+    // here right after configuring the prelert maven, which
+    // will only happen when bundlePlugin will be run anyways.
+    project.bundlePlugin.from {
+      zipTree(configurations.nativeBundle.singleFile)
+    }
   }
 }
 
@@ -164,9 +181,9 @@ dependencies {
   compile "org.elasticsearch.client:sniffer:${version}"
 
   // ml deps
-  compile group: 'net.sf.supercsv', name: 'super-csv', version:'2.4.0'
-  nativeBundle group: 'org.elasticsearch.ml', name: 'ml-cpp', version:"${project.version}", ext: 'zip'
-  testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
+  compile 'net.sf.supercsv:super-csv:2.4.0'
+  nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+  testCompile 'org.ini4j:ini4j:0.5.2'
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'
@@ -210,11 +227,6 @@ forbiddenPatterns {
 
 // TODO: standardize packaging config for plugins
 bundlePlugin {
-  for (outputFile in configurations.nativeBundle) {
-      from(zipTree(outputFile)) {
-        duplicatesStrategy 'exclude'
-      }
-    }
   from(project(':x-pack').projectDir) {
     include 'LICENSE.txt'
   }

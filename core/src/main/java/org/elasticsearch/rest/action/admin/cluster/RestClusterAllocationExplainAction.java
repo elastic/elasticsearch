@@ -19,11 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,31 +55,20 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         } else {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 req = ClusterAllocationExplainRequest.parse(parser);
-            } catch (IOException e) {
-                logger.debug("failed to parse allocation explain request", e);
-                return channel -> channel.sendResponse(
-                        new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
         }
 
-        try {
-            req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
-            req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-            final boolean humanReadable = request.paramAsBoolean("human", false);
-            return channel ->
-                    client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
-                    builder.humanReadable(humanReadable);
-                    response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
+        req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
+        req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
+        final boolean humanReadable = request.paramAsBoolean("human", false);
+        return channel -> client.admin().cluster().allocationExplain(req,
+                new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
+                        builder.humanReadable(humanReadable);
+                        response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
             });
-        } catch (Exception e) {
-            logger.error("failed to explain allocation", e);
-            return channel ->
-                    channel.sendResponse(
-                            new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-        }
     }
 }

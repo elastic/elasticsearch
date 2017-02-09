@@ -32,6 +32,8 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
+/** Utility class to filter parent and children clauses when building nested
+ * queries. */
 public final class NestedHelper {
 
     private final MapperService mapperService;
@@ -57,8 +59,8 @@ public final class NestedHelper {
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) query;            
-            boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
+            final BooleanQuery bq = (BooleanQuery) query;
+            final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses().stream()
                         .filter(BooleanClause::isRequired)
@@ -110,8 +112,8 @@ public final class NestedHelper {
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) query;            
-            boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
+            final BooleanQuery bq = (BooleanQuery) query;
+            final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
                 return bq.clauses().stream()
                         .filter(BooleanClause::isRequired)

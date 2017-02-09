@@ -50,7 +50,6 @@ public class Queries {
                 Automata.makeAnyString());
         NON_NESTED_TYPE_AUTOMATON = Operations.complement(nestedTypeAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
     }
-    
 
     public static Query newMatchAllQuery() {
         return new MatchAllDocsQuery();

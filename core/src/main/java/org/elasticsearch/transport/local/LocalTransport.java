@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -169,7 +170,9 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     }
 
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+        throws ConnectTransportException {
         synchronized (this) {
             if (connectedNodes.containsKey(node)) {
                 return;

@@ -81,10 +81,8 @@ public class Netty3ScheduledPingTests extends ESTestCase {
         serviceB.start();
         serviceB.acceptIncomingRequests();
 
-        DiscoveryNode nodeA =
-            new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode nodeB =
-            new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode nodeA = serviceA.getLocalDiscoNode();
+        DiscoveryNode nodeB = serviceB.getLocalDiscoNode();
 
         if (randomBoolean()) {
             // use connection profile with different connect timeout

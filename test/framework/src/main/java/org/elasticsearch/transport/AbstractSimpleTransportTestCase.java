@@ -1962,12 +1962,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            serviceA.connectToNode(node);
-            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
-            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
-                TimeValue.timeValueSeconds(10));
-            assertNull(version);
-            serviceA.disconnectFromNode(node);
+            try(TcpTransport.NodeChannels connection = originalTransport.openConnection(node, null)) {
+                Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+                    TimeValue.timeValueSeconds(10));
+                assertNull(version);
+            }
         }
 
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);

@@ -80,10 +80,14 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         });
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
     static final class Fields {
         static final String TOOK = "took";
         static final String ERRORS = "errors";
         static final String ERROR = "error";
     }
-
 }

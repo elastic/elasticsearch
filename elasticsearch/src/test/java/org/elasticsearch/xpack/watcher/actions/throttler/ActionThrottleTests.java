@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -301,7 +302,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .endObject()
                 .endObject().string();
 
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).get();
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
 
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 

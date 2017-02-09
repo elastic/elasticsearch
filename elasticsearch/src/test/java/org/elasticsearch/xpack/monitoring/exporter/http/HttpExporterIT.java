@@ -46,7 +46,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -726,7 +725,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void assertBulkRequest(String requestBody, int numberOfActions) throws Exception {
-        BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, null);
+        BulkRequest bulkRequest = Requests.bulkRequest()
+                .add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
         for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));

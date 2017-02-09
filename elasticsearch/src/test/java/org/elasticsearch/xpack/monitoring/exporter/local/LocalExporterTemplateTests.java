@@ -212,7 +212,7 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
 
     private void putTemplate(String name) throws Exception {
         waitNoPendingTasksOnAll();
-        assertAcked(client().admin().indices().preparePutTemplate(name).setSource(generateTemplateSource(name)).get());
+        assertAcked(client().admin().indices().preparePutTemplate(name).setSource(generateTemplateSource(name), XContentType.JSON).get());
     }
 
     private void putPipeline(String name) throws Exception {

@@ -44,9 +44,13 @@ final String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
 String authBody = null
 URL vaultUrl = null
 if (githubToken.exists()) {
-  Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
-  if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
+  try {
+    Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
+    if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
       throw new GradleException('github.token must have 600 permissions')
+    }
+  } catch (UnsupportedOperationException e) {
+    // Assume this isn't a POSIX file system
   }
   vaultUrl = new URL(VAULT_URL + '/v1/auth/github/login')
   authBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"

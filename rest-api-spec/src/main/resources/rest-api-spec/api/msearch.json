@@ -24,6 +24,10 @@
         "max_concurrent_searches" : {
           "type" : "number",
           "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
         }
       }
     },

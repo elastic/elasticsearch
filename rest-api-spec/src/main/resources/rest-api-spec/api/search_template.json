@@ -54,6 +54,10 @@
         "profile": {
           "type" : "boolean",
           "description" : "Specify whether to profile the query execution"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
         }
       }
     },

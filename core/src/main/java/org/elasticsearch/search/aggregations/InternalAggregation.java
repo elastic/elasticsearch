@@ -37,6 +37,10 @@ import java.util.Map;
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
+
+    /** Delimiter used when prefixing aggregation names with their type using the typed_keys parameter **/
+    public static final String TYPED_KEYS_DELIMITER = "#";
+
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
@@ -148,8 +152,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return pipelineAggregators;
     }
 
+    /**
+     * Returns a string representing the type of the aggregation. This type is added to
+     * the aggregation name in the response, so that it can later be used by REST clients
+     * to determine the internal type of the aggregation.
+     */
+    protected String getType() {
+        return getWriteableName();
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+        String name = params.paramAsBoolean("typed_keys", false) ? String.join(TYPED_KEYS_DELIMITER, getType(), getName()) : getName();
         builder.startObject(name);
         if (this.metaData != null) {
             builder.field(CommonFields.META);

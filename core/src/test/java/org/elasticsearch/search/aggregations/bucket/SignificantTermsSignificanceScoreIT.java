@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -271,7 +272,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
         responseBuilder.startObject();
-        classes.toXContent(responseBuilder, null);
+        classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         responseBuilder.endObject();
 
         String result = "{\"class\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,"

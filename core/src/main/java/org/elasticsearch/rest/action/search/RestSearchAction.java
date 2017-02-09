@@ -44,6 +44,8 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -54,6 +56,9 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
  *
  */
 public class RestSearchAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("typed_keys");
+
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_search", this);
@@ -221,5 +226,10 @@ public class RestSearchAction extends BaseRestHandler {
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

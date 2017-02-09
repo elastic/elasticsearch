@@ -53,7 +53,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [BulkShardRequest to [test] containing [1] requests]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [BulkShardRequest to [[test][0]] containing [1] requests]"));
             // but really, all is well
         }
 
@@ -82,7 +82,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request: [BulkShardRequest to [test] containing [1] requests]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request: [BulkShardRequest to [[test][0]] containing [1] requests]"));
             // but really, all is well
         }
 

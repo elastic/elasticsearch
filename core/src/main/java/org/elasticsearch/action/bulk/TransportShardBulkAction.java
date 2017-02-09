@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -63,9 +64,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;
-import static org.elasticsearch.action.support.replication.ReplicationOperation.isConflictException;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -143,10 +141,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case INDEX:
                     final IndexRequest indexRequest = (IndexRequest) itemRequest;
                     Engine.IndexResult indexResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
+                    if (indexResult.hasFailure()) {
+                        response = null;
+                    } else {
+                        // update the version on request so it will happen on the replicas
+                        final long version = indexResult.getVersion();
+                        indexRequest.version(version);
+                        indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
+                        response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
+                                indexResult.getVersion(), indexResult.isCreated());
+                    }
                     operationResult = indexResult;
-                    response = indexResult.hasFailure() ? null
-                            : new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
-                            indexResult.getVersion(), indexResult.isCreated());
                     replicaRequest = request.items()[requestIndex];
                     break;
                 case UPDATE:
@@ -159,10 +165,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case DELETE:
                     final DeleteRequest deleteRequest = (DeleteRequest) itemRequest;
                     Engine.DeleteResult deleteResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    if (deleteResult.hasFailure()) {
+                        response = null;
+                    } else {
+                        // update the request with the version so it will go to the replicas
+                        deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
+                        deleteRequest.version(deleteResult.getVersion());
+                        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
+                        response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(),
+                                deleteResult.getVersion(), deleteResult.isFound());
+                    }
                     operationResult = deleteResult;
-                    response = deleteResult.hasFailure() ? null :
-                            new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(),
-                                    deleteResult.getVersion(), deleteResult.isFound());
                     replicaRequest = request.items()[requestIndex];
                     break;
                 default:
@@ -218,6 +231,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
+    private static boolean isConflictException(final Exception e) {
+        return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
+    }
+
     private static class UpdateResultHolder {
         final BulkItemRequest replicaRequest;
         final Engine.Result operationResult;
@@ -264,9 +281,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
                     indexRequest.process(mappingMd, allowIdGeneration, request.index());
                     updateOperationResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
+                    if (updateOperationResult.hasFailure() == false) {
+                        // update the version on request so it will happen on the replicas
+                        final long version = updateOperationResult.getVersion();
+                        indexRequest.version(version);
+                        indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
+                    }
                     break;
                 case DELETED:
-                    updateOperationResult = executeDeleteRequestOnPrimary(translate.action(), primary);
+                    DeleteRequest deleteRequest = translate.action();
+                    updateOperationResult = executeDeleteRequestOnPrimary(deleteRequest, primary);
+                    if (updateOperationResult.hasFailure() == false) {
+                        // update the request with the version so it will go to the replicas
+                        deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
+                        deleteRequest.version(updateOperationResult.getVersion());
+                        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
+                    }
                     break;
                 case NOOP:
                     primary.noopUpdate(updateRequest.type());
@@ -363,13 +394,24 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
-                    if (!ignoreReplicaException(e)) {
+                    if (!TransportActions.isShardNotAvailableException(e)) {
                         throw e;
                     }
                 }
             }
         }
         return new WriteReplicaResult<>(request, location, null, replica, logger);
+    }
+
+    private Translog.Location locationToSync(Translog.Location current, Translog.Location next) {
+        /* here we are moving forward in the translog with each operation. Under the hood
+         * this might cross translog files which is ok since from the user perspective
+         * the translog is like a tape where only the highest location needs to be fsynced
+         * in order to sync all previous locations even though they are not in the same file.
+         * When the translog rolls over files the previous file is fsynced on after closing if needed.*/
+        assert next != null : "next operation can't be null";
+        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        return next;
     }
 
     /**
@@ -436,15 +478,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         "Dynamic mappings are not available on the node that holds the primary yet");
             }
         }
-        Engine.IndexResult result = primary.index(operation);
-        if (result.hasFailure() == false) {
-            // update the version on request so it will happen on the replicas
-            final long version = result.getVersion();
-            request.version(version);
-            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-            assert request.versionType().validateVersionForWrites(request.version());
-        }
-        return result;
+        return primary.index(operation);
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
@@ -456,16 +490,5 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
                 request.version(), request.versionType());
         return replica.delete(delete);
-    }
-
-    private Translog.Location locationToSync(Translog.Location current, Translog.Location next) {
-        /* here we are moving forward in the translog with each operation. Under the hood
-         * this might cross translog files which is ok since from the user perspective
-         * the translog is like a tape where only the highest location needs to be fsynced
-         * in order to sync all previous locations even though they are not in the same file.
-         * When the translog rolls over files the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
-        return next;
     }
 }

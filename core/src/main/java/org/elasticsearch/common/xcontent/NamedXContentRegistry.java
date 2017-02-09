@@ -62,7 +62,7 @@ public class NamedXContentRegistry {
         private final ContextParser<Object, ?> parser;
 
         /** Creates a new entry which can be stored by the registry. */
-        public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ?, IOException> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
             this.parser = Objects.requireNonNull((p, c) -> parser.apply(p));

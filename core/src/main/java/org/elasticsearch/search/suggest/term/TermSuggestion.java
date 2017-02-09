@@ -40,6 +40,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
+    private static final String NAME = "term";
+
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
     public static final int TYPE = 1;
@@ -96,8 +98,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    public int getType() {
+    public int getWriteableType() {
         return TYPE;
+    }
+
+    @Override
+    protected String getType() {
+        return NAME;
     }
 
     @Override

@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -149,7 +151,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(suggestions.size());
         for (Suggestion<?> command : suggestions) {
-            out.writeVInt(command.getType());
+            out.writeVInt(command.getWriteableType());
             command.writeTo(out);
         }
     }
@@ -206,6 +208,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      */
     public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
 
+        private static final String NAME = "suggestion";
+
         public static final int TYPE = 0;
         protected String name;
         protected int size;
@@ -223,8 +227,21 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             entries.add(entry);
         }
 
-        public int getType() {
+        /**
+         * Returns a integer representing the type of the suggestion. This is used for
+         * internal serialization over the network.
+         */
+        public int getWriteableType() { // TODO remove this in favor of NamedWriteable
             return TYPE;
+        }
+
+        /**
+         * Returns a string representing the type of the suggestion. This type is added to
+         * the suggestion name in the XContent response, so that it can later be used by
+         * REST clients to determine the internal type of the suggestion.
+         */
+        protected String getType() {
+            return NAME;
         }
 
         @Override
@@ -338,7 +355,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray(name);
+            if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+                // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+                builder.startArray(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
+            } else {
+                builder.startArray(getName());
+            }
             for (Entry<?> entry : entries) {
                 entry.toXContent(builder, params);
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -229,8 +230,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (searchResponse.getHits().getHits().length == 0) {
                     listener.onResponse(searchResponse);
                 } else {
-                    Iterator<SearchHit> hitsIterator = searchResponse.getHits().iterator();
-                    expandCollapsedHits(searchRequest, hitsIterator, searchResponse, listener);
+                    expandCollapsedHits(searchPhaseController.getClient(), searchRequest, searchResponse, listener);
                 }
             }, listener::onFailure);
         } else {
@@ -297,39 +297,50 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /**
      * Expands collapsed using the {@link CollapseBuilder#innerHit} options.
-     * Iterates over the hits one by one and sends an asynchronous request to get the top hits per group.
      */
-    void expandCollapsedHits(SearchRequest originalSearchRequest, Iterator<SearchHit> hits,
-                             SearchResponse searchResponse, ActionListener<SearchResponse> finalListener) {
-        if (hits.hasNext() == false) {
-            finalListener.onResponse(searchResponse);
-            return;
+    void expandCollapsedHits(Client client,
+                             SearchRequest searchRequest,
+                             SearchResponse searchResponse,
+                             ActionListener<SearchResponse> finalListener) {
+        CollapseBuilder collapseBuilder = searchRequest.source().collapse();
+        MultiSearchRequest multiRequest = new MultiSearchRequest();
+        if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
+            multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
         }
-        CollapseBuilder collapseBuilder = originalSearchRequest.source().collapse();
-        BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-        SearchHit hit = hits.next();
-        Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
-        if (collapseValue != null) {
-            groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
-        } else {
-            groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
-        }
-        QueryBuilder origQuery = originalSearchRequest.source().query();
-        if (origQuery != null) {
-            groupQuery.must(origQuery);
-        }
-        SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(collapseBuilder.getInnerHit())
-            .query(groupQuery);
-        SearchRequest groupRequest = new SearchRequest(originalSearchRequest.indices())
-            .types(originalSearchRequest.types())
-            .source(sourceBuilder);
-        execute(groupRequest, ActionListener.wrap(innerHitsSearchResponse -> {
-            SearchHits innerHits = innerHitsSearchResponse.getHits();
-            if (hit.getInnerHits() == null) {
-                hit.setInnerHits(new HashMap<>(1));
+        for (SearchHit hit : searchResponse.getHits()) {
+            BoolQueryBuilder groupQuery = new BoolQueryBuilder();
+            Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
+            if (collapseValue != null) {
+                groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
+            } else {
+                groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
             }
-            hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
-            expandCollapsedHits(originalSearchRequest, hits, searchResponse, finalListener);
+            QueryBuilder origQuery = searchRequest.source().query();
+            if (origQuery != null) {
+                groupQuery.must(origQuery);
+            }
+            SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(collapseBuilder.getInnerHit())
+                .query(groupQuery);
+            SearchRequest groupRequest = new SearchRequest(searchRequest.indices())
+                .types(searchRequest.types())
+                .source(sourceBuilder);
+            multiRequest.add(groupRequest);
+        }
+        client.multiSearch(multiRequest, ActionListener.wrap(response -> {
+            Iterator<MultiSearchResponse.Item> it = response.iterator();
+            for (SearchHit hit : searchResponse.getHits()) {
+                MultiSearchResponse.Item item = it.next();
+                if (item.isFailure()) {
+                    finalListener.onFailure(item.getFailure());
+                    return;
+                }
+                SearchHits innerHits = item.getResponse().getHits();
+                if (hit.getInnerHits() == null) {
+                    hit.setInnerHits(new HashMap<>(1));
+                }
+                hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
+            }
+            finalListener.onResponse(searchResponse);
         }, finalListener::onFailure));
     }
 

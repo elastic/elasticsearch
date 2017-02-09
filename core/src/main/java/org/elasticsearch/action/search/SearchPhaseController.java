@@ -31,6 +31,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -82,11 +83,17 @@ public class SearchPhaseController extends AbstractComponent {
 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final Client client;
 
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, Client client) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.client = client;
+    }
+
+    public Client getClient() {
+        return client;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {

@@ -55,7 +55,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        searchPhaseController = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null, null);
     }
 
     public void testSort() throws Exception {

@@ -278,7 +278,8 @@ public class JobManager extends AbstractComponent {
             }
 
             // This task manages the physical deletion of the job (removing the results, then the index)
-            task.delete(jobId, indexName, client, deleteJobStateHandler::accept, actionListener::onFailure);
+            task.delete(jobId, client,  clusterService.state(),
+                    deleteJobStateHandler::accept, actionListener::onFailure);
         };
 
         // Step 0. Kick off the chain of callbacks with the initial UpdateStatus call

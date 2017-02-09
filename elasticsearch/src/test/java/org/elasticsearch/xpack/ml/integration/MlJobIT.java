@@ -316,6 +316,82 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
+    public void testMultiIndexDelete() throws Exception {
+        String jobId = "foo";
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        createFarequoteJob(jobId);
+
+        Response response = client().performRequest("put", indexName + "-001");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        response = client().performRequest("put", indexName + "-002");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(indexName));
+        assertThat(responseAsString, containsString(indexName + "-001"));
+        assertThat(responseAsString, containsString(indexName + "-002"));
+
+        // Add some documents to each index to make sure the DBQ clears them out
+        String recordResult =
+                String.format(Locale.ROOT,
+                        "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
+                        jobId, 123, 1, 1);
+        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/result/" + 123,
+                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult));
+        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/result/" + 123,
+                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult));
+        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/result/" + 123,
+                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult));
+
+
+        client().performRequest("post", "_refresh");
+
+        // check for the documents
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":1"));
+
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":1"));
+
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":1"));
+
+        // Delete
+        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        client().performRequest("post", "_refresh");
+
+        // check index was deleted
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString("\t" + indexName + "\t")));
+
+        // The other two indices won't be deleted, but the DBQ should have cleared them out
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":0"));
+
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":0"));
+
+        expectThrows(ResponseException.class, () ->
+                client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+    }
+
     private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
             client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId),

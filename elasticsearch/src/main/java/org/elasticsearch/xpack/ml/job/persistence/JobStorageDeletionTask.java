@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -32,19 +33,23 @@ public class JobStorageDeletionTask extends Task {
         this.logger = Loggers.getLogger(getClass());
     }
 
-    public void delete(String jobId, String indexName, Client client,
+    public void delete(String jobId, Client client, ClusterState state,
                        CheckedConsumer<Boolean, Exception> finishedHandler,
                        Consumer<Exception> failureHandler) {
 
+        String indexName = AnomalyDetectorsIndex.getCurrentResultsIndex(state, jobId);
+        String indexPattern = indexName + "-*";
+
         // Step 2. Regardless of if the DBQ succeeds, we delete the physical index
         // -------
+        // TODO this will be removed once shared indices are used
         CheckedConsumer<BulkByScrollResponse, Exception> dbqHandler = bulkByScrollResponse -> {
             if (bulkByScrollResponse.isTimedOut()) {
-                logger.warn("DeleteByQuery for index [" + indexName + "] timed out. Continuing to delete index.");
+                logger.warn("DeleteByQuery for index [" + indexPattern + "] timed out. Continuing to delete index.");
             }
             if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
                 logger.warn("[" + bulkByScrollResponse.getBulkFailures().size()
-                        + "] failures encountered while running DeleteByQuery on index [" + indexName + "]. "
+                        + "] failures encountered while running DeleteByQuery on index [" + indexPattern + "]. "
                         + "Continuing to delete index");
             }
 
@@ -63,7 +68,7 @@ public class JobStorageDeletionTask extends Task {
 
         // Step 1. DeleteByQuery on the index, matching all docs with the right job_id
         // -------
-        SearchRequest searchRequest = new SearchRequest(indexName);
+        SearchRequest searchRequest = new SearchRequest(indexPattern);
         searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("job_id", jobId)));
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         request.setSlices(5);

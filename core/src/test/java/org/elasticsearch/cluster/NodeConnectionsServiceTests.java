@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -40,7 +42,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -59,7 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NodeConnectionsServiceTests extends ESTestCase {
 
-    private static ThreadPool THREAD_POOL;
+    private ThreadPool threadPool;
     private MockTransport transport;
     private TransportService transportService;
 
@@ -83,7 +84,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     public void testConnectAndDisconnect() {
         List<DiscoveryNode> nodes = generateNodes();
-        NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, THREAD_POOL, transportService);
+        NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
 
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
@@ -107,14 +108,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     public void testReconnect() {
         List<DiscoveryNode> nodes = generateNodes();
-        NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, THREAD_POOL, transportService);
+        NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
 
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
         transport.randomConnectionExceptions = true;
 
-        service.connectToNodes(event.nodesDelta().addedNodes());
+        service.connectToNodes(event.state().nodes());
 
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
@@ -151,8 +152,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        this.threadPool = new TestThreadPool(getClass().getName());
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        transportService = new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -162,15 +164,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         transportService.stop();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
         super.tearDown();
     }
-
-    @AfterClass
-    public static void stopThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
-        THREAD_POOL = null;
-    }
-
 
     final class MockTransport implements Transport {
         private final AtomicLong requestId = new AtomicLong();
@@ -202,7 +199,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
             if (connectionProfile == null) {
                 if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
                     throw new ConnectTransportException(node, "simulated");

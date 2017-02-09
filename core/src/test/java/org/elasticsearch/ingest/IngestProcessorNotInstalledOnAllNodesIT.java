@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -69,7 +70,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         ensureStableCluster(2, node2);
 
         try {
-            client().admin().cluster().preparePutPipeline("_id", pipelineSource).get();
+            client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
             fail("exception expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Processor type [test] is not installed on node"));
@@ -82,7 +83,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         try {
-            client().admin().cluster().preparePutPipeline("_id", pipelineSource).get();
+            client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("No processor type exists with name [test]"));
@@ -95,7 +96,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         installPlugin = true;
         String node1 = internalCluster().startNode();
 
-        WritePipelineResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource).get();
+        WritePipelineResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
         assertThat(response.isAcknowledged(), is(true));
         Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipelineStore().get("_id");
         assertThat(pipeline, notNullValue());

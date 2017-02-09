@@ -84,7 +84,7 @@ public class AggregationPhase implements SearchPhase {
             return;
         }
 
-        if (context.queryResult().aggregations() != null) {
+        if (context.queryResult().hasAggs()) {
             // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }

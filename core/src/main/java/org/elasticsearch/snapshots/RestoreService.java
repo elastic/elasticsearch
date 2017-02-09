@@ -636,7 +636,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
         private final Logger logger;
 
-        public CleanRestoreStateTaskExecutor(Logger logger) {
+        CleanRestoreStateTaskExecutor(Logger logger) {
             this.logger = logger;
         }
 

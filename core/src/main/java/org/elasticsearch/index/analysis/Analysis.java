@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -245,7 +246,7 @@ public class Analysis {
 
         final Path path = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             return loadWordList(reader, "#");
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
@@ -296,7 +297,7 @@ public class Analysis {
         }
         final Path path = env.configFile().resolve(filePath);
         try {
-            return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
+            return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
                 "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",

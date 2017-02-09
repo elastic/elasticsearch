@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -140,7 +140,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
             FieldMapper mapper = parseContext.docMapper().mappers().getMapper(fieldName);
-            if (!(mapper instanceof BaseGeoPointFieldMapper)) {
+            if (!(mapper instanceof GeoPointFieldMapper)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
         }

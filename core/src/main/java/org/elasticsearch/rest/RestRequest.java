@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -26,20 +27,26 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -47,12 +54,25 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestRequest.class));
+    // tchar pattern as defined by RFC7230 section 3.2.6
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+
     private final NamedXContentRegistry xContentRegistry;
     private final Map<String, String> params;
+    private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
+    private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
-    public RestRequest(NamedXContentRegistry xContentRegistry, String uri) {
+    /**
+     * Creates a new RestRequest
+     * @param xContentRegistry the xContentRegistry to use when parsing XContent
+     * @param uri the URI of the request that potentially contains request parameters
+     * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
+     *                insensitive
+     */
+    public RestRequest(NamedXContentRegistry xContentRegistry, String uri, Map<String, List<String>> headers) {
         this.xContentRegistry = xContentRegistry;
         final Map<String, String> params = new HashMap<>();
         int pathEndPos = uri.indexOf('?');
@@ -63,12 +83,32 @@ public abstract class RestRequest implements ToXContent.Params {
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
         this.params = params;
+        this.headers = Collections.unmodifiableMap(headers);
+        final List<String> contentType = getAllHeaderValues("Content-Type");
+        final XContentType xContentType = parseContentType(contentType);
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
     }
 
-    public RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path) {
+    /**
+     * Creates a new RestRequest
+     * @param xContentRegistry the xContentRegistry to use when parsing XContent
+     * @param params the parameters of the request
+     * @param path the path of the request. This should not contain request parameters
+     * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
+     *                insensitive
+     */
+    public RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path, Map<String, List<String>> headers) {
         this.xContentRegistry = xContentRegistry;
         this.params = params;
         this.rawPath = path;
+        this.headers = Collections.unmodifiableMap(headers);
+        final List<String> contentType = getAllHeaderValues("Content-Type");
+        final XContentType xContentType = parseContentType(contentType);
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
     }
 
     public enum Method {
@@ -100,9 +140,51 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public abstract BytesReference content();
 
-    public abstract String header(String name);
+    /**
+     * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
+     * sent. Use of {@link #getAllHeaderValues(String)} should be preferred
+     */
+    public final String header(String name) {
+        List<String> values = headers.get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
+        }
+        return null;
+    }
 
-    public abstract Iterable<Map.Entry<String, String>> headers();
+    /**
+     * Get all values for the header or {@code null} if the header was not found
+     */
+    public final List<String> getAllHeaderValues(String name) {
+        List<String> values = headers.get(name);
+        if (values != null) {
+            return Collections.unmodifiableList(values);
+        }
+        return null;
+    }
+
+    /**
+     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
+     */
+    public final Map<String, List<String>> getHeaders() {
+        return headers;
+    }
+
+    /**
+     * The {@link XContentType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
+     * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
+     */
+    @Nullable
+    public final XContentType getXContentType() {
+        return xContentType.get();
+    }
+
+    /**
+     * Sets the {@link XContentType}
+     */
+    final void setXContentType(XContentType xContentType) {
+        this.xContentType.set(xContentType);
+    }
 
     @Nullable
     public SocketAddress getRemoteAddress() {
@@ -254,8 +336,10 @@ public abstract class RestRequest implements ToXContent.Params {
         BytesReference content = content();
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
+        } else if (xContentType.get() == null) {
+            throw new IllegalStateException("unknown content type");
         }
-        return XContentFactory.xContent(content).createParser(xContentRegistry, content);
+        return xContentType.get().xContent().createParser(xContentRegistry, content);
     }
 
     /**
@@ -283,11 +367,12 @@ public abstract class RestRequest implements ToXContent.Params {
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        BytesReference content = contentOrSourceParam();
+        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        BytesReference content = tuple.v2();
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
         }
-        return XContentFactory.xContent(content).createParser(xContentRegistry, content);
+        return tuple.v1().xContent().createParser(xContentRegistry, content);
     }
 
     /**
@@ -296,9 +381,11 @@ public abstract class RestRequest implements ToXContent.Params {
      * back to the user when there isn't request content.
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
-        BytesReference content = contentOrSourceParam();
+        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        BytesReference content = tuple.v2();
+        XContentType xContentType = tuple.v1();
         if (content.length() > 0) {
-            try (XContentParser parser = XContentFactory.xContent(content).createParser(xContentRegistry, content)) {
+            try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, content)) {
                 withParser.accept(parser);
             }
         } else {
@@ -310,7 +397,66 @@ public abstract class RestRequest implements ToXContent.Params {
      * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} or
      * {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final BytesReference contentOrSourceParam() {
+    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+        if (hasContent()) {
+            if (xContentType.get() == null) {
+                throw new IllegalStateException("unknown content type");
+            }
+            return new Tuple<>(xContentType.get(), content());
+        }
+
+        String source = param("source");
+        String typeParam = param("source_content_type");
+        if (source != null) {
+            BytesArray bytes = new BytesArray(source);
+            final XContentType xContentType;
+            if (typeParam != null) {
+                xContentType = parseContentType(Collections.singletonList(typeParam));
+            } else {
+                DEPRECATION_LOGGER.deprecated("Deprecated use of the [source] parameter without the [source_content_type] parameter. Use " +
+                    "the [source_content_type] parameter to specify the content type of the source such as [application/json]");
+                xContentType = XContentFactory.xContentType(bytes);
+            }
+
+            if (xContentType == null) {
+                throw new IllegalStateException("could not determine source content type");
+            }
+            return new Tuple<>(xContentType, bytes);
+        }
+        return new Tuple<>(XContentType.JSON, BytesArray.EMPTY);
+    }
+
+    /**
+     * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
+     * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
+     * back to the user when there isn't request content. This version allows for plain text content
+     */
+    @Deprecated
+    public final void withContentOrSourceParamParserOrNullLenient(CheckedConsumer<XContentParser, IOException> withParser)
+        throws IOException {
+        if (hasContent() && xContentType.get() == null) {
+            withParser.accept(null);
+        }
+
+        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        BytesReference content = tuple.v2();
+        XContentType xContentType = tuple.v1();
+        if (content.length() > 0) {
+            try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, content)) {
+                withParser.accept(parser);
+            }
+        } else {
+            withParser.accept(null);
+        }
+    }
+
+    /**
+     * Get the content of the request or the contents of the {@code source} param without the xcontent type. This is useful the request can
+     * accept non xcontent values.
+     * @deprecated we should only take xcontent
+     */
+    @Deprecated
+    public final BytesReference getContentOrSourceParamOnly() {
         if (hasContent()) {
             return content();
         }
@@ -319,5 +465,30 @@ public abstract class RestRequest implements ToXContent.Params {
             return new BytesArray(source);
         }
         return BytesArray.EMPTY;
+    }
+
+    /**
+     * Parses the given content type string for the media type. This method currently ignores parameters.
+     */
+    // TODO stop ignoring parameters such as charset...
+    private static XContentType parseContentType(List<String> header) {
+        if (header == null || header.isEmpty()) {
+            return null;
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("only one Content-Type header should be provided");
+        }
+
+        String rawContentType = header.get(0);
+        final String[] elements = rawContentType.split("[ \t]*;");
+        if (elements.length > 0) {
+            final String[] splitMediaType = elements[0].split("/");
+            if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
+                && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
+                return XContentType.fromMediaType(elements[0]);
+            } else {
+                throw new IllegalArgumentException("invalid Content-Type header [" + rawContentType + "]");
+            }
+        }
+        throw new IllegalArgumentException("empty Content-Type header");
     }
 }

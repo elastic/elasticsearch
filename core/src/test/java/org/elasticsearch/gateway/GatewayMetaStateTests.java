@@ -385,7 +385,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     private static class MockMetaDataIndexUpgradeService extends MetaDataIndexUpgradeService {
         private final boolean upgrade;
 
-        public MockMetaDataIndexUpgradeService(boolean upgrade) {
+        MockMetaDataIndexUpgradeService(boolean upgrade) {
             super(Settings.EMPTY, null, null, null);
             this.upgrade = upgrade;
         }

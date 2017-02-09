@@ -27,9 +27,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -113,6 +114,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
     private final MembershipAction membership;
+    private final ThreadPool threadPool;
 
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
@@ -156,6 +158,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.joinRetryDelay = JOIN_RETRY_DELAY_SETTING.get(settings);
         this.maxPingsFromAnotherMaster = MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.get(settings);
         this.sendLeaveRequest = SEND_LEAVE_REQUEST_SETTING.get(settings);
+        this.threadPool = threadPool;
 
         this.masterElectionIgnoreNonMasters = MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING.get(settings);
         this.masterElectionWaitForJoinsTimeout = MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.get(settings);
@@ -189,7 +192,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         discoverySettings,
                         clusterService.getClusterName());
         this.membership = new MembershipAction(settings, transportService, this::localNode, new MembershipListener());
-        this.joinThreadControl = new JoinThreadControl(threadPool);
+        this.joinThreadControl = new JoinThreadControl();
 
         transportService.registerRequestHandler(
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
@@ -516,7 +519,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             private final DiscoveryNode node;
             private final String reason;
 
-            public Task(final DiscoveryNode node, final String reason) {
+            Task(final DiscoveryNode node, final String reason) {
                 this.node = node;
                 this.reason = reason;
             }
@@ -724,12 +727,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 if (shouldIgnoreOrRejectNewClusterState(logger, currentState, newClusterState)) {
                     return unchanged();
                 }
-
-                // check to see that we monitor the correct master of the cluster
-                if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
-                    masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
-                }
-
                 if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                     // its a fresh update from the master as we transition from a start of not having a master to having one
                     logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
@@ -783,6 +780,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 try {
                     if (newClusterState != null) {
+                        // check to see that we monitor the correct master of the cluster
+                        if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                            masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+                        }
                         publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                     }
                 } catch (Exception e) {
@@ -968,21 +969,28 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
         } else {
             logger.warn("discovered [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster ([{}])", otherMaster, otherMaster, reason);
-            try {
-                // make sure we're connected to this node (connect to node does nothing if we're already connected)
-                // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
-                // in the past (after a master failure, for example)
-                transportService.connectToNode(otherMaster);
-                transportService.sendRequest(otherMaster, DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(localClusterState.nodes().getLocalNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            // spawn to a background thread to not do blocking operations on the cluster state thread
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), e);
+                }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), exp);
-                    }
-                });
-            } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), e);
-            }
+                @Override
+                protected void doRun() throws Exception {
+                    // make sure we're connected to this node (connect to node does nothing if we're already connected)
+                    // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
+                    // in the past (after a master failure, for example)
+                    transportService.connectToNode(otherMaster);
+                    transportService.sendRequest(otherMaster, DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(localNode().getId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), exp);
+                        }
+                    });
+                }
+            });
             return LocalClusterUpdateTask.unchanged();
         }
     }
@@ -1132,13 +1140,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
      */
     private class JoinThreadControl {
 
-        private final ThreadPool threadPool;
         private final AtomicBoolean running = new AtomicBoolean(false);
         private final AtomicReference<Thread> currentJoinThread = new AtomicReference<>();
-
-        public JoinThreadControl(ThreadPool threadPool) {
-            this.threadPool = threadPool;
-        }
 
         /** returns true if join thread control is started and there is currently an active join thread */
         public boolean joinThreadActive() {

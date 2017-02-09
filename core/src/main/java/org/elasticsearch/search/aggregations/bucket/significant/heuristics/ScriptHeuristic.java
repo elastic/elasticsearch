@@ -158,7 +158,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 currentFieldName = parser.currentName();
             } else {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
-                    script = Script.parse(parser, context.getDefaultScriptLanguage());
+                    script = Script.parse(parser);
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                 }

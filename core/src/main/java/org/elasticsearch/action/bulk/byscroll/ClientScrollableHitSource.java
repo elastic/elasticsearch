@@ -37,6 +37,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
@@ -233,6 +235,10 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
+        public XContentType getXContentType() {
+            return XContentFactory.xContentType(source);
+        }
+        @Override
         public long getVersion() {
             return delegate.getVersion();
         }
@@ -249,7 +255,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         private <T> T fieldValue(String fieldName) {
             SearchHitField field = delegate.field(fieldName);
-            return field == null ? null : field.value();
+            return field == null ? null : field.getValue();
         }
     }
 }

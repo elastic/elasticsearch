@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -136,7 +137,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
-                    .source("{}");
+                    .source("{}", XContentType.JSON);
                 final IndexResponse response = index(indexRequest);
                 assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
             }
@@ -146,7 +147,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
                 final IndexResponse response = index(indexRequest);
                 assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
             }
@@ -355,7 +356,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private final ReplicationGroup replicationGroup;
         private final String opType;
 
-        public ReplicationAction(Request request, ActionListener<Response> listener,
+        ReplicationAction(Request request, ActionListener<Response> listener,
                                  ReplicationGroup group, String opType) {
             this.request = request;
             this.listener = listener;
@@ -446,14 +447,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
-                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                          Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
+                                          Consumer<Exception> onIgnoredFailure) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
-                                             Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                                     Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
                 throw new UnsupportedOperationException();
             }
         }
@@ -462,7 +464,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ReplicaRequest replicaRequest;
             final Response finalResponse;
 
-            public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
+            PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
                 this.replicaRequest = replicaRequest;
                 this.finalResponse = finalResponse;
             }
@@ -486,7 +488,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     class IndexingAction extends ReplicationAction<IndexRequest, IndexRequest, IndexResponse> {
 
-        public IndexingAction(IndexRequest request, ActionListener<IndexResponse> listener, ReplicationGroup replicationGroup) {
+        IndexingAction(IndexRequest request, ActionListener<IndexResponse> listener, ReplicationGroup replicationGroup) {
             super(request, listener, replicationGroup, "indexing");
             request.process(null, true, request.index());
         }
@@ -536,17 +538,17 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, result.getTranslogLocation(), logger);
     }
 
+    class GlobalCheckpointSync extends ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest,
+        GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {
 
-    class GlobalCheckpointSync extends
-        ReplicationAction<GlobalCheckpointSyncAction.PrimaryRequest, GlobalCheckpointSyncAction.ReplicaRequest, ReplicationResponse> {
-
-        public GlobalCheckpointSync(ActionListener<ReplicationResponse> listener, ReplicationGroup replicationGroup) {
+        GlobalCheckpointSync(ActionListener<ReplicationResponse> listener, ReplicationGroup replicationGroup) {
             super(new GlobalCheckpointSyncAction.PrimaryRequest(replicationGroup.getPrimary().shardId()), listener,
                 replicationGroup, "global_ckp");
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, GlobalCheckpointSyncAction.PrimaryRequest request) throws Exception {
+        protected PrimaryResult performOnPrimary(IndexShard primary,
+                                                 GlobalCheckpointSyncAction.PrimaryRequest request) throws Exception {
             primary.getTranslog().sync();
             return new PrimaryResult(new GlobalCheckpointSyncAction.ReplicaRequest(request, primary.getGlobalCheckpoint()),
                 new ReplicationResponse());

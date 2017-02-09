@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -254,11 +255,13 @@ public class BulkProcessorIT extends ESIntegTestCase {
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
                     testDocs++;
-                    processor.add(new IndexRequest("test", "test", Integer.toString(testDocs)).source("field", "value"));
+                    processor.add(new IndexRequest("test", "test", Integer.toString(testDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
                     multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs)).source("field", "value"));
+                    processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
                 }
             }
         }
@@ -296,7 +299,8 @@ public class BulkProcessorIT extends ESIntegTestCase {
     private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest("test", "test", Integer.toString(i)).source("field", randomRealisticUnicodeOfLengthBetween(1, 30)));
+            processor.add(new IndexRequest("test", "test", Integer.toString(i))
+                .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             multiGetRequestBuilder.add("test", "test", Integer.toString(i));
         }
         return multiGetRequestBuilder;

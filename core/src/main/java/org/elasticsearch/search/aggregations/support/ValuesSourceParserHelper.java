@@ -85,7 +85,7 @@ public final class ValuesSourceParserHelper {
 
         if (scriptable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
-                    (parser, context) -> Script.parse(parser, context.getDefaultScriptLanguage()),
+                    (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         }
 

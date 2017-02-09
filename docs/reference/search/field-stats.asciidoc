@@ -16,15 +16,18 @@ All indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating"
+GET _field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
 
 Specific indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/index1,index2/_field_stats?fields=rating"
+GET twitter/_field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Supported request options:
 
@@ -38,10 +41,12 @@ Alternatively the `fields` option can also be defined in the request body:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+POST _field_stats?level=indices
+{
    "fields" : ["rating"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 This is equivalent to the previous request.
 
@@ -114,8 +119,9 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
+GET _field_stats?fields=rating,answer_count,creation_date,display_name
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
@@ -226,8 +232,9 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
+GET _field_stats?fields=rating,answer_count,creation_date,display_name&level=indices
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
@@ -307,8 +314,9 @@ holding questions created in the year 2014:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"] <1>
+POST _field_stats?level=indices
+{
+   "fields" : ["answer_count"], <1>
    "index_constraints" : { <2>
       "creation_date" : { <3>
          "max_value" : { <4>
@@ -319,8 +327,9 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 <1> The fields to compute and return field stats for.
 <2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
@@ -341,8 +350,9 @@ If missing, the format configured in the field's mapping is used.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"]
+POST _field_stats?level=indices
+{
+   "fields" : ["answer_count"],
    "index_constraints" : {
       "creation_date" : {
          "max_value" : {
@@ -355,7 +365,8 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 <1> Custom date format

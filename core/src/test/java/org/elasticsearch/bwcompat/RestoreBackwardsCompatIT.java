@@ -172,7 +172,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> check search");
         SearchResponse searchResponse = client().prepareSearch(index).get();
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(1L));
 
         logger.info("--> check settings");
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();

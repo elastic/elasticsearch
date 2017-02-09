@@ -28,9 +28,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -99,8 +98,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
         }
         ScoreDoc[] sortedDocs = mergedScoreDocs.toArray(new ScoreDoc[mergedScoreDocs.size()]);
-
-        InternalSearchResponse mergedResponse = searchPhaseController.merge(true, sortedDocs, queryResults,
+        InternalSearchResponse mergedResponse = searchPhaseController.merge(true, sortedDocs,
+            searchPhaseController.reducedQueryPhase(queryResults.asList()),
             generateFetchResults(nShards, mergedSearchDocs, mergedSuggest));
         assertThat(mergedResponse.hits().getHits().length, equalTo(mergedSearchDocs.length));
         Suggest suggestResult = mergedResponse.suggest();
@@ -197,16 +196,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
         return TopDocs.merge(topN, shardTopDocs).scoreDocs;
     }
 
-    private AtomicArray<FetchSearchResultProvider> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
-        AtomicArray<FetchSearchResultProvider> fetchResults = new AtomicArray<>(nShards);
+    private AtomicArray<QuerySearchResultProvider> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
+        AtomicArray<QuerySearchResultProvider> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             float maxScore = -1F;
             SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
-            List<InternalSearchHit> internalSearchHits = new ArrayList<>();
+            List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    internalSearchHits.add(new InternalSearchHit(scoreDoc.doc, "", new Text(""), Collections.emptyMap()));
+                    searchHits.add(new SearchHit(scoreDoc.doc, "", new Text(""), Collections.emptyMap()));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -217,7 +216,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                         ScoreDoc doc = option.getDoc();
                         if (doc.shardIndex == shardIndex) {
-                            internalSearchHits.add(new InternalSearchHit(doc.doc, "", new Text(""), Collections.emptyMap()));
+                            searchHits.add(new SearchHit(doc.doc, "", new Text(""), Collections.emptyMap()));
                             if (doc.score > maxScore) {
                                 maxScore = doc.score;
                             }
@@ -225,8 +224,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     }
                 }
             }
-            InternalSearchHit[] hits = internalSearchHits.toArray(new InternalSearchHit[internalSearchHits.size()]);
-            fetchSearchResult.hits(new InternalSearchHits(hits, hits.length, maxScore));
+            SearchHit[] hits = searchHits.toArray(new SearchHit[searchHits.size()]);
+            fetchSearchResult.hits(new SearchHits(hits, hits.length, maxScore));
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;

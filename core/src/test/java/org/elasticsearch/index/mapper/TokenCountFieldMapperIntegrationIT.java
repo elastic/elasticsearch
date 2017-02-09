@@ -177,14 +177,14 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
 
     private void assertSearchReturns(SearchResponse result, String... ids) {
         assertThat(result.getHits().getTotalHits(), equalTo((long) ids.length));
-        assertThat(result.getHits().hits().length, equalTo(ids.length));
+        assertThat(result.getHits().getHits().length, equalTo(ids.length));
         List<String> foundIds = new ArrayList<>();
         for (SearchHit hit : result.getHits()) {
-            foundIds.add(hit.id());
+            foundIds.add(hit.getId());
         }
         assertThat(foundIds, containsInAnyOrder(ids));
         for (SearchHit hit : result.getHits()) {
-            String id = hit.id();
+            String id = hit.getId();
             if (id.equals("single")) {
                 assertSearchHit(hit, 4);
             } else if (id.equals("bulk1")) {
@@ -205,13 +205,13 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
 
     private void assertSearchHit(SearchHit hit, int... termCounts) {
         assertThat(hit.field("foo.token_count"), not(nullValue()));
-        assertThat(hit.field("foo.token_count").values().size(), equalTo(termCounts.length));
+        assertThat(hit.field("foo.token_count").getValues().size(), equalTo(termCounts.length));
         for (int i = 0; i < termCounts.length; i++) {
-            assertThat((Integer) hit.field("foo.token_count").values().get(i), equalTo(termCounts[i]));
+            assertThat((Integer) hit.field("foo.token_count").getValues().get(i), equalTo(termCounts[i]));
         }
 
         if (loadCountedFields && storeCountedFields) {
-            assertThat(hit.field("foo").values().size(), equalTo(termCounts.length));
+            assertThat(hit.field("foo").getValues().size(), equalTo(termCounts.length));
         }
     }
 }

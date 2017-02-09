@@ -148,7 +148,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().totalHits();
+        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits();
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test");

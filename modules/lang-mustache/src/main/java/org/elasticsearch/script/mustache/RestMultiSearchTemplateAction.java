@@ -30,11 +30,15 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("typed_keys");
 
     private final boolean allowExplicitIndex;
 
@@ -80,5 +84,15 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                     }
                 });
         return multiRequest;
+    }
+
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

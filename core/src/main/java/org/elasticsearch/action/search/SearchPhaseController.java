@@ -31,15 +31,11 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -49,9 +45,8 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -68,7 +63,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -250,7 +244,7 @@ public class SearchPhaseController extends AbstractComponent {
         Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
         QuerySearchResultProvider firstResult = sortedResults[0].value;
 
-        int topN = topN(results);
+        int topN = firstResult.queryResult().size();
         int from = firstResult.queryResult().from();
         if (ignoreFrom) {
             from = 0;
@@ -346,16 +340,12 @@ public class SearchPhaseController extends AbstractComponent {
         return scoreDocs;
     }
 
-    public ScoreDoc[] getLastEmittedDocPerShard(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
+    public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase,
                                                 ScoreDoc[] sortedScoreDocs, int numShards) {
         ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];
-        if (queryResults.isEmpty() == false) {
-            long fetchHits = 0;
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> queryResult : queryResults) {
-                fetchHits += queryResult.value.queryResult().topDocs().scoreDocs.length;
-            }
+        if (reducedQueryPhase.isEmpty() == false) {
             // from is always zero as when we use scroll, we ignore from
-            long size = Math.min(fetchHits, topN(queryResults));
+            long size = Math.min(reducedQueryPhase.fetchHits, reducedQueryPhase.oneResult.size());
             // with collapsing we can have more hits than sorted docs
             size = Math.min(sortedScoreDocs.length, size);
             for (int sortedDocsIndex = 0; sortedDocsIndex < size; sortedDocsIndex++) {
@@ -390,22 +380,50 @@ public class SearchPhaseController extends AbstractComponent {
      * completion suggestion ordered by suggestion name
      */
     public InternalSearchResponse merge(boolean ignoreFrom, ScoreDoc[] sortedDocs,
-                                        AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-                                        AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
-
-        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
-        List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
-
-        if (queryResults.isEmpty()) {
+                                        ReducedQueryPhase reducedQueryPhase,
+                                        AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
+        if (reducedQueryPhase.isEmpty()) {
             return InternalSearchResponse.empty();
         }
+        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> fetchResults = fetchResultsArr.asList();
+        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, sortedDocs, fetchResultsArr);
+        if (reducedQueryPhase.suggest != null) {
+            if (!fetchResults.isEmpty()) {
+                int currentOffset = hits.getHits().length;
+                for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
+                    final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
+                    for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
+                        ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
+                        QuerySearchResultProvider searchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
+                        if (searchResultProvider == null) {
+                            continue;
+                        }
+                        FetchSearchResult fetchResult = searchResultProvider.fetchResult();
+                        int fetchResultIndex = fetchResult.counterGetAndIncrement();
+                        if (fetchResultIndex < fetchResult.hits().internalHits().length) {
+                            SearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
+                            CompletionSuggestion.Entry.Option suggestOption =
+                                suggestionOptions.get(scoreDocIndex - currentOffset);
+                            hit.score(shardDoc.score);
+                            hit.shard(fetchResult.shardTarget());
+                            suggestOption.setHit(hit);
+                        }
+                    }
+                    currentOffset += suggestionOptions.size();
+                }
+                assert currentOffset == sortedDocs.length : "expected no more score doc slices";
+            }
+        }
+        return reducedQueryPhase.buildResponse(hits);
+    }
 
-        QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
-
+    private SearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom, ScoreDoc[] sortedDocs,
+                               AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
+        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> fetchResults = fetchResultsArr.asList();
         boolean sorted = false;
         int sortScoreIndex = -1;
-        if (firstResult.topDocs() instanceof TopFieldDocs) {
-            TopFieldDocs fieldDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+        if (reducedQueryPhase.oneResult.topDocs() instanceof TopFieldDocs) {
+            TopFieldDocs fieldDocs = (TopFieldDocs) reducedQueryPhase.oneResult.queryResult().topDocs();
             if (fieldDocs instanceof CollapseTopFieldDocs &&
                 fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) {
                 sorted = false;
@@ -418,13 +436,67 @@ public class SearchPhaseController extends AbstractComponent {
                 }
             }
         }
+        // clean the fetch counter
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : fetchResults) {
+            entry.value.fetchResult().initCounter();
+        }
+        int from = ignoreFrom ? 0 : reducedQueryPhase.oneResult.queryResult().from();
+        int numSearchHits = (int) Math.min(reducedQueryPhase.fetchHits - from, reducedQueryPhase.oneResult.size());
+        // with collapsing we can have more fetch hits than sorted docs
+        numSearchHits = Math.min(sortedDocs.length, numSearchHits);
+        // merge hits
+        List<SearchHit> hits = new ArrayList<>();
+        if (!fetchResults.isEmpty()) {
+            for (int i = 0; i < numSearchHits; i++) {
+                ScoreDoc shardDoc = sortedDocs[i];
+                QuerySearchResultProvider fetchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
+                if (fetchResultProvider == null) {
+                    continue;
+                }
+                FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
+                int index = fetchResult.counterGetAndIncrement();
+                if (index < fetchResult.hits().internalHits().length) {
+                    SearchHit searchHit = fetchResult.hits().internalHits()[index];
+                    searchHit.score(shardDoc.score);
+                    searchHit.shard(fetchResult.shardTarget());
+                    if (sorted) {
+                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                        searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.oneResult.sortValueFormats());
+                        if (sortScoreIndex != -1) {
+                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
+                        }
+                    }
+                    hits.add(searchHit);
+                }
+            }
+        }
+        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits,
+            reducedQueryPhase.maxScore);
+    }
 
-        // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
+    /**
+     * Reduces the given query results and consumes all aggregations and profile results.
+     * @see QuerySearchResult#consumeAggs()
+     * @see QuerySearchResult#consumeProfileResult()
+     */
+    public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
         long totalHits = 0;
         long fetchHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
+        if (queryResults.isEmpty()) {
+            return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, null, null, null, null);
+        }
+        QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
+        final boolean hasSuggest = firstResult.suggest() != null;
+        final boolean hasAggs = firstResult.hasAggs();
+        final boolean hasProfileResults = firstResult.hasProfileResults();
+        final List<InternalAggregations> aggregationsList = hasAggs ? new ArrayList<>(queryResults.size()) : Collections.emptyList();
+        // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
+        final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
+        final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
+            : Collections.emptyMap();
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
             QuerySearchResult result = entry.value.queryResult();
             if (result.searchTimedOut()) {
@@ -442,138 +514,98 @@ public class SearchPhaseController extends AbstractComponent {
             if (!Float.isNaN(result.topDocs().getMaxScore())) {
                 maxScore = Math.max(maxScore, result.topDocs().getMaxScore());
             }
-        }
-        if (Float.isInfinite(maxScore)) {
-            maxScore = Float.NaN;
-        }
-
-        // clean the fetch counter
-        for (AtomicArray.Entry<? extends FetchSearchResultProvider> entry : fetchResults) {
-            entry.value.fetchResult().initCounter();
-        }
-        int from = ignoreFrom ? 0 : firstResult.queryResult().from();
-        int numSearchHits = (int) Math.min(fetchHits - from, topN(queryResults));
-        // with collapsing we can have more fetch hits than sorted docs
-        numSearchHits = Math.min(sortedDocs.length, numSearchHits);
-        // merge hits
-        List<InternalSearchHit> hits = new ArrayList<>();
-        if (!fetchResults.isEmpty()) {
-            for (int i = 0; i < numSearchHits; i++) {
-                ScoreDoc shardDoc = sortedDocs[i];
-                FetchSearchResultProvider fetchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
-                if (fetchResultProvider == null) {
-                    continue;
-                }
-                FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
-                int index = fetchResult.counterGetAndIncrement();
-                if (index < fetchResult.hits().internalHits().length) {
-                    InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
-                    searchHit.score(shardDoc.score);
-                    searchHit.shard(fetchResult.shardTarget());
-                    if (sorted) {
-                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                        searchHit.sortValues(fieldDoc.fields, firstResult.sortValueFormats());
-                        if (sortScoreIndex != -1) {
-                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
-                        }
-                    }
-                    hits.add(searchHit);
+            if (hasSuggest) {
+                assert result.suggest() != null;
+                for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
+                    List<Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
+                    suggestionList.add(suggestion);
                 }
             }
-        }
-
-        // merge suggest results
-        Suggest suggest = null;
-        if (firstResult.suggest() != null) {
-            final Map<String, List<Suggestion>> groupedSuggestions = new HashMap<>();
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> queryResult : queryResults) {
-                Suggest shardSuggest = queryResult.value.queryResult().suggest();
-                if (shardSuggest != null) {
-                    for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : shardSuggest) {
-                        List<Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
-                        suggestionList.add(suggestion);
-                    }
-                }
+            if (hasAggs) {
+                aggregationsList.add((InternalAggregations) result.consumeAggs());
             }
-            if (groupedSuggestions.isEmpty() == false) {
-                suggest = new Suggest(Suggest.reduce(groupedSuggestions));
-                if (!fetchResults.isEmpty()) {
-                    int currentOffset = numSearchHits;
-                    for (CompletionSuggestion suggestion : suggest.filter(CompletionSuggestion.class)) {
-                        final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
-                        for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
-                            ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
-                            FetchSearchResultProvider fetchSearchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
-                            if (fetchSearchResultProvider == null) {
-                                continue;
-                            }
-                            FetchSearchResult fetchResult = fetchSearchResultProvider.fetchResult();
-                            int fetchResultIndex = fetchResult.counterGetAndIncrement();
-                            if (fetchResultIndex < fetchResult.hits().internalHits().length) {
-                                InternalSearchHit hit = fetchResult.hits().internalHits()[fetchResultIndex];
-                                CompletionSuggestion.Entry.Option suggestOption =
-                                    suggestionOptions.get(scoreDocIndex - currentOffset);
-                                hit.score(shardDoc.score);
-                                hit.shard(fetchResult.shardTarget());
-                                suggestOption.setHit(hit);
-                            }
-                        }
-                        currentOffset += suggestionOptions.size();
-                    }
-                    assert currentOffset == sortedDocs.length : "expected no more score doc slices";
-                }
+            if (hasProfileResults) {
+                String key = result.shardTarget().toString();
+                profileResults.put(key, result.consumeProfileResult());
             }
         }
-
-        // merge Aggregation
-        InternalAggregations aggregations = null;
-        if (firstResult.aggregations() != null && firstResult.aggregations().asList() != null) {
-            List<InternalAggregations> aggregationsList = new ArrayList<>(queryResults.size());
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
-            }
-            ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService);
-            aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
-            List<SiblingPipelineAggregator> pipelineAggregators = firstResult.pipelineAggregators();
-            if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
-                for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), reduceContext);
-                    newAggs.add(newAgg);
-                }
-                aggregations = new InternalAggregations(newAggs);
-            }
-        }
-
-        //Collect profile results
-        SearchProfileShardResults shardResults = null;
-        if (firstResult.profileResults() != null) {
-            Map<String, ProfileShardResult> profileResults = new HashMap<>(queryResults.size());
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                String key = entry.value.queryResult().shardTarget().toString();
-                profileResults.put(key, entry.value.queryResult().profileResults());
-            }
-            shardResults = new SearchProfileShardResults(profileResults);
-        }
-
-        InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
-
-        return new InternalSearchResponse(searchHits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
+        final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
+        final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
+            firstResult.pipelineAggregators());
+        final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, firstResult, suggest, aggregations,
+            shardResults);
     }
 
-    /**
-     * returns the number of top results to be considered across all shards
-     */
-    private static int topN(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
-        QuerySearchResultProvider firstResult = queryResults.get(0).value;
-        int topN = firstResult.queryResult().size();
-        if (firstResult.includeFetch()) {
-            // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
-            // this is also important since we shortcut and fetch only docs from "from" and up to "size"
-            topN *= queryResults.size();
+    private InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
+                                            List<SiblingPipelineAggregator> pipelineAggregators) {
+        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService);
+        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
+        if (pipelineAggregators != null) {
+            List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
+                .map((p) -> (InternalAggregation) p)
+                .collect(Collectors.toList());
+            for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
+                InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), reduceContext);
+                newAggs.add(newAgg);
+            }
+            return new InternalAggregations(newAggs);
         }
-        return topN;
+        return aggregations;
     }
+
+    public static final class ReducedQueryPhase {
+        // the sum of all hits across all reduces shards
+        final long totalHits;
+        // the number of returned hits (doc IDs) across all reduces shards
+        final long fetchHits;
+        // the max score across all reduces hits or {@link Float#NaN} if no hits returned
+        final float maxScore;
+        // <code>true</code> if at least one reduced result timed out
+        final boolean timedOut;
+        // non null and true if at least one reduced result was terminated early
+        final Boolean terminatedEarly;
+        // an non-null arbitrary query result if was at least one reduced result
+        final QuerySearchResult oneResult;
+        // the reduced suggest results
+        final Suggest suggest;
+        // the reduced internal aggregations
+        final InternalAggregations aggregations;
+        // the reduced profile results
+        final SearchProfileShardResults shardResults;
+
+        ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly,
+                                 QuerySearchResult oneResult, Suggest suggest, InternalAggregations aggregations,
+                                 SearchProfileShardResults shardResults) {
+            this.totalHits = totalHits;
+            this.fetchHits = fetchHits;
+            if (Float.isInfinite(maxScore)) {
+                this.maxScore = Float.NaN;
+            } else {
+                this.maxScore = maxScore;
+            }
+            this.timedOut = timedOut;
+            this.terminatedEarly = terminatedEarly;
+            this.oneResult = oneResult;
+            this.suggest = suggest;
+            this.aggregations = aggregations;
+            this.shardResults = shardResults;
+        }
+
+        /**
+         * Creates a new search response from the given merged hits.
+         * @see #merge(boolean, ScoreDoc[], ReducedQueryPhase, AtomicArray)
+         */
+        public InternalSearchResponse buildResponse(SearchHits hits) {
+            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
+        }
+
+        /**
+         * Returns <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
+         */
+        public boolean isEmpty() {
+            return oneResult == null;
+        }
+    }
+
 }

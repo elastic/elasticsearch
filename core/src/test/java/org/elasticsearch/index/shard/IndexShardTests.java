@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -157,20 +158,19 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             ShardId id = new ShardId("foo", "fooUUID", 1);
-            long version = between(1, Integer.MAX_VALUE / 2);
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
-            ShardStateMetaData state1 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
+            ShardStateMetaData state1 = new ShardStateMetaData(primary, "fooUUID", allocationId);
             write(state1, env.availableShardPaths(id));
             ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state2 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
+            ShardStateMetaData state2 = new ShardStateMetaData(primary, "fooUUID", allocationId);
             write(state2, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state3 = new ShardStateMetaData(version + 1, primary, "fooUUID", allocationId);
+            ShardStateMetaData state3 = new ShardStateMetaData(primary, "fooUUID", allocationId);
             write(state3, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state3);
@@ -235,21 +235,20 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testShardStateMetaHashCodeEquals() {
         AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
-        ShardStateMetaData meta = new ShardStateMetaData(randomLong(), randomBoolean(),
+        ShardStateMetaData meta = new ShardStateMetaData(randomBoolean(),
             randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
 
-        assertEquals(meta, new ShardStateMetaData(meta.legacyVersion, meta.primary, meta.indexUUID, meta.allocationId));
+        assertEquals(meta, new ShardStateMetaData(meta.primary, meta.indexUUID, meta.allocationId));
         assertEquals(meta.hashCode(),
-            new ShardStateMetaData(meta.legacyVersion, meta.primary, meta.indexUUID, meta.allocationId).hashCode());
+            new ShardStateMetaData(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion + 1, meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID + "foo", randomAllocationId())));
+        assertFalse(meta.equals(new ShardStateMetaData(!meta.primary, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetaData(!meta.primary, meta.indexUUID + "foo", meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetaData(!meta.primary, meta.indexUUID + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
-            meta = new ShardStateMetaData(randomLong(), randomBoolean(),
+            meta = new ShardStateMetaData(randomBoolean(),
                 randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
             hashCodes.add(meta.hashCode());
         }
@@ -558,7 +557,8 @@ public class IndexShardTests extends IndexShardTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, XContentType.JSON,
+            mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -1459,7 +1459,7 @@ public class IndexShardTests extends IndexShardTestCase {
     private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
         private final String indexName;
 
-        public RestoreOnlyRepository(String indexName) {
+        RestoreOnlyRepository(String indexName) {
             super(Settings.EMPTY);
             this.indexName = indexName;
         }

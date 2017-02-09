@@ -77,7 +77,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        try (final ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
@@ -143,7 +143,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
-        try (final ReplicationGroup shards = createGroup(2)) {
+        try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
             int totalDocs = shards.indexDocs(randomInt(10));
             int committedDocs = 0;

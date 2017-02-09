@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -230,7 +229,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (searchResponse.getHits().getHits().length == 0) {
                     listener.onResponse(searchResponse);
                 } else {
-                    expandCollapsedHits(searchPhaseController.getClient(), searchRequest, searchResponse, listener);
+                    expandCollapsedHits(nodes.getLocalNode(), task, searchRequest, searchResponse, listener);
                 }
             }, listener::onFailure);
         } else {
@@ -298,7 +297,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * Expands collapsed using the {@link CollapseBuilder#innerHit} options.
      */
-    void expandCollapsedHits(Client client,
+    void expandCollapsedHits(DiscoveryNode node,
+                             SearchTask parentTask,
                              SearchRequest searchRequest,
                              SearchResponse searchResponse,
                              ActionListener<SearchResponse> finalListener) {
@@ -326,22 +326,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .source(sourceBuilder);
             multiRequest.add(groupRequest);
         }
-        client.multiSearch(multiRequest, ActionListener.wrap(response -> {
-            Iterator<MultiSearchResponse.Item> it = response.iterator();
-            for (SearchHit hit : searchResponse.getHits()) {
-                MultiSearchResponse.Item item = it.next();
-                if (item.isFailure()) {
-                    finalListener.onFailure(item.getFailure());
-                    return;
+        searchTransportService.sendExecuteMultiSearch(node, multiRequest, parentTask,
+            ActionListener.wrap(response -> {
+                Iterator<MultiSearchResponse.Item> it = response.iterator();
+                for (SearchHit hit : searchResponse.getHits()) {
+                    MultiSearchResponse.Item item = it.next();
+                    if (item.isFailure()) {
+                        finalListener.onFailure(item.getFailure());
+                        return;
+                    }
+                    SearchHits innerHits = item.getResponse().getHits();
+                    if (hit.getInnerHits() == null) {
+                        hit.setInnerHits(new HashMap<>(1));
+                    }
+                    hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
                 }
-                SearchHits innerHits = item.getResponse().getHits();
-                if (hit.getInnerHits() == null) {
-                    hit.setInnerHits(new HashMap<>(1));
-                }
-                hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
-            }
-            finalListener.onResponse(searchResponse);
-        }, finalListener::onFailure));
+                finalListener.onResponse(searchResponse);
+            }, finalListener::onFailure)
+        );
     }
 
     private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options) {

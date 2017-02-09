@@ -6,6 +6,12 @@ import org.elasticsearch.gradle.VersionProperties
 import com.bettercloud.vault.Vault
 import com.bettercloud.vault.VaultConfig
 import com.bettercloud.vault.response.LogicalResponse
+import com.amazonaws.AmazonServiceException
+import com.amazonaws.ClientConfiguration
+import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.services.s3.model.HeadBucketRequest
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -30,6 +36,7 @@ buildscript {
   }
   dependencies {
     classpath group: 'com.bettercloud', name: 'vault-java-driver', version:"1.1.0"
+    classpath 'com.amazonaws:aws-java-sdk-s3:1.10.33'
   }
 }
 
@@ -74,8 +81,30 @@ Vault vault = new Vault(config)
 LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
 String mlAwsAccessKey = secret.data.get('access_key')
 String mlAwsSecretKey = secret.data.get('secret_key')
-// Sleeping to give AWS a chance to propagate the credentials
-sleep(10000)
+// Retrying 10 times to give AWS a chance to propagate the credentials
+int retries = 60
+while (retries > 0) {
+  AWSCredentials creds = new BasicAWSCredentials(mlAwsAccessKey, mlAwsSecretKey)
+
+  ClientConfiguration clientConfiguration = new ClientConfiguration()
+  // the response metadata cache is only there for diagnostics purposes,
+  // but can force objects from every response to the old generation.
+  clientConfiguration.setResponseMetadataCacheSize(0)
+
+  AmazonS3Client client = new AmazonS3Client(creds, clientConfiguration)
+  try {
+    client.headBucket(new HeadBucketRequest('prelert-artifacts'))
+    break;
+  } catch (AmazonServiceException e) {
+    if (e.getStatusCode() != 403 || retries == 0) {
+      throw new GradleException('Could not access ml-cpp artifacts. Timed out after 60 attempts', e)
+    }
+  }
+  sleep(500)
+  retries--
+}
+
+
 
 repositories {
   maven {

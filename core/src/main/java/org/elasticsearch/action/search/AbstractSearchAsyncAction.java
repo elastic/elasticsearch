@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 
-
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     protected final Logger logger;

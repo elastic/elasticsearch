@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 
-import com.google.common.base.Objects;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class HipChatAction implements Action {
 
@@ -46,14 +46,14 @@ public class HipChatAction implements Action {
 
         HipChatAction that = (HipChatAction) o;
 
-        return Objects.equal(account, that.account) &&
-               Objects.equal(message, that.message) &&
-               Objects.equal(proxy, that.proxy);
+        return Objects.equals(account, that.account) &&
+               Objects.equals(message, that.message) &&
+               Objects.equals(proxy, that.proxy);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(account, message, proxy);
+        return Objects.hash(account, message, proxy);
     }
 
     @Override

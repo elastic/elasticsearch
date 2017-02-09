@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -148,7 +146,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         String content = randomAsciiOfLength(200);
         String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
         String randomContentType = randomAsciiOfLength(20);
-        Map<String, String[]> headers = Maps.newHashMap();
+        Map<String, String[]> headers = new HashMap<>();
         headers.put("Content-Type", new String[] { randomContentType });
         when(httpClient.execute(any(HttpRequest.class)))
                 .thenReturn(new HttpResponse(200, "{\"path\":\""+ path +"\", \"other\":\"content\"}"))

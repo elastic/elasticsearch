@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -15,9 +13,9 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -25,6 +23,8 @@ import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -98,7 +98,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         final Condition scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
         final List<Condition> actionConditionsWithFailure =
-                Lists.newArrayList(scriptConditionFailsHard, conditionPasses, AlwaysCondition.INSTANCE);
+                Arrays.asList(scriptConditionFailsHard, conditionPasses, AlwaysCondition.INSTANCE);
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
@@ -143,7 +143,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
-        final List<Condition> actionConditionsWithFailure = Lists.newArrayList(conditionFails, conditionPasses, AlwaysCondition.INSTANCE);
+        final List<Condition> actionConditionsWithFailure = Arrays.asList(conditionFails, conditionPasses, AlwaysCondition.INSTANCE);
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
@@ -187,7 +187,8 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
-        final List<Condition> actionConditions = Lists.newArrayList(conditionPasses);
+        final List<Condition> actionConditions = new ArrayList<>();
+        actionConditions.add(conditionPasses);
 
         if (randomBoolean()) {
             actionConditions.add(AlwaysCondition.INSTANCE);

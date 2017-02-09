@@ -361,7 +361,7 @@ documents that they have to check.
 [[modules-scripting-painless-dispatch]]
 === How painless dispatches functions
 
-Painless uses receiver, name, and https://en.wikipedia.org/wiki/Arity[arity] to
+Painless uses receiver, name, and https://en.wikipedia.org/wiki/Arity[arity]
 for method dispatch. For example, `s.foo(a, b)` is resolved by first getting
 the class of `s` and then looking up the method `foo` with two parameters. This
 is different from Groovy which uses the

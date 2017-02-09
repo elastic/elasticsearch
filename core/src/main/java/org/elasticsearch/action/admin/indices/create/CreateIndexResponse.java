@@ -32,14 +32,20 @@ import java.io.IOException;
 public class CreateIndexResponse extends AcknowledgedResponse {
 
     private boolean shardsAcked;
+    private String indexName;
 
     protected CreateIndexResponse() {
     }
 
     protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked) {
+        this(acknowledged,shardsAcked,"");
+    }
+
+    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcked, String indexName) {
         super(acknowledged);
         assert acknowledged || shardsAcked == false; // if its not acknowledged, then shards acked should be false too
         this.shardsAcked = shardsAcked;
+        this.indexName = indexName;
     }
 
     @Override
@@ -65,7 +71,12 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         return shardsAcked;
     }
 
+    public String indexName(){
+        return indexName;
+    }
+
     public void addCustomFields(XContentBuilder builder) throws IOException {
         builder.field("shards_acknowledged", isShardsAcked());
+        builder.field("index_name", indexName());
     }
 }

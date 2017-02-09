@@ -135,6 +135,14 @@ public class FsProbe extends AbstractComponent {
         return Files.readAllLines(PathUtils.get("/proc/diskstats"));
     }
 
+    /** See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+    private static long adjustForHugeFilesystems(long bytes) {
+        if (bytes < 0) {
+            return Long.MAX_VALUE;
+        }
+        return bytes;
+    }
+
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
         fsPath.path = nodePath.path.toAbsolutePath().toString();
@@ -142,7 +150,7 @@ public class FsProbe extends AbstractComponent {
         // NOTE: we use already cached (on node startup) FileStore and spins
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
-        fsPath.total = nodePath.fileStore.getTotalSpace();
+        fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
         fsPath.free = nodePath.fileStore.getUnallocatedSpace();
         fsPath.available = nodePath.fileStore.getUsableSpace();
         fsPath.type = nodePath.fileStore.type();

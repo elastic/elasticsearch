@@ -68,6 +68,7 @@ public class CollapseBuilderTests extends AbstractSearchTestCase {
 
     public static CollapseBuilder randomCollapseBuilder() {
         CollapseBuilder builder = new CollapseBuilder(randomAsciiOfLength(10));
+        builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
         if (randomBoolean()) {
             InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits(false, false);
             builder.setInnerHits(innerHit);

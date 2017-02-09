@@ -174,6 +174,15 @@ public class SearchTransportService extends AbstractLifecycleComponent {
             new ActionListenerResponseHandler<>(listener, FetchSearchResult::new));
     }
 
+    /**
+     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
+     */
+    void sendExecuteMultiSearch(DiscoveryNode node, final MultiSearchRequest request, SearchTask task,
+                                       final ActionListener<MultiSearchResponse> listener) {
+        transportService.sendChildRequest(transportService.getConnection(node), MultiSearchAction.NAME, request, task,
+            new ActionListenerResponseHandler<>(listener, MultiSearchResponse::new));
+    }
+
     public RemoteClusterService getRemoteClusterService() {
         return remoteClusterService;
     }

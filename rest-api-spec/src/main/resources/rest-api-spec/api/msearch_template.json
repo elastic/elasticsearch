@@ -20,6 +20,10 @@
           "type" : "enum",
           "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
           "description" : "Search operation type"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
         }
       }
     },

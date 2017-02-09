@@ -72,6 +72,11 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
+    protected String getType() {
+        return StringTerms.NAME;
+    }
+
+    @Override
     public UnmappedTerms create(List<Bucket> buckets) {
         return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }

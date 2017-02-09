@@ -28,10 +28,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -194,11 +194,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
-            List<Term> extractedTerms = new ArrayList<>();
+            List<BytesRef> extractedTerms = new ArrayList<>();
             // include extractionResultField:failed, because docs with this term have no extractedTermsField
             // and otherwise we would fail to return these docs. Docs that failed query term extraction
             // always need to be verified by MemoryIndex:
-            extractedTerms.add(new Term(extractionResultField.name(), EXTRACTION_FAILED));
+            extractedTerms.add(new BytesRef(EXTRACTION_FAILED));
 
             LeafReader reader = indexReader.leaves().get(0).reader();
             Fields fields = reader.fields();
@@ -215,10 +215,10 @@ public class PercolatorFieldMapper extends FieldMapper {
                     builder.append(fieldBr);
                     builder.append(FIELD_VALUE_SEPARATOR);
                     builder.append(term);
-                    extractedTerms.add(new Term(queryTermsField.name(), builder.toBytesRef()));
+                    extractedTerms.add(builder.toBytesRef());
                 }
             }
-            return new TermsQuery(extractedTerms);
+            return new TermInSetQuery(queryTermsField.name(), extractedTerms);
         }
 
     }

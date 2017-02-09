@@ -30,6 +30,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -207,7 +208,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        TermsQuery termsQuery = (TermsQuery) fieldType.createCandidateQuery(indexReader);
+        TermInSetQuery termsQuery = (TermInSetQuery) fieldType.createCandidateQuery(indexReader);
 
         PrefixCodedTerms terms = termsQuery.getTermData();
         assertThat(terms.size(), equalTo(15L));

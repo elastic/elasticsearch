@@ -38,6 +38,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -45,8 +47,6 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -65,7 +65,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -83,25 +82,11 @@ public class SearchPhaseController extends AbstractComponent {
 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener;
 
     public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
-        this(settings, bigArrays, scriptService, Collections.emptyList());
-    }
-
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService,
-                                 List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListener) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.searchResponseListener = searchResponseListener;
-    }
-
-    /**
-     * Returns the search response listeners registry
-     */
-    public List<BiConsumer<SearchRequest, SearchResponse> > getSearchResponseListener() {
-        return searchResponseListener;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {

@@ -1,6 +1,6 @@
 File extrasDir = new File(settingsDir, '..').getCanonicalFile()
 if (extrasDir.name.endsWith('-extra') == false) {
-  throw new GradleException("x-pack must be checked out under an elasticsearch-extra directory, found ${extrasDir.name}")
+  throw new GradleException("x-pack-elasticsearch must be checked out under an elasticsearch-extra directory, found ${extrasDir.name}")
 }
 File elasticsearchDir = new File(extrasDir.parentFile, extrasDir.name[0..-7])
 project(':').projectDir = elasticsearchDir

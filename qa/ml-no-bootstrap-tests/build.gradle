@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 

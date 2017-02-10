@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 
 // bring in watcher rest test suite
 task copyWatcherRestTests(type: Copy) {
   into project.sourceSets.test.output.resourcesDir
-  from project(':x-pack:elasticsearch').sourceSets.test.resources.srcDirs
+  from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources.srcDirs
   include 'rest-api-spec/test/watcher/**'
 }
 
@@ -19,7 +19,7 @@ integTest {
      'getting_started/10_monitor_cluster_health/Getting started - Monitor cluster health'].join(',')
 
   cluster {
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
                  'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'

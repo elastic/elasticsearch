@@ -2,14 +2,14 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
-  testCompile project(path: ':x-pack:elasticsearch-transport-client', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:transport-client', configuration: 'runtime')
 }
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
-  from project(':x-pack:elasticsearch').tasks.pluginProperties
+  from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
+  from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -17,7 +17,7 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 integTest {
   systemProperty 'tests.security.manager', 'false'
   cluster {
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
     setupCommand 'setupDummyUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupTransportClientUser',

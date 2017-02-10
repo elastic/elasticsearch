@@ -5,10 +5,10 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
-  provided project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+  provided project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 
   testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
-  testCompile project(path: ':x-pack:elasticsearch-transport-client', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:transport-client', configuration: 'runtime')
 }
 
 Map generateSubstitutions() {
@@ -27,8 +27,8 @@ Map generateSubstitutions() {
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
-  from project(':x-pack:elasticsearch').tasks.pluginProperties
+  from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
+  from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -46,7 +46,7 @@ task buildZip(type:Zip, dependsOn: [jar]) {
 task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
   systemProperty 'tests.security.manager', 'false'
   cluster {
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
     setting 'xpack.security.authc.realms.custom.order', '0'
     setting 'xpack.security.authc.realms.custom.type', 'custom'
     setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'

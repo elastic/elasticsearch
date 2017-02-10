@@ -14,13 +14,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
-  from project(':x-pack:elasticsearch').tasks.pluginProperties
+  from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
+  from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -175,7 +175,7 @@ integTest {
     setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
     setting 'xpack.security.http.ssl.keystore.password', 'keypass'
 
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
 
     // copy keystores into config/
     extraConfigFile nodeKeystore.name, nodeKeystore

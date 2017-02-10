@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
   testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
 
 integTest {
   cluster {
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'http.port', '9400'

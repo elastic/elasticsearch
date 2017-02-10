@@ -227,7 +227,7 @@ forbiddenPatterns {
 
 // TODO: standardize packaging config for plugins
 bundlePlugin {
-  from(project(':x-pack').projectDir) {
+  from(parent.projectDir) {
     include 'LICENSE.txt'
   }
   from(projectDir) {

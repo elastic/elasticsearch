@@ -1,8 +1,8 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
-if (project.projectDir.name != 'x-pack') {
-  throw new GradleException('You must checkout x-pack in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/x-pack')
+if (project.projectDir.name != 'x-pack-elasticsearch') {
+  throw new GradleException('You must checkout x-pack-elasticsearch in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/x-pack')
 }
 
 subprojects {
@@ -33,7 +33,7 @@ File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
 subprojects {
   tasks.withType(Checkstyle) {
     inputs.file(checkstyleSuppressions)
-    // Use x-pack specific suppressions file rather than the open source one.
+    // Use x-pack-elasticsearch specific suppressions file rather than the open source one.
     configProperties = [
       suppressions: checkstyleSuppressions
     ]
@@ -43,5 +43,5 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack:elasticsearch' ]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin' ]
 }

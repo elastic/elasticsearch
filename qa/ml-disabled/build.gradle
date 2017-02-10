@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 
 integTest {
@@ -11,6 +11,6 @@ integTest {
         setting 'xpack.ml.enabled', 'false'
         numNodes = 1
         distribution = 'zip'
-        plugin ':x-pack:elasticsearch'
+        plugin ':x-pack-elasticsearch:plugin'
     }
 }

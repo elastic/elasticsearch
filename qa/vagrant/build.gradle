@@ -5,7 +5,7 @@ esvagrant {
 }
 
 dependencies {
-    bats project(path: ':x-pack:elasticsearch', configuration: 'zip')
+    bats project(path: ':x-pack-elasticsearch:plugin', configuration: 'zip')
 
     // Inherit Bats test utils from :qa:vagrant project
     bats project(path: ':qa:vagrant', configuration: 'bats')

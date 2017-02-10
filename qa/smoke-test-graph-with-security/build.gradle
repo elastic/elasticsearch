@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 
 // bring in graph rest test suite
 task copyGraphRestTests(type: Copy) {
   into project.sourceSets.test.output.resourcesDir
-  from project(':x-pack:elasticsearch').sourceSets.test.resources.srcDirs
+  from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources.srcDirs
   include 'rest-api-spec/test/graph/**'
 }
 
@@ -16,7 +16,7 @@ integTest {
   dependsOn copyGraphRestTests
 
   cluster {
-    plugin ':x-pack:elasticsearch'
+    plugin ':x-pack-elasticsearch:plugin'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
                  'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'

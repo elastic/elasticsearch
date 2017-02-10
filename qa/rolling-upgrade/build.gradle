@@ -52,7 +52,7 @@ String outputDir = "generated-resources/${project.name}"
 task oldClusterTest(type: RestIntegTestTask) {
     mustRunAfter(precommit)
     cluster {
-        plugin ':x-pack:elasticsearch'
+        plugin ':x-pack-elasticsearch:plugin'
         distribution = 'zip'
         bwcVersion = '5.3.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
         numBwcNodes = 2
@@ -71,7 +71,7 @@ task oldClusterTest(type: RestIntegTestTask) {
 task mixedClusterTest(type: RestIntegTestTask) {
     dependsOn(oldClusterTest, 'oldClusterTest#node1.stop')
     cluster {
-        plugin ':x-pack:elasticsearch'
+        plugin ':x-pack-elasticsearch:plugin'
         distribution = 'zip'
         clusterName = 'rolling-upgrade'
         unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
@@ -88,7 +88,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
 task upgradedClusterTest(type: RestIntegTestTask) {
     dependsOn(mixedClusterTest, 'oldClusterTest#node0.stop')
     cluster {
-        plugin ':x-pack:elasticsearch'
+        plugin ':x-pack-elasticsearch:plugin'
         distribution = 'zip'
         clusterName = 'rolling-upgrade'
         unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
@@ -112,28 +112,28 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 check.dependsOn(integTest)
 
 dependencies {
-    testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
 }
 
 // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
 task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(':x-pack:elasticsearch').sourceSets.test.resources
+    from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
 
 task copyTestNodeKeystore(type: Copy) {
     dependsOn(copyXPackRestSpec)
-    from project(':x-pack:elasticsearch')
+    from project(':x-pack-elasticsearch:plugin')
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
 }
 
 task copyXPackPluginProps(type: Copy) {
     dependsOn(copyTestNodeKeystore)
-    from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
-    from project(':x-pack:elasticsearch').tasks.pluginProperties
+    from project(':x-pack-elasticsearch:plugin').file('src/main/plugin-metadata')
+    from project(':x-pack-elasticsearch:plugin').tasks.pluginProperties
     into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)

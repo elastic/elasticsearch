@@ -140,7 +140,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
-                        ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder);
+                        ParsedQuery parsedQuery = queryShardContext.toFilter(queryBuilder);
                         filter.add(parsedQuery.query(), SHOULD);
                     }
                 }

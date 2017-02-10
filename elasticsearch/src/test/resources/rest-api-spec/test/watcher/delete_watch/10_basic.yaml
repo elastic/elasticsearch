@@ -43,6 +43,11 @@
         id: "my_watch"
   - match: { found: true }
 
+  - do:
+      search:
+        index: .watches
+  - match: { hits.total: 0 }
+
 ---
 "Non existent watch returns 404":
   - do:

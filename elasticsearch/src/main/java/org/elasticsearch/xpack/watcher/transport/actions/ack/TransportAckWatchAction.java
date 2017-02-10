@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -93,6 +94,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                 UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
                 // this may reject this action, but prevents concurrent updates from a watch execution
                 updateRequest.version(response.getVersion());
+                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 XContentBuilder builder = jsonBuilder();
                 builder.startObject()
                         .startObject(Watch.Field.STATUS.getPreferredName())

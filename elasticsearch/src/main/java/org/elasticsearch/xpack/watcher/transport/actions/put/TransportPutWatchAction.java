@@ -83,6 +83,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 BytesReference bytesReference = builder.bytes();
 
                 IndexRequest indexRequest = new IndexRequest(Watch.INDEX).type(Watch.DOC_TYPE).id(request.getId());
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 indexRequest.source(bytesReference, XContentType.JSON);
 
                 client.index(indexRequest, ActionListener.wrap(indexResponse -> {

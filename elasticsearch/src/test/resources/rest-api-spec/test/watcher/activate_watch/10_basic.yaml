@@ -50,6 +50,12 @@
   - match: { _status.state.active : false }
 
   - do:
+      search:
+        index: .watches
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source._status.state.active: false }
+
+  - do:
       xpack.watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
@@ -61,6 +67,12 @@
         watch_id: "my_watch"
 
   - match: { _status.state.active : true }
+
+  - do:
+      search:
+        index: .watches
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source._status.state.active: true }
 
   - do:
       xpack.watcher.get_watch:

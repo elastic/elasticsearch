@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -135,11 +136,13 @@ public class WatcherClientProxy extends ClientProxy {
 
     public void getWatch(String id, ActionListener<GetResponse> listener) {
         GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+        getRequest.realtime(true);
         client.get(preProcess(getRequest), listener);
     }
 
     public void deleteWatch(String id, ActionListener<DeleteResponse> listener) {
         DeleteRequest request = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, id);
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client.delete(preProcess(request), listener);
     }
 

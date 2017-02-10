@@ -110,6 +110,8 @@ query. The parameter `boost_mode` defines how:
 By default, modifying the score does not change which documents match. To exclude
 documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.
 
+NOTE: For `min_score` to work, **all** documents returned by the query need to be scored and then filtered out one by one. This is much less efficient than using a query filter.
+
 [[score-functions]]
 
 The `function_score` query provides several types of score functions.

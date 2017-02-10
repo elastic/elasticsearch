@@ -147,3 +147,5 @@ include::suggesters/phrase-suggest.asciidoc[]
 include::suggesters/completion-suggest.asciidoc[]
 
 include::suggesters/context-suggest.asciidoc[]
+
+include::suggesters/misc.asciidoc[]

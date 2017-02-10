@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -164,9 +165,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
-        String name = params.paramAsBoolean("typed_keys", false) ? String.join(TYPED_KEYS_DELIMITER, getType(), getName()) : getName();
-        builder.startObject(name);
+        if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+            // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+            builder.startObject(String.join(TYPED_KEYS_DELIMITER, getType(), getName()));
+        } else {
+            builder.startObject(getName());
+        }
         if (this.metaData != null) {
             builder.field(CommonFields.META);
             builder.map(this.metaData);

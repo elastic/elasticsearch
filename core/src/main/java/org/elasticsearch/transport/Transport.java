@@ -93,7 +93,7 @@ public interface Transport extends LifecycleComponent {
     long newRequestId();
     /**
      * Returns a connection for the given node if the node is connected.
-     * Connections returned from this method must not be closed. The lifecylce of this connection is maintained by the Transport
+     * Connections returned from this method must not be closed. The lifecycle of this connection is maintained by the Transport
      * implementation.
      *
      * @throws NodeNotConnectedException if the node is not connected

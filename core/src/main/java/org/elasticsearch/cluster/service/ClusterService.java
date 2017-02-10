@@ -342,7 +342,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
      *
-     * NOTE: the listener is not remmoved on timeout. This is the responsibility of the caller.
+     * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
      */
     public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
@@ -558,7 +558,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         return true;
     }
 
-    /** asserts that the current stack trace does <b>NOT</b> invlove a cluster state applier */
+    /** asserts that the current stack trace does <b>NOT</b> involve a cluster state applier */
     private static boolean assertNotCalledFromClusterStateApplier(String reason) {
         if (Thread.currentThread().getName().contains(UPDATE_THREAD_NAME)) {
             for (StackTraceElement element: Thread.currentThread().getStackTrace()) {

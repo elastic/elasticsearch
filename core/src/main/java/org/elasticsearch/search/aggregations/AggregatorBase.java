@@ -186,7 +186,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * This method should be overidden by subclasses that want to defer calculation
+     * This method should be overridden by subclasses that want to defer calculation
      * of a child aggregation until a first pass is complete and a set of buckets has
      * been pruned.
      * Deferring collection will require the recording of all doc/bucketIds from the first

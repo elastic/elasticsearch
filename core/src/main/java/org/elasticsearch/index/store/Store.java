@@ -355,7 +355,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Decreases the refCount of this Store instance.If the refCount drops to 0, then this
+     * Decreases the refCount of this Store instance. If the refCount drops to 0, then this
      * store is closed.
      *
      * @see #incRef

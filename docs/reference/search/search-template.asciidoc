@@ -452,7 +452,6 @@ because we'll use it later.
 }
 --------------------------------------------------
 // TESTRESPONSE
-// TEST[continued]
 
 //////////////////////////
 
@@ -477,7 +476,6 @@ which is rendered as:
 }
 ------------------------------------------
 // TESTRESPONSE
-// TEST[continued]
 
 This template can be deleted by
 
@@ -497,7 +495,6 @@ DELETE _search/template/<templatename>
 }
 --------------------------------------------------
 // TESTRESPONSE
-// TEST[continued]
 
 //////////////////////////
 

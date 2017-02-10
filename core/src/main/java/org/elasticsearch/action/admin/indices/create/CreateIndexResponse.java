@@ -53,6 +53,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.readFrom(in);
         readAcknowledged(in);
         shardsAcked = in.readBoolean();
+        indexName = in.readString();
     }
 
     @Override
@@ -60,6 +61,7 @@ public class CreateIndexResponse extends AcknowledgedResponse {
         super.writeTo(out);
         writeAcknowledged(out);
         out.writeBoolean(shardsAcked);
+        out.writeString(indexName);
     }
 
     /**

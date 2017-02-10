@@ -253,7 +253,6 @@ import org.elasticsearch.rest.action.admin.indices.RestHeadIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.RestIndicesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
@@ -528,7 +527,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteSnapshotAction(settings, restController));
         registerHandler.accept(new RestSnapshotsStatusAction(settings, restController));
 
-        registerHandler.accept(new RestIndicesExistsAction(settings, restController));
         registerHandler.accept(new RestTypesExistsAction(settings, restController));
         registerHandler.accept(new RestGetIndicesAction(settings, restController, indexScopedSettings, settingsFilter));
         registerHandler.accept(new RestIndicesStatsAction(settings, restController));

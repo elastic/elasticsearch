@@ -28,11 +28,13 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParsingException;
@@ -195,11 +197,6 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
-            // include extractionResultField:failed, because docs with this term have no extractedTermsField
-            // and otherwise we would fail to return these docs. Docs that failed query term extraction
-            // always need to be verified by MemoryIndex:
-            extractedTerms.add(new BytesRef(EXTRACTION_FAILED));
-
             LeafReader reader = indexReader.leaves().get(0).reader();
             Fields fields = reader.fields();
             for (String field : fields) {
@@ -218,7 +215,16 @@ public class PercolatorFieldMapper extends FieldMapper {
                     extractedTerms.add(builder.toBytesRef());
                 }
             }
-            return new TermInSetQuery(queryTermsField.name(), extractedTerms);
+            Query extractionSuccess = new TermInSetQuery(queryTermsField.name(), extractedTerms);
+            // include extractionResultField:failed, because docs with this term have no extractedTermsField
+            // and otherwise we would fail to return these docs. Docs that failed query term extraction
+            // always need to be verified by MemoryIndex:
+            Query extractionFailure = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED));
+
+            return new BooleanQuery.Builder()
+                    .add(extractionSuccess, Occur.SHOULD)
+                    .add(extractionFailure, Occur.SHOULD)
+                    .build();
         }
 
     }

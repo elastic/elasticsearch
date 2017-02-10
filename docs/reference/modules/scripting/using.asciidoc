@@ -48,7 +48,7 @@ GET my_index/_search
 
 `lang`::
 
-    Specifies the language the script is written in.  Defaults to `groovy` but
+    Specifies the language the script is written in.  Defaults to `painless` but
     may be set to any of languages listed in <<modules-scripting>>. The
     default language may be changed in the `elasticsearch.yml` config file by
     setting `script.default_lang` to the appropriate language.

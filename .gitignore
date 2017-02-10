@@ -1,0 +1,51 @@
+.idea/
+.gradle/
+*.iml
+*.ipr
+*.iws
+work/
+/data/
+logs/
+.DS_Store
+build/
+build-idea/
+build-eclipse/
+generated-resources/
+target/
+*-execution-hints.log
+docs/html/
+docs/build.log
+npm-debug.log
+/tmp/
+backwards/
+html_docs
+.vagrant/
+vendor/
+.bundle
+Gemfile.lock
+
+## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
+## All files (.project, .classpath, .settings/*) should be generated through Maven which
+## will correctly set the classpath based on the declared dependencies and write settings
+## files to ensure common coding style across Eclipse and IDEA.
+.project
+.classpath
+eclipse-build
+*/.project
+*/.classpath
+*/eclipse-build
+.settings
+!/.settings/org.eclipse.core.resources.prefs
+!/.settings/org.eclipse.jdt.core.prefs
+!/.settings/org.eclipse.jdt.ui.prefs
+
+## netbeans ignores
+nb-configuration.xml
+nbactions.xml
+
+dependency-reduced-pom.xml
+github.token
+
+## ignore attachment files
+.local-*
+*/.local-*

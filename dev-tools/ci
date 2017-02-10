@@ -109,26 +109,7 @@ fi
 # back to base directory
 cd "$BASE_DIR"
 
-if ! grep -q -e '^xpack\.kibana\.build=false$' ~/.gradle/gradle.properties
-then
-  # install the correct node.js version
-  if [ -z ${NVM_DIR:+x} ]; then
-    export NVM_DIR="/var/lib/jenkins/.nvm";
-  fi
-
-  NVM_SCRIPT="$NVM_DIR/nvm.sh"
-  if [ -s "$NVM_SCRIPT" ]; then
-    . "$NVM_SCRIPT"  # load nvm
-  else
-    echo "Unable to find the nvm script at \"$NVM_SCRIPT\""
-    exit 1
-  fi
-
-  echo "Installing node.js version $(cat ./kibana/.node-version)..."
-  nvm install "$(cat ./kibana/.node-version)"
-fi
-
-echo "Running X-Plugins tests..."
+echo "Running x-pack-elasticsearch tests..."
 echo "Running in $PWD"
 
 # output the commands

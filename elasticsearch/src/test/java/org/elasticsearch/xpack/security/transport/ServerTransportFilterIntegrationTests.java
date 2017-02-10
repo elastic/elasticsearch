@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -73,6 +72,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
                 .put("xpack.security.audit.enabled", false)
+                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
     }
 
@@ -93,10 +93,13 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
+                .put("discovery.zen.minimum_master_nodes",
+                        internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
         try (Node node = new MockNode(nodeSettings, Arrays.asList(XPackPlugin.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
@@ -112,6 +115,11 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
+
+        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
+        String unicastHost = NetworkAddress.format(transportAddress.address());
+
         // test that starting up a node works
         Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
@@ -120,14 +128,17 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("node.name", "my-test-node")
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
+                .put("discovery.zen.ping.unicast.hosts", unicastHost)
+                .put("discovery.zen.minimum_master_nodes",
+                        internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Arrays.asList(XPackPlugin.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
 
             // assert that node is not connected by waiting for the timeout
@@ -138,11 +149,11 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 // wait for a timeout, because as long as the node is not connected to the cluster
                 // the license is disabled and therefore blocking health & stats calls.
                 node.client().admin().cluster().prepareUpdateSettings()
-                        .setTransientSettings(singletonMap("key", "value"))
+                        .setTransientSettings(singletonMap("logger.org.elasticsearch.xpack.security", "DEBUG"))
                         .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                         .get();
-                fail("Expected to fail update settings as the node should not be able to connect to the cluster, cause there should be no" +
-                        " master");
+                fail("Expected to fail update settings as the node should not be able to connect to the cluster, cause there should be " +
+                        "no master");
             } catch (MasterNotDiscoveredException e) {
                 // expected
                 logger.error("expected exception", e);

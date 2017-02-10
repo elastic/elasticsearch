@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -61,7 +62,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final long clusterStateVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
-    private volatile AtomicArray<ShardSearchFailure> shardFailures;
+    private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final long startTime;
@@ -97,6 +98,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return Math.max(1, System.currentTimeMillis() - startTime);
     }
 
+    /**
+     * This is the main entry point for a search. This method starts the search execution of the initial phase.
+     */
     public final void start() {
         if (results.length() == 0) {
             //no search shards to search on, bail with empty response
@@ -109,8 +113,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
-
+    public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+        /* This is the main search phase transition where we move to the next phase. At this point we check if there is
+         * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
+         * search phase as "all shards failed"
+         */
         if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
             if (logger.isDebugEnabled()) {
                 final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
@@ -156,8 +163,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
 
-    protected final ShardSearchFailure[] buildShardFailures() {
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
+    private ShardSearchFailure[] buildShardFailures() {
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
@@ -174,12 +181,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (TransportActions.isShardNotAvailableException(e)) {
             return;
         }
-
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
-        if (shardFailures == null) {
+        if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
             synchronized (shardFailuresMutex) {
-                if (shardFailures == null) {
+                shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
+                if (shardFailures == null) { // still null so we are the first and create a new instance
                     shardFailures = new AtomicArray<>(results.length());
+                    this.shardFailures.set(shardFailures);
                 }
             }
         }
@@ -229,7 +238,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
             shardFailures.set(shardIndex, null);
         }
@@ -256,7 +265,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public SearchRequest getRequest() {
+    public final SearchRequest getRequest() {
         return request;
     }
 

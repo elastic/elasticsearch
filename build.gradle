@@ -29,37 +29,6 @@ subprojects {
   }
 }
 
-
-task bundlePack(type: Zip) {
-  onlyIf { project('kibana').bundlePlugin.enabled }
-  onlyIf { project('logstash').bundlePlugin.enabled }
-  dependsOn 'elasticsearch:bundlePlugin'
-  dependsOn 'kibana:bundlePlugin'
-  dependsOn 'logstash:bundlePlugin'
-  from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
-  from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
-  from { zipTree(project('logstash').bundlePlugin.outputs.files.singleFile) }
-  destinationDir file('build/distributions')
-  baseName = 'x-pack'
-  version = VersionProperties.elasticsearch
-}
-
-task assemble(dependsOn: bundlePack) {
-  group = 'Build'
-  description = 'Assembles the outputs of this project.'
-}
-
-task build(dependsOn: assemble) {
-  group = 'Build'
-  description = 'Assembles and tests this project.'
-}
-
-task clean(type: Delete) {
-  group = 'Build'
-  description = 'Deletes the build directory'
-  delete 'build'
-}
-
 File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
 subprojects {
   tasks.withType(Checkstyle) {

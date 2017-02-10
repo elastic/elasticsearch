@@ -490,7 +490,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         IndexingAction(IndexRequest request, ActionListener<IndexResponse> listener, ReplicationGroup replicationGroup) {
             super(request, listener, replicationGroup, "indexing");
-            request.process(null, true, request.index());
+            request.process(null, request.index());
         }
 
         @Override

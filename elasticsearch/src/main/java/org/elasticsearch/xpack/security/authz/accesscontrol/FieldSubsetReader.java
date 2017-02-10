@@ -480,6 +480,15 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
 
         @Override
+        public long estimatePointCount(String fieldName, IntersectVisitor visitor) {
+            if (hasField(fieldName)) {
+                return in.estimatePointCount(fieldName, visitor);
+            } else {
+                return 0L; // behave as field does not exist
+            }
+        }
+
+        @Override
         public byte[] getMinPackedValue(String fieldName) throws IOException {
             if (hasField(fieldName)) {
                 return in.getMinPackedValue(fieldName);

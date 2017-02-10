@@ -43,7 +43,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     public static final String NAME = "umsigterms";
 
     /**
-     * Concrete type that can't be built because Java needs a concrent type so {@link InternalTerms.Bucket} can have a self type but
+     * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {

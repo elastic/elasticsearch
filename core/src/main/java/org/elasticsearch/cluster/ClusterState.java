@@ -252,7 +252,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     /**
-     * a cluster state supersedes another state iff they are from the same master and the version this state is higher thant the other
+     * a cluster state supersedes another state iff they are from the same master and the version this state is higher than the other
      * state.
      * <p>
      * In essence that means that all the changes from the other cluster state are also reflected by the current one

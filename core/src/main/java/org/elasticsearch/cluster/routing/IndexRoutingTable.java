@@ -58,7 +58,7 @@ import java.util.Set;
  * for operations on a specific shard.
  * <p>
  * Note: The term replica is not directly
- * reflected in the routing table or in releated classes, replicas are
+ * reflected in the routing table or in related classes, replicas are
  * represented as {@link ShardRouting}.
  * </p>
  */

@@ -334,7 +334,7 @@ public class ReplicationOperation<
          * also complete after. Deal with it.
          *
          * @param request the request to perform
-         * @return the request to send to the repicas
+         * @return the request to send to the replicas
          */
         PrimaryResultT perform(RequestT request) throws Exception;
 
@@ -362,7 +362,7 @@ public class ReplicationOperation<
          * performs the the given request on the specified replica
          *
          * @param replica        {@link ShardRouting} of the shard this request should be executed on
-         * @param replicaRequest operation to peform
+         * @param replicaRequest operation to perform
          * @param listener       a callback to call once the operation has been complicated, either successfully or with an error.
          */
         void performOn(ShardRouting replica, RequestT replicaRequest, ActionListener<ReplicaResponse> listener);

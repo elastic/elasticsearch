@@ -94,7 +94,7 @@ public class ClusterStateObserver {
         return clusterState;
     }
 
-    /** indicates whether this observer has timedout */
+    /** indicates whether this observer has timed out */
     public boolean isTimedOut() {
         return timedOut;
     }

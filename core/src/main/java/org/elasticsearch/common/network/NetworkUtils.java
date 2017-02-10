@@ -40,7 +40,7 @@ import java.util.Optional;
  */
 public abstract class NetworkUtils {
 
-    /** no instantation */
+    /** no instantiation */
     private NetworkUtils() {}
     
     /**

@@ -488,7 +488,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Returns a new searcher instance. The consumer of this
-     * API is responsible for releasing the returned seacher in a
+     * API is responsible for releasing the returned searcher in a
      * safe manner, preferably in a try/finally block.
      *
      * @see Searcher#close()

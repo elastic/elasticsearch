@@ -30,7 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class TestESToParentBlockJoinQuery extends ESTestCase {
+public class ESToParentBlockJoinQueryTests extends ESTestCase {
 
     public void testEquals() {
         Query q1 = new ESToParentBlockJoinQuery(

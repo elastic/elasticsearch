@@ -22,7 +22,7 @@ package org.apache.lucene.search;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
-public class TestQueries extends ESTestCase {
+public class QueriesTests extends ESTestCase {
 
     public void testNonNestedQuery() {
         // This is a custom query that extends AutomatonQuery and want to make sure the equals method works

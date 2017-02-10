@@ -204,21 +204,7 @@ final class FetchSearchPhase extends SearchPhase {
         return new SearchPhase("response") {
             @Override
             public void run() throws IOException {
-                SearchPhase phase = this;
-                // this is only a temporary fix since field collapsing executes a blocking call on response
-                // which could be a network thread. we are fixing this but for now we just fork off again.
-                // this should be removed once https://github.com/elastic/elasticsearch/issues/23048 is fixed
-                context.execute(new ActionRunnable<SearchResponse>(context) {
-                    @Override
-                    public void doRun() throws IOException {
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        context.onPhaseFailure(phase, "failed to send response", e);
-                    }
-                });
+                context.onResponse(response);
             }
         };
     }

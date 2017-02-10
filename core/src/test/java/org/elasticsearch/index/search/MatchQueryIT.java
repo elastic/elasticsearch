@@ -172,6 +172,7 @@ public class MatchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "2", "3", "7", "8");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/23102")
     public void testCommonTerms() throws ExecutionException, InterruptedException {
         String route = "commonTermsTest";
         List<IndexRequestBuilder> builders = getDocs();

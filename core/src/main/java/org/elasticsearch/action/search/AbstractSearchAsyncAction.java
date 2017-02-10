@@ -313,6 +313,3 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected abstract SearchPhase getNextPhase(AtomicArray<Result> results, SearchPhaseContext context);
 
 }
-
-
-

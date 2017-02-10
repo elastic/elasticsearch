@@ -51,6 +51,21 @@ public class Queries {
         NON_NESTED_TYPE_AUTOMATON = Operations.complement(nestedTypeAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
     }
 
+    // We use a custom class rather than AutomatonQuery directly in order to
+    // have a better toString
+    private static class NonNestedQuery extends AutomatonQuery {
+
+        NonNestedQuery() {
+            super(new Term(TypeFieldMapper.NAME), NON_NESTED_TYPE_AUTOMATON);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "_type:[^_].*";
+        }
+
+    }
+
     public static Query newMatchAllQuery() {
         return new MatchAllDocsQuery();
     }
@@ -67,7 +82,7 @@ public class Queries {
     public static Query newNonNestedFilter() {
         // we use this automaton query rather than a negation of newNestedFilter
         // since purely negative queries against high-cardinality clauses are costly
-        return new AutomatonQuery(new Term(TypeFieldMapper.NAME), NON_NESTED_TYPE_AUTOMATON);
+        return new NonNestedQuery();
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {

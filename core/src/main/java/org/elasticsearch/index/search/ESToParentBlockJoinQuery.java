@@ -59,6 +59,12 @@ public final class ESToParentBlockJoinQuery extends Query {
     public Query rewrite(IndexReader reader) throws IOException {
         Query innerRewrite = query.rewrite(reader);
         if (innerRewrite != query) {
+            // Right now ToParentBlockJoinQuery always rewrites to a ToParentBlockJoinQuery
+            // so the else block will never be used. It is useful in the case that
+            // ToParentBlockJoinQuery one day starts to rewrite to a different query, eg.
+            // a MatchNoDocsQuery if it realizes that it cannot match any docs and rewrites
+            // to a MatchNoDocsQuery. In that case it would be fine to lose information
+            // about the nested path.
             if (innerRewrite instanceof ToParentBlockJoinQuery) {
                 return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path);
             } else {

@@ -82,10 +82,15 @@ public final class NestedHelper {
     /** Returns true if a query on the given field might match nested documents. */
     boolean mightMatchNestedDocs(String field) {
         if (field.startsWith("_")) {
-            // meta field
+            // meta field. Every meta field behaves differently, eg. nested
+            // documents have the same _uid as their parent, put their path in
+            // the _type field but do not have _field_names. So we just ignore
+            // meta fields and return true, which is always safe, it just means
+            // we might add a nested filter when it is nor required.
             return true;
         }
         if (mapperService.fullName(field) == null) {
+            // field does not exist
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
@@ -97,7 +102,8 @@ public final class NestedHelper {
         return false;
     }
 
-    /** Returns true if the given query might match parent documents. */
+    /** Returns true if the given query might match parent documents or documents
+     *  that are nested under a different path. */
     public boolean mightMatchNonNestedDocs(Query query, String nestedPath) {
         if (query instanceof ConstantScoreQuery) {
             return mightMatchNonNestedDocs(((ConstantScoreQuery) query).getQuery(), nestedPath);
@@ -130,8 +136,17 @@ public final class NestedHelper {
         }
     }
 
-    /** Returns true if a query on the given field might match nested documents. */
+    /** Returns true if a query on the given field might match parent documents
+     *  or documents that are nested under a different path. */
     boolean mightMatchNonNestedDocs(String field, String nestedPath) {
+        if (field.startsWith("_")) {
+            // meta field. Every meta field behaves differently, eg. nested
+            // documents have the same _uid as their parent, put their path in
+            // the _type field but do not have _field_names. So we just ignore
+            // meta fields and return true, which is always safe, it just means
+            // we might add a nested filter when it is nor required.
+            return true;
+        }
         if (mapperService.fullName(field) == null) {
             return false;
         }

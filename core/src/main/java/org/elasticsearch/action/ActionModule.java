@@ -234,7 +234,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
-import org.elasticsearch.rest.action.admin.indices.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
@@ -533,7 +532,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesSegmentsAction(settings, restController));
         registerHandler.accept(new RestIndicesShardStoresAction(settings, restController));
         registerHandler.accept(new RestGetAliasesAction(settings, restController));
-        registerHandler.accept(new RestAliasesExistAction(settings, restController));
         registerHandler.accept(new RestIndexDeleteAliasesAction(settings, restController));
         registerHandler.accept(new RestIndexPutAliasAction(settings, restController));
         registerHandler.accept(new RestIndicesAliasesAction(settings, restController));

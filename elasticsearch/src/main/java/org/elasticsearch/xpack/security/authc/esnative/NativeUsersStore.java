@@ -17,8 +17,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -41,13 +39,11 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -212,15 +208,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      * with a hash of the provided password.
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
-        changePassword(request, false, listener);
-    }
-
-    /**
-     * This version of {@link #changePassword(ChangePasswordRequest, ActionListener)} exists to that the {@link NativeRealmMigrator}
-     * can force change passwords before the security mapping is {@link #canWrite ready for writing}
-     * @param forceWrite If <code>true</code>, allow the change to take place even if the store is currently read-only.
-     */
-    void changePassword(final ChangePasswordRequest request, boolean forceWrite, final ActionListener<Void> listener) {
         final String username = request.username();
         assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
         if (state() != State.STARTED) {
@@ -229,7 +216,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        } else if (canWrite == false && forceWrite == false) {
+        } else if (canWrite == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
                     "mappings are up to date"));
             return;
@@ -442,16 +429,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    void ensureReservedUserIsDisabled(final String username, boolean clearCache, final ActionListener<Void> listener) {
-        getReservedUserInfo(username, ActionListener.wrap(userInfo -> {
-            if (userInfo == null || userInfo.enabled) {
-                setReservedUserEnabled(username, false, RefreshPolicy.IMMEDIATE, clearCache, listener);
-            } else {
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
     }
 
     private void setReservedUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
@@ -677,12 +654,14 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                             Map<String, Object> sourceMap = searchHit.getSourceAsMap();
                             String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
-                            if (password == null || password.isEmpty()) {
-                                listener.onFailure(new IllegalStateException("password hash must not be empty!"));
-                                break;
+                            if (password == null) {
+                                listener.onFailure(new IllegalStateException("password hash must not be null!"));
+                                return;
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
-                                break;
+                                return;
+                            } else if (password.isEmpty()) {
+                                userInfos.put(searchHit.getId(), new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
                             } else {
                                 userInfos.put(searchHit.getId(), new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
@@ -701,22 +680,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         }
                     }
                 });
-    }
-
-    private void clearScrollResponse(String scrollId) {
-        ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(scrollId).request();
-        client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse response) {
-                // cool, it cleared, we don't really care though...
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                // Not really much to do here except for warn about it...
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to clear scroll [{}]", scrollId), t);
-            }
-        });
     }
 
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {

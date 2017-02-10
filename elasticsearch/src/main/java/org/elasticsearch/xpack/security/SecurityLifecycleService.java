@@ -54,7 +54,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         clusterService.addListener(this);
         clusterService.addListener(nativeUserStore);
         clusterService.addListener(nativeRolesStore);
-        final NativeRealmMigrator nativeRealmMigrator = new NativeRealmMigrator(settings, nativeUserStore, licenseState);
+        final NativeRealmMigrator nativeRealmMigrator = new NativeRealmMigrator(settings, licenseState, client);
         clusterService.addListener(new SecurityTemplateService(settings, client, nativeRealmMigrator));
         clusterService.addLifecycleListener(new LifecycleListener() {
 

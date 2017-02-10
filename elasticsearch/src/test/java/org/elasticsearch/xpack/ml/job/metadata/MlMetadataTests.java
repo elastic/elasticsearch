@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -47,7 +48,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             Job job = JobTests.createRandomizedJob();
             if (randomBoolean()) {
                 DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(job.getId());
-                if (datafeedConfig.getAggregations() != null) {
+                if (datafeedConfig.hasAggregations()) {
                     AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig().getDetectors());
                     analysisConfig.setSummaryCountFieldName("doc_count");
                     Job.Builder jobBuilder = new Job.Builder(job);
@@ -234,6 +235,90 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putJob(job1.build(), false);
 
         expectThrows(IllegalArgumentException.class, () -> builder.putDatafeed(datafeedConfig1));
+    }
+
+    public void testUpdateDatafeed() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putDatafeed(datafeedConfig1);
+        MlMetadata beforeMetadata = builder.build();
+
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
+        update.setScrollSize(5000);
+        MlMetadata updatedMetadata = new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null).build();
+
+        DatafeedConfig updatedDatafeed = updatedMetadata.getDatafeed(datafeedConfig1.getId());
+        assertThat(updatedDatafeed.getJobId(), equalTo(datafeedConfig1.getJobId()));
+        assertThat(updatedDatafeed.getIndexes(), equalTo(datafeedConfig1.getIndexes()));
+        assertThat(updatedDatafeed.getTypes(), equalTo(datafeedConfig1.getTypes()));
+        assertThat(updatedDatafeed.getScrollSize(), equalTo(5000));
+    }
+
+    public void testUpdateDatafeed_failBecauseDatafeedDoesNotExist() {
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder("foo");
+        update.setScrollSize(5000);
+        expectThrows(ResourceNotFoundException.class, () -> new MlMetadata.Builder().updateDatafeed(update.build(), null).build());
+    }
+
+    public void testUpdateDatafeed_failBecauseDatafeedIsNotStopped() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putDatafeed(datafeedConfig1);
+        MlMetadata beforeMetadata = builder.build();
+
+        StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
+        PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
+                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, null);
+        PersistentTasksInProgress tasksInProgress =
+                new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
+
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
+        update.setScrollSize(5000);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), tasksInProgress));
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+    }
+
+    public void testUpdateDatafeed_failBecauseNewJobIdDoesNotExist() {
+        Job job1 = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putDatafeed(datafeedConfig1);
+        MlMetadata beforeMetadata = builder.build();
+
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
+        update.setJobId(job1.getId() + "_2");
+
+        expectThrows(ResourceNotFoundException.class,
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null));
+    }
+
+    public void testUpdateDatafeed_failBecauseNewJobHasAnotherDatafeedAttached() {
+        Job job1 = createDatafeedJob().build();
+        Job.Builder job2 = new Job.Builder(job1);
+        job2.setId(job1.getId() + "_2");
+        DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
+        DatafeedConfig datafeedConfig2 = createDatafeedConfig("datafeed2", job2.getId()).build();
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putJob(job2.build(), false);
+        builder.putDatafeed(datafeedConfig1);
+        builder.putDatafeed(datafeedConfig2);
+        MlMetadata beforeMetadata = builder.build();
+
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
+        update.setJobId(job2.getId());
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null));
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), equalTo("A datafeed [datafeed2] already exists for job [foo_2]"));
     }
 
     public void testRemoveDatafeed_failBecauseDatafeedStarted() {

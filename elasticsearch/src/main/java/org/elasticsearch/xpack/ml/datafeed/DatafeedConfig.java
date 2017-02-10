@@ -177,22 +177,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return frequency;
     }
 
-    /**
-     * For the ELASTICSEARCH data source only, one or more indexes to search for
-     * input data.
-     *
-     * @return The indexes to search, or <code>null</code> if not set.
-     */
     public List<String> getIndexes() {
         return indexes;
     }
 
-    /**
-     * For the ELASTICSEARCH data source only, one or more types to search for
-     * input data.
-     *
-     * @return The types to search, or <code>null</code> if not set.
-     */
     public List<String> getTypes() {
         return types;
     }
@@ -211,6 +199,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public AggregatorFactories.Builder getAggregations() {
         return aggregations;
+    }
+
+    /**
+     * @return {@code true} when there are non-empty aggregations, {@code false} otherwise
+     */
+    public boolean hasAggregations() {
+        return aggregations != null && aggregations.count() > 0;
     }
 
     public List<SearchSourceBuilder.ScriptField> getScriptFields() {

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -43,6 +44,7 @@ import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class MlMetadata implements MetaData.Custom {
 
@@ -254,6 +256,14 @@ public class MlMetadata implements MetaData.Custom {
                 throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
             String jobId = datafeedConfig.getJobId();
+            checkJobIsAvailableForDatafeed(jobId);
+            Job job = jobs.get(jobId);
+            DatafeedJobValidator.validate(datafeedConfig, job);
+            datafeeds.put(datafeedConfig.getId(), datafeedConfig);
+            return this;
+        }
+
+        private void checkJobIsAvailableForDatafeed(String jobId) {
             Job job = jobs.get(jobId);
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
@@ -263,9 +273,23 @@ public class MlMetadata implements MetaData.Custom {
                 throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
                         + "] already exists for job [" + jobId + "]");
             }
-            DatafeedJobValidator.validate(datafeedConfig, job);
+        }
 
-            datafeeds.put(datafeedConfig.getId(), datafeedConfig);
+        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksInProgress persistentTasksInProgress) {
+            String datafeedId = update.getId();
+            DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
+            if (oldDatafeedConfig == null) {
+                throw ExceptionsHelper.missingDatafeedException(datafeedId);
+            }
+            checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
+                    DatafeedState.STARTED), datafeedId, persistentTasksInProgress);
+            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig);
+            if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
+                checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
+            }
+            Job job = jobs.get(newDatafeedConfig.getJobId());
+            DatafeedJobValidator.validate(newDatafeedConfig, job);
+            datafeeds.put(datafeedId, newDatafeedConfig);
             return this;
         }
 
@@ -274,23 +298,26 @@ public class MlMetadata implements MetaData.Custom {
             if (datafeed == null) {
                 throw ExceptionsHelper.missingDatafeedException(datafeedId);
             }
-            if (persistentTasksInProgress != null) {
-                Predicate<PersistentTaskInProgress<?>> predicate = t -> {
-                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
-                    return storedRequest.getDatafeedId().equals(datafeedId);
-                };
-                if (persistentTasksInProgress.tasksExist(StartDatafeedAction.NAME, predicate)) {
-                    String msg = Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
-                            DatafeedState.STARTED);
-                    throw ExceptionsHelper.conflictStatusException(msg);
-                }
-            }
+            checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, datafeedId,
+                    DatafeedState.STARTED), datafeedId, persistentTasksInProgress);
             datafeeds.remove(datafeedId);
             return this;
         }
 
         private Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
             return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+        }
+
+        private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksInProgress persistentTasksInProgress) {
+            if (persistentTasksInProgress != null) {
+                Predicate<PersistentTaskInProgress<?>> predicate = t -> {
+                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
+                    return storedRequest.getDatafeedId().equals(datafeedId);
+                };
+                if (persistentTasksInProgress.tasksExist(StartDatafeedAction.NAME, predicate)) {
+                    throw ExceptionsHelper.conflictStatusException(msg.get());
+                }
+            }
         }
 
         private Builder putJobs(Collection<Job> jobs) {

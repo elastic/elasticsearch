@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -265,13 +266,13 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class));
     }
 
-    public void testCreateDataExtractorFactoryGivenDefaultAggregation() {
+    public void testCreateDataExtractorFactoryGivenAggregation() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setAggregations(AggregatorFactories.builder());
+        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(AggregationBuilders.avg("a")));
         DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class), () -> currentTime);
 
         DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig.build(), jobBuilder.build());

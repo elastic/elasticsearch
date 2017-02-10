@@ -171,7 +171,7 @@ public class DatafeedJobRunner extends AbstractComponent {
     }
 
     DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
-        boolean isScrollSearch = datafeedConfig.getAggregations() == null;
+        boolean isScrollSearch = datafeedConfig.hasAggregations() == false;
         DataExtractorFactory dataExtractorFactory = isScrollSearch ? new ScrollDataExtractorFactory(client, datafeedConfig, job)
                 : new AggregationDataExtractorFactory(client, datafeedConfig, job);
         ChunkingConfig chunkingConfig = datafeedConfig.getChunkingConfig();

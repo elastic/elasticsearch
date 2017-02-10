@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.search;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,6 +34,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 public class MatchQueryIT extends ESIntegTestCase {
     private static final String INDEX = "test";
@@ -172,7 +172,6 @@ public class MatchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "2", "3", "7", "8");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/23102")
     public void testCommonTerms() throws ExecutionException, InterruptedException {
         String route = "commonTermsTest";
         List<IndexRequestBuilder> builders = getDocs();
@@ -185,8 +184,8 @@ public class MatchQueryIT extends ESIntegTestCase {
         // do a search with no cutoff frequency to show which docs should match
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .setRouting(route)
-            .setQuery(QueryBuilders.matchQuery("field", "foo three happened")
-                .operator(Operator.OR).analyzer("lower_graphsyns")).get();
+            .setQuery(QueryBuilders.matchQuery("field", "bar three happened")
+                .operator(Operator.OR)).get();
 
         assertHitCount(searchResponse, 4L);
         assertSearchHits(searchResponse, "1", "2", "5", "6");
@@ -195,8 +194,8 @@ public class MatchQueryIT extends ESIntegTestCase {
         // in this case, essentially everything but "happened" gets excluded
         searchResponse = client().prepareSearch(INDEX)
             .setRouting(route)
-            .setQuery(QueryBuilders.matchQuery("field", "foo three happened")
-                .operator(Operator.OR).analyzer("lower_graphsyns").cutoffFrequency(1f)).get();
+            .setQuery(QueryBuilders.matchQuery("field", "bar three happened")
+                .operator(Operator.OR).cutoffFrequency(1f)).get();
 
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");

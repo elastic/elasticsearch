@@ -72,7 +72,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
     private final UpdateHelper updateHelper;
-    private final boolean allowIdGeneration;
     private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
@@ -83,7 +82,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
-        this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
@@ -281,7 +279,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case UPDATED:
                     IndexRequest indexRequest = translate.action();
                     MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
-                    indexRequest.process(mappingMd, allowIdGeneration, request.index());
+                    indexRequest.process(mappingMd, request.index());
                     updateOperationResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
                     if (updateOperationResult.hasFailure() == false) {
                         // update the version on request so it will happen on the replicas

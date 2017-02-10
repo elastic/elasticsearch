@@ -34,13 +34,13 @@ import java.util.Collections;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class InternalSearchHitsTests extends ESTestCase {
+public class SearchHitsTests extends ESTestCase {
 
     public static SearchHits createTestItem() {
         int searchHits = randomIntBetween(0, 5);
         SearchHit[] hits = new SearchHit[searchHits];
         for (int i = 0; i < searchHits; i++) {
-            hits[i] = InternalSearchHitTests.createTestItem(false); // creating random innerHits could create loops
+            hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
         long totalHits = randomLong();
         float maxScore = frequently() ? randomFloat() : Float.NaN;

@@ -23,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -102,42 +101,38 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
 
-        try {
-            if (topDocs instanceof TopFieldDocs) {
-                Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
-                shardDocs = new TopFieldDocs[aggregations.size()];
-                for (int i = 0; i < shardDocs.length; i++) {
-                    InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                    shardDocs[i] = (TopFieldDocs) topHitsAgg.topDocs;
-                    shardHits[i] = topHitsAgg.searchHits;
-                }
-                reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
-            } else {
-                shardDocs = new TopDocs[aggregations.size()];
-                for (int i = 0; i < shardDocs.length; i++) {
-                    InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                    shardDocs[i] = topHitsAgg.topDocs;
-                    shardHits[i] = topHitsAgg.searchHits;
-                }
-                reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+        if (topDocs instanceof TopFieldDocs) {
+            Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
+            shardDocs = new TopFieldDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                shardDocs[i] = (TopFieldDocs) topHitsAgg.topDocs;
+                shardHits[i] = topHitsAgg.searchHits;
             }
-
-            final int[] tracker = new int[shardHits.length];
-            SearchHit[] hits = new SearchHit[reducedTopDocs.scoreDocs.length];
-            for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
-                ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-                int position;
-                do {
-                    position = tracker[scoreDoc.shardIndex]++;
-                } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-                hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+        } else {
+            shardDocs = new TopDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                shardDocs[i] = topHitsAgg.topDocs;
+                shardHits[i] = topHitsAgg.searchHits;
             }
-            return new InternalTopHits(name, from, size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
-                    reducedTopDocs.getMaxScore()),
-                    pipelineAggregators(), getMetaData());
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
+
+        final int[] tracker = new int[shardHits.length];
+        SearchHit[] hits = new SearchHit[reducedTopDocs.scoreDocs.length];
+        for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
+            int position;
+            do {
+                position = tracker[scoreDoc.shardIndex]++;
+            } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
+            hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
+        }
+        return new InternalTopHits(name, from, size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
+                reducedTopDocs.getMaxScore()),
+                pipelineAggregators(), getMetaData());
     }
 
     @Override

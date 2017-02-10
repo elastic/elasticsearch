@@ -170,8 +170,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         if (xTotalOps == expectedTotalOps) {
             executePhase(initialPhaseName(), innerGetNextPhase(), null);
         } else if (xTotalOps > expectedTotalOps) {
-            raisePhaseFailure(new IllegalStateException("unexpected higher total ops [" + xTotalOps + "] compared " +
-                "to expected [" + expectedTotalOps + "]"));
+            // this is fatal - something is completely wrong here?
+            throw new AssertionError( "unexpected higher total ops [" + xTotalOps + "] compared to expected ["
+                + expectedTotalOps + "]");
         }
     }
 
@@ -302,19 +303,19 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     /**
      * This method should be called if a search phase failed to ensure all relevant search contexts and resources are released.
      * this method will also notify the listener and sends back a failure to the user.
-     * @param e the exception explaining or causing the phase failure
+     * @param exception the exception explaining or causing the phase failure
      */
-    protected void raisePhaseFailure(Exception e) {
+    protected void raisePhaseFailure(SearchPhaseExecutionException exception) {
         for (AtomicArray.Entry<FirstResult> entry : initialResults.asList()) {
             try {
                 Transport.Connection connection = nodeIdToConnection.apply(entry.value.shardTarget().getNodeId());
                 sendReleaseSearchContext(entry.value.id(), connection);
             } catch (Exception inner) {
-                inner.addSuppressed(e);
+                inner.addSuppressed(exception);
                 logger.trace("failed to release context", inner);
             }
         }
-        listener.onFailure(e);
+        listener.onFailure(exception);
     }
 
     protected void sendReleaseSearchContext(long contextId, Transport.Connection connection) {
@@ -558,25 +559,13 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         private void sendResponse(SearchPhaseController searchPhaseController, ScoreDoc[] sortedDocs,
                                 String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
                                 AtomicArray<? extends QuerySearchResultProvider> fetchResultsArr) {
-            // this is only a temporary fix since field collapsing executes a blocking call on response
-            // which could be a network thread. we are fixing this but for now we just fork off again.
-            // this should be removed once https://github.com/elastic/elasticsearch/issues/23048 is fixed
-            getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
-                @Override
-                public void doRun() throws IOException {
-                    final boolean isScrollRequest = request.scroll() != null;
-                    final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs,
-                        reducedQueryPhase, fetchResultsArr);
-                    listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
-                        buildTookInMillis(), buildShardFailures()));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    raisePhaseFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
-                }
-            });
+            final boolean isScrollRequest = request.scroll() != null;
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedDocs, reducedQueryPhase,
+                fetchResultsArr);
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
+                buildTookInMillis(), buildShardFailures()));
         }
-
     }
+
+
 }

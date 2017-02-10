@@ -45,17 +45,20 @@ import java.util.Objects;
 public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
     private static final ObjectParser<CollapseBuilder, QueryParseContext> PARSER =
         new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
+        PARSER.declareInt(CollapseBuilder::setMaxConcurrentGroupRequests, MAX_CONCURRENT_GROUP_REQUESTS_FIELD);
         PARSER.declareObject(CollapseBuilder::setInnerHits,
             (p, c) -> InnerHitBuilder.fromXContent(c), INNER_HITS_FIELD);
     }
 
     private String field;
     private InnerHitBuilder innerHit;
+    private int maxConcurrentGroupRequests = 0;
 
     private CollapseBuilder() {}
 
@@ -70,12 +73,14 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
+        this.maxConcurrentGroupRequests = in.readVInt();
         this.innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
+        out.writeVInt(maxConcurrentGroupRequests);
         out.writeOptionalWriteable(innerHit);
     }
 
@@ -84,6 +89,7 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
         return builder;
     }
 
+    // for object parser only
     private CollapseBuilder setField(String field) {
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("field name is null or empty");
@@ -94,6 +100,14 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
         this.innerHit = innerHit;
+        return this;
+    }
+
+    public CollapseBuilder setMaxConcurrentGroupRequests(int num) {
+        if (num < 1) {
+            throw new IllegalArgumentException("maxConcurrentGroupRequests` must be positive");
+        }
+        this.maxConcurrentGroupRequests = num;
         return this;
     }
 
@@ -111,6 +125,13 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
         return this.innerHit;
     }
 
+    /**
+     * Returns the amount of group requests that are allowed to be ran concurrently in the inner_hits phase.
+     */
+    public int getMaxConcurrentGroupRequests() {
+        return maxConcurrentGroupRequests;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -121,6 +142,9 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
     private void innerToXContent(XContentBuilder builder) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (maxConcurrentGroupRequests > 0) {
+            builder.field(MAX_CONCURRENT_GROUP_REQUESTS_FIELD.getPreferredName(), maxConcurrentGroupRequests);
+        }
         if (innerHit != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHit);
         }
@@ -133,13 +157,18 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
         CollapseBuilder that = (CollapseBuilder) o;
 
-        if (field != null ? !field.equals(that.field) : that.field != null) return false;
+        if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
+        if (!field.equals(that.field)) return false;
         return innerHit != null ? innerHit.equals(that.innerHit) : that.innerHit == null;
+
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.field, this.innerHit);
+        int result = field.hashCode();
+        result = 31 * result + (innerHit != null ? innerHit.hashCode() : 0);
+        result = 31 * result + maxConcurrentGroupRequests;
+        return result;
     }
 
     public CollapseContext build(SearchContext context) {

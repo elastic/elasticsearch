@@ -31,6 +31,8 @@ import java.io.IOException;
  * Suggestion entry returned from the {@link PhraseSuggester}.
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
+
+    private static final String NAME = "phrase";
     public static final int TYPE = 3;
 
     public PhraseSuggestion() {
@@ -41,8 +43,13 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     }
 
     @Override
-    public int getType() {
+    public int getWriteableType() {
         return TYPE;
+    }
+
+    @Override
+    protected String getType() {
+        return NAME;
     }
 
     @Override

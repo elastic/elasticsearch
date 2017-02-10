@@ -489,7 +489,7 @@ public abstract class QueryBuilders {
      *
      * @param type      The parent type.
      * @param query     The query.
-     * @param score     Whether the score from the parent hit should propogate to the child hit
+     * @param score     Whether the score from the parent hit should propagate to the child hit
      */
     public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
         return new HasParentQueryBuilder(type, query, score);

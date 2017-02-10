@@ -34,9 +34,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class InternalSearchHitTests extends ESTestCase {
+public class SearchHitTests extends ESTestCase {
 
     private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_all", "_parent", "_routing", "_size", "_timestamp", "_ttl");
 
@@ -122,7 +122,7 @@ public class InternalSearchHitTests extends ESTestCase {
             int innerHitsSize = randomIntBetween(0, 3);
             Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
             for (int i = 0; i < innerHitsSize; i++) {
-                innerHits.put(randomAsciiOfLength(5), InternalSearchHitsTests.createTestItem());
+                innerHits.put(randomAsciiOfLength(5), SearchHitsTests.createTestItem());
             }
             hit.setInnerHits(innerHits);
         }

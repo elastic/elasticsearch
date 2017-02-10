@@ -106,7 +106,7 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
      * Sets the repository settings in Json or Yaml format
      *
      * @param source repository settings
-     * @param xContentType the contenty type of the source
+     * @param xContentType the content type of the source
      * @return this builder
      */
     public PutRepositoryRequestBuilder setSettings(String source, XContentType xContentType) {

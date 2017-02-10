@@ -32,6 +32,8 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -62,8 +64,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
-import org.elasticsearch.transport.netty4.channel.PrivilegedNioSocketChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -191,7 +191,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     private Bootstrap createBootstrap() {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
-        bootstrap.channel(PrivilegedNioSocketChannel.class);
+        bootstrap.channel(NioSocketChannel.class);
 
         bootstrap.handler(getClientChannelInitializer());
 
@@ -275,7 +275,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
         serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
-        serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
+        serverBootstrap.channel(NioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
 

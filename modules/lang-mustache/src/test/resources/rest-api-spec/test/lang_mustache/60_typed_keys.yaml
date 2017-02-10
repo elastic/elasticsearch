@@ -48,6 +48,11 @@ setup:
               test_missing:
                 missing:
                   field: "{{missing_field}}"
+            suggest:
+              term_suggest:
+                text: "{{suggest_text}}"
+                term:
+                  field: "{{suggest_field}}"
 
   - match: { acknowledged: true }
 
@@ -60,9 +65,12 @@ setup:
           params:
             bool_value: true
             missing_field: name
+            suggest_field: name
+            suggest_text: Hamilt
 
-  - match: { hits.total: 3 }
-  - match: { aggregations.missing#test_missing.doc_count: 1 }
+  - match:    { hits.total: 3 }
+  - match:    { aggregations.missing#test_missing.doc_count: 1 }
+  - is_true:  suggest.term#term_suggest
 
 ---
 "Multisearch template with typed_keys parameter":
@@ -81,6 +89,11 @@ setup:
                 histogram:
                   field:    "{{histo.field}}"
                   interval: "{{histo.interval}}"
+            suggest:
+              phrase_suggester:
+                text: "{{keywords}}"
+                phrase:
+                  field: name
 
   - match: { acknowledged: true }
 
@@ -112,8 +125,11 @@ setup:
               histo:
                 field: float
                 interval: 5
+              keywords: Ruht
+
   - match:  { responses.0.hits.total: 1 }
   - match:  { responses.0.aggregations.global#test_global.doc_count: 5 }
   - match:  { responses.0.aggregations.global#test_global.ip_range#test_ip_range.buckets.0.doc_count: 5 }
   - match:  { responses.1.hits.total: 2 }
   - match:  { responses.1.aggregations.histogram#test_histogram.buckets.0.doc_count: 1 }
+  - is_true:  responses.1.suggest.phrase#phrase_suggester

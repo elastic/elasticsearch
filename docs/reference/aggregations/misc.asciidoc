@@ -118,8 +118,8 @@ GET /twitter/tweet/_search?typed_keys
 // CONSOLE
 // TEST[setup:twitter]
 
-In the response, the aggregations names will be changed to respectively `date_histogram:tweets_over_time` and
-`top_hits:top_users`, reflecting the internal types of each aggregation:
+In the response, the aggregations names will be changed to respectively `date_histogram#tweets_over_time` and
+`top_hits#top_users`, reflecting the internal types of each aggregation:
 
 [source,js]
 --------------------------------------------------

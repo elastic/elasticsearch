@@ -1,0 +1,19 @@
+#!/bin/bash
+# This script is used as a single command to run the x-pack-logstash tests.
+
+# Turn on semi-strict mode
+set -e
+set -o pipefail
+
+echo "Running x-pack-logstash tests..."
+
+# output the commands
+set -xuf
+
+# clean
+gradle --stacktrace clean
+
+# Actually run the tests
+gradle check
+
+# ~*~ shell-script-mode ~*~

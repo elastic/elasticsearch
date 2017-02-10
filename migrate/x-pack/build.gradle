@@ -1,0 +1,54 @@
+Properties props = new Properties()
+props.load(project.file("${projectDir}/../elasticsearch/buildSrc/version.properties").newDataInputStream())
+version = props.getProperty('elasticsearch')
+boolean snapshot = 'true'.equals(System.getProperty('build.snapshot', 'true'))
+if (snapshot) {
+  version += '-SNAPSHOT'
+}
+
+String elasticsearchDir = "${projectDir}/../elasticsearch-extra/x-pack-elasticsearch"
+String elasticsearchZip = "${elasticsearchDir}/plugin/build/distributions/x-pack-${version}.zip"
+task assembleElasticsearch(type: GradleBuild) {
+  dir = file(elasticsearchDir)
+  tasks = ['assemble']
+}
+
+String kibanaDir = "${projectDir}/../x-pack-kibana"
+String kibanaZip = "${kibanaDir}/build/distributions/x-pack-${version}.zip"
+task assembleKibana(type: GradleBuild) {
+  dir = file(kibanaDir)
+  tasks = ['assemble']
+}
+
+String logstashDir = "${projectDir}/../logstash-extra/x-pack-logstash"
+String logstashZip = "${logstashDir}/build/distributions/x-pack-${version}.zip"
+task assembleLogstash(type: GradleBuild) {
+  dir = file(logstashDir)
+  tasks = ['assemble']
+}
+
+task bundlePack(type: Zip) {
+  dependsOn assembleElasticsearch, assembleKibana, assembleLogstash
+  from { zipTree(file(elasticsearchZip)) }
+  from { zipTree(file(kibanaZip)) }
+  from { zipTree(file(logstashZip)) }
+  destinationDir file('build/distributions')
+  baseName = 'x-pack'
+  version = project.version
+}
+
+task assemble(dependsOn: bundlePack) {
+  group = 'Build'
+  description = 'Assembles the outputs of this project.'
+}
+
+task build(dependsOn: assemble) {
+  group = 'Build'
+  description = 'Assembles and tests this project.'
+}
+
+task clean(type: Delete) {
+  group = 'Build'
+  description = 'Deletes the build directory'
+  delete 'build'
+}

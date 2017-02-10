@@ -1,0 +1,95 @@
+#!/bin/bash
+# This script is used as a single command to run the x-pack-kibana tests.
+#
+# It will also attempt to install the appropriate version of node.js
+# for the Kibana plugin tests using nvm. Set a custom nvm directory using the
+# `NVM_DIR` environment variable.
+#
+
+# Turn on semi-strict mode
+set -e
+set -o pipefail
+
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=$(ls -ld "$SCRIPT")
+  # Drop everything prior to ->
+  link=$(expr "$ls" : '.*-> \(.*\)$')
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=$(dirname "$SCRIPT")/"$link"
+  fi
+done
+
+# determine base directory
+BASE_DIR=$(dirname "$SCRIPT")/..
+
+# make BASE_DIR absolute
+BASE_DIR=$(cd "$BASE_DIR"; pwd)
+
+PARENT_DIR=$(cd "$BASE_DIR"/..; pwd)
+
+# go to the parent directory
+cd $PARENT_DIR
+
+if [ -z ${USE_EXISTING_ES:+x} ]; then
+    if [ -d "./elasticsearch" ]; then
+        echo "I expected a clean workspace but an 'elasticsearch' sibling directory already exists in [$PARENT_DIR]!"
+        echo
+        echo "Either define 'USE_EXISTING_ES' or remove the existing 'elasticsearch' sibling."
+        exit 1
+    fi
+    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#*/}} # GIT_BRANCH starts with the repo, i.e., origin/master
+    BRANCH=${BRANCH:-master} # fall back to CI branch if not testing a PR
+    echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
+    if [[ -z "$(git ls-remote --heads https://github.com/elastic/elasticsearch.git $BRANCH)" ]]; then
+      echo "No sibling branch, using PR target branch"
+      BRANCH=$PR_TARGET_BRANCH
+    fi
+    echo "Checking out Elasticsearch '$BRANCH' branch..."
+    git clone -b $BRANCH https://github.com/elastic/elasticsearch.git --depth=1
+    printf "Checked out Elasticsearch revision: %s\n" "$(git -C elasticsearch rev-parse HEAD)"
+else
+    if [ -d "./elasticsearch" ]; then
+        echo "Using existing 'elasticsearch' checkout"
+    else
+        echo "You have defined 'USE_EXISTING_ES' but no existing Elasticsearch directory exists!"
+        exit 2
+    fi
+fi
+
+# back to base directory
+cd "$BASE_DIR"
+
+# install the correct node.js version
+if [ -z ${NVM_DIR:+x} ]; then
+  export NVM_DIR="/var/lib/jenkins/.nvm";
+fi
+
+NVM_SCRIPT="$NVM_DIR/nvm.sh"
+if [ -s "$NVM_SCRIPT" ]; then
+  . "$NVM_SCRIPT"  # load nvm
+else
+  echo "Unable to find the nvm script at \"$NVM_SCRIPT\""
+  exit 1
+fi
+
+echo "Installing node.js version $(cat .node-version)..."
+nvm install "$(cat .node-version)"
+
+echo "Running x-pack-kibana tests..."
+echo "Running in $PWD"
+
+# output the commands
+set -xuf
+
+# clean
+gradle --stacktrace clean
+
+# Actually run the tests
+gradle check
+
+# ~*~ shell-script-mode ~*~

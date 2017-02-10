@@ -1,0 +1,124 @@
+#!/bin/bash
+# This script is used as a single command to run the x-pack tests.
+#
+# It will attempt to check out 'elasticsearch' into a sibling directory
+# unless the environment variable `USE_EXISTING_ES` has a value. The
+# branch of elasticsearch which will be checked out depends on
+# environment variables. If running locally, set GIT_BRANCH. When
+# running in Jenkins, that env var is set. When running a PR
+# jenkins job, the variables PR_SOURCE_BRANCH and PR_TARGET_BRANCH
+# will be set and the source branch will be looked for in elasticsearch
+# before falling back to the target branch name.
+#
+# It will also attempt to install the appropriate version of node.js
+# for the Kibana plugin tests using nvm, unless
+# `xpack.kibana.build=false` is defined in
+# ~/.gradle/gradle.properties. Set a custom nvm directory using the
+# `NVM_DIR` environment variable.
+#
+
+# Turn on semi-strict mode
+set -e
+set -o pipefail
+
+# Allow the user choose different test through a single cli arg
+# default to `check` if no argument has been supplied
+key=${1-check}
+case $key in
+    packagingTest)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "-Pvagrant.boxes=all"
+            ":x-pack:qa:vagrant:packagingTest"
+        )
+        ;;
+    check)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+        )
+        ;;
+    jdk9)
+        GRADLE_CLI_ARGS=(
+            "-Pxpack.kibana.build=false"
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+            -Dtests.jvm.argline="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.nio.file=ALL-UNNAMED --add-opens=java.base/java.security.cert=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/javax.net.ssl=ALL-UNNAMED"
+        )
+        ;;
+    *)
+        echo "Unsupported cli argument $1. Allowed arguments are packagingTest or check. No argument defaults to check."
+        exit 1;;
+esac
+
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=$(ls -ld "$SCRIPT")
+  # Drop everything prior to ->
+  link=$(expr "$ls" : '.*-> \(.*\)$')
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=$(dirname "$SCRIPT")/"$link"
+  fi
+done
+
+# determine base directory
+BASE_DIR=$(dirname "$SCRIPT")/..
+
+# make BASE_DIR absolute
+BASE_DIR=$(cd "$BASE_DIR"; pwd)
+
+PARENT_DIR=$(cd "$BASE_DIR"/../..; pwd)
+
+# go to the parent directory
+cd $PARENT_DIR
+
+if [ -z ${USE_EXISTING_ES:+x} ]; then
+    if [ -d "./elasticsearch" ]; then
+        echo "I expected a clean workspace but an 'elasticsearch' sibling directory already exists in [$PARENT_DIR]!"
+        echo
+        echo "Either define 'USE_EXISTING_ES' or remove the existing 'elasticsearch' sibling."
+        exit 1
+    fi
+    BRANCH=${PR_SOURCE_BRANCH:-${GIT_BRANCH#*/}} # GIT_BRANCH starts with the repo, i.e., origin/master
+    BRANCH=${BRANCH:-master} # fall back to CI branch if not testing a PR
+    echo "Checking if branch '$BRANCH' has elasticsearch sibling..."
+    if [[ -z "$(git ls-remote --heads https://github.com/elastic/elasticsearch.git $BRANCH)" ]]; then
+      echo "No sibling branch, using PR target branch"
+      BRANCH=$PR_TARGET_BRANCH
+    fi
+    echo "Checking out Elasticsearch '$BRANCH' branch..."
+    git clone -b $BRANCH https://github.com/elastic/elasticsearch.git --depth=1
+    printf "Checked out Elasticsearch revision: %s\n" "$(git -C elasticsearch rev-parse HEAD)"
+else
+    if [ -d "./elasticsearch" ]; then
+        echo "Using existing 'elasticsearch' checkout"
+    else
+        echo "You have defined 'USE_EXISTING_ES' but no existing Elasticsearch directory exists!"
+        exit 2
+    fi
+fi
+
+# back to base directory
+cd "$BASE_DIR"
+
+echo "Running x-pack-elasticsearch tests..."
+echo "Running in $PWD"
+
+# output the commands
+set -xuf
+
+# clean
+gradle --stacktrace clean
+
+# Actually run the tests
+gradle "${GRADLE_CLI_ARGS[@]}"
+
+# ~*~ shell-script-mode ~*~

@@ -33,6 +33,7 @@ import java.util.Objects;
 public abstract class WatchRecord implements ToXContentObject {
 
     protected final Wid id;
+    protected final Watch watch;
     protected final TriggerEvent triggerEvent;
     protected final ExecutionState state;
 
@@ -44,8 +45,8 @@ public abstract class WatchRecord implements ToXContentObject {
     @Nullable protected final Map<String,Object> metadata;
     @Nullable protected final WatchExecutionResult executionResult;
 
-    public WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
-                       Condition condition, Map<String, Object> metadata, WatchExecutionResult executionResult) {
+    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
+                       Condition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult) {
         this.id = id;
         this.triggerEvent = triggerEvent;
         this.state = state;
@@ -54,24 +55,26 @@ public abstract class WatchRecord implements ToXContentObject {
         this.condition = condition;
         this.metadata = metadata;
         this.executionResult = executionResult;
+        this.watch = watch;
     }
 
-    public WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state) {
-        this(id, triggerEvent, state, Collections.emptyMap(), null, null, null, null);
+    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state) {
+        this(id, triggerEvent, state, Collections.emptyMap(), null, null, null, null, null);
     }
 
-    public WatchRecord(WatchRecord record, ExecutionState state) {
-        this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.executionResult);
+    private WatchRecord(WatchRecord record, ExecutionState state) {
+        this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.watch,
+                record.executionResult);
     }
 
-    public WatchRecord(WatchExecutionContext context, ExecutionState state) {
+    private WatchRecord(WatchExecutionContext context, ExecutionState state) {
         this(context.id(), context.triggerEvent(), state, context.vars(), context.watch().input(), context.watch().condition(),
-                context.watch().metadata(), null);
+                context.watch().metadata(), context.watch(), null);
     }
 
-    public WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
+    private WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this(context.id(), context.triggerEvent(), getState(executionResult), context.vars(), context.watch().input(),
-                context.watch().condition(), context.watch().metadata(), executionResult);
+                context.watch().condition(), context.watch().metadata(), context.watch(), executionResult);
     }
 
     private static ExecutionState getState(WatchExecutionResult executionResult) {
@@ -124,6 +127,10 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.startObject();
         builder.field(Field.WATCH_ID.getPreferredName(), id.watchId());
         builder.field(Field.STATE.getPreferredName(), state.id());
+
+        if (watch != null && watch.status() != null) {
+            builder.field("_status", watch.status(), params);
+        }
 
         builder.field(Field.TRIGGER_EVENT.getPreferredName());
         triggerEvent.recordXContent(builder, params);
@@ -179,6 +186,7 @@ public abstract class WatchRecord implements ToXContentObject {
         ParseField TRIGGER_EVENT = new ParseField("trigger_event");
         ParseField MESSAGES = new ParseField("messages");
         ParseField STATE = new ParseField("state");
+        ParseField STATUS = new ParseField("_status");
         ParseField VARS = new ParseField("vars");
         ParseField METADATA = new ParseField("metadata");
         ParseField EXECUTION_RESULT = new ParseField("result");

@@ -330,18 +330,14 @@ public class ActionStatus implements ToXContentObject {
 
             Execution execution = (Execution) o;
 
-            if (successful != execution.successful) return false;
-            if (!timestamp.equals(execution.timestamp)) return false;
-            return !(reason != null ? !reason.equals(execution.reason) : execution.reason != null);
-
+            return Objects.equals(successful, execution.successful) &&
+                   Objects.equals(timestamp, execution.timestamp) &&
+                   Objects.equals(reason, execution.reason);
         }
 
         @Override
         public int hashCode() {
-            int result = timestamp.hashCode();
-            result = 31 * result + (successful ? 1 : 0);
-            result = 31 * result + (reason != null ? reason.hashCode() : 0);
-            return result;
+            return Objects.hash(timestamp, successful, reason);
         }
 
         @Override
@@ -436,16 +432,12 @@ public class ActionStatus implements ToXContentObject {
             if (o == null || getClass() != o.getClass()) return false;
 
             Throttle throttle = (Throttle) o;
-
-            if (!timestamp.equals(throttle.timestamp)) return false;
-            return reason.equals(throttle.reason);
+            return Objects.equals(timestamp, throttle.timestamp) && Objects.equals(reason, throttle.reason);
         }
 
         @Override
         public int hashCode() {
-            int result = timestamp.hashCode();
-            result = 31 * result + reason.hashCode();
-            return result;
+            return Objects.hash(timestamp, reason);
         }
 
         @Override

@@ -95,6 +95,11 @@
         "state": {
           "type": "keyword"
         },
+        "_status": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
         "messages": {
           "type": "text"
         },

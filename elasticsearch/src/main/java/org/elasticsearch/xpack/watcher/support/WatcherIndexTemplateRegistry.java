@@ -37,7 +37,7 @@ import static java.util.Collections.unmodifiableMap;
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
-    public static final String INDEX_TEMPLATE_VERSION = "2";
+    public static final String INDEX_TEMPLATE_VERSION = "3";
 
     public static final String HISTORY_TEMPLATE_NAME = "watch_history_" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";

@@ -56,6 +56,7 @@ teardown:
   - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
   - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record._status.state.active: true }
 
 ---
 "Execute unknown watch results in 404":

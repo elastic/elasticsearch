@@ -10,8 +10,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
@@ -19,6 +21,9 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.watch.WatchStatus;
+
+import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -33,6 +38,7 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -142,6 +148,53 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             String path = "watch_record.properties.result.properties.input.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));
         }
+    }
 
+    public void testThatHistoryContainsStatus() throws Exception {
+        watcherClient().preparePutWatch("test_watch")
+                .setSource(watchBuilder()
+                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                        .input(simpleInput("foo", "bar"))
+                        .addAction("_logger", loggingAction("#### randomLogging")))
+                .get();
+
+        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+
+        WatchStatus status = watcherClient().prepareGetWatch("test_watch").get().getStatus();
+
+        refresh(".watcher-history*");
+        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();
+        assertHitCount(searchResponse, 1);
+        SearchHit hit = searchResponse.getHits().getAt(0);
+
+        XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
+
+        Boolean active = source.getValue("_status.state.active");
+        assertThat(active, is(status.state().isActive()));
+
+        String timestamp = source.getValue("_status.state.timestamp");
+        assertThat(timestamp, is(status.state().getTimestamp().toString()));
+
+        String lastChecked = source.getValue("_status.last_checked");
+        assertThat(lastChecked, is(status.lastChecked().toString()));
+
+        Integer version = source.getValue("_status.version");
+        int expectedVersion = (int) (status.version() - 1);
+        assertThat(version, is(expectedVersion));
+
+        ActionStatus actionStatus = status.actionStatus("_logger");
+        String ackStatusState = source.getValue("_status.actions._logger.ack.state").toString().toUpperCase(Locale.ROOT);
+        assertThat(ackStatusState, is(actionStatus.ackStatus().state().toString()));
+
+        Boolean lastExecutionSuccesful = source.getValue("_status.actions._logger.last_execution.successful");
+        assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
+
+        // also ensure that the _status field is disabled in the watch history
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").addTypes("watch_record").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.get("watch_record").source().uncompressed();
+        XContentSource mappingSource = new XContentSource(new BytesArray(bytes), XContentType.JSON);
+        assertThat(mappingSource.getValue("watch_record.properties._status.enabled"), is(false));
+        assertThat(mappingSource.getValue("watch_record.properties._status.properties.status"), is(nullValue()));
+        assertThat(mappingSource.getValue("watch_record.properties._status.properties.status.properties.active"), is(nullValue()));
     }
 }

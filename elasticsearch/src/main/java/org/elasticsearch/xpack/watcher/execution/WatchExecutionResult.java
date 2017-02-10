@@ -33,8 +33,9 @@ public class WatchExecutionResult implements ToXContentObject {
                 context.actionsResults());
     }
 
-    WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult, Condition.Result conditionResult,
-                         @Nullable Transform.Result transformResult, Map<String, ActionWrapper.Result> actionsResults) {
+    private WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult,
+                                 Condition.Result conditionResult, @Nullable Transform.Result transformResult,
+                                 Map<String, ActionWrapper.Result> actionsResults) {
         this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;

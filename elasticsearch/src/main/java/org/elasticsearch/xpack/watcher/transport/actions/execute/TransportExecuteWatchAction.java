@@ -90,6 +90,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 // should be executed async in the future
                 GetResponse getResponse = client.getWatch(request.getId());
                 Watch watch = watchParser.parse(request.getId(), true, getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                watch.version(getResponse.getVersion());
+                watch.status().version(getResponse.getVersion());
                 ExecuteWatchResponse executeWatchResponse = executeWatch(request, watch, true);
                 listener.onResponse(executeWatchResponse);
             } catch (IOException e) {

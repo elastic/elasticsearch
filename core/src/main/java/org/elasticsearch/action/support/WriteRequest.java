@@ -65,45 +65,70 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Streamable {
         /**
          * Don't refresh after this request. The default.
          */
-        NONE,
+        NONE((byte) 0, Boolean.FALSE.toString()),
         /**
          * Force a refresh as part of this request. This refresh policy does not scale for high indexing or search throughput but is useful
          * to present a consistent view to for indices with very low traffic. And it is wonderful for tests!
          */
-        IMMEDIATE,
+        IMMEDIATE((byte) 1, Boolean.TRUE.toString()),
         /**
          * Leave this request open until a refresh has made the contents of this request visible to search. This refresh policy is
          * compatible with high indexing and search throughput but it causes the request to wait to reply until a refresh occurs.
          */
-        WAIT_UNTIL;
+        WAIT_UNTIL((byte) 2, "wait_for");
+
+        private final byte id;
+        private final String value;
+
+        RefreshPolicy(byte id, String value) {
+            this.id = id;
+            this.value = value;
+        }
+
+        public byte getId() {
+            return id;
+        }
+
+        public String getValue() {
+            return value;
+        }
 
         /**
          * Parse the string representation of a refresh policy, usually from a request parameter.
          */
-        public static RefreshPolicy parse(String string) {
-            switch (string) {
-            case "false":
-                return NONE;
-            /*
-             * Empty string is IMMEDIATE because that makes "POST /test/test/1?refresh" perform a refresh which reads well and is what folks
-             * are used to.
-             */
-            case "":
-            case "true":
-                return IMMEDIATE;
-            case "wait_for":
-                return WAIT_UNTIL;
+        public static RefreshPolicy parse(String value) {
+            for (RefreshPolicy policy : values()) {
+                if (policy.getValue().equals(value)) {
+                    return policy;
+                }
             }
-            throw new IllegalArgumentException("Unknown value for refresh: [" + string + "].");
+            if ("".equals(value)) {
+                // Empty string is IMMEDIATE because that makes "POST /test/test/1?refresh" perform
+                // a refresh which reads well and is what folks are used to.
+                return IMMEDIATE;
+            }
+            throw new IllegalArgumentException("Unknown value for refresh: [" + value + "].");
+        }
+
+        /**
+         * Returns the {@link RefreshPolicy} associated to the given id.
+         */
+        public static RefreshPolicy fromId(byte id) {
+            for (RefreshPolicy policy : values()) {
+                if (policy.getId() == id) {
+                    return policy;
+                }
+            }
+            throw new IllegalArgumentException("No cluster block level matching [" + id + "]");
         }
 
         public static RefreshPolicy readFrom(StreamInput in) throws IOException {
-            return RefreshPolicy.values()[in.readByte()];
+            return fromId(in.readByte());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) ordinal());
+            out.writeByte(getId());
         }
     }
 }

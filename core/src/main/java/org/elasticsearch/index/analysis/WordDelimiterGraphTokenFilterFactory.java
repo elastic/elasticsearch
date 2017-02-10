@@ -21,20 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_ALL;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.CATENATE_NUMBERS;
@@ -45,14 +39,15 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.PRESE
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT_ON_CASE_CHANGE;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT_ON_NUMERICS;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE;
+import static org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory.parseTypes;
 
-public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
+public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
 
-    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -94,106 +89,13 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-         return new WordDelimiterFilter(tokenStream,
-                     charTypeTable,
-                     flags,
-                     protoWords);
+        return new WordDelimiterGraphFilter(tokenStream, charTypeTable, flags, protoWords);
     }
 
-    public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    private int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }
         return 0;
-    }
-
-    // source => type
-    private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
-
-    /**
-     * parses a list of MappingCharFilter style rules into a custom byte[] type table
-     */
-    static byte[] parseTypes(Collection<String> rules) {
-        SortedMap<Character, Byte> typeMap = new TreeMap<>();
-        for (String rule : rules) {
-            Matcher m = typePattern.matcher(rule);
-            if (!m.find())
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
-            String lhs = parseString(m.group(1).trim());
-            Byte rhs = parseType(m.group(2).trim());
-            if (lhs.length() != 1)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
-            if (rhs == null)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
-            typeMap.put(lhs.charAt(0), rhs);
-        }
-
-        // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
-        byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
-        for (int i = 0; i < types.length; i++)
-            types[i] = WordDelimiterIterator.getType(i);
-        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())
-            types[mapping.getKey()] = mapping.getValue();
-        return types;
-    }
-
-    private static Byte parseType(String s) {
-        if (s.equals("LOWER"))
-            return WordDelimiterFilter.LOWER;
-        else if (s.equals("UPPER"))
-            return WordDelimiterFilter.UPPER;
-        else if (s.equals("ALPHA"))
-            return WordDelimiterFilter.ALPHA;
-        else if (s.equals("DIGIT"))
-            return WordDelimiterFilter.DIGIT;
-        else if (s.equals("ALPHANUM"))
-            return WordDelimiterFilter.ALPHANUM;
-        else if (s.equals("SUBWORD_DELIM"))
-            return WordDelimiterFilter.SUBWORD_DELIM;
-        else
-            return null;
-    }
-
-    private static String parseString(String s) {
-        char[] out = new char[256];
-        int readPos = 0;
-        int len = s.length();
-        int writePos = 0;
-        while (readPos < len) {
-            char c = s.charAt(readPos++);
-            if (c == '\\') {
-                if (readPos >= len)
-                    throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                c = s.charAt(readPos++);
-                switch (c) {
-                    case '\\':
-                        c = '\\';
-                        break;
-                    case 'n':
-                        c = '\n';
-                        break;
-                    case 't':
-                        c = '\t';
-                        break;
-                    case 'r':
-                        c = '\r';
-                        break;
-                    case 'b':
-                        c = '\b';
-                        break;
-                    case 'f':
-                        c = '\f';
-                        break;
-                    case 'u':
-                        if (readPos + 3 >= len)
-                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
-                        c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
-                        readPos += 4;
-                        break;
-                }
-            }
-            out[writePos++] = c;
-        }
-        return new String(out, 0, writePos);
     }
 }

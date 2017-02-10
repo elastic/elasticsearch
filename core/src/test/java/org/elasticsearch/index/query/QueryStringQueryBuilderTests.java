@@ -40,6 +40,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
@@ -400,8 +401,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             Query query = queryParser.parse("guinea pig");
             Query expectedQuery = new GraphQuery(
                 new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST))
                     .build(),
                 new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
             );
@@ -409,19 +410,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
-            expectedQuery = new GraphQuery(
-                new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
-                    .build(),
-                new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
-                    .build()
-            );
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp)
+                    .add(new GraphQuery(
+                            new BooleanQuery.Builder()
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST))
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST))
+                            .build(),
+                        new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                    ), defaultOp)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp)
+                    .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // complex
@@ -430,8 +429,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))
                 .add(new BooleanClause(new GraphQuery(
                     new BooleanQuery.Builder()
-                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
                         .build(),
                     new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
                 ), BooleanClause.Occur.MUST_NOT))

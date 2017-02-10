@@ -343,10 +343,6 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 );
     }
 
-    public static Path resolveConfigFile(Environment env, String name) {
-        return env.configFile().resolve(NAME).resolve(name);
-    }
-
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (false == enabled) {

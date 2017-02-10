@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
@@ -225,7 +225,7 @@ public class ProcessCtrl {
         }
 
         if (modelConfigFilePresent(env)) {
-            String modelConfigFile = MlPlugin.resolveConfigFile(env, ML_MODEL_CONF).toString();
+            String modelConfigFile = XPackPlugin.resolveConfigFile(env, ML_MODEL_CONF).toString();
             command.add(MODEL_CONFIG_ARG + modelConfigFile);
         }
 
@@ -250,7 +250,7 @@ public class ProcessCtrl {
      * Return true if there is a file ES_HOME/config/mlmodel.conf
      */
     public static boolean modelConfigFilePresent(Environment env) {
-        Path modelConfPath = MlPlugin.resolveConfigFile(env, ML_MODEL_CONF);
+        Path modelConfPath = XPackPlugin.resolveConfigFile(env, ML_MODEL_CONF);
 
         return Files.isRegularFile(modelConfPath);
     }
@@ -279,8 +279,8 @@ public class ProcessCtrl {
         }
 
         if (modelConfigFilePresent(env)) {
-            Path modelConfPath = MlPlugin.resolveConfigFile(env, ML_MODEL_CONF);
-            command.add(MODEL_CONFIG_ARG + modelConfPath.toAbsolutePath().getFileName());
+            String modelConfigFile = XPackPlugin.resolveConfigFile(env, ML_MODEL_CONF).toString();
+            command.add(MODEL_CONFIG_ARG + modelConfigFile);
         }
 
         return command;
@@ -297,7 +297,7 @@ public class ProcessCtrl {
         Path stateFile = Files.createTempFile(env.tmpFile(), jobId + "_quantiles_" + Thread.currentThread().getId(),
                 QUANTILES_FILE_EXTENSION);
 
-        try (BufferedWriter osw = Files.newBufferedWriter(stateFile, StandardCharsets.UTF_8);) {
+        try (BufferedWriter osw = Files.newBufferedWriter(stateFile, StandardCharsets.UTF_8)) {
             osw.write(state);
         }
 

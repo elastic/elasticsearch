@@ -124,7 +124,10 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
                         client.execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).get();
                 assertTrue(response.isClosed());
             } catch (Exception e) {
-                logger.warn("Job [" + jobId + "] couldn't be closed", e);
+                // CONFLICT is ok, as it means the job has been closed already, which isn't an issue at all.
+                if (RestStatus.CONFLICT != ExceptionsHelper.status(e.getCause())) {
+                    throw new RuntimeException(e);
+                }
             }
             DeleteJobAction.Response response =
                     client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();

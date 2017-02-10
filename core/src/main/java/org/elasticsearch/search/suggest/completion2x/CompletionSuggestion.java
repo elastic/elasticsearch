@@ -46,7 +46,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
     }
 
     @Override
-    public int getType() {
+    public int getWriteableType() {
         return TYPE;
     }
 

@@ -57,7 +57,7 @@
         },
         "typed_keys": {
           "type" : "boolean",
-          "description" : "Specify whether aggregation names should be prefixed by their respective types in the response"
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
         }
       }
     },

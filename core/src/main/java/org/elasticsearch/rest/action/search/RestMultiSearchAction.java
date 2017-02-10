@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestMultiSearchAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("typed_keys");
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
 
     private final boolean allowExplicitIndex;
 

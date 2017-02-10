@@ -6,6 +6,7 @@ A set of Elastic's commercial plugins:
 - Security
 - Watcher
 - Monitoring
+- Machine learning
 
 = Setup
 You must checkout x-pack and elasticsearch with a specific directory structure. The

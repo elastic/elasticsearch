@@ -147,19 +147,15 @@ public class StopDatafeedAction
             validate(datafeedId, mlMetadata);
 
             PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
-            if (tasks != null) {
-                for (PersistentTaskInProgress<?> task : tasks.findTasks(StartDatafeedAction.NAME, p -> true)) {
-                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) task.getRequest();
-                    if (storedRequest.getDatafeedId().equals(datafeedId)) {
-                        RemovePersistentTaskAction.Request removeTaskRequest = new RemovePersistentTaskAction.Request();
-                        removeTaskRequest.setTaskId(task.getId());
-                        removePersistentTaskAction.execute(removeTaskRequest, listener);
-                        return;
-                    }
-                }
+            PersistentTaskInProgress<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
+            if (task != null) {
+                RemovePersistentTaskAction.Request removeTaskRequest = new RemovePersistentTaskAction.Request();
+                removeTaskRequest.setTaskId(task.getId());
+                removePersistentTaskAction.execute(removeTaskRequest, listener);
+            } else {
+                listener.onFailure(new ElasticsearchStatusException("datafeed already stopped, expected datafeed state [{}], but got [{}]",
+                        RestStatus.CONFLICT, DatafeedState.STARTED, DatafeedState.STOPPED));
             }
-            listener.onFailure(new ElasticsearchStatusException("datafeed already stopped, expected datafeed state [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedState.STARTED, DatafeedState.STOPPED));
         }
 
         @Override

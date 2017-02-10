@@ -337,7 +337,9 @@ public class MlMetadata implements MetaData.Custom {
 
     }
 
-    public static PersistentTasksInProgress.PersistentTaskInProgress<?> getTask(String jobId, @Nullable PersistentTasksInProgress tasks) {
+    @Nullable
+    public static PersistentTasksInProgress.PersistentTaskInProgress<?> getJobTask(String jobId,
+                                                                                   @Nullable PersistentTasksInProgress tasks) {
         if (tasks != null) {
             Predicate<PersistentTasksInProgress.PersistentTaskInProgress<?>> p = t -> {
                 OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
@@ -350,13 +352,39 @@ public class MlMetadata implements MetaData.Custom {
         return null;
     }
 
+    @Nullable
+    public static PersistentTasksInProgress.PersistentTaskInProgress<?> getDatafeedTask(String datafeedId,
+                                                                                        @Nullable PersistentTasksInProgress tasks) {
+        if (tasks != null) {
+            Predicate<PersistentTasksInProgress.PersistentTaskInProgress<?>> p = t -> {
+                StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) t.getRequest();
+                return storedRequest.getDatafeedId().equals(datafeedId);
+            };
+            for (PersistentTasksInProgress.PersistentTaskInProgress<?> task : tasks.findTasks(StartDatafeedAction.NAME, p)) {
+                return task;
+            }
+        }
+        return null;
+    }
+
     public static JobState getJobState(String jobId, @Nullable PersistentTasksInProgress tasks) {
-        PersistentTasksInProgress.PersistentTaskInProgress<?> task = getTask(jobId, tasks);
+        PersistentTasksInProgress.PersistentTaskInProgress<?> task = getJobTask(jobId, tasks);
         if (task != null && task.getStatus() != null) {
             return (JobState) task.getStatus();
         } else {
             // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
             return JobState.CLOSED;
+        }
+    }
+
+    public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksInProgress tasks) {
+        PersistentTasksInProgress.PersistentTaskInProgress<?> task = getDatafeedTask(datafeedId, tasks);
+        if (task != null && task.getStatus() != null) {
+            return (DatafeedState) task.getStatus();
+        } else {
+            // If we haven't started a datafeed then there will be no persistent task,
+            // which is the same as if the datafeed was't started
+            return DatafeedState.STOPPED;
         }
     }
 

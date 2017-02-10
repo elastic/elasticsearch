@@ -17,9 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
@@ -32,7 +29,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -174,31 +170,6 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
                 .get();
         assertThat(bulkResponse.hasFailures(), is(false));
         logger.info("Indexed [{}] documents", numDocs);
-    }
-
-    private Job.Builder createScheduledJob(String jobId) {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.JSON);
-        dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
-
-        Detector.Builder d = new Detector.Builder("count", null);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-
-        Job.Builder builder = new Job.Builder();
-        builder.setId(jobId);
-
-        builder.setAnalysisConfig(analysisConfig);
-        builder.setDataDescription(dataDescription);
-        return builder;
-    }
-
-    private DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indexes) {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
-        builder.setQueryDelay(1);
-        builder.setFrequency(2);
-        builder.setIndexes(indexes);
-        builder.setTypes(Collections.singletonList("type"));
-        return builder.build();
     }
 
     private DataCounts getDataCounts(String jobId) {

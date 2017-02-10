@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -53,6 +54,10 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             }
             jobDatafeedRequest = new StartDatafeedAction.Request(datafeedId, startTimeMillis);
             jobDatafeedRequest.setEndTime(endTimeMillis);
+            if (restRequest.hasParam("timeout")) {
+                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(20));
+                jobDatafeedRequest.setTimeout(openTimeout);
+            }
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,

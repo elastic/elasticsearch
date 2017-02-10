@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -14,11 +15,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +41,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
@@ -43,17 +49,18 @@ import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
 import org.elasticsearch.xpack.persistent.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class StartDatafeedAction
         extends Action<StartDatafeedAction.Request, PersistentActionResponse, StartDatafeedAction.RequestBuilder> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
+    public static final ParseField TIMEOUT = new ParseField("timeout");
 
     public static final StartDatafeedAction INSTANCE = new StartDatafeedAction();
     public static final String NAME = "cluster:admin/ml/datafeeds/start";
@@ -80,6 +87,8 @@ public class StartDatafeedAction
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareLong((request, startTime) -> request.startTime = startTime, START_TIME);
             PARSER.declareLong(Request::setEndTime, END_TIME);
+            PARSER.declareString((request, val) ->
+                    request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
@@ -93,6 +102,7 @@ public class StartDatafeedAction
         private String datafeedId;
         private long startTime;
         private Long endTime;
+        private TimeValue timeout = TimeValue.timeValueSeconds(20);
 
         public Request(String datafeedId, long startTime) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -122,6 +132,14 @@ public class StartDatafeedAction
             this.endTime = endTime;
         }
 
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -138,6 +156,7 @@ public class StartDatafeedAction
             datafeedId = in.readString();
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
+            timeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
         @Override
@@ -146,6 +165,7 @@ public class StartDatafeedAction
             out.writeString(datafeedId);
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
+            out.writeVLong(timeout.millis());
         }
 
         @Override
@@ -161,13 +181,14 @@ public class StartDatafeedAction
             if (endTime != null) {
                 builder.field(END_TIME.getPreferredName(), endTime);
             }
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, startTime, endTime);
+            return Objects.hash(datafeedId, startTime, endTime, timeout);
         }
 
         @Override
@@ -181,7 +202,8 @@ public class StartDatafeedAction
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(startTime, other.startTime) &&
-                    Objects.equals(endTime, other.endTime);
+                    Objects.equals(endTime, other.endTime) &&
+                    Objects.equals(timeout, other.timeout);
         }
     }
 
@@ -220,41 +242,59 @@ public class StartDatafeedAction
 
     public static class TransportAction extends TransportPersistentAction<Request> {
 
+        private final DatafeedStateObserver observer;
+        private final ClusterService clusterService;
         private final DatafeedJobRunner datafeedJobRunner;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               DatafeedJobRunner datafeedJobRunner) {
+                               ClusterService clusterService, DatafeedJobRunner datafeedJobRunner) {
             super(settings, NAME, false, threadPool, transportService, persistentActionService, persistentActionRegistry,
                     actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+            this.clusterService = clusterService;
             this.datafeedJobRunner = datafeedJobRunner;
+            this.observer = new DatafeedStateObserver(threadPool, clusterService);
+        }
+
+        @Override
+        protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
+            ClusterState state = clusterService.state();
+            StartDatafeedAction.validate(request.datafeedId, state.metaData().custom(MlMetadata.TYPE),
+                    state.custom(PersistentTasksInProgress.TYPE), true);
+            ActionListener<PersistentActionResponse> finalListener =
+                    ActionListener.wrap(response -> waitForDatafeedStarted(request, response, listener), listener::onFailure);
+            super.doExecute(request, finalListener);
+        }
+
+        void waitForDatafeedStarted(Request request,
+                                    PersistentActionResponse response,
+                                    ActionListener<PersistentActionResponse> listener) {
+            observer.waitForState(request.getDatafeedId(), request.timeout, DatafeedState.STARTED, e -> {
+                if (e != null) {
+                    listener.onFailure(e);
+                } else {
+                    listener.onResponse(response);
+                }
+            });
+        }
+
+        @Override
+        public DiscoveryNode executorNode(Request request, ClusterState clusterState) {
+            return selectNode(logger, request, clusterState);
         }
 
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
-            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
-            PersistentTasksInProgress persistentTasksInProgress = clusterState.custom(PersistentTasksInProgress.TYPE);
-            if (persistentTasksInProgress == null) {
-                return;
-            }
-
-            Predicate<PersistentTasksInProgress.PersistentTaskInProgress<?>> predicate = taskInProgress -> {
-                Request storedRequest = (Request) taskInProgress.getRequest();
-                return storedRequest.getDatafeedId().equals(request.getDatafeedId());
-            };
-            if (persistentTasksInProgress.tasksExist(NAME, predicate)) {
-                throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
-                        RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
-            }
+            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, false);
         }
 
         @Override
-        protected void nodeOperation(PersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
-            DatafeedTask datafeedTask = (DatafeedTask) task;
+        protected void nodeOperation(PersistentTask persistentTask, Request request, ActionListener<TransportResponse.Empty> listener) {
+            DatafeedTask datafeedTask = (DatafeedTask) persistentTask;
             datafeedJobRunner.run(request.getDatafeedId(), request.getStartTime(), request.getEndTime(),
                     datafeedTask,
                     (error) -> {
@@ -268,7 +308,8 @@ public class StartDatafeedAction
 
     }
 
-    public static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks) {
+    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks,
+                                boolean checkJobState) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -277,11 +318,46 @@ public class StartDatafeedAction
         if (job == null) {
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
-        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
-        if (jobState != JobState.OPENED) {
-            throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
-                    RestStatus.CONFLICT, JobState.OPENED, jobState);
+        if (tasks == null) {
+            return;
+        }
+
+        // we only check job state when the user submits the start datafeed request,
+        // but when we persistent task framework validates the request we don't,
+        // because we don't know if the job task will be started before datafeed task,
+        // so we just wait until the job task is opened, which will happen at some point in time.
+        if (checkJobState) {
+            JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
+            if (jobState != JobState.OPENED) {
+                throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
+                        RestStatus.CONFLICT, JobState.OPENED, jobState);
+            }
+        }
+
+        DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
+        if (datafeedState == DatafeedState.STARTED) {
+            throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
+                    RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
         }
         DatafeedJobValidator.validate(datafeed, job);
     }
+
+    static DiscoveryNode selectNode(Logger logger, Request request, ClusterState clusterState) {
+        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+        PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
+        DiscoveryNodes nodes = clusterState.getNodes();
+
+        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
+        if (jobState == JobState.OPENED) {
+            PersistentTaskInProgress task = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
+            return nodes.get(task.getExecutorNode());
+        } else {
+            // lets try again later when the job has been opened:
+            logger.debug("cannot start datafeeder, because job's [{}] state is [{}] while state [{}] is required",
+                    datafeed.getJobId(), jobState, JobState.OPENED);
+            return null;
+        }
+    }
+
 }

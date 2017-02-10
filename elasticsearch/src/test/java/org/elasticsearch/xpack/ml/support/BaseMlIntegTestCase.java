@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -24,10 +25,12 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -70,6 +73,31 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;
+    }
+
+    public static Job.Builder createScheduledJob(String jobId) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
+
+        Detector.Builder d = new Detector.Builder("count", null);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+
+        Job.Builder builder = new Job.Builder();
+        builder.setId(jobId);
+
+        builder.setAnalysisConfig(analysisConfig);
+        builder.setDataDescription(dataDescription);
+        return builder;
+    }
+
+    public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indexes) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setQueryDelay(1);
+        builder.setFrequency(2);
+        builder.setIndexes(indexes);
+        builder.setTypes(Collections.singletonList("type"));
+        return builder.build();
     }
 
     // Due to the fact that ml plugin creates the state, notifications and meta indices automatically
@@ -129,6 +157,11 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
                     throw new RuntimeException(e);
                 }
             }
+            assertBusy(() -> {
+                GetJobsStatsAction.Response statsResponse =
+                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();
+                assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
+            });
             DeleteJobAction.Response response =
                     client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
             assertTrue(response.isAcknowledged());

@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -75,7 +78,11 @@ public class DatafeedJobRunner extends AbstractComponent {
                 latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
-            innerRun(holder, startTime, endTime);
+            UpdatePersistentTaskStatusAction.Request updateDatafeedStatus =
+                    new UpdatePersistentTaskStatusAction.Request(task.getPersistentTaskId(), DatafeedState.STARTED);
+            client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateDatafeedStatus, ActionListener.wrap(r -> {
+                innerRun(holder, startTime, endTime);
+            }, handler));
         }, handler);
     }
 
@@ -235,13 +242,29 @@ public class DatafeedJobRunner extends AbstractComponent {
 
         public void stop(String source, Exception e) {
             logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
-            if (datafeedJob.stop()) {
-                FutureUtils.cancel(future);
-                handler.accept(e);
-                logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
-            } else {
-                logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
-            }
+            // We need to fork, because:
+            // 1) We are being called from cluster state update thread and we should return as soon as possible
+            // 2) We also index into the notifaction index and that is forbidden from the cluster state update thread:
+            //    (Caused by: java.lang.AssertionError: should not be called by a cluster state applier. reason [the applied
+            //     cluster state is not yet available])
+            threadPool.executor(ThreadPool.Names.GENERIC).submit(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to stop [{}] datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
+                    handler.accept(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    if (datafeedJob.stop()) {
+                        FutureUtils.cancel(future);
+                        handler.accept(e);
+                        logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
+                    } else {
+                        logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
+                    }
+                }
+            });
         }
 
     }

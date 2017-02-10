@@ -300,7 +300,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             throw new ElasticsearchStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted",
                     RestStatus.CONFLICT);
         }
-        PersistentTaskInProgress<?> task = MlMetadata.getTask(jobId, tasks);
+        PersistentTaskInProgress<?> task = MlMetadata.getJobTask(jobId, tasks);
         JobState jobState = MlMetadata.getJobState(jobId, tasks);
         if (task != null && task.getExecutorNode() != null && jobState == JobState.OPENED) {
             if (nodes.nodeExists(task.getExecutorNode()) == false) {

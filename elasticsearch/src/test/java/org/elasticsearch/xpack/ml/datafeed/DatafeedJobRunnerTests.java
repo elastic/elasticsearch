@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction.Response;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -93,6 +96,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             return null;
         }).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME)).thenReturn(executorService);
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
@@ -110,6 +114,13 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
         }).when(jobProvider).buckets(any(), any(), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("rawtypes")
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new Response(true));
+            return null;
+        }).when(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), any(), any());
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {

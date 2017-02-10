@@ -356,7 +356,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
-                // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+                // Concatenates the type and the name of the suggestion (ex: completion#foo)
                 builder.startArray(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
             } else {
                 builder.startArray(getName());

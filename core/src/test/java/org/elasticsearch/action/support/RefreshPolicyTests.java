@@ -38,11 +38,6 @@ public class RefreshPolicyTests extends ESTestCase {
         }
     }
 
-    public void testFromId() throws IOException {
-        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-        assertEquals(refreshPolicy, WriteRequest.RefreshPolicy.fromId(refreshPolicy.getId()));
-    }
-
     public void testParse() throws IOException {
         final String refreshPolicyValue = randomFrom(WriteRequest.RefreshPolicy.values()).getValue();
         assertEquals(refreshPolicyValue, WriteRequest.RefreshPolicy.parse(refreshPolicyValue).getValue());

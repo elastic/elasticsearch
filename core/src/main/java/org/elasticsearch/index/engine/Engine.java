@@ -396,8 +396,7 @@ public abstract class Engine implements Closeable {
          * (e.g while preparing operation or updating mappings)
          * */
         public IndexResult(Exception failure, long version) {
-            super(Operation.TYPE.INDEX, failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
-            this.created = false;
+            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long seqNo) {

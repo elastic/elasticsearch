@@ -22,8 +22,17 @@ package org.elasticsearch.index.replication;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -157,7 +166,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public IndexResponse index(IndexRequest indexRequest) throws Exception {
             PlainActionFuture<IndexResponse> listener = new PlainActionFuture<>();
-            new IndexingAction(indexRequest, listener, this).execute();
+            final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
+                    bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0].getResponse()),
+                    listener::onFailure);
+            BulkItemRequest[] items = new BulkItemRequest[1];
+            items[0] = new BulkItemRequest(0, indexRequest);
+            BulkShardRequest request = new BulkShardRequest(shardId, indexRequest.getRefreshPolicy(), items);
+            new IndexingAction(request, wrapBulkListener, this).execute();
             return listener.get();
         }
 
@@ -486,24 +501,28 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     }
 
-    class IndexingAction extends ReplicationAction<IndexRequest, IndexRequest, IndexResponse> {
-        private IndexResponse response;
+    class IndexingAction extends ReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-        IndexingAction(IndexRequest request, ActionListener<IndexResponse> listener, ReplicationGroup replicationGroup) {
+        IndexingAction(BulkShardRequest request, ActionListener<BulkShardResponse> listener, ReplicationGroup replicationGroup) {
             super(request, listener, replicationGroup, "indexing");
-            request.process(null, request.index());
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
-            IndexResponse response = indexOnPrimary(request, primary);
-            this.response = response;
-            return new PrimaryResult(request, response);
+        protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
+            final IndexRequest indexRequest = (IndexRequest) request.items()[0].request();
+            indexRequest.process(null, request.index());
+            final IndexResponse indexResponse = indexOnPrimary(indexRequest, primary);
+            BulkItemResponse[] itemResponses = new BulkItemResponse[1];
+            itemResponses[0] = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
+            request.items()[0].setPrimaryResponse(itemResponses[0]);
+            return new PrimaryResult(request, new BulkShardResponse(primary.shardId(), itemResponses));
         }
 
         @Override
-        protected void performOnReplica(IndexRequest request, IndexShard replica) throws IOException {
-            indexOnReplica(response, request, replica);
+        protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws IOException {
+            final BulkItemRequest bulkItemRequest = request.items()[0];
+            final DocWriteResponse primaryResponse = bulkItemRequest.getPrimaryResponse().getResponse();
+            indexOnReplica(primaryResponse, ((IndexRequest) bulkItemRequest.request()), replica);
         }
     }
 

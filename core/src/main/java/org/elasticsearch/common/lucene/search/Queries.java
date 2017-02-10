@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -149,18 +148,7 @@ public class Queries {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
             ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
-        } else if (query instanceof GraphQuery && ((GraphQuery) query).hasBoolean()) {
-            // we have a graph query that has at least one boolean sub-query
-            // re-build and set minimum should match value on all boolean queries
-            List<Query> oldQueries = ((GraphQuery) query).getQueries();
-            Query[] queries = new Query[oldQueries.size()];
-            for (int i = 0; i < queries.length; i++) {
-                queries[i] = maybeApplyMinimumShouldMatch(oldQueries.get(i), minimumShouldMatch);
-            }
-
-            return new GraphQuery(queries);
         }
-
         return query;
     }
 

@@ -12,17 +12,20 @@ way for shards to be loaded from disk when a node starts up.
 As an example, here is what the recovery state of a cluster may look like when there
 are no shards in transit from one node to another:
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------------------
-> curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type  stage source_host  source_node target_host target_node repository snapshot files files_percent bytes bytes_percent
- total_files total_bytes translog translog_percent total_translog
-index 0     87ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 1     97ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 2     93ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 3     90ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 4     9ms  store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+GET _cat/recovery?v
+----------------------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+[source,js]
+----------------------------------------------------------------------------
+index shard time type stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
+twitter 0     18ms empty_store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               0.0%          0           0     0               0.0%          0           0            0                      100.0%
 ---------------------------------------------------------------------------
+// TESTRESPONSE[s/18ms/\\d+ms/]
+// TESTRESPONSE[s/127.0.0.1/.+/ _cat]
 
 In the above case, the source and target nodes are the same because the recovery
 type was store, i.e. they were read from local storage on node start.
@@ -31,20 +34,30 @@ Now let's see what a live recovery looks like. By increasing the replica count
 of our index and bringing another node online to host the replicas, we can see
 what a live shard recovery looks like.
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------------------
-> curl -XPUT 'localhost:9200/wiki/_settings' -d'{"number_of_replicas":1}'
-{"acknowledged":true}
+PUT twitter/_settings 
+{
+  "number_of_replicas" : 2
+}
 
-> curl -XGET 'localhost:9200/_cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp'
-i     s t      ty      st    shost  thost  f     fp      b        bp
-wiki  0 1252ms store   done  hostA  hostA  4     100.0%  23638870 100.0%
-wiki  0 1672ms replica index hostA  hostB  4     75.0%   23638870 48.8%
-wiki  1 1698ms replica index hostA  hostB  4     75.0%   23348540 49.4%
-wiki  1 4812ms store   done  hostA  hostA  33    100.0%  24501912 100.0%
-wiki  2 1689ms replica index hostA  hostB  4     75.0%   28681851 40.2%
-wiki  2 5317ms store   done  hostA  hostA  36    100.0%  30267222 100.0%
+GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,text]
+----------------------------------------------------------------------------
+i       s t      ty             st   shost thost f fp     b        bp
+twitter 0 1252ms existing_store done n/a   hostA 4 100.0% 23638870 0.0%
+----------------------------------------------------------------------------
+// TESTRESPONSE[s/hostA/.+/]
+// TESTRESPONSE[s/23638870/\\d+/]
+// TESTRESPONSE[s/4/0/]
+// TESTRESPONSE[s/23638870/0/]
+// TESTRESPONSE[s/100.0%/0.0%/]
+// TESTRESPONSE[s/existing_store/empty_store/]
+// TESTRESPONSE[s/1252/\\d+/ _cat]
 
 We can see in the above listing that our 3 initial shards are in various stages
 of being replicated from one node to another. Notice that the recovery type is
@@ -54,20 +67,53 @@ Finally, let's see what a snapshot recovery looks like. Assuming I have previous
 made a backup of my index, I can restore it using the <<modules-snapshots,snapshot and restore>>
 API.
 
-[source,sh]
+////
+Preparing the restore operation
+[source,js]
+-------------
+PUT _snapshot/twitter_repo
+{
+  "type": "fs",
+  "settings": {
+    "location": "twitter_repo"
+  }
+}
+
+PUT _snapshot/twitter_repo/snapshot_1?wait_for_completion=true
+{
+  "indices" : "twitter"
+}
+
+DELETE twitter
+-------------
+// CONSOLE
+// TEST[continued]
+////
+
+[source,js]
 --------------------------------------------------------------------------------
-> curl -XPOST 'localhost:9200/_snapshot/imdb/snapshot_2/_restore'
-{"acknowledged":true}
-> curl -XGET 'localhost:9200/_cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp'
-i     s t      ty       st    rep        snap     f     fp      b     bp
-imdb  0 1978ms snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
-imdb  1 2790ms snapshot index imdb       snap_1   88    7.7%    11025 8.1%
-imdb  2 2790ms snapshot index imdb       snap_1   85    0.0%    12072 0.0%
-imdb  3 2796ms snapshot index imdb       snap_1   85    2.4%    12048 7.2%
-imdb  4  819ms snapshot init  imdb       snap_1   0     0.0%    0     0.0%
+POST _snapshot/twitter_repo/snapshot_1/_restore?wait_for_completion=true
+
+GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
+----------------------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,text]
+----------------------------------------------------------------------------
+i       s t     ty       st   rep          snap       f fp     b     bp
+twitter 0 299ms snapshot done twitter_repo snapshot_1 7 100.0% 79893 100.0%
 --------------------------------------------------------------------------------
+// TESTRESPONSE[s/79893/\\d+/ _cat]
+// TESTRESPONSE[s/7/\\d+/]
+// TESTRESPONSE[s/299/\\d+/]
 
-
-
-
-
+////
+Deleting the snapshot also allows to delete the index again when the test is done
+[source,js]
+-------------
+DELETE _snapshot/twitter_repo/snapshot_1
+-------------
+// CONSOLE
+// TEST[continued]
+////

@@ -7,13 +7,22 @@ docs, the bytes it takes on disk, and the node where it's located.
 
 Here we see a single index, with three primary shards and no replicas:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 192.168.56.20:9200/_cat/shards
-wiki1 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
-wiki1 1 p STARTED 3013 29.6mb 192.168.56.30 bGG90GE
-wiki1 2 p STARTED 3973 38.1mb 192.168.56.20 I8hydUG
+GET _cat/shards
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[s/^/PUT twitter\n{"settings": {"number_of_replicas": 0}}\n/]
+
+will show the indices with all shards
+
+[source,text]
+--------------------------------------------------
+twitter 0 p STARTED    5 3.2kb 127.0.0.1 node-0
+--------------------------------------------------
+// TESTRESPONSE[s/3\.2kb/.*/ ]
+// TESTRESPONSE[_cat]
 
 [float]
 [[index-pattern]]
@@ -23,13 +32,21 @@ If you have many shards, you may wish to limit which indices show up
 in the output.  You can always do this with `grep`, but you can save
 some bandwidth by supplying an index pattern to the end.
 
+[source,js]
+--------------------------------------------------
+GET _cat/shards/twitt*
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+And you will only see indices matching the specified pattern
+
 [source,sh]
 --------------------------------------------------
-% curl 192.168.56.20:9200/_cat/shards/wiki*
-wiki2 0 p STARTED 197 3.2mb 192.168.56.10 H5dfFeA
-wiki2 1 p STARTED 205 5.9mb 192.168.56.30 bGG90GE
-wiki2 2 p STARTED 275 7.8mb 192.168.56.20 I8hydUG
+twitter 0 p STARTED    1 3.2kb 127.0.0.1 node-0
 --------------------------------------------------
+// TESTRESPONSE[s/3\.2kb/.*/ ]
+// TESTRESPONSE[_cat]
 
 
 [float]
@@ -41,12 +58,19 @@ shards.  Where are they from and where are they going?
 
 [source,sh]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/health
-1384315316 20:01:56 foo green 3 3 12 6 2 0 0
-% curl 192.168.56.10:9200/_cat/shards | fgrep RELO
-wiki1 0 r RELOCATING 3014 31.1mb 192.168.56.20 I8hydUG -> 192.168.56.30 bGG90GE
-wiki1 1 r RELOCATING 3013 29.6mb 192.168.56.10 H5dfFeA -> 192.168.56.30 bGG90GE
+GET _cat/shards
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:cannot trigger relocation]
+
+You can see easily from and to which nodes those shards are currently relocating.
+
+[source,sh]
+--------------------------------------------------
+twitter 0 r RELOCATING 3014 31.1mb 192.168.56.20 I8hydUG -> 192.168.56.30 bGG90GE
+twitter 1 r RELOCATING 3013 29.6mb 192.168.56.10 H5dfFeA -> 192.168.56.30 bGG90GE
+--------------------------------------------------
+
 
 [float]
 [[states]]
@@ -55,17 +79,26 @@ wiki1 1 r RELOCATING 3013 29.6mb 192.168.56.10 H5dfFeA -> 192.168.56.30 bGG90GE
 Before a shard can be used, it goes through an `INITIALIZING` state.
 `shards` can show you which ones.
 
+You can try this out, by increasing the number of replicas
+
 [source,sh]
 --------------------------------------------------
-% curl -XPUT 192.168.56.20:9200/_settings -d'{"number_of_replicas":1}'
-{"acknowledged":true}
-% curl 192.168.56.20:9200/_cat/shards
-wiki1 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
-wiki1 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
-wiki1 1 p STARTED      3013 29.6mb 192.168.56.30 bGG90GE
-wiki1 1 r INITIALIZING    0 13.1mb 192.168.56.20 I8hydUG
-wiki1 2 r INITIALIZING    0   14mb 192.168.56.10 H5dfFeA
-wiki1 2 p STARTED      3973 38.1mb 192.168.56.20 I8hydUG
+PUT twitter/_settings
+{
+  "number_of_replicas" : 1
+}
+
+GET _cat/shards
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:cannot trigger initialization reliably]
+
+And you will get an output like this (given you are fast enough)
+
+[source,sh]
+--------------------------------------------------
+twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
+twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 --------------------------------------------------
 
 If a shard cannot be assigned, for example you've overallocated the
@@ -74,23 +107,23 @@ will remain `UNASSIGNED` with the <<reason-unassigned,reason code>> `ALLOCATION_
 
 [source,sh]
 --------------------------------------------------
-% curl -XPUT 192.168.56.20:9200/_settings -d'{"number_of_replicas":3}'
-% curl 192.168.56.20:9200/_cat/health
-1384316325 20:18:45 foo yellow 3 3 9 3 0 0 3
-% curl 192.168.56.20:9200/_cat/shards
-wiki1 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
-wiki1 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
-wiki1 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
-wiki1 0 r UNASSIGNED ALLOCATION_FAILED
-wiki1 1 r STARTED    3013 29.6mb 192.168.56.10 H5dfFeA
-wiki1 1 p STARTED    3013 29.6mb 192.168.56.30 bGG90GE
-wiki1 1 r STARTED    3013 29.6mb 192.168.56.20 I8hydUG
-wiki1 1 r UNASSIGNED ALLOCATION_FAILED
-wiki1 2 r STARTED    3973 38.1mb 192.168.56.10 H5dfFeA
-wiki1 2 r STARTED    3973 38.1mb 192.168.56.30 bGG90GE
-wiki1 2 p STARTED    3973 38.1mb 192.168.56.20 I8hydUG
-wiki1 2 r UNASSIGNED ALLOCATION_FAILED
+PUT twitter/_settings
+{
+  "number_of_replicas" : 1
+}
+
+GET _cat/shards
 --------------------------------------------------
+// CONSOLE
+
+[source,sh]
+--------------------------------------------------
+twitter 0 p STARTED    1 3.2kb 127.0.0.1 node-0
+twitter 0 r UNASSIGNED ALLOCATION_FAILED
+--------------------------------------------------
+// TESTRESPONSE[s/3\.2kb/.*/ ]
+// TESTRESPONSE[_cat]
+// TEST[continued]
 
 [float]
 [[reason-unassigned]]

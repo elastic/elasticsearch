@@ -58,8 +58,8 @@ public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap(), equalTo(0));
-        headTestCase("test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("test", emptyMap(), greaterThan(0));
+        headTestCase("test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeExists() throws IOException {

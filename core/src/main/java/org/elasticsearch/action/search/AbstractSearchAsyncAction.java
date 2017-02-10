@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -116,13 +117,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
         /* This is the main search phase transition where we move to the next phase. At this point we check if there is
          * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
-         * search phase as "all shards failed"
-         */
+         * search phase as "all shards failed"*/
         if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
             if (logger.isDebugEnabled()) {
                 final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
+                Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()),
-                    shardSearchFailures[0].getCause());
+                    cause);
             }
             onPhaseFailure(currentPhase, "all shards failed", null);
         } else {

@@ -134,6 +134,121 @@ setup:
           }
 
 ---
+"Test update datafeed":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      xpack.ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "indexes":["index-*"],
+            "scroll_size": 10000
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { job_id: "job-1" }
+  - match: { indexes: ["index-*"] }
+  - match: { types: ["type-bar"] }
+  - match: { scroll_size: 10000 }
+
+---
+"Test update datafeed to point to different job":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      xpack.ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "job-2"
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { job_id: "job-2" }
+  - match: { indexes: ["index-foo"] }
+  - match: { types: ["type-bar"] }
+
+---
+"Test update datafeed with missing id":
+
+  - do:
+      catch: /resource_not_found_exception/
+      xpack.ml.update_datafeed:
+        datafeed_id: a-missing-datafeed
+        body:  >
+          {}
+
+---
+"Test update datafeed to point to missing job":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      catch: /resource_not_found_exception/
+      xpack.ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "job-3"
+          }
+
+---
+"Test update datafeed to point to job already attached to another datafeed":
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"]
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-2
+        body:  >
+          {
+            "job_id":"job-2",
+            "indexes":["index-foo"],
+            "types":["type-bar"]
+          }
+
+  - do:
+      catch: /A datafeed \[test-datafeed-2\] already exists for job \[job-2\]/
+      xpack.ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "job-2"
+          }
+
+---
 "Test delete datafeed with missing id":
   - do:
       catch: /resource_not_found_exception/

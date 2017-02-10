@@ -23,7 +23,7 @@ public final class DatafeedJobValidator {
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
-        if (datafeedConfig.getAggregations() != null && !DatafeedConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
+        if (datafeedConfig.hasAggregations() && !DatafeedConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
             throw new IllegalArgumentException(
                     Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, DatafeedConfig.DOC_COUNT));
         }

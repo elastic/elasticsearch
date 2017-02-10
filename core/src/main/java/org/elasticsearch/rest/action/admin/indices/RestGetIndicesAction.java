@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetIndicesAction extends BaseRestHandler {
@@ -58,6 +59,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         super(settings);
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
+        controller.registerHandler(HEAD, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
         this.settingsFilter = settingsFilter;
     }

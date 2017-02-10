@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /*
@@ -54,7 +55,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
     public RestGetAliasesAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_alias/{name}", this);
+        controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
+        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
     }
 
     @Override

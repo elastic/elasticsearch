@@ -228,7 +228,12 @@ final class Request {
 
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                return putParam("refresh", refreshPolicy.toString());
+                // TODO use refreshPolicy.toString() once it returns the appropriate value
+                if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                    putParam("refresh", Boolean.TRUE.toString());
+                } else {
+                    putParam("refresh", "wait_for");
+                }
             }
             return this;
         }

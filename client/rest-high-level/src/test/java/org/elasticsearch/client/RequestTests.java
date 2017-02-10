@@ -175,7 +175,7 @@ public class RequestTests extends ESTestCase {
         indexRequest.id(id);
 
         Map<String, String> expectedParams = new HashMap<>();
-        long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+        long version = randomFrom(Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
         indexRequest.version(version);
         expectedParams.put("version", Long.toString(version));
 
@@ -220,7 +220,12 @@ public class RequestTests extends ESTestCase {
                 WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
                 indexRequest.setRefreshPolicy(refreshPolicy);
                 if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                    expectedParams.put("refresh", refreshPolicy.toString());
+                    // TODO use refreshPolicy.toString() once it returns the appropriate value
+                    if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
+                        expectedParams.put("refresh", Boolean.TRUE.toString());
+                    } else {
+                        expectedParams.put("refresh", "wait_for");
+                    }
                 }
             }
             if (randomBoolean()) {

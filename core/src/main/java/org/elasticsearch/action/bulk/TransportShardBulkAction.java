@@ -308,7 +308,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
-            assert item.getPrimaryResponse() != null;
+            assert item.getPrimaryResponse() != null : "expected primary response to be set for item [" + i + "] request ["+ item.request() +"]";
             if (item.getPrimaryResponse().isFailed() == false &&
                     item.getPrimaryResponse().getResponse().getResult() != DocWriteResponse.Result.NOOP) {
                 DocWriteRequest docWriteRequest = item.request();

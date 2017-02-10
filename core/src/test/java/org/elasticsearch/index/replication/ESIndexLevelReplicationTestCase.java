@@ -170,10 +170,28 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0].getResponse()),
                     listener::onFailure);
             BulkItemRequest[] items = new BulkItemRequest[1];
-            items[0] = new BulkItemRequest(0, indexRequest);
+            items[0] = new TestBulkItemRequest(0, indexRequest);
             BulkShardRequest request = new BulkShardRequest(shardId, indexRequest.getRefreshPolicy(), items);
             new IndexingAction(request, wrapBulkListener, this).execute();
             return listener.get();
+        }
+
+        /** BulkItemRequest exposing get/set primary response */
+        public class TestBulkItemRequest extends BulkItemRequest {
+
+            TestBulkItemRequest(int id, DocWriteRequest request) {
+                super(id, request);
+            }
+
+            @Override
+            protected void setPrimaryResponse(BulkItemResponse primaryResponse) {
+                super.setPrimaryResponse(primaryResponse);
+            }
+
+            @Override
+            protected BulkItemResponse getPrimaryResponse() {
+                return super.getPrimaryResponse();
+            }
         }
 
         public synchronized void startAll() throws IOException {
@@ -513,14 +531,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             indexRequest.process(null, request.index());
             final IndexResponse indexResponse = indexOnPrimary(indexRequest, primary);
             BulkItemResponse[] itemResponses = new BulkItemResponse[1];
-            itemResponses[0] = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
-            request.items()[0].setPrimaryResponse(itemResponses[0]);
+            itemResponses[0] = new BulkItemResponse(0, indexRequest.opType(), indexResponse);
+            ((ReplicationGroup.TestBulkItemRequest) request.items()[0]).setPrimaryResponse(itemResponses[0]);
             return new PrimaryResult(request, new BulkShardResponse(primary.shardId(), itemResponses));
         }
 
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws IOException {
-            final BulkItemRequest bulkItemRequest = request.items()[0];
+            final ReplicationGroup.TestBulkItemRequest bulkItemRequest = ((ReplicationGroup.TestBulkItemRequest) request.items()[0]);
             final DocWriteResponse primaryResponse = bulkItemRequest.getPrimaryResponse().getResponse();
             indexOnReplica(primaryResponse, ((IndexRequest) bulkItemRequest.request()), replica);
         }

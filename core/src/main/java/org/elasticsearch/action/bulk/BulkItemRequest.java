@@ -38,7 +38,7 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    public BulkItemRequest(int id, DocWriteRequest request) {
+    protected BulkItemRequest(int id, DocWriteRequest request) {
         this.id = id;
         this.request = request;
     }
@@ -56,13 +56,13 @@ public class BulkItemRequest implements Streamable {
         return request.indices()[0];
     }
 
-    // NOTE: public for testing only
-    public BulkItemResponse getPrimaryResponse() {
+    // NOTE: protected for testing only
+    protected BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
     }
 
-    // NOTE: public for testing only
-    public void setPrimaryResponse(BulkItemResponse primaryResponse) {
+    // NOTE: protected for testing only
+    protected void setPrimaryResponse(BulkItemResponse primaryResponse) {
         this.primaryResponse = primaryResponse;
     }
 

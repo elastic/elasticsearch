@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -226,6 +229,19 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
+        } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint
+            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            assertEquals(LatLonPoint.newBoxQuery(queryBuilder.fieldName(),
+                    queryBuilder.bottomRight().lat(),
+                    queryBuilder.topLeft().lat(),
+                    queryBuilder.topLeft().lon(),
+                    queryBuilder.bottomRight().lon()), indexQuery);
+            Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
+            assertEquals(LatLonDocValuesField.newBoxQuery(queryBuilder.fieldName(),
+                    queryBuilder.bottomRight().lat(),
+                    queryBuilder.topLeft().lat(),
+                    queryBuilder.topLeft().lon(),
+                    queryBuilder.bottomRight().lon()), dvQuery);
         }
     }
 

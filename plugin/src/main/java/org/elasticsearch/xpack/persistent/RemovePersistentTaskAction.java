@@ -178,7 +178,7 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTaskClusterService.completeOrRestartPersistentTask(request.taskId, null, new ActionListener<Empty>() {
+            persistentTaskClusterService.removePersistentTask(request.taskId, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(new Response(true));

@@ -42,7 +42,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         mlMetadata.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("*")));
 
         PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request(job.getId()), "node_id");
+                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request(job.getId()), false, true, "node_id");
         task = new PersistentTaskInProgress<>(task, randomFrom(JobState.FAILED, JobState.CLOSED,
                 JobState.CLOSING, JobState.OPENING));
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
@@ -53,8 +53,8 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
-                .putCustom(PersistentTasksInProgress.TYPE, tasks)
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksInProgress.TYPE, tasks))
                 .nodes(nodes);
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed_id", 0L);
@@ -64,8 +64,8 @@ public class StartDatafeedActionTests extends ESTestCase {
         task = new PersistentTaskInProgress<>(task, JobState.OPENED);
         tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
         cs = ClusterState.builder(new ClusterName("cluster_name"))
-                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
-                .putCustom(PersistentTasksInProgress.TYPE, tasks)
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksInProgress.TYPE, tasks))
                 .nodes(nodes);
         node = StartDatafeedAction.selectNode(logger, request, cs.build());
         assertEquals("node_id", node.getId());
@@ -87,7 +87,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job1, false)
                 .build();
         PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("foo"), null);
+                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("foo"), false, true, null);
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(0L, Collections.singletonMap(0L, task));
         DatafeedConfig datafeedConfig1 = DatafeedJobRunnerTests.createDatafeedConfig("foo-datafeed", "foo").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
@@ -112,11 +112,11 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         PersistentTaskInProgress<OpenJobAction.Request> jobTask =
                 new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"),
-                        "node_id");
+                        false, true, "node_id");
         jobTask = new PersistentTaskInProgress<>(jobTask, JobState.OPENED);
         PersistentTaskInProgress<StartDatafeedAction.Request> datafeedTask =
                 new PersistentTaskInProgress<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
-                        "node_id");
+                        false, true, "node_id");
         datafeedTask = new PersistentTaskInProgress<>(datafeedTask, DatafeedState.STARTED);
         Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
         taskMap.put(0L, jobTask);
@@ -142,11 +142,11 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         PersistentTaskInProgress<OpenJobAction.Request> jobTask =
                 new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"),
-                        "node_id2");
+                        false, true, "node_id2");
         jobTask = new PersistentTaskInProgress<>(jobTask, JobState.OPENED);
         PersistentTaskInProgress<StartDatafeedAction.Request> datafeedTask =
                 new PersistentTaskInProgress<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
-                        "node_id1");
+                        false, true, "node_id1");
         datafeedTask = new PersistentTaskInProgress<>(datafeedTask, DatafeedState.STARTED);
         Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
         taskMap.put(0L, jobTask);

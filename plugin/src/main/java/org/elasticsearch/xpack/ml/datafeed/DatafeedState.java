@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -45,6 +47,13 @@ public enum DatafeedState implements Task.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.value(this.toString().toLowerCase(Locale.ROOT));
         return builder;
+    }
+
+    public static DatafeedState fromXContent(XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+            throw new ElasticsearchParseException("Unexpected token {}", parser.currentToken());
+        }
+        return fromString(parser.text());
     }
 
     @Override

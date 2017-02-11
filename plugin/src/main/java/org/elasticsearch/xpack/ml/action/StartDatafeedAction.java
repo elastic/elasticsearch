@@ -315,7 +315,7 @@ public class StartDatafeedAction
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             DiscoveryNodes nodes = clusterState.getNodes();
             StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
         }
@@ -373,7 +373,7 @@ public class StartDatafeedAction
 
     static DiscoveryNode selectNode(Logger logger, Request request, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
         DiscoveryNodes nodes = clusterState.getNodes();
 

@@ -62,8 +62,8 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        PersistentTasksInProgress tasks = event.state().custom(PersistentTasksInProgress.TYPE);
-        PersistentTasksInProgress previousTasks = event.previousState().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress tasks = event.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress previousTasks = event.previousState().getMetaData().custom(PersistentTasksInProgress.TYPE);
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
@@ -388,6 +388,19 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
         @Override
         public boolean isFragment() {
             return false;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return state == status.state;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(state);
         }
     }
 

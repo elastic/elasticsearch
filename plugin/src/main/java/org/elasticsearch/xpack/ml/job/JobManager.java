@@ -134,7 +134,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public JobState getJobState(String jobId) {
-        PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
         return MlMetadata.getJobState(jobId, tasks);
     }
 
@@ -256,7 +256,7 @@ public class JobManager extends AbstractComponent {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                    builder.deleteJob(jobId, currentState.custom(PersistentTasksInProgress.TYPE));
+                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksInProgress.TYPE));
                     return buildNewClusterState(currentState, builder);
                 }
             });
@@ -282,7 +282,7 @@ public class JobManager extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasksInProgress tasks = currentState.custom(PersistentTasksInProgress.TYPE);
+                PersistentTasksInProgress tasks = currentState.metaData().custom(PersistentTasksInProgress.TYPE);
                 MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
                 builder.markJobAsDeleted(jobId, tasks);
                 return buildNewClusterState(currentState, builder);

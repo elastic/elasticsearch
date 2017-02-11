@@ -148,7 +148,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTaskInProgress<OpenJobAction.Request> task =
                 new PersistentTaskInProgress<>(
-                        new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("1"), null),
+                        new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("1"), false, true, null),
                         JobState.CLOSED
                 );
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
@@ -272,7 +272,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
         PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, null);
+                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, null);
         PersistentTasksInProgress tasksInProgress =
                 new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
@@ -334,7 +334,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
         PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, null);
+                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, null);
         PersistentTasksInProgress tasksInProgress =
                 new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 

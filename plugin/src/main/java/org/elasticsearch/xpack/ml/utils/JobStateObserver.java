@@ -87,7 +87,7 @@ public class JobStateObserver {
 
         @Override
         public boolean test(ClusterState newState) {
-            PersistentTasksInProgress tasks = newState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = newState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState == JobState.FAILED) {
                 failed = true;

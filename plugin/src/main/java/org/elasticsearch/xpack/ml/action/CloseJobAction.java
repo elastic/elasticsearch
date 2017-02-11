@@ -307,7 +307,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             throw ExceptionsHelper.missingJobException(jobId);
         }
 
-        PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress tasks = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
         if (tasks != null) {
             Predicate<PersistentTaskInProgress<?>> p = t -> {
                 OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
@@ -331,7 +331,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     static ClusterState moveJobToClosingState(String jobId, ClusterState currentState) {
         PersistentTaskInProgress<?> task = validateAndFindTask(jobId, currentState);
-        PersistentTasksInProgress currentTasks = currentState.custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress currentTasks = currentState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         Map<Long, PersistentTaskInProgress<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
         for (PersistentTaskInProgress<?> taskInProgress : currentTasks.tasks()) {
             if (taskInProgress.getId() == task.getId()) {
@@ -348,9 +348,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         ClusterState.Builder builder = ClusterState.builder(currentState);
         return builder
-                .putCustom(PersistentTasksInProgress.TYPE, newTasks)
                 .metaData(new MetaData.Builder(currentState.metaData())
-                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build())
+                        .putCustom(PersistentTasksInProgress.TYPE, newTasks))
                 .build();
     }
 }

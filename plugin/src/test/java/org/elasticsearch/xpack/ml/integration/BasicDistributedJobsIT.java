@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -129,6 +130,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         cleanupWorkaround(2);
     }
 
+    @TestLogging("org.elasticsearch.xpack.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessable from this node)
@@ -152,7 +154,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
@@ -164,12 +166,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         // stop the only running ml node
+        logger.info("!!!!");
         internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
         ensureStableCluster(2);
         assertBusy(() -> {
             // job should get and remain in a failed state:
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
 
             assertNull(task.getExecutorNode());
@@ -183,7 +186,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             // job should be re-opened:
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
 
             assertNotNull(task.getExecutorNode());

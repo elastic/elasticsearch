@@ -348,7 +348,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                                      ActionListener<QueryPage<Response.JobStats>> listener) {
             String jobId = task.getJobId();
             logger.debug("Get stats for job '{}'", jobId);
-            PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(jobId);
             if (stats.isPresent()) {
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
@@ -370,7 +370,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             AtomicInteger counter = new AtomicInteger(jobIds.size());
             AtomicArray<Response.JobStats> jobStats = new AtomicArray<>(jobIds.size());
-            PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
             for (int i = 0; i < jobIds.size(); i++) {
                 int slot = i;
                 String jobId = jobIds.get(i);

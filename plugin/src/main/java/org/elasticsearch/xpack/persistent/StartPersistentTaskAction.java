@@ -9,6 +9,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -23,16 +24,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Internal action used by TransportPersistentAction to add the record for the persistent action to the cluster state.
+ * This action can be used to start persistent action previously created using {@link CreatePersistentTaskAction}
  */
 public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.Request,
-        PersistentActionResponse,
+        StartPersistentTaskAction.Response,
         StartPersistentTaskAction.RequestBuilder> {
 
     public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
@@ -48,37 +50,36 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
     }
 
     @Override
-    public PersistentActionResponse newResponse() {
-        return new PersistentActionResponse();
+    public Response newResponse() {
+        return new Response();
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String action;
-
-        private PersistentActionRequest request;
+        private long taskId;
 
         public Request() {
 
         }
 
-        public Request(String action, PersistentActionRequest request) {
-            this.action = action;
-            this.request = request;
+        public Request(long taskId) {
+            this.taskId = taskId;
+        }
+
+        public void setTaskId(long taskId) {
+            this.taskId = taskId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            action = in.readString();
-            request = in.readOptionalNamedWriteable(PersistentActionRequest.class);
+            taskId = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(action);
-            out.writeOptionalNamedWriteable(request);
+            out.writeLong(taskId);
         }
 
         @Override
@@ -90,26 +91,65 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Request request1 = (Request) o;
-            return Objects.equals(action, request1.action) &&
-                    Objects.equals(request, request1.request);
+            Request request = (Request) o;
+            return taskId == request.taskId;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(action, request);
+            return Objects.hash(taskId);
         }
     }
 
+    public static class Response extends AcknowledgedResponse {
+        public Response() {
+            super();
+        }
+
+        public Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeAcknowledged(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AcknowledgedResponse that = (AcknowledgedResponse) o;
+            return isAcknowledged() == that.isAcknowledged();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isAcknowledged());
+        }
+
+    }
+
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<StartPersistentTaskAction.Request,
-            PersistentActionResponse, StartPersistentTaskAction.RequestBuilder> {
+            StartPersistentTaskAction.Response, StartPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, StartPersistentTaskAction action) {
             super(client, action, new Request());
         }
+
+        public final RequestBuilder setTaskId(long taskId) {
+            request.setTaskId(taskId);
+            return this;
+        }
+
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentActionResponse> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final PersistentTaskClusterService persistentTaskClusterService;
 
@@ -117,25 +157,20 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                PersistentTaskClusterService persistentTaskClusterService,
-                               PersistentActionRegistry persistentActionRegistry,
-                               PersistentActionService persistentActionService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.persistentTaskClusterService = persistentTaskClusterService;
-            PersistentActionExecutor executor = new PersistentActionExecutor(threadPool);
-            clusterService.addListener(new PersistentActionCoordinator(settings, persistentActionService, persistentActionRegistry,
-                    transportService.getTaskManager(), executor));
         }
 
         @Override
         protected String executor() {
-            return ThreadPool.Names.GENERIC;
+            return ThreadPool.Names.MANAGEMENT;
         }
 
         @Override
-        protected PersistentActionResponse newResponse() {
-            return new PersistentActionResponse();
+        protected Response newResponse() {
+            return new Response();
         }
 
         @Override
@@ -145,12 +180,11 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
-                                             final ActionListener<PersistentActionResponse> listener) {
-            persistentTaskClusterService.createPersistentTask(request.action, request.request, new ActionListener<Long>() {
+        protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
+            persistentTaskClusterService.startPersistentTask(request.taskId, new ActionListener<Empty>() {
                 @Override
-                public void onResponse(Long newTaskId) {
-                    listener.onResponse(new PersistentActionResponse(newTaskId));
+                public void onResponse(Empty empty) {
+                    listener.onResponse(new Response(true));
                 }
 
                 @Override

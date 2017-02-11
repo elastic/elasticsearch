@@ -297,7 +297,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             OpenJobAction.validate(request.getJobId(), mlMetadata, tasks, clusterState.nodes());
         }
 
@@ -359,7 +359,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
     static DiscoveryNode selectLeastLoadedMlNode(String jobId, ClusterState clusterState, Logger logger) {
         long maxAvailable = Long.MIN_VALUE;
         DiscoveryNode leastLoadedNode = null;
-        PersistentTasksInProgress persistentTasksInProgress = clusterState.custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress persistentTasksInProgress = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
             String allocationEnabled = nodeAttributes.get(MachineLearning.ALLOCATION_ENABLED_ATTR);

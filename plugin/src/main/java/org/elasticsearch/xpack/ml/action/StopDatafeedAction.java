@@ -146,7 +146,7 @@ public class StopDatafeedAction
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             validate(datafeedId, mlMetadata);
 
-            PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
             PersistentTaskInProgress<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
             if (task != null) {
                 RemovePersistentTaskAction.Request removeTaskRequest = new RemovePersistentTaskAction.Request();

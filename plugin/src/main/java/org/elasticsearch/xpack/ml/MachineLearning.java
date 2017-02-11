@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -129,6 +128,7 @@ import org.elasticsearch.xpack.persistent.PersistentActionService;
 import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
@@ -212,27 +212,31 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
+                // Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentActionCoordinator.Status.NAME,
-                        PersistentActionCoordinator.Status::new),
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+
+                // Persistent action requests
                 new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
                 new NamedWriteableRegistry.Entry(PersistentActionRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new),
+
+                // Task statuses
+                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentActionCoordinator.Status.NAME,
+                        PersistentActionCoordinator.Status::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, JobState.NAME, JobState::fromStream),
                 new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream)
-                );
+        );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        NamedXContentRegistry.Entry entry = new NamedXContentRegistry.Entry(
-                MetaData.Custom.class,
-                new ParseField("ml"),
-                parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()
+        return Arrays.asList(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
+                        parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(JobState.NAME), JobState::fromXContent)
         );
-        return Collections.singletonList(entry);
     }
 
     @Override
@@ -285,7 +289,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 persistentActionService,
                 persistentActionRegistry,
                 new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService)
-                );
+        );
     }
 
     public Collection<Module> nodeModules() {
@@ -373,13 +377,14 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
+                new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(MlDeleteByQueryAction.INSTANCE, MlDeleteByQueryAction.TransportAction.class),
                 new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class)
-                );
+        );
     }
 
     @Override

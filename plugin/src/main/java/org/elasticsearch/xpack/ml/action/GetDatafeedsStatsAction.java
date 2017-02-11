@@ -265,7 +265,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
             Map<String, DatafeedState> states = new HashMap<>();
-            PersistentTasksInProgress tasksInProgress = state.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasksInProgress = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
             if (tasksInProgress != null) {
                 Predicate<PersistentTaskInProgress<?>> predicate = ALL.equals(request.getDatafeedId()) ? p -> true :
                         p -> request.getDatafeedId().equals(((StartDatafeedAction.Request) p.getRequest()).getDatafeedId());

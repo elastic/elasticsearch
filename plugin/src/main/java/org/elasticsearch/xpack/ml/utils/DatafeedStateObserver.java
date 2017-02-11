@@ -35,7 +35,7 @@ public class DatafeedStateObserver {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());
         Predicate<ClusterState> predicate = (newState) -> {
-            PersistentTasksInProgress tasks = newState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = newState.getMetaData().custom(PersistentTasksInProgress.TYPE);
             DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
             return datafeedState == expectedState;
         };

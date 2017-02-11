@@ -57,7 +57,7 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
     protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState, Predicate<DiscoveryNode> selector) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksInProgress persistentTasksInProgress = clusterState.custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress persistentTasksInProgress = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (selector.test(node)) {
                 if (persistentTasksInProgress == null) {

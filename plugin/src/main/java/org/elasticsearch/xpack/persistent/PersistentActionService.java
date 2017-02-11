@@ -36,9 +36,9 @@ public class PersistentActionService extends AbstractComponent {
 
     public <Request extends PersistentActionRequest> void sendRequest(String action, Request request,
                                                                       ActionListener<PersistentActionResponse> listener) {
-        StartPersistentTaskAction.Request startRequest = new StartPersistentTaskAction.Request(action, request);
+        CreatePersistentTaskAction.Request startRequest = new CreatePersistentTaskAction.Request(action, request);
         try {
-            client.execute(StartPersistentTaskAction.INSTANCE, startRequest, listener);
+            client.execute(CreatePersistentTaskAction.INSTANCE, startRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

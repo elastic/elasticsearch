@@ -23,8 +23,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -33,8 +35,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -58,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
@@ -73,6 +78,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
                 new ActionHandler<>(TestPersistentAction.INSTANCE, TransportTestPersistentAction.class),
                 new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
+                new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
@@ -100,13 +106,31 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                 new NamedWriteableRegistry.Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class,
                         PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
                 new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
         );
     }
 
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return Arrays.asList(
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksInProgress.TYPE),
+                        PersistentTasksInProgress::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(TestPersistentAction.NAME),
+                        TestRequest::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
+        );
+    }
+
     public static class TestRequest extends PersistentActionRequest {
+
+        public static final ConstructingObjectParser<TestRequest, Void> REQUEST_PARSER =
+                new ConstructingObjectParser<>(TestPersistentAction.NAME, args -> new TestRequest((String) args[0]));
+
+        static {
+            REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
+        }
 
         private String executorNodeAttr = null;
 
@@ -171,8 +195,13 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("param", testParam);
             builder.endObject();
             return builder;
+        }
+
+        public static TestRequest fromXContent(XContentParser parser) throws IOException {
+            return REQUEST_PARSER.parse(parser, null);
         }
 
         @Override
@@ -241,6 +270,13 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
 
         private final String phase;
 
+        public static final ConstructingObjectParser<Status, Void> STATUS_PARSER =
+                new ConstructingObjectParser<>(TestPersistentAction.NAME, args -> new Status((String) args[0]));
+
+        static {
+            STATUS_PARSER.declareString(constructorArg(), new ParseField("phase"));
+        }
+
         public Status(String phase) {
             this.phase = requireNonNull(phase, "Phase cannot be null");
         }
@@ -261,6 +297,11 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
             builder.endObject();
             return builder;
         }
+
+        public static Task.Status fromXContent(XContentParser parser) throws IOException {
+            return STATUS_PARSER.parse(parser, null);
+        }
+
 
         @Override
         public boolean isFragment() {
@@ -305,7 +346,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, TestPersistentAction.NAME, false, threadPool, transportService, persistentActionService,
                     persistentActionRegistry, actionFilters, indexNameExpressionResolver, TestRequest::new,
-                    ThreadPool.Names.MANAGEMENT);
+                    ThreadPool.Names.GENERIC);
             this.transportService = transportService;
         }
 
@@ -328,8 +369,9 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                 while (true) {
                     // wait for something to happen
                     assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                            testTask.getOperation() != null ||
-                            transportService.lifecycleState() != Lifecycle.State.STARTED)); // speedup finishing on closed nodes
+                                    testTask.getOperation() != null ||
+                                    transportService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
+                            30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
                     if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }
@@ -415,6 +457,11 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
 
         public void setOperation(String operation) {
             this.operation = operation;
+        }
+
+        @Override
+        public String toString() {
+            return "TestTask[" + this.getId() + ", " + this.getParentTaskId() + ", " + this.getOperation() + "]";
         }
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestPersistentAction;
@@ -37,20 +38,8 @@ public class PersistentActionIT extends ESIntegTestCase {
         return nodePlugins();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return super.getMockPlugins();
-    }
-
     protected boolean ignoreExternalCluster() {
         return true;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
     }
 
     @After
@@ -112,19 +101,64 @@ public class PersistentActionIT extends ESIntegTestCase {
         // Verifying parent
         assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(taskId));
         assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
+        stopOrCancelTask(firstRunningTask.getTaskId());
+    }
 
-        if (randomBoolean()) {
-            logger.info("Completing the running task");
-            // Complete the running task and make sure it finishes properly
-            assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId())
-                    .get().getTasks().size(), equalTo(1));
-        } else {
-            logger.info("Cancelling the running task");
-            // Cancel the running task and make sure it finishes properly
-            assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(firstRunningTask.getTaskId())
-                    .get().getTasks().size(), equalTo(1));
+    public void testPersistentActionCompletionWithoutRemoval() throws Exception {
+        boolean stopped = randomBoolean();
+        long taskId = CreatePersistentTaskAction.INSTANCE.newRequestBuilder(client())
+                .setAction(TestPersistentAction.NAME)
+                .setRequest(new TestPersistentActionPlugin.TestRequest("Blah"))
+                .setRemoveOnCompletion(false)
+                .setStopped(stopped).get().getTaskId();
 
+        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasksInProgress.TYPE);
+        assertThat(tasksInProgress.tasks().size(), equalTo(1));
+        assertThat(tasksInProgress.getTask(taskId).isStopped(), equalTo(stopped));
+        assertThat(tasksInProgress.getTask(taskId).getExecutorNode(), stopped ? nullValue() : notNullValue());
+        assertThat(tasksInProgress.getTask(taskId).shouldRemoveOnCompletion(), equalTo(false));
+
+        int numberOfIters = randomIntBetween(1, 5); // we will start/stop the action a few times before removing it
+        logger.info("start/stop the task {} times stating with stopped {}", numberOfIters, stopped);
+        for (int i = 0; i < numberOfIters; i++) {
+            logger.info("iteration {}", i);
+            if (stopped) {
+                assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get().getTasks(),
+                        empty());
+                assertAcked(StartPersistentTaskAction.INSTANCE.newRequestBuilder(client()).setTaskId(taskId).get());
+            }
+            assertBusy(() -> {
+                // Wait for the task to start
+                assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get().getTasks()
+                                .size(), equalTo(1));
+            });
+            TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]")
+                    .get().getTasks().get(0);
+
+            stopOrCancelTask(firstRunningTask.getTaskId());
+
+            assertBusy(() -> {
+                // Wait for the task to finish
+                List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]").get()
+                        .getTasks();
+                logger.info("Found {} tasks", tasks.size());
+                assertThat(tasks.size(), equalTo(0));
+            });
+            stopped = true;
         }
+
+        assertBusy(() -> {
+            // Wait for the task to be marked as stopped
+            PersistentTasksInProgress tasks = internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasksInProgress.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(1));
+            assertThat(tasks.getTask(taskId).isStopped(), equalTo(true));
+            assertThat(tasks.getTask(taskId).shouldRemoveOnCompletion(), equalTo(false));
+        });
+
+        logger.info("Removing action record from cluster state");
+        assertAcked(RemovePersistentTaskAction.INSTANCE.newRequestBuilder(client()).setTaskId(taskId).get());
     }
 
     public void testPersistentActionWithNoAvailableNode() throws Exception {
@@ -168,7 +202,8 @@ public class PersistentActionIT extends ESIntegTestCase {
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]")
                 .get().getTasks().get(0);
 
-        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasksInProgress.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
         assertThat(tasksInProgress.tasks().iterator().next().getStatus(), nullValue());
 
@@ -181,7 +216,8 @@ public class PersistentActionIT extends ESIntegTestCase {
 
             int finalI = i;
             assertBusy(() -> {
-                PersistentTasksInProgress tasks = internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE);
+                PersistentTasksInProgress tasks = internalCluster().clusterService().state().getMetaData()
+                        .custom(PersistentTasksInProgress.TYPE);
                 assertThat(tasks.tasks().size(), equalTo(1));
                 assertThat(tasks.tasks().iterator().next().getStatus(), notNullValue());
                 assertThat(tasks.tasks().iterator().next().getStatus().toString(), equalTo("{\"phase\":\"phase " + (finalI + 1) + "\"}"));
@@ -195,6 +231,24 @@ public class PersistentActionIT extends ESIntegTestCase {
                 .get().getTasks().size(), equalTo(1));
     }
 
+
+    private void stopOrCancelTask(TaskId taskId) {
+        if (randomBoolean()) {
+            logger.info("Completing the running task");
+            // Complete the running task and make sure it finishes properly
+            assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(taskId)
+                    .get().getTasks().size(), equalTo(1));
+
+        } else {
+            logger.info("Cancelling the running task");
+            // Cancel the running task and make sure it finishes properly
+            assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
+                    .get().getTasks().size(), equalTo(1));
+        }
+
+
+    }
+
     private void assertNoRunningTasks() throws Exception {
         assertBusy(() -> {
             // Wait for the task to finish
@@ -204,8 +258,8 @@ public class PersistentActionIT extends ESIntegTestCase {
             assertThat(tasks.size(), equalTo(0));
 
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().custom(PersistentTasksInProgress.TYPE))
-                    .tasks(), empty());
+            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasksInProgress.TYPE)).tasks(), empty());
         });
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,14 +23,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction.Response;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -73,18 +71,14 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
                 .build();
 
-        Map<Long, PersistentTaskInProgress<?>> tasks = new HashMap<>();
-        long taskId = randomLong();
+        PersistentTasksInProgress.Builder tasks = PersistentTasksInProgress.builder();
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
-                tasks.put(taskId, new PersistentTaskInProgress<>(taskId, "test_action", new TestRequest("other_" + i),
-                        "other_node_" + randomInt(nonLocalNodesCount)));
-                taskId++;
+                tasks.addTask("test_action", new TestRequest("other_" + i), false, true, "other_node_" + randomInt(nonLocalNodesCount));
                 if (added == false && randomBoolean()) {
                     added = true;
-                    tasks.put(taskId, new PersistentTaskInProgress<>(taskId, "test", new TestRequest("this_param"), "this_node"));
-                    taskId++;
+                    tasks.addTask("test", new TestRequest("this_param"), false, true, "this_node");
                 }
             }
         }
@@ -93,8 +87,9 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
             logger.info("No local node action was added");
 
         }
-        ClusterState newClusterState = ClusterState.builder(state)
-                .putCustom(PersistentTasksInProgress.TYPE, new PersistentTasksInProgress(taskId, tasks)).build();
+        MetaData.Builder metaData = MetaData.builder(state.metaData());
+        metaData.putCustom(PersistentTasksInProgress.TYPE, tasks.build());
+        ClusterState newClusterState = ClusterState.builder(state).metaData(metaData).build();
 
         coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
         if (added) {
@@ -290,34 +285,26 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
 
     private <Request extends PersistentActionRequest> ClusterState addTask(ClusterState state, String action, Request request,
                                                                            String node) {
-        PersistentTasksInProgress prevTasks = state.custom(PersistentTasksInProgress.TYPE);
-        Map<Long, PersistentTaskInProgress<?>> tasks = prevTasks == null ? new HashMap<>() : new HashMap<>(prevTasks.taskMap());
-        long id =  prevTasks == null ? 0 : prevTasks.getCurrentId();
-        tasks.put(id, new PersistentTaskInProgress<>(id, action, request, node));
-        return ClusterState.builder(state).putCustom(PersistentTasksInProgress.TYPE,
-                new PersistentTasksInProgress(prevTasks == null ? 1 : prevTasks.getCurrentId() + 1, tasks)).build();
+        PersistentTasksInProgress.Builder builder =
+                PersistentTasksInProgress.builder(state.getMetaData().custom(PersistentTasksInProgress.TYPE));
+        return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksInProgress.TYPE,
+                builder.addTask(action, request, false, true, node).build())).build();
     }
 
     private ClusterState reallocateTask(ClusterState state, long taskId, String node) {
-        PersistentTasksInProgress prevTasks = state.custom(PersistentTasksInProgress.TYPE);
-        assertNotNull(prevTasks);
-        Map<Long, PersistentTaskInProgress<?>> tasks = new HashMap<>(prevTasks.taskMap());
-        PersistentTaskInProgress<?> prevTask = tasks.get(taskId);
-        assertNotNull(prevTask);
-        tasks.put(prevTask.getId(), new PersistentTaskInProgress<>(prevTask, node));
-        return ClusterState.builder(state).putCustom(PersistentTasksInProgress.TYPE,
-                new PersistentTasksInProgress(prevTasks.getCurrentId(), tasks)).build();
+        PersistentTasksInProgress.Builder builder =
+                PersistentTasksInProgress.builder(state.getMetaData().custom(PersistentTasksInProgress.TYPE));
+        assertTrue(builder.hasTask(taskId));
+        return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksInProgress.TYPE,
+                builder.reassignTask(taskId, node).build())).build();
     }
 
     private ClusterState removeTask(ClusterState state, long taskId) {
-        PersistentTasksInProgress prevTasks = state.custom(PersistentTasksInProgress.TYPE);
-        assertNotNull(prevTasks);
-        Map<Long, PersistentTaskInProgress<?>> tasks = new HashMap<>(prevTasks.taskMap());
-        PersistentTaskInProgress<?> prevTask = tasks.get(taskId);
-        assertNotNull(prevTask);
-        tasks.remove(prevTask.getId());
-        return ClusterState.builder(state).putCustom(PersistentTasksInProgress.TYPE,
-                new PersistentTasksInProgress(prevTasks.getCurrentId(), tasks)).build();
+        PersistentTasksInProgress.Builder builder =
+                PersistentTasksInProgress.builder(state.getMetaData().custom(PersistentTasksInProgress.TYPE));
+        assertTrue(builder.hasTask(taskId));
+        return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksInProgress.TYPE,
+                builder.removeTask(taskId).build())).build();
     }
 
     private class Execution {

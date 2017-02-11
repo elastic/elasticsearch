@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.xpack.persistent.StartPersistentTaskAction.Request;
+import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction.Request;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestPersistentAction;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestRequest;
 import org.elasticsearch.test.AbstractStreamableTestCase;

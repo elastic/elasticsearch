@@ -149,9 +149,10 @@ public class ClusterStateObserver {
             timedOut = false;
         }
 
-        // sample a new state
+        // sample a new state. This state maybe *older* than the supplied state if we are called from an applier,
+        // which wants to wait for something else to happen
         ClusterState newState = clusterService.state();
-        if (lastObservedState.get().sameState(newState) == false && statePredicate.test(newState)) {
+        if (lastObservedState.get().isOlderOrDifferentMaster(newState) && statePredicate.test(newState)) {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate ({})", newState);
             lastObservedState.set(new StoredState(newState));
@@ -198,7 +199,7 @@ public class ClusterStateObserver {
                 return;
             }
             ClusterState newState = clusterService.state();
-            if (lastObservedState.get().sameState(newState) == false && context.statePredicate.test(newState)) {
+            if (lastObservedState.get().isOlderOrDifferentMaster(newState) && context.statePredicate.test(newState)) {
                 // double check we're still listening
                 if (observingContext.compareAndSet(context, null)) {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
@@ -251,8 +252,11 @@ public class ClusterStateObserver {
             this.version = clusterState.version();
         }
 
-        public boolean sameState(ClusterState clusterState) {
-            return version == clusterState.version() && Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId());
+        /**
+         * returns true if stored state is older then given state or they are from a different master, meaning they can't be compared
+         * */
+        public boolean isOlderOrDifferentMaster(ClusterState clusterState) {
+            return version < clusterState.version() || Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId()) == false;
         }
     }
 

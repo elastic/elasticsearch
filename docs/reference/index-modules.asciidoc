@@ -4,7 +4,7 @@
 [partintro]
 --
 Index Modules are modules created per index and control all aspects
-related to an index. Since those modules lifecycle are tied to an index,
+related to an index. Since those modules' lifecycle are tied to an index,
 all the relevant modules settings can be provided when creating an index
 (and it is actually the recommended way to configure an index).
 
@@ -21,7 +21,7 @@ specific module. These include:
 	The compound format was created to reduce the number of open
 	file handles when using file based storage. However, by default it is set
 	to `false` as the non-compound format gives better performance. It is important
-	that OS is configured to give Elasticsearch ``enough'' file handles.
+	that the OS is configured to give Elasticsearch ``enough'' file handles.
     See <<file-descriptors>>.
 +
 Alternatively, `compound_format` can be set to a number between `0` and

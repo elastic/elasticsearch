@@ -67,19 +67,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -383,33 +384,41 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
 
         class CountingTracer  extends MockTransportService.Tracer  {
-            AtomicInteger requestsReceived = new AtomicInteger();
-            AtomicInteger requestsSent = new AtomicInteger();
-            AtomicInteger responseReceived = new AtomicInteger();
-            AtomicInteger responseSent = new AtomicInteger();
+            List<String> requestsReceived = new CopyOnWriteArrayList<>();
+            List<String> requestsSent = new CopyOnWriteArrayList<>();
+            List<String> responseReceived = new CopyOnWriteArrayList<>();
+            List<String> responseSent = new CopyOnWriteArrayList<>();
+
             @Override
             public void receivedRequest(long requestId, String action) {
-                requestsReceived.incrementAndGet();
+                requestsReceived.add(requestId + ":" + action);
             }
 
             @Override
             public void responseSent(long requestId, String action) {
-                responseSent.incrementAndGet();
+                responseSent.add(requestId + ":" + action);
             }
 
             @Override
             public void responseSent(long requestId, String action, Throwable t) {
-                responseSent.incrementAndGet();
+                responseSent.add(requestId + ":" + action + ":" + t);
             }
 
             @Override
             public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-                responseReceived.incrementAndGet();
+                responseReceived.add(sourceNode + ":" + requestId + ":" + action);
             }
 
             @Override
             public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-                requestsSent.incrementAndGet();
+                requestsSent.add(node + ":" + requestId + ":" + action);
+            }
+
+            public void logRequests(String name) {
+                logger.info("{}: requestsSent     {}", name, requestsSent);
+                logger.info("{}: requestsReceived {}", name, requestsReceived);
+                logger.info("{}: responseSent     {}", name, responseSent);
+                logger.info("{}: responseReceived {}", name, responseReceived);
             }
         }
         final CountingTracer tracerA = new CountingTracer();
@@ -426,16 +435,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         // use assert busy as call backs are sometime called after the response have been sent
-        assertBusy(() -> {
-            assertThat(tracerA.requestsReceived.get(), equalTo(0));
-            assertThat(tracerA.requestsSent.get(), equalTo(1));
-            assertThat(tracerA.responseReceived.get(), equalTo(1));
-            assertThat(tracerA.responseSent.get(), equalTo(0));
-            assertThat(tracerB.requestsReceived.get(), equalTo(1));
-            assertThat(tracerB.requestsSent.get(), equalTo(0));
-            assertThat(tracerB.responseReceived.get(), equalTo(0));
-            assertThat(tracerB.responseSent.get(), equalTo(1));
-        });
+        try {
+            assertBusy(() -> {
+                assertThat(tracerA.requestsReceived, empty());
+                assertThat(tracerA.requestsSent, hasSize(1));
+                assertThat(tracerA.responseReceived, hasSize(1));
+                assertThat(tracerA.responseSent, empty());
+                assertThat(tracerB.requestsReceived, hasSize(1));
+                assertThat(tracerB.requestsSent, empty());
+                assertThat(tracerB.responseReceived, empty());
+                assertThat(tracerB.responseSent, hasSize(1));
+            });
+        } catch (AssertionError e) {
+            tracerA.logRequests("tracerA");
+            tracerB.logRequests("tracerB");
+            throw e;
+        }
 
         try {
             serviceA
@@ -446,16 +461,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         // use assert busy as call backs are sometime called after the response have been sent
-        assertBusy(() -> {
-            assertThat(tracerA.requestsReceived.get(), equalTo(1));
-            assertThat(tracerA.requestsSent.get(), equalTo(2));
-            assertThat(tracerA.responseReceived.get(), equalTo(2));
-            assertThat(tracerA.responseSent.get(), equalTo(1));
-            assertThat(tracerB.requestsReceived.get(), equalTo(1));
-            assertThat(tracerB.requestsSent.get(), equalTo(0));
-            assertThat(tracerB.responseReceived.get(), equalTo(0));
-            assertThat(tracerB.responseSent.get(), equalTo(1));
-        });
+        try {
+            assertBusy(() -> {
+                assertThat(tracerA.requestsReceived, hasSize(1));
+                assertThat(tracerA.requestsSent, hasSize(2));
+                assertThat(tracerA.responseReceived, hasSize(2));
+                assertThat(tracerA.responseSent, hasSize(1));
+                assertThat(tracerB.requestsReceived, hasSize(1));
+                assertThat(tracerB.requestsSent, hasSize(0));
+                assertThat(tracerB.responseReceived, hasSize(0));
+                assertThat(tracerB.responseSent, hasSize(1));
+            });
+        } catch (AssertionError e) {
+            tracerA.logRequests("tracerA");
+            tracerB.logRequests("tracerB");
+            throw e;
+        }
     }
 
     public void testVoidMessageCompressed() {

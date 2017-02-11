@@ -110,13 +110,13 @@ as a REST parameter named `source`.
 === Distributed
 
 The delete by query API is broadcast across all primary shards, and from
-there, replicated across all shards replicas.
+there, replicated across all shards' replicas.
 
 [float]
 [[delete-by-query-routing]]
 === Routing
 
-The routing value (a comma separated list of the routing values) can be
+The routing value (a comma-separated list of the routing values) can be
 specified to control which shards the delete by query request will be
 executed on.
 

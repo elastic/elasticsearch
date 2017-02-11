@@ -19,29 +19,18 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.persistent.CreatePersistentTaskAction.Request;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestPersistentAction;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.persistent.TestPersistentActionPlugin.Status;
+import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction.Request;
 
 import java.util.Collections;
 
-public class StartPersistentActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class UpdatePersistentTaskRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        TestRequest testRequest = new TestRequest();
-        if (randomBoolean()) {
-            testRequest.setTestParam(randomAsciiOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            testRequest.setParentTask(randomAsciiOfLengthBetween(1, 20), randomLong());
-        }
-        if (randomBoolean()) {
-            testRequest.setExecutorNodeAttr(randomAsciiOfLengthBetween(1, 20));
-        }
-        return new Request(randomAsciiOfLengthBetween(1, 20), new TestRequest());
+        return new Request(randomLong(), new Status(randomAsciiOfLength(10)));
     }
 
     @Override
@@ -52,7 +41,7 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
         ));
     }
 }

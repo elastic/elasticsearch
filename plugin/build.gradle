@@ -1,17 +1,14 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.NodeInfo
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.elasticsearch.gradle.precommit.LicenseHeadersTask
-import org.elasticsearch.gradle.VersionProperties
-import com.bettercloud.vault.Vault
-import com.bettercloud.vault.VaultConfig
-import com.bettercloud.vault.response.LogicalResponse
 import com.amazonaws.AmazonServiceException
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.HeadBucketRequest
+import com.bettercloud.vault.Vault
+import com.bettercloud.vault.VaultConfig
+import com.bettercloud.vault.response.LogicalResponse
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -41,7 +38,28 @@ buildscript {
 }
 
 Closure setAwsCreds = {
-// first need to get an authentication token with vault
+
+  /**
+   * The Elastic Secrets vault is served via HTTPS with a Let's Encrypt certificate. The root certificates that cross-signed the Let's
+   * Encrypt certificates were not trusted by the JDK until 8u101. Therefore, we enforce that the JDK is at least 8u101 here.
+   */
+  final String javaVersion = System.getProperty('java.version')
+  final String javaVendor = System.getProperty('java.vendor')
+  def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
+  boolean matches = matcher.matches()
+  assert matches
+  
+  final int update
+  if (matcher.group(1) == null) {
+    update = 0
+  } else {
+    update = matcher.group(1).toInteger()
+  }
+  if (update < 101) {
+    throw new GradleException("JDK ${javaVendor} ${javaVersion} does not have necessary root certificates " +
+            "(https://bugs.openjdk.java.net/browse/JDK-8154757), update your JDK to at least JDK 8u101+")
+  }
+  // get an authentication token with vault
   String homePath = System.properties['user.home']
   File githubToken = file("${homePath}/.elastic/github.token")
   final String VAULT_URL = 'https://secrets.elastic.co:8200'

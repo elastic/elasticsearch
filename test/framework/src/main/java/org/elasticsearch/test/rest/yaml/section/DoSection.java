@@ -26,10 +26,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -123,9 +122,7 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentType bodyContentType = XContentFactory.xContentType(body);
-                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(
-                                        NamedXContentRegistry.EMPTY, body);
+                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());

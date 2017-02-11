@@ -92,6 +92,24 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         }
     }
 
+    public void testTemplateExists() throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.array("index_patterns", "*");
+                builder.startObject("settings");
+                {
+                    builder.field("number_of_replicas", 0);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+
+            client().performRequest("PUT", "/_template/template", emptyMap(), new StringEntity(builder.string()));
+            headTestCase("/_template/template", emptyMap(), greaterThan(0));
+        }
+    }
+
     private void headTestCase(String url, Map<String, String> params, Matcher<Integer> matcher) throws IOException {
         Response response = client().performRequest("HEAD", url, params);
         assertEquals(200, response.getStatusLine().getStatusCode());

@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
@@ -67,9 +70,9 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        String body = actualBody(bodies);
+        HttpEntity entity = createEntity(bodies);
         try {
-            response = callApiInternal(apiName, requestParams, body, headers);
+            response = callApiInternal(apiName, requestParams, entity, headers);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -82,29 +85,28 @@ public class ClientYamlTestExecutionContext {
         }
     }
 
-    private String actualBody(List<Map<String, Object>> bodies) throws IOException {
+    private HttpEntity createEntity(List<Map<String, Object>> bodies) throws IOException {
         if (bodies.isEmpty()) {
-            return "";
+            return null;
         }
-
         if (bodies.size() == 1) {
-            return bodyAsString(stash.replaceStashedValues(bodies.get(0)));
+            String bodyAsString = bodyAsString(stash.replaceStashedValues(bodies.get(0)));
+            return new StringEntity(bodyAsString, ContentType.APPLICATION_JSON);
         }
-
         StringBuilder bodyBuilder = new StringBuilder();
         for (Map<String, Object> body : bodies) {
             bodyBuilder.append(bodyAsString(stash.replaceStashedValues(body))).append("\n");
         }
-        return bodyBuilder.toString();
+        return new StringEntity(bodyBuilder.toString(), ContentType.APPLICATION_JSON);
     }
 
     private String bodyAsString(Map<String, Object> body) throws IOException {
         return XContentFactory.jsonBuilder().map(body).string();
     }
 
-    private ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers)
-            throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, body, headers);
+    private ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+                                                   HttpEntity entity, Map<String, String> headers) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers);
     }
 
     /**

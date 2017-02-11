@@ -53,6 +53,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -131,10 +132,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.tokenized() == false) {
+                    if (fieldType.tokenized() == false && fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
                         throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
                     }
-                    analyzer = fieldType.indexAnalyzer();
+                    if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                        analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
+                        if (analyzer == null) {
+                            analyzer = fieldType.indexAnalyzer();
+                        }
+                    } else {
+                        analyzer = fieldType.indexAnalyzer();
+                    }
                     field = fieldType.name();
                 }
             }

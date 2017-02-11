@@ -91,7 +91,7 @@ chunks, as this will slow things down.
 Each bulk item can include the version value using the
 `_version`/`version` field. It automatically follows the behavior of the
 index / delete operation based on the `_version` mapping. It also
-support the `version_type`/`_version_type` when using `external`
+supports the `version_type`/`_version_type` when using `external`
 versioning.
 
 [float]
@@ -169,8 +169,9 @@ times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script). See update documentation for details on
-the options. Curl example with update actions:
+script), `lang` (for script). See the <<docs-update,update>>
+documentation for details on the options. Curl example with update
+actions:
 
 [source,js]
 --------------------------------------------------

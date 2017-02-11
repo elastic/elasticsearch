@@ -40,7 +40,7 @@ people that don't want to mess with RAID. Here is how it is configured:
 path.data: /mnt/first,/mnt/second
 ---------------------------------
 
-Or the in an array format:
+Or the same in an array format:
 
 ----------------------------------------
 path.data: ["/mnt/first", "/mnt/second"]

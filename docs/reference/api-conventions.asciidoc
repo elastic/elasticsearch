@@ -26,7 +26,7 @@ support wildcards, for example: `test*`, and the ability to "add" (`+`)
 and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the `ignore_indices` option. Setting it to
-`missing` will cause indices that do not exists to be ignored from the
+`missing` will cause indices that do not exist to be ignored from the
 execution. By default, when it's not set, the request will fail.
 
 NOTE: Single index APIs such as the <<docs>> and the
@@ -61,7 +61,7 @@ consumption.  The default for the `human` flag is
 [float]
 === Parameters
 
-Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
+REST parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
 [float]

@@ -4,13 +4,13 @@
 The update API allows to update a document based on a script provided.
 The operation gets the document (collocated with the shard) from the
 index, runs the script (with optional script language and parameters),
-and index back the result (also allows to delete, or ignore the
+and indexes back the result (also allows to delete, or ignore the
 operation). It uses versioning to make sure no updates have happened
 during the "get" and "reindex". (available from `0.19` onwards).
 
-Note, this operation still means full reindex of the document, it just
+Note, this operation still means a full reindex of the document, it just
 removes some network roundtrips and reduces chances of version conflicts
-between the get and the index. The `_source` field need to be enabled
+between the get and the index. The `_source` field needs to be enabled
 for this feature to work.
 
 For example, lets index a simple doc:
@@ -36,7 +36,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 --------------------------------------------------
 
 We can also add a tag to the list of tags (note, if the tag exists, it
-will still add it, since its a list):
+will still add it, since it's a list):
 
 [source,js]
 --------------------------------------------------
@@ -92,7 +92,7 @@ ctx._source.tags.contains(tag) ? (ctx.op = \"none\") : ctx._source.tags += tag
 if (ctx._source.tags.contains(tag)) { ctx.op = \"none\" } else { ctx._source.tags += tag }
 --------------------------------------------------
 
-The update API also support passing a partial document (since 0.20),
+The update API also supports passing a partial document (since 0.20),
 which will be merged into the existing document (simple recursive merge,
 inner merging of objects, replacing core "keys/values" and arrays). For
 example:
@@ -110,7 +110,7 @@ If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 There is also support for `upsert` (since 0.20). If the document does
-not already exists, the content of the `upsert` element will be used to
+not already exist, the content of the `upsert` element will be used to
 index the fresh doc:
 
 [source,js]

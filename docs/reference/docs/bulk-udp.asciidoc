@@ -23,7 +23,7 @@ then flushes it based on several parameters:
 	 An interval after which the current
 	request is flushed, regardless of the above limits. Defaults to `5s`. 
 `bulk.udp.concurrent_requests`:: 
-	 The number on max in flight bulk
+	 The number of max in flight bulk
 	requests allowed. Defaults to `4`.
 
 The allowed network settings are:

@@ -103,7 +103,7 @@ curl 'localhost:9200/_mget' -d '{
 
 added[0.90.6]
 
-You can specify also specify routing value as a parameter:
+You can also specify a routing value as a parameter:
 
 [source,js]
 --------------------------------------------------
@@ -124,8 +124,8 @@ curl 'localhost:9200/_mget?routing=key1' -d '{
 }'
 --------------------------------------------------
 
-In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/type/1` will be fetch from shard corresponding to routing key `key2`.
+In this example, document `test/type/2` will be fetched from a shard corresponding to routing key `key1` but
+document `test/type/1` will be fetched from a shard corresponding to routing key `key2`.
 
 [float]
 [[mget-security]]

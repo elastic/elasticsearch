@@ -26,6 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -1195,6 +1196,59 @@ public class ClusterServiceTests extends ESTestCase {
         assertNull(error.get());
         assertTrue(applierCalled.get());
     }
+
+    public void testClusterStateApplierCanCreateAnObserver() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        AtomicBoolean applierCalled = new AtomicBoolean();
+        clusterService.addStateApplier(event -> {
+            try {
+                applierCalled.set(true);
+                ClusterStateObserver observer = new ClusterStateObserver(event.state(),
+                    clusterService, null, logger, threadPool.getThreadContext());
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+
+                    }
+                });
+            } catch (AssertionError e) {
+                    error.set(e);
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                error.compareAndSet(null, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        assertNull(error.get());
+        assertTrue(applierCalled.get());
+    }
+
 
     private static class SimpleTask {
         private final int id;

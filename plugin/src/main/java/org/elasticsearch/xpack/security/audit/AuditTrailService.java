@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.security.user.User;
 
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
-    public static final Map<String, Object> DISABLED_USAGE_STATS = Collections.singletonMap("enabled", false);
-
     private final XPackLicenseState licenseState;
     final List<AuditTrail> auditTrails;
 

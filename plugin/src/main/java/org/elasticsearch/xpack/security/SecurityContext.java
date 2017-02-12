@@ -12,8 +12,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
@@ -27,8 +25,6 @@ public class SecurityContext {
 
     private final Logger logger;
     private final ThreadContext threadContext;
-    private final CryptoService cryptoService;
-    private final boolean signUserHeader;
     private final String nodeName;
 
     /**
@@ -36,11 +32,9 @@ public class SecurityContext {
      * If cryptoService is null, security is disabled and {@link #getUser()}
      * and {@link #getAuthentication()} will always return null.
      */
-    public SecurityContext(Settings settings, ThreadContext threadContext, CryptoService cryptoService) {
+    public SecurityContext(Settings settings, ThreadContext threadContext) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.threadContext = threadContext;
-        this.cryptoService = cryptoService;
-        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 
@@ -53,7 +47,7 @@ public class SecurityContext {
     /** Returns the authentication information, or null if the current request has no authentication info. */
     public Authentication getAuthentication() {
         try {
-            return Authentication.readFromContext(threadContext, cryptoService, signUserHeader);
+            return Authentication.readFromContext(threadContext);
         } catch (IOException e) {
             // TODO: this seems bogus, the only way to get an ioexception here is from a corrupt or tampered
             // auth header, which should be be audited?
@@ -78,7 +72,7 @@ public class SecurityContext {
         try {
             Authentication authentication =
                     new Authentication(user, new Authentication.RealmRef("__attach", "__attach", nodeName), lookedUpBy);
-            authentication.writeToContext(threadContext, cryptoService, signUserHeader);
+            authentication.writeToContext(threadContext);
         } catch (IOException e) {
             throw new AssertionError("how can we have a IOException with a user we set", e);
         }

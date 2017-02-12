@@ -15,22 +15,18 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -56,10 +52,8 @@ public class CryptoService extends AbstractComponent {
     static final String DEFAULT_KEY_ALGORITH = "AES";
     static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
     static final int DEFAULT_KEY_LENGTH = 128;
-    static final int RANDOM_KEY_SIZE = 128;
 
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$[^\\$]*\\$\\$.+");
-    private static final byte[] HKDF_APP_INFO = "es-security-crypto-service".getBytes(StandardCharsets.UTF_8);
 
     private static final Setting<Boolean> SYSTEM_KEY_REQUIRED_SETTING =
             Setting.boolSetting(setting("system_key.required"), false, Property.NodeScope);
@@ -72,36 +66,27 @@ public class CryptoService extends AbstractComponent {
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
-    private final String keyAlgorithm;
-    private final int keyLength;
     private final int ivLength;
-
-    private final Path keyFile;
-
-    private final SecretKey randomKey;
-    private final String randomKeyBase64;
-
+    /*
+     * Scroll ids are signed using the system key to authenticate them as we currently do not have a proper way to authorize these requests
+     * and the key is also used for encrypting sensitive data stored in watches. The encryption key is derived from the system key.
+     */
     private final SecretKey encryptionKey;
     private final SecretKey systemKey;
-    private final SecretKey signingKey;
 
     public CryptoService(Settings settings, Environment env) throws IOException {
         super(settings);
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
-        this.keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
+        final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
         this.ivLength = keyLength / 8;
-        this.keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
+        String keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
 
         if (keyLength % 8 != 0) {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        keyFile = resolveSystemKey(env);
+        Path keyFile = resolveSystemKey(env);
         systemKey = readSystemKey(keyFile, SYSTEM_KEY_REQUIRED_SETTING.get(settings));
-        randomKey = generateSecretKey(RANDOM_KEY_SIZE);
-        randomKeyBase64 = Base64.getUrlEncoder().encodeToString(randomKey.getEncoded());
-
-        signingKey = createSigningKey(systemKey, randomKey);
 
         try {
             encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
@@ -131,18 +116,6 @@ public class CryptoService extends AbstractComponent {
         return XPackPlugin.resolveConfigFile(env, FILE_NAME);
     }
 
-    static SecretKey createSigningKey(@Nullable SecretKey systemKey, SecretKey randomKey) {
-        assert randomKey != null;
-        if (systemKey != null) {
-            return systemKey;
-        } else {
-            // the random key is only 128 bits so we use HKDF to expand to 1024 bits with some application specific data mixed in
-            byte[] keyBytes = HmacSHA1HKDF.extractAndExpand(null, randomKey.getEncoded(), HKDF_APP_INFO, (KEY_SIZE / 8));
-            assert keyBytes.length * 8 == KEY_SIZE;
-            return new SecretKeySpec(keyBytes, KEY_ALGO);
-        }
-    }
-
     private static SecretKey readSystemKey(Path file, boolean required) throws IOException {
         if (Files.exists(file)) {
             byte[] bytes = Files.readAllBytes(file);
@@ -161,8 +134,12 @@ public class CryptoService extends AbstractComponent {
      * @param text the string to sign
      */
     public String sign(String text) throws IOException {
-        String sigStr = signInternal(text, signingKey);
-        return "$$" + sigStr.length() + "$$" + (systemKey == signingKey ? "" : randomKeyBase64) + "$$" + sigStr + text;
+        if (systemKey != null) {
+            String sigStr = signInternal(text, systemKey);
+            return "$$" + sigStr.length() + "$$$$" + sigStr + text;
+        } else {
+            return text;
+        }
     }
 
     /**
@@ -171,22 +148,24 @@ public class CryptoService extends AbstractComponent {
      * @param signedText the string to unsign and verify
      */
     public String unsignAndVerify(String signedText) {
+        if (systemKey == null) {
+            return signedText;
+        }
+
         if (!signedText.startsWith("$$") || signedText.length() < 2) {
             throw new IllegalArgumentException("tampered signed text");
         }
 
-        // $$34$$randomKeyBase64$$sigtext
+        // $$34$$$$sigtext
         String[] pieces = signedText.split("\\$\\$");
-        if (pieces.length != 4 || !pieces[0].equals("")) {
+        if (pieces.length != 4 || pieces[0].isEmpty() == false || pieces[2].isEmpty() == false) {
             logger.debug("received signed text [{}] with [{}] parts", signedText, pieces.length);
             throw new IllegalArgumentException("tampered signed text");
         }
         String text;
-        String base64RandomKey;
         String receivedSignature;
         try {
             int length = Integer.parseInt(pieces[1]);
-            base64RandomKey = pieces[2];
             receivedSignature = pieces[3].substring(0, length);
             text = pieces[3].substring(length);
         } catch (Exception e) {
@@ -194,36 +173,8 @@ public class CryptoService extends AbstractComponent {
             throw new IllegalArgumentException("tampered signed text");
         }
 
-        SecretKey signingKey;
-        // no random key, so we must have a system key
-        if (base64RandomKey.isEmpty()) {
-            if (systemKey == null) {
-                logger.debug("received signed text without random key information and no system key is present");
-                throw new IllegalArgumentException("tampered signed text");
-            }
-            signingKey = systemKey;
-        } else if (systemKey != null) {
-            // we have a system key and there is some random key data, this is an error
-            logger.debug("received signed text with random key information but a system key is present");
-            throw new IllegalArgumentException("tampered signed text");
-        } else {
-            byte[] randomKeyBytes;
-            try {
-                randomKeyBytes = Base64.getUrlDecoder().decode(base64RandomKey);
-            } catch (IllegalArgumentException e) {
-                logger.error("error occurred while decoding key data", e);
-                throw new IllegalStateException("error while verifying the signed text");
-            }
-            if (randomKeyBytes.length * 8 != RANDOM_KEY_SIZE) {
-                logger.debug("incorrect random key data length. received [{}] bytes", randomKeyBytes.length);
-                throw new IllegalArgumentException("tampered signed text");
-            }
-            SecretKey randomKey = new SecretKeySpec(randomKeyBytes, KEY_ALGO);
-            signingKey = createSigningKey(systemKey, randomKey);
-        }
-
         try {
-            String sig = signInternal(text, signingKey);
+            String sig = signInternal(text, systemKey);
             if (constantTimeEquals(sig, receivedSignature)) {
                 return text;
             }
@@ -407,90 +358,6 @@ public class CryptoService extends AbstractComponent {
             return instance;
         }
 
-    }
-
-    /**
-     * Simplified implementation of HKDF using the HmacSHA1 algortihm.
-     *
-     * @see <a href=https://tools.ietf.org/html/rfc5869>RFC 5869</a>
-     */
-    private static class HmacSHA1HKDF {
-        private static final int HMAC_SHA1_BYTE_LENGTH = 20;
-        private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
-
-        /**
-         * This method performs the <code>extract</code> and <code>expand</code> steps of HKDF in one call with the given
-         * data. The output of the extract step is used as the input to the expand step
-         *
-         * @param salt         optional salt value (a non-secret random value); if not provided, it is set to a string of HashLen zeros.
-         * @param ikm          the input keying material
-         * @param info         optional context and application specific information; if not provided a zero length byte[] is used
-         * @param outputLength length of output keying material in octets (&lt;= 255*HashLen)
-         * @return the output keying material
-         */
-        static byte[] extractAndExpand(@Nullable SecretKey salt, byte[] ikm, @Nullable byte[] info, int outputLength) {
-            // arg checking
-            Objects.requireNonNull(ikm, "the input keying material must not be null");
-            if (outputLength < 1) {
-                throw new IllegalArgumentException("output length must be positive int >= 1");
-            }
-            if (outputLength > 255 * HMAC_SHA1_BYTE_LENGTH) {
-                throw new IllegalArgumentException("output length must be <= 255*" + HMAC_SHA1_BYTE_LENGTH);
-            }
-            if (salt == null) {
-                salt = new SecretKeySpec(new byte[HMAC_SHA1_BYTE_LENGTH], HMAC_SHA1_ALGORITHM);
-            }
-            if (info == null) {
-                info = new byte[0];
-            }
-
-            // extract
-            Mac mac = createMac(salt);
-            byte[] keyBytes = mac.doFinal(ikm);
-            final SecretKey pseudoRandomKey = new SecretKeySpec(keyBytes, HMAC_SHA1_ALGORITHM);
-
-            /*
-             * The output OKM is calculated as follows:
-             * N = ceil(L/HashLen)
-             * T = T(1) | T(2) | T(3) | ... | T(N)
-             * OKM = first L octets of T
-             *
-             * where:
-             * T(0) = empty string (zero length)
-             * T(1) = HMAC-Hash(PRK, T(0) | info | 0x01)
-             * T(2) = HMAC-Hash(PRK, T(1) | info | 0x02)
-             * T(3) = HMAC-Hash(PRK, T(2) | info | 0x03)
-             * ...
-             *
-             * (where the constant concatenated to the end of each T(n) is a single octet.)
-             */
-            int n = (outputLength % HMAC_SHA1_BYTE_LENGTH == 0) ?
-                outputLength / HMAC_SHA1_BYTE_LENGTH :
-                (outputLength / HMAC_SHA1_BYTE_LENGTH) + 1;
-
-            byte[] hashRound = new byte[0];
-
-            ByteBuffer generatedBytes = ByteBuffer.allocate(Math.multiplyExact(n, HMAC_SHA1_BYTE_LENGTH));
-            try {
-                // initiliaze the mac with the new key
-                mac.init(pseudoRandomKey);
-            } catch (InvalidKeyException e) {
-                throw new ElasticsearchException("failed to initialize the mac", e);
-            }
-            for (int roundNum = 1; roundNum <= n; roundNum++) {
-                mac.reset();
-                mac.update(hashRound);
-                mac.update(info);
-                mac.update((byte) roundNum);
-                hashRound = mac.doFinal();
-                generatedBytes.put(hashRound);
-            }
-
-            byte[] result = new byte[outputLength];
-            generatedBytes.rewind();
-            generatedBytes.get(result, 0, outputLength);
-            return result;
-        }
     }
 
     public static void addSettings(List<Setting<?>> settings) {

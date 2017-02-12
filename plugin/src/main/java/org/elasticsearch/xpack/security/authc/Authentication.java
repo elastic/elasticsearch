@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
@@ -77,7 +76,7 @@ public class Authentication {
         return version;
     }
 
-    public static Authentication readFromContext(ThreadContext ctx, CryptoService cryptoService, boolean sign)
+    public static Authentication readFromContext(ThreadContext ctx)
             throws IOException, IllegalArgumentException {
         Authentication authentication = ctx.getTransient(AUTHENTICATION_KEY);
         if (authentication != null) {
@@ -89,19 +88,16 @@ public class Authentication {
         if (authenticationHeader == null) {
             return null;
         }
-        return deserializeHeaderAndPutInContext(authenticationHeader, ctx, cryptoService, sign);
+        return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
     }
 
     public static Authentication getAuthentication(ThreadContext context) {
         return context.getTransient(Authentication.AUTHENTICATION_KEY);
     }
 
-    static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx, CryptoService cryptoService, boolean sign)
+    static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx)
             throws IOException, IllegalArgumentException {
         assert ctx.getTransient(AUTHENTICATION_KEY) == null;
-        if (sign) {
-            header = cryptoService.unsignAndVerify(header);
-        }
 
         byte[] bytes = Base64.getDecoder().decode(header);
         StreamInput input = StreamInput.wrap(bytes);
@@ -112,7 +108,7 @@ public class Authentication {
         return authentication;
     }
 
-    void writeToContextIfMissing(ThreadContext context, CryptoService cryptoService, boolean sign)
+    void writeToContextIfMissing(ThreadContext context)
             throws IOException, IllegalArgumentException {
         if (context.getTransient(AUTHENTICATION_KEY) != null) {
             if (context.getHeader(AUTHENTICATION_KEY) == null) {
@@ -122,9 +118,9 @@ public class Authentication {
         }
 
         if (context.getHeader(AUTHENTICATION_KEY) != null) {
-            deserializeHeaderAndPutInContext(context.getHeader(AUTHENTICATION_KEY), context, cryptoService, sign);
+            deserializeHeaderAndPutInContext(context.getHeader(AUTHENTICATION_KEY), context);
         } else {
-            writeToContext(context, cryptoService, sign);
+            writeToContext(context);
         }
     }
 
@@ -132,13 +128,10 @@ public class Authentication {
      * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
      * {@link IllegalStateException} will be thrown
      */
-    public void writeToContext(ThreadContext ctx, CryptoService cryptoService, boolean sign)
+    public void writeToContext(ThreadContext ctx)
             throws IOException, IllegalArgumentException {
         ensureContextDoesNotContainAuthentication(ctx);
         String header = encode();
-        if (sign) {
-            header = cryptoService.sign(header);
-        }
         ctx.putTransient(AUTHENTICATION_KEY, this);
         ctx.putHeader(AUTHENTICATION_KEY, header);
     }

@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
@@ -23,22 +20,17 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class SecurityContextTests extends ESTestCase {
 
-    private boolean signHeader;
     private Settings settings;
     private ThreadContext threadContext;
-    private CryptoService cryptoService;
     private SecurityContext securityContext;
 
     @Before
     public void buildSecurityContext() throws IOException {
-        signHeader = randomBoolean();
         settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put(AuthenticationService.SIGN_USER_HEADER.getKey(), signHeader)
                 .build();
         threadContext = new ThreadContext(settings);
-        cryptoService = new CryptoService(settings, new Environment(settings));
-        securityContext = new SecurityContext(settings, threadContext, cryptoService);
+        securityContext = new SecurityContext(settings, threadContext);
     }
 
     public void testGetAuthenticationAndUserInEmptyContext() throws IOException {
@@ -49,7 +41,7 @@ public class SecurityContextTests extends ESTestCase {
     public void testGetAuthenticationAndUser() throws IOException {
         final User user = new User("test");
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
-        authentication.writeToContext(threadContext, cryptoService, signHeader);
+        authentication.writeToContext(threadContext);
 
         assertEquals(authentication, securityContext.getAuthentication());
         assertEquals(user, securityContext.getUser());
@@ -72,7 +64,7 @@ public class SecurityContextTests extends ESTestCase {
         if (randomBoolean()) {
             original = new User("test");
             final Authentication authentication = new Authentication(original, new RealmRef("ldap", "foo", "node1"), null);
-            authentication.writeToContext(threadContext, cryptoService, signHeader);
+            authentication.writeToContext(threadContext);
         } else {
             original = null;
         }

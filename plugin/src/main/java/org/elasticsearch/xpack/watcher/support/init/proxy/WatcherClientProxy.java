@@ -64,7 +64,7 @@ public class WatcherClientProxy extends ClientProxy {
      */
     public static WatcherClientProxy of(Client client) {
         return new WatcherClientProxy(Settings.EMPTY, client instanceof InternalClient ? (InternalClient) client :
-                new InternalClient(client.settings(), client.threadPool(), client, null));
+                new InternalClient(client.settings(), client.threadPool(), client));
     }
 
     public IndexResponse index(IndexRequest request, TimeValue timeout) {

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +19,6 @@ import org.junit.Before;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -46,8 +43,6 @@ public class CryptoServiceTests extends ESTestCase {
     }
 
     public void testSigned() throws Exception {
-        // randomize whether to use a system key or not
-        Settings settings = randomBoolean() ? this.settings : Settings.EMPTY;
         CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
@@ -64,11 +59,11 @@ public class CryptoServiceTests extends ESTestCase {
     }
 
     public void testSignAndUnsignNoKeyFile() throws Exception {
+        Files.delete(keyFile);
         CryptoService service = new CryptoService(Settings.EMPTY, env);
         final String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
-        // we always have some sort of key to sign with
-        assertThat(text, not(equalTo(signed)));
+        assertThat(text, equalTo(signed));
         String unsigned = service.unsignAndVerify(signed);
         assertThat(unsigned, equalTo(text));
     }
@@ -180,17 +175,6 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
         assertThat(service.isEncrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
         assertThat(service.isEncrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
-    }
-
-    public void testSigningKeyCanBeRecomputedConsistently() {
-        final SecretKey systemKey = new SecretKeySpec(CryptoService.generateKey(), CryptoService.KEY_ALGO);
-        final SecretKey randomKey = CryptoService.generateSecretKey(CryptoService.RANDOM_KEY_SIZE);
-        int iterations = randomInt(100);
-        final SecretKey signingKey = CryptoService.createSigningKey(systemKey, randomKey);
-        for (int i = 0; i < iterations; i++) {
-            SecretKey regenerated = CryptoService.createSigningKey(systemKey, randomKey);
-            assertThat(regenerated, equalTo(signingKey));
-        }
     }
 
     public void testSystemKeyFileRequired() throws Exception {

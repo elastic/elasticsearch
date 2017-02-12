@@ -245,7 +245,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         List<Object> components = new ArrayList<>();
         components.add(sslService);
 
-        final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
+        final InternalClient internalClient = new InternalClient(settings, threadPool, client);
         components.add(internalClient);
 
         LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),

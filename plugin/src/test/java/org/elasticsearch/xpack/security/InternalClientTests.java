@@ -14,14 +14,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -51,9 +48,7 @@ public class InternalClientTests extends ESTestCase {
             }
         };
 
-        Path tempDir = createTempDir();
-        InternalClient client = new InternalClient(Settings.EMPTY, threadPool, dummy, new CryptoService(Settings.EMPTY,
-                new Environment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir.toString()).build()))) {
+        InternalClient client = new InternalClient(Settings.EMPTY, threadPool, dummy) {
             @Override
             protected void processContext(ThreadContext threadContext) {
                 threadContext.putTransient("foo", "boom");
@@ -104,9 +99,7 @@ public class InternalClientTests extends ESTestCase {
             }
         };
 
-        Path tempDir = createTempDir();
-        InternalClient client = new InternalClient(Settings.EMPTY, threadPool, dummy, new CryptoService(Settings.EMPTY,
-                new Environment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir.toString()).build()))) {
+        InternalClient client = new InternalClient(Settings.EMPTY, threadPool, dummy) {
             @Override
             protected void processContext(ThreadContext threadContext) {
                 threadContext.putTransient("foo", "boom");

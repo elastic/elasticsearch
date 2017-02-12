@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -57,7 +55,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private ThreadPool threadPool;
     private ThreadContext threadContext;
     private XPackLicenseState xPackLicenseState;
-    private CryptoService cryptoService;
     private SecurityContext securityContext;
 
     @Override
@@ -67,8 +64,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        cryptoService = new CryptoService(settings, new Environment(settings));
-        securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext(), cryptoService));
+        securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         xPackLicenseState = mock(XPackLicenseState.class);
         when(xPackLicenseState.isAuthAllowed()).thenReturn(true);
     }
@@ -99,7 +95,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendAsync() throws Exception {
         final User user = new User("test");
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
-        authentication.writeToContext(threadContext, cryptoService, AuthenticationService.SIGN_USER_HEADER.get(settings));
+        authentication.writeToContext(threadContext);
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
                 securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
@@ -131,7 +127,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendAsyncSwitchToSystem() throws Exception {
         final User user = new User("test");
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
-        authentication.writeToContext(threadContext, cryptoService, AuthenticationService.SIGN_USER_HEADER.get(settings));
+        authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
@@ -189,7 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendWithKibanaUser() throws Exception {
         final User user = new KibanaUser(true);
         final Authentication authentication = new Authentication(user, new RealmRef("reserved", "reserved", "node1"), null);
-        authentication.writeToContext(threadContext, cryptoService, AuthenticationService.SIGN_USER_HEADER.get(settings));
+        authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,

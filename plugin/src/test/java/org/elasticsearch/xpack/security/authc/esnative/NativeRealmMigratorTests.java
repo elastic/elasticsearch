@@ -33,7 +33,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -82,8 +80,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
-        internalClient = new InternalClient(Settings.EMPTY, threadPool, mockClient,
-                new CryptoService(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build())));
+        internalClient = new InternalClient(Settings.EMPTY, threadPool, mockClient);
         doAnswer(invocationOnMock -> {
             SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[1];
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];

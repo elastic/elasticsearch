@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -273,15 +271,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter.ClientProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled,
-                new SecurityContext(settings, threadContext, new CryptoService(Settings.EMPTY, new Environment(settings))));
+                reservedRealmEnabled, new SecurityContext(settings, threadContext));
     }
 
     private ServerTransportFilter.NodeProfile getNodeFilter(boolean reservedRealmEnabled) throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter.NodeProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled,
-                new SecurityContext(settings, threadContext, new CryptoService(Settings.EMPTY, new Environment(settings))));
+                reservedRealmEnabled, new SecurityContext(settings, threadContext));
     }
 }

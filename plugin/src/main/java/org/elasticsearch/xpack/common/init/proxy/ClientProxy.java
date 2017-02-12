@@ -44,6 +44,6 @@ public class ClientProxy  {
 
     public static InternalClient fromClient(Client client) {
         return client instanceof InternalClient ? (InternalClient) client :
-                new InternalClient(client.settings(), client.threadPool(), client, null);
+                new InternalClient(client.settings(), client.threadPool(), client);
     }
 }

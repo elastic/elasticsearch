@@ -81,7 +81,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         transportClient = new MockTransportClient(Settings.EMPTY);
         class IClient extends InternalClient {
             IClient(Client transportClient) {
-                super(Settings.EMPTY, null, transportClient, null);
+                super(Settings.EMPTY, null, transportClient);
             }
 
             @Override

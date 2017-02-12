@@ -63,7 +63,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         clientCalled = new AtomicBoolean(false);
         class IClient extends InternalClient {
            IClient(Client transportClient){
-                super(Settings.EMPTY, null, transportClient, null);
+                super(Settings.EMPTY, null, transportClient);
            }
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends

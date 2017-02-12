@@ -253,7 +253,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
         threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
-        securityContext.set(new SecurityContext(settings, threadPool.getThreadContext(), cryptoService));
+        securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
         // realms construction
@@ -321,8 +321,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
 
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService,
-            cryptoService, failureHandler, threadPool, anonymousUser));
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool, anonymousUser));
         components.add(authcService.get());
 
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, licenseState);

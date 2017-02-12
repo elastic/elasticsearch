@@ -203,7 +203,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         builder.endObject();
         Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client, null);
+        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
 
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
         XContentParser parser = createParser(builder);
@@ -234,7 +234,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         builder.endObject();
         Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client, null);
+        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
 
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
         XContentParser parser = createParser(builder);

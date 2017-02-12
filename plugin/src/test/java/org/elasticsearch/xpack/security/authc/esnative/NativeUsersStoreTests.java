@@ -49,7 +49,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
     @Before
     public void setupMocks() {
-        internalClient = new InternalClient(Settings.EMPTY, null, null, null) {
+        internalClient = new InternalClient(Settings.EMPTY, null, null) {
 
             @Override
             protected <

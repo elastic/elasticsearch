@@ -82,7 +82,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings,
                 new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
 
-        SecurityContext securityContext = new SecurityContext(settings, threadContext, cryptoService);
+        SecurityContext securityContext = new SecurityContext(settings, threadContext);
         filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail,
                         licenseState, new HashSet<>(), threadPool, securityContext, destructiveOperations);
     }

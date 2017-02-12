@@ -25,9 +25,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.io.IOException;
@@ -47,19 +46,17 @@ import java.util.function.Supplier;
  */
 public class InternalClient extends FilterClient {
 
-    private final CryptoService cryptoService;
-    private final boolean signUserHeader;
     private final String nodeName;
+    private final boolean securityEnabled;
 
     /**
      * Constructs an InternalClient.
      * If {@code cryptoService} is non-null, the client is secure. Otherwise this client is a passthrough.
      */
-    public InternalClient(Settings settings, ThreadPool threadPool, Client in, CryptoService cryptoService) {
+    public InternalClient(Settings settings, ThreadPool threadPool, Client in) {
         super(settings, threadPool, in);
-        this.cryptoService = cryptoService;
-        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
     }
 
     @Override
@@ -67,18 +64,17 @@ public class InternalClient extends FilterClient {
         ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
         Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
 
-        if (cryptoService == null) {
+        if (securityEnabled) {
+            final ThreadContext threadContext = threadPool().getThreadContext();
+            final Supplier<ThreadContext.StoredContext> storedContext = threadContext.newRestorableContext(true);
+            // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
+            // since we expect the callback to run with the authenticated user calling the doExecute method
+            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+                processContext(threadContext);
+                super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
+            }
+        } else {
             super.doExecute(action, request, listener);
-            return;
-        }
-
-        final ThreadContext threadContext = threadPool().getThreadContext();
-        final Supplier<ThreadContext.StoredContext> storedContext = threadContext.newRestorableContext(true);
-        // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
-        // since we expect the callback to run with the authenticated user calling the doExecute method
-        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            processContext(threadContext);
-            super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
         }
     }
 
@@ -86,7 +82,7 @@ public class InternalClient extends FilterClient {
         try {
             Authentication authentication = new Authentication(XPackUser.INSTANCE,
                     new Authentication.RealmRef("__attach", "__attach", nodeName), null);
-            authentication.writeToContext(threadContext, cryptoService, signUserHeader);
+            authentication.writeToContext(threadContext);
         } catch (IOException ioe) {
             throw new ElasticsearchException("failed to attach internal user to request", ioe);
         }

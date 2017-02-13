@@ -235,12 +235,7 @@ public class RequestTests extends ESTestCase {
                 WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
                 indexRequest.setRefreshPolicy(refreshPolicy);
                 if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                    // TODO use refreshPolicy.toString() once it returns the appropriate value
-                    if (refreshPolicy == WriteRequest.RefreshPolicy.IMMEDIATE) {
-                        expectedParams.put("refresh", Boolean.TRUE.toString());
-                    } else {
-                        expectedParams.put("refresh", "wait_for");
-                    }
+                    expectedParams.put("refresh", refreshPolicy.getValue());
                 }
             }
         }

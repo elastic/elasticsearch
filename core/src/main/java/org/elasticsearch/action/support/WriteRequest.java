@@ -110,6 +110,7 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Streamable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) ordinal());        }
+            out.writeByte((byte) ordinal());
+        }
     }
 }

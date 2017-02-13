@@ -243,7 +243,6 @@ public class StartDatafeedAction
     public static class TransportAction extends TransportPersistentAction<Request> {
 
         private final DatafeedStateObserver observer;
-        private final ClusterService clusterService;
         private final DatafeedJobRunner datafeedJobRunner;
 
         @Inject
@@ -253,16 +252,12 @@ public class StartDatafeedAction
                                ClusterService clusterService, DatafeedJobRunner datafeedJobRunner) {
             super(settings, NAME, false, threadPool, transportService, persistentActionService, persistentActionRegistry,
                     actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
-            this.clusterService = clusterService;
             this.datafeedJobRunner = datafeedJobRunner;
             this.observer = new DatafeedStateObserver(threadPool, clusterService);
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
-            ClusterState state = clusterService.state();
-            StartDatafeedAction.validate(request.datafeedId, state.metaData().custom(MlMetadata.TYPE),
-                    state.custom(PersistentTasksInProgress.TYPE), true);
             ActionListener<PersistentActionResponse> finalListener =
                     ActionListener.wrap(response -> waitForDatafeedStarted(request, response, listener), listener::onFailure);
             super.doExecute(request, finalListener);
@@ -289,7 +284,8 @@ public class StartDatafeedAction
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
-            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, false);
+            DiscoveryNodes nodes = clusterState.getNodes();
+            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
         }
 
         @Override
@@ -308,8 +304,7 @@ public class StartDatafeedAction
 
     }
 
-    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks,
-                                boolean checkJobState) {
+    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks, DiscoveryNodes nodes) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -318,28 +313,31 @@ public class StartDatafeedAction
         if (job == null) {
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
+        DatafeedJobValidator.validate(datafeed, job);
         if (tasks == null) {
             return;
         }
 
-        // we only check job state when the user submits the start datafeed request,
-        // but when we persistent task framework validates the request we don't,
-        // because we don't know if the job task will be started before datafeed task,
-        // so we just wait until the job task is opened, which will happen at some point in time.
-        if (checkJobState) {
-            JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
-            if (jobState != JobState.OPENED) {
-                throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
-                        RestStatus.CONFLICT, JobState.OPENED, jobState);
-            }
+        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
+        if (jobState != JobState.OPENED) {
+            throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
+                    RestStatus.CONFLICT, JobState.OPENED, jobState);
         }
 
+        PersistentTaskInProgress<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
+        if (datafeedTask != null && datafeedTask.getExecutorNode() != null && datafeedState == DatafeedState.STARTED) {
+            if (nodes.nodeExists(datafeedTask.getExecutorNode()) == false) {
+                // The state is started and the node were running on no longer exists.
+                // We can skip the datafeed state check below, because when the node
+                // disappeared we didn't have time to set the state to failed.
+                return;
+            }
+        }
         if (datafeedState == DatafeedState.STARTED) {
             throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
                     RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
         }
-        DatafeedJobValidator.validate(datafeed, job);
     }
 
     static DiscoveryNode selectNode(Logger logger, Request request, ClusterState clusterState) {

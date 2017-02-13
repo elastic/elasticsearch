@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -41,7 +43,7 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         PersistentTaskInProgress<OpenJobAction.Request> task =
                 new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request(job.getId()), "node_id");
-        task = new PersistentTaskInProgress<OpenJobAction.Request>(task, randomFrom(JobState.FAILED, JobState.CLOSED,
+        task = new PersistentTaskInProgress<>(task, randomFrom(JobState.FAILED, JobState.CLOSED,
                 JobState.CLOSING, JobState.OPENING));
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
 
@@ -59,7 +61,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         DiscoveryNode node = StartDatafeedAction.selectNode(logger, request, cs.build());
         assertNull(node);
 
-        task = new PersistentTaskInProgress<OpenJobAction.Request>(task, JobState.OPENED);
+        task = new PersistentTaskInProgress<>(task, JobState.OPENED);
         tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
         cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
@@ -75,7 +77,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job1, false)
                 .build();
         Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> StartDatafeedAction.validate("some-datafeed", mlMetadata1, null, false));
+                () -> StartDatafeedAction.validate("some-datafeed", mlMetadata1, null, null));
         assertThat(e.getMessage(), equalTo("No datafeed with id [some-datafeed] exists"));
     }
 
@@ -92,11 +94,9 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1)
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks, true));
+                () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks, null));
         assertThat(e.getMessage(), equalTo("cannot start datafeed, expected job state [opened], but got [closed]"));
     }
-
-
 
     public void testValidate_dataFeedAlreadyStarted() {
         Job job1 = createScheduledJob("job_id").build();
@@ -105,16 +105,54 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job1, false)
                 .putDatafeed(datafeedConfig)
                 .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
+                .build();
 
-        PersistentTaskInProgress<StartDatafeedAction.Request> task =
+        PersistentTaskInProgress<OpenJobAction.Request> jobTask =
+                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"),
+                        "node_id");
+        jobTask = new PersistentTaskInProgress<>(jobTask, JobState.OPENED);
+        PersistentTaskInProgress<StartDatafeedAction.Request> datafeedTask =
                 new PersistentTaskInProgress<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
                         "node_id");
-        task = new PersistentTaskInProgress<>(task, DatafeedState.STARTED);
-        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
+        datafeedTask = new PersistentTaskInProgress<>(datafeedTask, DatafeedState.STARTED);
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        taskMap.put(0L, jobTask);
+        taskMap.put(1L, datafeedTask);
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(2L, taskMap);
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, false));
+                () -> StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes));
         assertThat(e.getMessage(), equalTo("datafeed already started, expected datafeed state [stopped], but got [started]"));
+    }
+
+    public void testValidate_staleTask() {
+        Job job1 = createScheduledJob("job_id").build();
+        DatafeedConfig datafeedConfig = createDatafeed("datafeed_id", "job_id", Collections.singletonList("*"));
+        MlMetadata mlMetadata1 = new MlMetadata.Builder()
+                .putJob(job1, false)
+                .putDatafeed(datafeedConfig)
+                .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node_name", "node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        PersistentTaskInProgress<OpenJobAction.Request> jobTask =
+                new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"),
+                        "node_id2");
+        jobTask = new PersistentTaskInProgress<>(jobTask, JobState.OPENED);
+        PersistentTaskInProgress<StartDatafeedAction.Request> datafeedTask =
+                new PersistentTaskInProgress<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
+                        "node_id1");
+        datafeedTask = new PersistentTaskInProgress<>(datafeedTask, DatafeedState.STARTED);
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        taskMap.put(0L, jobTask);
+        taskMap.put(1L, datafeedTask);
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(2L, taskMap);
+        StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes);
     }
 
 }

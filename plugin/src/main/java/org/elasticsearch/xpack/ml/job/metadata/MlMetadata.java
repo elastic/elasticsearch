@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.metadata;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -78,6 +79,11 @@ public class MlMetadata implements MetaData.Custom {
 
     public DatafeedConfig getDatafeed(String datafeedId) {
         return datafeeds.get(datafeedId);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_5_4_0_UNRELEASED;
     }
 
     @Override

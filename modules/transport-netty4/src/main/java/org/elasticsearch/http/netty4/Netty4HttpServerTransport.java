@@ -496,8 +496,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return corsConfig;
     }
 
-    protected void dispatchRequest(RestRequest request, RestChannel channel) {
-        dispatcher.dispatch(request, channel, threadPool.getThreadContext());
+    void dispatchRequest(final RestRequest request, final RestChannel channel) {
+        dispatcher.dispatchRequest(request, channel, threadPool.getThreadContext());
+    }
+
+    void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
+        dispatcher.dispatchBadRequest(request, channel, threadPool.getThreadContext(), cause);
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

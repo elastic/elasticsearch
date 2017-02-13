@@ -224,6 +224,10 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             }
             channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
         } catch (final IOException e) {
+            if (cause != null) {
+                e.addSuppressed(cause);
+            }
+            logger.warn("failed to send bad request response", e);
             channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
 

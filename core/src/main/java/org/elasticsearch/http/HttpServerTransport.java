@@ -51,7 +51,8 @@ public interface HttpServerTransport extends LifecycleComponent {
         void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext);
 
         /**
-         * Dispatches the {@link RestRequest} to the bad request handler.
+         * Dispatches a bad request. For example, if a request is malformed it will be dispatched via this method with the cause of the bad
+         * request.
          *
          * @param request       the request to dispatch
          * @param channel       the response channel of this request

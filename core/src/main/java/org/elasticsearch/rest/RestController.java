@@ -232,7 +232,6 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             logger.warn("failed to send bad request response", e);
             channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
-
     }
 
     void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,

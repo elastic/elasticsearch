@@ -317,7 +317,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 OpenJobAction.Request storedRequest = (OpenJobAction.Request) task.getRequest();
                 if (storedRequest.getJobId().equals(jobId)) {
                     JobState jobState = (JobState) task.getStatus();
-                    if (jobState != JobState.OPENED) {
+                    if (jobState.isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
                         throw new ElasticsearchStatusException("cannot close job, expected job state [{}], but got [{}]",
                                 RestStatus.CONFLICT, JobState.OPENED, jobState);
                     }

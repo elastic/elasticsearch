@@ -27,7 +27,7 @@ public class CloseJobActionTests extends ESTestCase {
         mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
         PersistentTaskInProgress<OpenJobAction.Request> task =
                 new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), null);
-        task = new PersistentTaskInProgress<>(task, JobState.OPENED);
+        task = new PersistentTaskInProgress<>(task, randomFrom(JobState.OPENED, JobState.FAILED));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))

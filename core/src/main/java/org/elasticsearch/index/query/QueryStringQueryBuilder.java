@@ -112,6 +112,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace");
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY =
+        new ParseField("auto_generate_synonyms_phrase_query");
 
     // Mapping types the "all-ish" query can be executed against
     public static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
@@ -187,6 +189,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
 
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
             throw new IllegalArgumentException("query text missing");
@@ -238,6 +242,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         } else {
             splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
         }
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            autoGenerateMultiTermsSynonymsPhraseQuery = in.readBoolean();
+        }
     }
 
     @Override
@@ -279,6 +286,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             out.writeBoolean(this.splitOnWhitespace);
             out.writeOptionalBoolean(this.useAllFields);
+        }
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeBoolean(autoGenerateMultiTermsSynonymsPhraseQuery);
         }
     }
 
@@ -621,6 +631,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return splitOnWhitespace;
     }
 
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Default is <tt>false</tt>.
+     */
+    public QueryStringQueryBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
+        this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
+        return this;
+    }
+
+    public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
+        return autoGenerateMultiTermsSynonymsPhraseQuery;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -679,6 +702,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.useAllFields != null) {
             builder.field(ALL_FIELDS_FIELD.getPreferredName(), this.useAllFields);
         }
+        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -714,6 +740,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String rewrite = null;
         boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
         Boolean useAllFields = null;
+        boolean autoGenerateSynonymsPhraseQuery = false;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -808,6 +835,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     queryName = parser.text();
                 } else if (SPLIT_ON_WHITESPACE.match(currentFieldName)) {
                     splitOnWhitespace = parser.booleanValue();
+                }  else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
@@ -855,6 +884,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.queryName(queryName);
         queryStringQuery.splitOnWhitespace(splitOnWhitespace);
         queryStringQuery.useAllFields(useAllFields);
+        queryStringQuery.autoGenerateMultiTermsSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         return queryStringQuery;
     }
 
@@ -891,7 +921,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(splitOnWhitespace, other.splitOnWhitespace) &&
-                Objects.equals(useAllFields, other.useAllFields);
+                Objects.equals(useAllFields, other.useAllFields) &&
+                Objects.equals(autoGenerateMultiTermsSynonymsPhraseQuery,
+                    other.autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     @Override
@@ -899,8 +931,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return Objects.hash(queryString, defaultField, fieldsAndWeights, defaultOperator, analyzer, quoteAnalyzer,
                 quoteFieldSuffix, autoGeneratePhraseQueries, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
-                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, useDisMax, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, splitOnWhitespace, useAllFields);
+                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, useDisMax, tieBreaker, rewrite,
+                minimumShouldMatch, lenient, timeZone == null ? 0 : timeZone.getID(), escape,
+                maxDeterminizedStates, splitOnWhitespace, useAllFields, autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     /**
@@ -1021,6 +1054,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.timeZone(timeZone);
         qpSettings.maxDeterminizedStates(maxDeterminizedStates);
         qpSettings.splitOnWhitespace(splitOnWhitespace);
+        qpSettings.autoGenerateMultiTermSynonymsPhraseQuery(autoGenerateMultiTermsSynonymsPhraseQuery);
 
         MapperQueryParser queryParser = context.queryParser(qpSettings);
         Query query;

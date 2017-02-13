@@ -54,6 +54,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
+        setAutoGenerateMultiTermSynonymsPhraseQuery(settings.autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     /**
@@ -262,6 +263,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         private boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         /** Specifies a suffix, if any, to apply to field names for phrase matching. */
         private String quoteFieldSuffix = null;
+        private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
 
         /**
          * Generates default {@link Settings} object (uses ROOT locale, does
@@ -274,6 +276,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             this.lenient = other.lenient;
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;
+            this.autoGenerateMultiTermsSynonymsPhraseQuery = other.autoGenerateMultiTermsSynonymsPhraseQuery;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -311,9 +314,17 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return quoteFieldSuffix;
         }
 
+        public void autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
+            this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
+        }
+
+        public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
+            return autoGenerateMultiTermsSynonymsPhraseQuery;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix);
+            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateMultiTermsSynonymsPhraseQuery);
         }
 
         @Override
@@ -325,8 +336,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return false;
             }
             Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient) && Objects.equals(analyzeWildcard, other.analyzeWildcard)
-                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix);
+            return Objects.equals(lenient, other.lenient) &&
+                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
+                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
+                autoGenerateMultiTermsSynonymsPhraseQuery == autoGenerateMultiTermsSynonymsPhraseQuery;
         }
     }
 }

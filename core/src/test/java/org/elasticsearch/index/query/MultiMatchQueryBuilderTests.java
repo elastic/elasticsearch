@@ -125,6 +125,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
         }
+        if (randomBoolean()) {
+            query.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
     }

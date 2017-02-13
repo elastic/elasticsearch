@@ -156,6 +156,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // setSplitOnWhitespace(false) is disallowed when getAutoGeneratePhraseQueries() == true
             queryStringQueryBuilder.splitOnWhitespace(randomBoolean());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
         return queryStringQueryBuilder;
     }
 
@@ -405,6 +408,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             );
             assertThat(query, Matchers.equalTo(expectedQuery));
 
+            // simple multi-term with phrase query
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(true);
+            query = queryParser.parse("guinea pig");
+            expectedQuery = new GraphQuery(
+                new PhraseQuery.Builder()
+                    .add(new Term(STRING_FIELD_NAME, "guinea"))
+                    .add(new Term(STRING_FIELD_NAME, "pig"))
+                    .build(),
+                new TermQuery(new Term(STRING_FIELD_NAME, "cavy")));
+            assertThat(query, Matchers.equalTo(expectedQuery));
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
+
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
             expectedQuery = new BooleanQuery.Builder()
@@ -436,7 +451,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // no paren should cause guinea and pig to be treated as separate tokens
+            // no parent should cause guinea and pig to be treated as separate tokens
             query = queryParser.parse("+that -guinea pig +smells");
             expectedQuery = new BooleanQuery.Builder()
                 .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))

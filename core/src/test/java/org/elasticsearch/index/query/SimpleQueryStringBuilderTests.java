@@ -82,6 +82,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));
             }
         }
+        if (randomBoolean()) {
+            result.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
 
         int fieldCount = randomIntBetween(0, 10);
         Map<String, Float> fields = new HashMap<>();

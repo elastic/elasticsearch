@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,6 +56,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     public static final ParseField TYPE_FIELD = new ParseField("type").withAllDeprecated("match_phrase and match_phrase_prefix query");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
 
     /** The name for the match query */
     public static final String NAME = "match";
@@ -98,6 +100,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private Float cutoffFrequency = null;
 
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+
     /**
      * Constructs a new match query.
      */
@@ -133,6 +137,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         cutoffFrequency = in.readOptionalFloat();
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            autoGenerateMultiTermsSynonymsPhraseQuery = in.readBoolean();
+        }
     }
 
     @Override
@@ -153,6 +160,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         out.writeOptionalFloat(cutoffFrequency);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeBoolean(autoGenerateMultiTermsSynonymsPhraseQuery);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -395,6 +405,19 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.zeroTermsQuery;
     }
 
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Default is <tt>false</tt>.
+     */
+    public MatchQueryBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
+        this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
+        return this;
+    }
+
+    public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
+        return autoGenerateMultiTermsSynonymsPhraseQuery;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -431,6 +454,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         if (cutoffFrequency != null) {
             builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
+        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -455,6 +481,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.setLenient(lenient);
         matchQuery.setCommonTermsCutoff(cutoffFrequency);
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
+        matchQuery.setAutoGenerateMultiTermsSynonymsPhraseQuery(autoGenerateMultiTermsSynonymsPhraseQuery);
 
         Query query = matchQuery.parse(type, fieldName, value);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -476,14 +503,17 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                Objects.equals(lenient, other.lenient) &&
                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &&
                Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
-               Objects.equals(cutoffFrequency, other.cutoffFrequency);
+               Objects.equals(cutoffFrequency, other.cutoffFrequency) &&
+               Objects.equals(autoGenerateMultiTermsSynonymsPhraseQuery,
+                   other.autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, value, type, operator, analyzer, slop,
                 fuzziness, prefixLength, maxExpansions, minimumShouldMatch,
-                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, cutoffFrequency);
+                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery,
+                cutoffFrequency, autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     @Override
@@ -509,6 +539,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         boolean lenient = MatchQuery.DEFAULT_LENIENCY;
         Float cutOffFrequency = null;
         ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+        boolean autoGenerateSynonymsPhraseQuery = false;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -573,6 +604,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
+                        } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                            autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[" + NAME + "] query does not support [" + currentFieldName + "]");
@@ -613,6 +646,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
+        matchQuery.autoGenerateMultiTermsSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         return matchQuery;
     }
 

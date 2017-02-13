@@ -104,6 +104,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY =
+        new ParseField("auto_generate_synonyms_phrase_query");
 
     /** Query text to parse. */
     private final String queryText;
@@ -131,6 +133,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
+
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
@@ -173,6 +177,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            autoGenerateMultiTermsSynonymsPhraseQuery = in.readBoolean();
+        }
+
     }
 
     @Override
@@ -201,6 +209,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
+        }
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeBoolean(autoGenerateMultiTermsSynonymsPhraseQuery);
         }
     }
 
@@ -357,6 +368,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return minimumShouldMatch;
     }
 
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Default is <tt>false</tt>.
+     */
+    public SimpleQueryStringBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
+        this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
+        return this;
+    }
+
+    public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
+        return autoGenerateMultiTermsSynonymsPhraseQuery;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // field names in builder can have wildcards etc, need to resolve them here
@@ -457,6 +481,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (useAllFields != null) {
             builder.field(ALL_FIELDS_FIELD.getPreferredName(), useAllFields);
         }
+        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
+        }
 
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -478,6 +505,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
         Boolean useAllFields = null;
+        boolean autoGenerateSynonymsPhraseQuery = false;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -543,6 +571,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     quoteFieldSuffix = parser.textOrNull();
                 } else if (ALL_FIELDS_FIELD.match(currentFieldName)) {
                     useAllFields = parser.booleanValue();
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -571,6 +601,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         qb.useAllFields(useAllFields);
+        qb.autoGenerateMultiTermsSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         return qb;
     }
 
@@ -581,7 +612,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, useAllFields);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch,
+            settings, flags, useAllFields, autoGenerateMultiTermsSynonymsPhraseQuery);
     }
 
     @Override
@@ -591,7 +623,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
                 && Objects.equals(settings, other.settings)
                 && (flags == other.flags)
-                && (useAllFields == other.useAllFields);
+                && (useAllFields == other.useAllFields)
+                && autoGenerateMultiTermsSynonymsPhraseQuery == other.autoGenerateMultiTermsSynonymsPhraseQuery;
     }
 
 }

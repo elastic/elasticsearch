@@ -123,6 +123,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (randomBoolean()) {
             matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
+
+        if (randomBoolean()) {
+            matchQuery.autoGenerateMultiTermsSynonymsPhraseQuery(randomBoolean());
+        }
         return matchQuery;
     }
 

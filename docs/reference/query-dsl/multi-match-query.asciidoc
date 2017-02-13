@@ -137,7 +137,7 @@ follows:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
-and `cutoff_frequency`, as explained in <<query-dsl-match-query, match query>>.
+, `cutoff_frequency` and `auto_generate_synonyms_phrase_query` as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
 [[operator-min]]

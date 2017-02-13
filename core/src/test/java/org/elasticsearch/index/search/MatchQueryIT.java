@@ -200,4 +200,19 @@ public class MatchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
     }
+
+    public void testMultiTermsSynonymsPhrase() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = getDocs();
+        indexRandom(true, false, builders);
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "wtf")
+                    .analyzer("lower_graphsyns")
+                    .operator(Operator.AND)
+                    .autoGenerateMultiTermsSynonymsPhraseQuery(true)).get();
+
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "2", "3");
+    }
 }

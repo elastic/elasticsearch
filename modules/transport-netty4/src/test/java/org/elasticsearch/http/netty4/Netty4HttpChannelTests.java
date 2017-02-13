@@ -47,6 +47,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
@@ -189,7 +190,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
-                         (request, channel, context) -> {})) {
+                         new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
@@ -219,8 +220,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
-                     (request, channel, context) -> {})) {
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest;
             final boolean close = randomBoolean();
@@ -256,7 +256,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
         // construct request and send it over the transport layer
         try (Netty4HttpServerTransport httpServerTransport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
-                         (request, channel, context) -> {})) {
+                             new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             if (originValue != null) {

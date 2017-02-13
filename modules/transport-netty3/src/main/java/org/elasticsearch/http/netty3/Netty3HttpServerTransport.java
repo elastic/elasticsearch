@@ -487,7 +487,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     protected void dispatchRequest(RestRequest request, RestChannel channel) {
-        dispatcher.dispatch(request, channel, threadPool.getThreadContext());
+        dispatcher.dispatchRequest(request, channel, threadPool.getThreadContext());
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {

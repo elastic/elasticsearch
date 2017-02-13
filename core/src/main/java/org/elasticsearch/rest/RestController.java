@@ -19,18 +19,8 @@
 
 package org.elasticsearch.rest;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -45,9 +35,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
@@ -55,7 +57,8 @@ import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestController extends AbstractComponent {
+public class RestController extends AbstractComponent implements HttpServerTransport.Dispatcher {
+
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -167,6 +170,7 @@ public class RestController extends AbstractComponent {
         return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
+    @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         if (request.rawPath().equals("/favicon.ico")) {
             handleFavicon(request, channel);
@@ -202,6 +206,31 @@ public class RestController extends AbstractComponent {
                 logger.error((Supplier<?>) () ->
                     new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
             }
+        }
+    }
+
+    @Override
+    public void dispatchBadRequest(
+            final RestRequest request,
+            final RestChannel channel,
+            final ThreadContext threadContext,
+            final Throwable cause) {
+        try {
+            final Exception e;
+            if (cause == null) {
+                e = new ElasticsearchException("unknown cause");
+            } else if (cause instanceof Exception) {
+                e = (Exception) cause;
+            } else {
+                e = new ElasticsearchException(cause);
+            }
+            channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+        } catch (final IOException e) {
+            if (cause != null) {
+                e.addSuppressed(cause);
+            }
+            logger.warn("failed to send bad request response", e);
+            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -423,4 +452,5 @@ public class RestController extends AbstractComponent {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
+
 }

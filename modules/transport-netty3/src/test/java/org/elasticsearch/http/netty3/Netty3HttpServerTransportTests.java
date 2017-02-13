@@ -26,6 +26,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@link Netty3HttpServerTransport} class.
  */
 public class Netty3HttpServerTransportTests extends ESTestCase {
+
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
@@ -84,7 +86,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), (request, channel, context) -> {});
+                xContentRegistry(), new NullDispatcher());
         final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
@@ -101,7 +103,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
                                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                                       .build();
         final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), (request, channel, context) -> {});
+                xContentRegistry(), new NullDispatcher());
         final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
         assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::getName).collect(Collectors.toSet()), equalTo(methods));
@@ -110,15 +112,16 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         try (Netty3HttpServerTransport transport = new Netty3HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-                xContentRegistry(), (request, channel, context) -> {})){
+                xContentRegistry(), new NullDispatcher())){
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
             try (Netty3HttpServerTransport otherTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), (request, channel, context) -> {})) {
+                    xContentRegistry(), new NullDispatcher())) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
         }
     }
+
 }

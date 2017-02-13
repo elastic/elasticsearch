@@ -76,17 +76,17 @@ public class IndexResponse extends DocWriteResponse {
     public static IndexResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        ParsingContext context = new ParsingContext();
+        IndexResponseBuilder context = new IndexResponseBuilder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
-        return fromParsingContext(context);
+        return context.build();
     }
 
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, ParsingContext context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, IndexResponseBuilder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -99,29 +99,22 @@ public class IndexResponse extends DocWriteResponse {
         }
     }
 
-    /**
-     * Create a {@link IndexResponse} from a parsing context.
-     */
-    public static IndexResponse fromParsingContext(ParsingContext context) {
-        IndexResponse indexResponse = new IndexResponse(context.getShardId(), context.getType(), context.getId(),
-                context.getSeqNo(), context.getVersion(), context.isCreated());
-        indexResponse.setForcedRefresh(context.isForcedRefresh());
-        if (context.getShardInfo() != null) {
-            indexResponse.setShardInfo(context.getShardInfo());
-        }
-        return indexResponse;
-    }
-
-    public static class ParsingContext extends DocWriteResponse.ParsingContext {
+    public static class IndexResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
 
         private boolean created = false;
 
-        public boolean isCreated() {
-            return created;
-        }
-
         public void setCreated(boolean created) {
             this.created = created;
+        }
+
+        @Override
+        public IndexResponse build() {
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
+            indexResponse.setForcedRefresh(forcedRefresh);
+            if (shardInfo != null) {
+                indexResponse.setShardInfo(shardInfo);
+            }
+            return indexResponse;
         }
     }
 }

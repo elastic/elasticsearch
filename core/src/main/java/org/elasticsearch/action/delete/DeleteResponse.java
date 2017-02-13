@@ -74,17 +74,17 @@ public class DeleteResponse extends DocWriteResponse {
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        ParsingContext context = new ParsingContext();
+        DeleteResponseBuilder context = new DeleteResponseBuilder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
-        return fromParsingContext(context);
+        return context.build();
     }
 
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, ParsingContext context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, DeleteResponseBuilder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -97,29 +97,22 @@ public class DeleteResponse extends DocWriteResponse {
         }
     }
 
-    /**
-     * Create a {@link DeleteResponse} from a parsing context.
-     */
-    public static DeleteResponse fromParsingContext(ParsingContext context) {
-        DeleteResponse deleteResponse = new DeleteResponse(context.getShardId(), context.getType(), context.getId(),
-                context.getSeqNo(), context.getVersion(), context.isFound());
-        deleteResponse.setForcedRefresh(context.isForcedRefresh());
-        if (context.getShardInfo() != null) {
-            deleteResponse.setShardInfo(context.getShardInfo());
-        }
-        return deleteResponse;
-    }
-
-    public static class ParsingContext extends DocWriteResponse.ParsingContext {
+    public static class DeleteResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
 
         private boolean found = false;
 
-        public boolean isFound() {
-            return found;
-        }
-
         public void setFound(boolean found) {
             this.found = found;
+        }
+
+        @Override
+        public DeleteResponse build() {
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, version, found);
+            deleteResponse.setForcedRefresh(forcedRefresh);
+            if (shardInfo != null) {
+                deleteResponse.setShardInfo(shardInfo);
+            }
+            return deleteResponse;
         }
     }
 }

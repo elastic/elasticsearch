@@ -83,7 +83,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         return builder;
     }
 
-    public static BulkItemResponse fromXContent(XContentParser parser) throws IOException {
+    public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
@@ -96,27 +96,27 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         final OpType opType = OpType.fromString(currentFieldName);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
-        DocWriteResponse.ParsingContext context = null;
+        DocWriteResponse.DocWriteResponseBuilder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
         Supplier<? extends DocWriteResponse> itemSupplier = null;
 
         if (opType == OpType.INDEX || opType == OpType.CREATE) {
-            final IndexResponse.ParsingContext parsingContext = new IndexResponse.ParsingContext();
-            context = parsingContext;
-            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, parsingContext);
-            itemSupplier = () -> IndexResponse.fromParsingContext(parsingContext);
+            final IndexResponse.IndexResponseBuilder indexResponseBuilder = new IndexResponse.IndexResponseBuilder();
+            builder = indexResponseBuilder;
+            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
+            itemSupplier = indexResponseBuilder::build;
 
         } else if (opType == OpType.UPDATE) {
-            final UpdateResponse.ParsingContext parsingContext = new UpdateResponse.ParsingContext();
-            context = parsingContext;
-            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, parsingContext);
-            itemSupplier = () -> UpdateResponse.fromParsingContext(parsingContext);
+            final UpdateResponse.UpdateResponseBuilder updateResponseBuilder = new UpdateResponse.UpdateResponseBuilder();
+            builder = updateResponseBuilder;
+            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
+            itemSupplier = updateResponseBuilder::build;
 
         } else if (opType == OpType.DELETE) {
-            final DeleteResponse.ParsingContext parsingContext = new DeleteResponse.ParsingContext();
-            context = parsingContext;
-            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, parsingContext);
-            itemSupplier = () -> DeleteResponse.fromParsingContext(parsingContext);
+            final DeleteResponse.DeleteResponseBuilder deleteResponseBuilder = new DeleteResponse.DeleteResponseBuilder();
+            builder = deleteResponseBuilder;
+            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
+            itemSupplier = deleteResponseBuilder::build;
         } else {
             throwUnknownField(currentFieldName, parser.getTokenLocation());
         }
@@ -146,12 +146,9 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
 
-        // Id cannot be parsed at this level
-        int id = -1;
-
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
-            Failure failure = new Failure(context.getShardId().getIndexName(), context.getType(), context.getId(), exception);
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
             bulkItemResponse = new BulkItemResponse(id, opType, itemSupplier.get());

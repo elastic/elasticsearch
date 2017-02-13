@@ -291,7 +291,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
      * if needed and then immediately returns.
      */
-    public static void parseInnerToXContent(XContentParser parser, ParsingContext context) throws IOException {
+    protected static void parseInnerToXContent(XContentParser parser, DocWriteResponseBuilder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -335,21 +335,18 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * {@link ParsingContext} holds information about {@link DocWriteResponse} objects during XContent parsing.
+     * {@link DocWriteResponseBuilder} is used to build {@link DocWriteResponse} objects during XContent parsing.
      */
-    public static class ParsingContext {
+    public static abstract class DocWriteResponseBuilder {
 
-        private ShardId shardId = null;
-        private String type = null;
-        private String id = null;
-        private Long version = null;
-        private Result result = null;
-        private boolean forcedRefresh;
-        private ShardInfo shardInfo = null;
-        private Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-
-        public ParsingContext(){
-        }
+        protected ShardId shardId = null;
+        protected String type = null;
+        protected String id = null;
+        protected Long version = null;
+        protected Result result = null;
+        protected boolean forcedRefresh;
+        protected ShardInfo shardInfo = null;
+        protected Long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
         public ShardId getShardId() {
             return shardId;
@@ -375,44 +372,26 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.id = id;
         }
 
-        public Long getVersion() {
-            return version;
-        }
-
         public void setVersion(Long version) {
             this.version = version;
-        }
-
-        public Result getResult() {
-            return result;
         }
 
         public void setResult(Result result) {
             this.result = result;
         }
 
-        public boolean isForcedRefresh() {
-            return forcedRefresh;
-        }
-
         public void setForcedRefresh(boolean forcedRefresh) {
             this.forcedRefresh = forcedRefresh;
-        }
-
-        public ShardInfo getShardInfo() {
-            return shardInfo;
         }
 
         public void setShardInfo(ShardInfo shardInfo) {
             this.shardInfo = shardInfo;
         }
 
-        public Long getSeqNo() {
-            return seqNo;
-        }
-
         public void setSeqNo(Long seqNo) {
             this.seqNo = seqNo;
         }
+
+        public abstract DocWriteResponse build();
     }
 }

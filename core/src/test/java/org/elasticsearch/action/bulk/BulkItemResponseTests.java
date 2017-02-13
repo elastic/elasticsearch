@@ -57,23 +57,23 @@ public class BulkItemResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         for (DocWriteRequest.OpType opType : DocWriteRequest.OpType.values()) {
-            int id = randomIntBetween(0, 100);
+            int bulkItemId = randomIntBetween(0, 100);
             boolean humanReadable = randomBoolean();
             BytesReference originalBytes = null;
             BulkItemResponse expectedBulkItemResponse = null;
 
             if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
-                expectedBulkItemResponse = new BulkItemResponse(id, opType, randomIndexResponse());
+                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomIndexResponse());
                 originalBytes = toXContent(expectedBulkItemResponse, xContentType, humanReadable);
 
             } else if (opType == DocWriteRequest.OpType.DELETE) {
-                expectedBulkItemResponse = new BulkItemResponse(id, opType, randomDeleteResponse());
+                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDeleteResponse());
                 originalBytes = toXContent(expectedBulkItemResponse, xContentType, humanReadable);
 
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 Tuple<UpdateResponse, UpdateResponse> updates = randomUpdateResponse(xContentType);
-                expectedBulkItemResponse = new BulkItemResponse(id, opType, updates.v2());
-                originalBytes = toXContent(new BulkItemResponse(id, opType, updates.v1()), xContentType, humanReadable);
+                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, updates.v2());
+                originalBytes = toXContent(new BulkItemResponse(bulkItemId, opType, updates.v1()), xContentType, humanReadable);
 
             } else {
                 fail("Test does not support opType [" + opType + "]");
@@ -88,7 +88,7 @@ public class BulkItemResponseTests extends ESTestCase {
 
             BulkItemResponse parsedBulkItemResponse;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                parsedBulkItemResponse = BulkItemResponse.fromXContent(parser);
+                parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
 
@@ -97,6 +97,7 @@ public class BulkItemResponseTests extends ESTestCase {
             assertEquals(expectedBulkItemResponse.getId(), parsedBulkItemResponse.getId());
             assertEquals(expectedBulkItemResponse.getOpType(), parsedBulkItemResponse.getOpType());
             assertEquals(expectedBulkItemResponse.getVersion(), parsedBulkItemResponse.getVersion());
+            assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
 
             BytesReference finalBytes = toXContent(parsedBulkItemResponse, xContentType, humanReadable);
             try (XContentParser parser = createParser(xContentType.xContent(), finalBytes)) {
@@ -127,12 +128,13 @@ public class BulkItemResponseTests extends ESTestCase {
         final Throwable cause = exceptions.v1();
         final ElasticsearchException expectedCause = exceptions.v2();
 
+        int bulkItemId = randomIntBetween(0, 100);
         String index = randomAsciiOfLength(5);
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(randomInt(), opType, new Failure(index, type, id, (Exception) cause));
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(bulkItemId, opType, new Failure(index, type, id, (Exception) cause));
         BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
 
         // Shuffle the XContent fields
@@ -144,7 +146,7 @@ public class BulkItemResponseTests extends ESTestCase {
 
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser);
+            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
             assertNull(parser.nextToken());
         }
 
@@ -153,6 +155,7 @@ public class BulkItemResponseTests extends ESTestCase {
         assertEquals(type, parsedBulkItemResponse.getType());
         assertEquals(id, parsedBulkItemResponse.getId());
         assertEquals(opType, parsedBulkItemResponse.getOpType());
+        assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
 
         Failure parsedFailure = parsedBulkItemResponse.getFailure();
         assertEquals(index, parsedFailure.getIndex());

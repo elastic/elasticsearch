@@ -114,17 +114,17 @@ public class UpdateResponse extends DocWriteResponse {
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        ParsingContext context = new ParsingContext();
+        UpdateResponseBuilder context = new UpdateResponseBuilder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
-        return fromParsingContext(context);
+        return context.build();
     }
 
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, ParsingContext context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, UpdateResponseBuilder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -137,36 +137,28 @@ public class UpdateResponse extends DocWriteResponse {
         }
     }
 
-    /**
-     * Create a {@link UpdateResponse} from a parsing context.
-     */
-    public static UpdateResponse fromParsingContext(ParsingContext context) {
-        UpdateResponse update;
-        if (context.getShardInfo() != null && context.getSeqNo() != null) {
-            update = new UpdateResponse(context.getShardInfo(), context.getShardId(), context.getType(), context.getId(),
-                    context.getSeqNo(), context.getVersion(), context.getResult());
-        } else {
-            update = new UpdateResponse(context.getShardId(), context.getType(), context.getId(),
-                    context.getVersion(), context.getResult());
-        }
-        if (context.getGetResult() != null) {
-            update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
-                    context.getGetResult().isExists(), context.getGetResult().internalSourceRef(), context.getGetResult().getFields()));
-        }
-        update.setForcedRefresh(context.isForcedRefresh());
-        return update;
-    }
-
-    public static class ParsingContext extends DocWriteResponse.ParsingContext {
+    public static class UpdateResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
 
         private GetResult getResult = null;
 
-        public GetResult getGetResult() {
-            return getResult;
-        }
-
         public void setGetResult(GetResult getResult) {
             this.getResult = getResult;
+        }
+
+        @Override
+        public UpdateResponse build() {
+            UpdateResponse update;
+            if (shardInfo != null && seqNo != null) {
+                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            } else {
+                update = new UpdateResponse(shardId, type, id, version, result);
+            }
+            if (getResult != null) {
+                update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
+                        getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
+            }
+            update.setForcedRefresh(forcedRefresh);
+            return update;
         }
     }
 }

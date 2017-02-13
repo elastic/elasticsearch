@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty3.cors.Netty3CorsHandler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
@@ -176,7 +177,7 @@ public class Netty3HttpChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
-            (request, channel, context) -> {});
+            new NullDispatcher());
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
@@ -204,7 +205,7 @@ public class Netty3HttpChannelTests extends ESTestCase {
     private HttpResponse execRequestWithCors(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         httpServerTransport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
-            (request, channel, context) -> {});
+            new NullDispatcher());
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, originValue);
         httpRequest.headers().add(HttpHeaders.Names.HOST, host);

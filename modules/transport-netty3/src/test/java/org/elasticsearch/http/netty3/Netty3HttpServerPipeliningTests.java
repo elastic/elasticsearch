@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty3.Netty3HttpServerTransport.HttpChannelPipelineFactory;
 import org.elasticsearch.http.netty3.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty3.pipelining.OrderedUpstreamMessageEvent;
@@ -163,8 +164,8 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
 
         CustomNetty3HttpServerTransport(Settings settings) {
             super(settings, Netty3HttpServerPipeliningTests.this.networkService,
-                Netty3HttpServerPipeliningTests.this.bigArrays, Netty3HttpServerPipeliningTests.this.threadPool, xContentRegistry()
-                , (request, channel, context) -> {});
+                Netty3HttpServerPipeliningTests.this.bigArrays, Netty3HttpServerPipeliningTests.this.threadPool, xContentRegistry(),
+                    new NullDispatcher());
             this.executorService = Executors.newFixedThreadPool(5);
         }
 

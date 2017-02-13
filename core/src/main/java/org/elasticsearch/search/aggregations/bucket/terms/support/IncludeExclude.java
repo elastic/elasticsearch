@@ -61,7 +61,7 @@ import java.util.TreeSet;
 public class IncludeExclude implements Writeable, ToXContent {
     public static final ParseField INCLUDE_FIELD = new ParseField("include");
     public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
-    public static final ParseField PATTERN_FIELD = new ParseField("pattern");
+    public static final ParseField PATTERN_FIELD = new ParseField("pattern").withAllDeprecated("Put patterns directly under the [include] or [exclude]");
     public static final ParseField PARTITION_FIELD = new ParseField("partition");
     public static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
     // Needed to add this seed for a deterministic term hashing policy
@@ -103,6 +103,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             Integer partition = null, numPartitions = null;
+            String pattern = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -110,7 +111,7 @@ public class IncludeExclude implements Writeable, ToXContent {
                 // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
                 // Regexes should be "include":"foo.*"
                 if (PATTERN_FIELD.match(currentFieldName)) {
-                    return new IncludeExclude(parser.text(), null);
+                    pattern = parser.text();
                 } else if (NUM_PARTITIONS_FIELD.match(currentFieldName)) {
                     numPartitions = parser.intValue();
                 } else if (PARTITION_FIELD.match(currentFieldName)) {
@@ -119,6 +120,9 @@ public class IncludeExclude implements Writeable, ToXContent {
                     throw new ElasticsearchParseException(
                             "Unknown parameter in Include/Exclude clause: " + currentFieldName);
                 }
+            }
+            if (pattern != null) {
+                return new IncludeExclude(pattern, null);
             }
             if (partition == null) {
                 throw new IllegalArgumentException("Missing [" + PARTITION_FIELD.getPreferredName()
@@ -140,6 +144,21 @@ public class IncludeExclude implements Writeable, ToXContent {
             return new IncludeExclude(null, parser.text());
         } else if (token == XContentParser.Token.START_ARRAY) {
             return new IncludeExclude(null, new TreeSet<>(parseArrayToSet(parser)));
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            String pattern = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    // the parser records the field name
+                } else if (PATTERN_FIELD.match(parser.currentName())) {
+                    pattern = parser.text();
+                } else {
+                    throw new IllegalArgumentException("Unrecognized field [" + parser.currentName() + "]");
+                }
+            }
+            if (pattern == null) {
+                throw new IllegalArgumentException("Missing [pattern] element under [exclude]");
+            }
+            return new IncludeExclude(null, pattern);
         } else {
             throw new IllegalArgumentException("Unrecognized token for an exclude [" + token + "]");
         }

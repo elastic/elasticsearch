@@ -4,10 +4,9 @@ setup:
       reason: typed_keys parameter was added in 5.4.0
 
   - do:
-      indices.put_template:
-        name: index_template
+      indices.create:
+        index: test-0
         body:
-          index_patterns: test-*
           settings:
             number_of_replicas: 0
           mappings:
@@ -23,6 +22,27 @@ setup:
                    type: keyword
                 title:
                    type: completion
+
+  - do:
+      indices.create:
+        index: test-1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            user:
+              properties:
+                index_start_at:
+                   type: integer
+                integer:
+                   type: integer
+                float:
+                   type: float
+                name:
+                   type: keyword
+                title:
+                   type: completion
+
   - do:
      bulk:
         refresh: true
@@ -30,12 +50,12 @@ setup:
           - '{"index": {"_index": "test-0", "_type": "user"}}'
           - '{"row": 1, "index_start_at": 56, "integer": 38, "float": 12.5713, "name": "Ruth", "bool": true, "title": "doctor"}'
           - '{"index": {"_index": "test-0", "_type": "user"}}'
-          - '{"row": 2, "index_start_at": 57, "integer": 42, "float": 15.3393, "name": "Jackie", "surname": "Bowling", "bool": false}'
+          - '{"row": 2, "index_start_at": 57, "integer": 42, "float": 15.3393, "name": "Jackie", "bool": false}'
           - '{"index": {"_index": "test-1", "_type": "user"}}'
           - '{"row": 3, "index_start_at": 58, "integer": 29, "float": 19.0517, "name": "Stephanie", "bool": true}'
           - '{"index": {"_index": "test-1", "_type": "user"}}'
-          - '{"row": 4, "index_start_at": 59, "integer": 19, "float": 19.3717, "surname": "Hamilton", "bool": true, "title": "commandant"}'
-          - '{"index": {"_index": "test-2", "_type": "user"}}'
+          - '{"row": 4, "index_start_at": 59, "integer": 19, "float": 19.3717, "bool": true, "title": "commandant"}'
+          - '{"index": {"_index": "test-1", "_type": "user"}}'
           - '{"row": 5, "index_start_at": 60, "integer": 0, "float": 17.3349, "name": "Natalie", "bool": false}'
 
 ---
@@ -61,9 +81,9 @@ setup:
 
   - match:    { responses.0.hits.total: 3 }
   - match:    { responses.0.aggregations.filter#test_filter.doc_count : 2 }
-  - match:    { responses.1.hits.total: 2 }
+  - match:    { responses.1.hits.total: 3 }
   - match:    { responses.1.aggregations.range#test_range.buckets.0.key : "*-19.2499999" }
-  - match:    { responses.1.aggregations.range#test_range.buckets.0.doc_count : 1 }
+  - match:    { responses.1.aggregations.range#test_range.buckets.0.doc_count : 2 }
   - match:    { responses.1.aggregations.range#test_range.buckets.1.key : "19.25-*" }
   - match:    { responses.1.aggregations.range#test_range.buckets.1.doc_count : 1 }
   - match:    { responses.2.hits.total: 4 }
@@ -88,8 +108,8 @@ setup:
   - match:    { responses.0.hits.total: 5 }
   - match:    { responses.0.aggregations.sampler#test_sampler.doc_count : 5 }
   - match:    { responses.0.aggregations.sampler#test_sampler.sigsterms#test_significant_terms.doc_count : 5 }
-  - match:    { responses.1.hits.total: 1 }
+  - match:    { responses.1.hits.total: 5 }
   - match:    { responses.1.aggregations.sterms#test_umterms.doc_count_error_upper_bound : 0 }
-  - match:    { responses.2.hits.total: 1 }
+  - match:    { responses.2.hits.total: 5 }
   - match:    { responses.2.aggregations.sterms#test_sterms.doc_count_error_upper_bound : 0 }
   - is_true:  responses.2.aggregations.sterms#test_sterms.buckets.0.sigsterms#test_umsignificant_terms

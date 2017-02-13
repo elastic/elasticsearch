@@ -55,7 +55,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         this.request = request;
         this.shardsIts = shardsIts;
         this.logger = logger;
-        // we need to add 1 for non active partition, since we count it in the total!
+        // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
+        // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
+        // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
+        // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
     }
 

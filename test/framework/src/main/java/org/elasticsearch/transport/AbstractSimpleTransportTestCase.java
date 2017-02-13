@@ -1249,6 +1249,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     response.value1 = 1;
                     response.value2 = 2;
                     channel.sendResponse(response);
+                    assertEquals(version0, channel.getVersion());
                 }
             });
 
@@ -1290,6 +1291,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     Version0Response response = new Version0Response();
                     response.value1 = 1;
                     channel.sendResponse(response);
+                    assertEquals(version0, channel.getVersion());
                 }
             });
 
@@ -1334,6 +1336,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 response.value1 = 1;
                 response.value2 = 2;
                 channel.sendResponse(response);
+                assertEquals(version1, channel.getVersion());
             });
 
         Version1Request version1Request = new Version1Request();
@@ -1375,6 +1378,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Version0Response response = new Version0Response();
                 response.value1 = 1;
                 channel.sendResponse(response);
+                assertEquals(version0, channel.getVersion());
             });
 
         Version0Request version0Request = new Version0Request();

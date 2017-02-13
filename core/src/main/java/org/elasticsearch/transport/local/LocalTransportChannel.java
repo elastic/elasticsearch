@@ -126,6 +126,11 @@ public class LocalTransportChannel implements TransportChannel {
         return "local";
     }
 
+    @Override
+    public Version getVersion() {
+        return version;
+    }
+
     private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
         stream.writeLong(requestId);
         byte status = 0;

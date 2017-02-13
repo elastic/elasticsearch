@@ -72,8 +72,10 @@ public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase 
                 return version;
             }
         };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                clusterSettings);
+        MockTransportService mockTransportService =
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
+        mockTransportService.start();
+        return mockTransportService;
     }
 
     @Override

@@ -135,7 +135,7 @@ public class FsProbe extends AbstractComponent {
         return Files.readAllLines(PathUtils.get("/proc/diskstats"));
     }
 
-    /** See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+    /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
     private static long adjustForHugeFilesystems(long bytes) {
         if (bytes < 0) {
             return Long.MAX_VALUE;

@@ -12,7 +12,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsCollector;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
@@ -29,7 +28,6 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put(MonitoringSettings.COLLECTORS.getKey(), IndicesStatsCollector.NAME)
                 .put("xpack.monitoring.exporters.default_local.type", "local")
                 .build();
     }

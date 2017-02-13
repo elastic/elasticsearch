@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -44,7 +43,6 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put(MonitoringSettings.COLLECTORS.getKey(), ClusterStateCollector.NAME)
                 .put("xpack.monitoring.exporters.default_local.type", "local")
                 .put("node.attr.custom", randomInt)
                 .build();

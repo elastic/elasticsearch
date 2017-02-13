@@ -94,12 +94,6 @@ public class MonitoringSettings extends AbstractComponent {
             boolSetting(collectionKey("index.recovery.active_only"), false, Property.Dynamic, Property.NodeScope) ;
 
     /**
-     * List of collectors allowed to collect data (default to all)
-     */
-    public static final Setting<List<String>> COLLECTORS =
-            listSetting(collectionKey("collectors"), Collections.emptyList(), Function.identity(), Property.NodeScope);
-
-    /**
      * The default retention duration of the monitoring history data.
      * <p>
      * Expected values:
@@ -129,7 +123,6 @@ public class MonitoringSettings extends AbstractComponent {
                 INDEX_STATS_TIMEOUT,
                 INDICES_STATS_TIMEOUT,
                 INDEX_RECOVERY_ACTIVE_ONLY,
-                COLLECTORS,
                 CLUSTER_STATE_TIMEOUT,
                 CLUSTER_STATS_TIMEOUT,
                 HISTORY_DURATION,

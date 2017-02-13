@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -34,7 +33,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
     private final TimeValue clusterStatsTimeout = newRandomTimeValue();
     private final TimeValue recoveryTimeout = newRandomTimeValue();
     private final Boolean recoveryActiveOnly = randomBoolean();
-    private final String[] collectors = randomStringArray();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -62,7 +60,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 .put(MonitoringSettings.CLUSTER_STATS_TIMEOUT.getKey(), clusterStatsTimeout)
                 .put(MonitoringSettings.INDEX_RECOVERY_TIMEOUT.getKey(), recoveryTimeout)
                 .put(MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY.getKey(), recoveryActiveOnly)
-                .putArray(MonitoringSettings.COLLECTORS.getKey(), collectors)
                 .build();
     }
 
@@ -85,16 +82,15 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
 
         logger.info("--> testing monitoring dynamic settings update");
         Settings.Builder transientSettings = Settings.builder();
-        final Setting[] monitoringSettings = new Setting[] {
+        final Setting[] monitoringSettings = new Setting[]{
                 MonitoringSettings.INDICES,
-        MonitoringSettings.INTERVAL,
-        MonitoringSettings.INDEX_RECOVERY_TIMEOUT,
-        MonitoringSettings.INDEX_STATS_TIMEOUT,
-        MonitoringSettings.INDICES_STATS_TIMEOUT,
-        MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY,
-        MonitoringSettings.COLLECTORS,
-        MonitoringSettings.CLUSTER_STATE_TIMEOUT,
-        MonitoringSettings.CLUSTER_STATS_TIMEOUT };
+                MonitoringSettings.INTERVAL,
+                MonitoringSettings.INDEX_RECOVERY_TIMEOUT,
+                MonitoringSettings.INDEX_STATS_TIMEOUT,
+                MonitoringSettings.INDICES_STATS_TIMEOUT,
+                MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY,
+                MonitoringSettings.CLUSTER_STATE_TIMEOUT,
+                MonitoringSettings.CLUSTER_STATS_TIMEOUT};
         for (Setting<?> setting : monitoringSettings) {
             if (setting.isDynamic()) {
                 Object updated = null;

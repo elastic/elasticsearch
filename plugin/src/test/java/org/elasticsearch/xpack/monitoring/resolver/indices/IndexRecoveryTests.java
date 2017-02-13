@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
@@ -37,7 +36,6 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.INDICES.getKey(), INDEX_PREFIX + "*")
-                .put(MonitoringSettings.COLLECTORS.getKey(), IndexRecoveryCollector.NAME)
                 .put("xpack.monitoring.exporters.default_local.type", "local")
                 .build();
     }

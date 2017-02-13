@@ -57,8 +57,8 @@ public class ExportersTests extends ESTestCase {
 
         InternalClient client = mock(InternalClient.class);
         clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MonitoringSettings.COLLECTORS,
-            MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
+        clusterSettings = new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         // we always need to have the local exporter as it serves as the default one

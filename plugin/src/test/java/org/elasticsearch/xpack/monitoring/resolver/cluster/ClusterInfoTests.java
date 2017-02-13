@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -41,7 +40,6 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put(MonitoringSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
                 .build();
     }
 

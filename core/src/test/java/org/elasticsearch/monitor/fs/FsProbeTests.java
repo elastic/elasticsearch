@@ -23,9 +23,14 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -174,4 +179,74 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
     }
 
+    public void testAdjustForHugeFilesystems() throws Exception {
+        NodePath np = new FakeNodePath(createTempDir());
+        assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
+    }
+
+    static class FakeNodePath extends NodeEnvironment.NodePath {
+        public final FileStore fileStore;
+
+        FakeNodePath(Path path) throws IOException {
+            super(path);
+            this.fileStore = new HugeFileStore();
+        }
+    }
+
+    /**
+     * Randomly returns negative values for disk space to simulate https://bugs.openjdk.java.net/browse/JDK-8162520
+     */
+    static class HugeFileStore extends FileStore {
+
+        @Override
+        public String name() {
+            return "myHugeFS";
+        }
+
+        @Override
+        public String type() {
+            return "bigFS";
+        }
+
+        @Override
+        public boolean isReadOnly() {
+            return false;
+        }
+
+        @Override
+        public long getTotalSpace() throws IOException {
+            return randomIntBetween(-1000, 1000);
+        }
+
+        @Override
+        public long getUsableSpace() throws IOException {
+            return 10;
+        }
+
+        @Override
+        public long getUnallocatedSpace() throws IOException {
+            return 10;
+        }
+
+        @Override
+        public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) {
+            return false;
+        }
+
+        @Override
+        public boolean supportsFileAttributeView(String name) {
+            return false;
+        }
+
+        @Override
+        public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {
+            throw new UnsupportedOperationException("don't call me");
+        }
+
+        @Override
+        public Object getAttribute(String attribute) throws IOException {
+            throw new UnsupportedOperationException("don't call me");
+        }
+
+    }
 }

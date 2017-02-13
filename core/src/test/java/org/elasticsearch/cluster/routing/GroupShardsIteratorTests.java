@@ -35,7 +35,8 @@ public class GroupShardsIteratorTests extends ESTestCase {
         List<ShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
 
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true), newRouting(index, 0, true))));
+        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true),
+            newRouting(index, 0, true))));
         list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
         list.add(new PlainShardIterator(new ShardId(index, 2), Arrays.asList(newRouting(index, 2, true))));
         index = new Index("foo_1", "na");
@@ -52,7 +53,8 @@ public class GroupShardsIteratorTests extends ESTestCase {
         List<ShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
 
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true), newRouting(index, 0, true))));
+        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true),
+            newRouting(index, 0, true))));
         list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
         list.add(new PlainShardIterator(new ShardId(index, 2), Arrays.asList(newRouting(index, 2, true))));
 

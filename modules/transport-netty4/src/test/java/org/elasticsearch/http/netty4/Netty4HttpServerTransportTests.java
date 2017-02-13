@@ -232,7 +232,9 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
                 assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(new String(response.content().array()), containsString("you sent a bad request and you should feel bad"));
+                assertThat(
+                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        containsString("you sent a bad request and you should feel bad"));
             }
         }
 

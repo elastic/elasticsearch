@@ -26,6 +26,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -175,18 +176,32 @@ public class RequestTests extends ESTestCase {
         indexRequest.id(id);
 
         Map<String, String> expectedParams = new HashMap<>();
-        long version = randomFrom(Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-        indexRequest.version(version);
-        expectedParams.put("version", Long.toString(version));
 
         String method = "POST";
         if (id != null) {
             method = "PUT";
             if (randomBoolean()) {
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
-                if (version ==  Versions.MATCH_ANY) {
-                    // When op_type is create and version match_any, version is deleted (see IndexRequest.version())
-                    expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+            }
+        }
+
+        // There is some logic around _create endpoint and version/version type
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
+            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+        } else {
+            if (randomBoolean()) {
+                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+                indexRequest.version(version);
+                if (version != Versions.MATCH_ANY) {
+                    expectedParams.put("version", Long.toString(version));
+                }
+            }
+            if (randomBoolean()) {
+                VersionType versionType = randomFrom(VersionType.values());
+                indexRequest.versionType(versionType);
+                if (versionType != VersionType.INTERNAL) {
+                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
                 }
             }
         }
@@ -228,13 +243,6 @@ public class RequestTests extends ESTestCase {
                     }
                 }
             }
-            if (randomBoolean()) {
-                VersionType versionType = randomFrom(VersionType.values());
-                indexRequest.versionType(versionType);
-                if (versionType != VersionType.INTERNAL) {
-                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-                }
-            }
         }
 
         XContentType xContentType = randomFrom(XContentType.values());
@@ -266,5 +274,42 @@ public class RequestTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
+    }
+
+    public void testParams() {
+        final int nbParams = randomIntBetween(0, 10);
+        Request.Params params = Request.Params.builder();
+        Map<String, String> expectedParams = new HashMap<>();
+        for (int i = 0; i < nbParams; i++) {
+            String paramName = "p_" + i;
+            String paramValue = randomAsciiOfLength(5);
+            params.putParam(paramName, paramValue);
+            expectedParams.put(paramName, paramValue);
+        }
+
+        Map<String, String> requestParams = params.getParams();
+        assertEquals(nbParams, requestParams.size());
+        assertEquals(expectedParams, requestParams);
+    }
+
+    public void testParamsNoDuplicates() {
+        Request.Params params = Request.Params.builder();
+        params.putParam("test", "1");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> params.putParam("test", "2"));
+        assertEquals("Request parameter [test] is already registered", e.getMessage());
+
+        Map<String, String> requestParams = params.getParams();
+        assertEquals(1L, requestParams.size());
+        assertEquals("1", requestParams.values().iterator().next());
+    }
+
+    public void testEndpoint() {
+        assertEquals("/", Request.endpoint());
+        assertEquals("/", Request.endpoint(Strings.EMPTY_ARRAY));
+        assertEquals("/", Request.endpoint(""));
+        assertEquals("/a/b", Request.endpoint("a", "b"));
+        assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
+        assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
     }
 }

@@ -20,6 +20,10 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
@@ -34,16 +38,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.StringJoiner;
 
 final class Request {
+
+    private static final String DELIMITER = "/";
 
     final String method;
     final String endpoint;
@@ -71,14 +74,13 @@ final class Request {
     }
 
     static Request exists(GetRequest getRequest) {
-        return new Request("HEAD", getEndpoint(getRequest), getParams(getRequest), null);
+        Request request = get(getRequest);
+        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.params, null);
     }
 
     static Request get(GetRequest getRequest) {
-        return new Request("GET", getEndpoint(getRequest), getParams(getRequest), null);
-    }
+        String endpoint = endpoint(getRequest.index(), getRequest.type(), getRequest.id());
 
-    private static Map<String, String> getParams(GetRequest getRequest) {
         Params parameters = Params.builder();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
@@ -89,24 +91,15 @@ final class Request {
         parameters.withVersion(getRequest.version());
         parameters.withVersionType(getRequest.versionType());
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
-        return parameters.getParams();
-    }
 
-    private static String getEndpoint(GetRequest getRequest) {
-        StringJoiner pathJoiner = new StringJoiner("/", "/", "");
-        return pathJoiner.add(getRequest.index()).add(getRequest.type()).add(getRequest.id()).toString();
+        return new Request(HttpGet.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request index(IndexRequest indexRequest) {
-        String method = Strings.hasLength(indexRequest.id()) ? "PUT" : "POST";
+        String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
-        Endpoint endpoint = Endpoint.builder();
-        endpoint.add(indexRequest.index());
-        endpoint.add(indexRequest.type());
-        endpoint.add(indexRequest.id());
-        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            endpoint.withSuffix("/_create");
-        }
+        boolean isCreate = (indexRequest.opType() == DocWriteRequest.OpType.CREATE);
+        String endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), isCreate ? "_create" : null);
 
         Params parameters = Params.builder();
         parameters.withRouting(indexRequest.routing());
@@ -122,50 +115,30 @@ final class Request {
         ContentType contentType = ContentType.create(indexRequest.getContentType().mediaType());
         HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, contentType);
 
-        return new Request(method, endpoint.getEndpoint(), parameters.getParams(), entity);
+        return new Request(method, endpoint, parameters.getParams(), entity);
     }
 
     /**
-     * Utility class to build request's endpoint.
+     * Utility method to build request's endpoint.
      */
-    private static class Endpoint {
-        private final List<String> parts = new ArrayList<>();
-        private final String delimiter = "/";
-        private final String prefix = "/";
-        private String suffix = "";
-
-        private Endpoint() {
+    static String endpoint(String... parts) {
+        if (parts == null || parts.length == 0) {
+            return DELIMITER;
         }
 
-        Endpoint withSuffix(String suffix) {
-            this.suffix = Objects.requireNonNull(suffix, "suffix must not be null");
-            return this;
-        }
-
-        Endpoint add(String part) {
-            if (Strings.hasLength(part)) {
-                parts.add(part);
-            }
-            return this;
-        }
-
-        String getEndpoint() {
-            StringJoiner joiner = new StringJoiner(delimiter, prefix, suffix);
-            for (String part : parts) {
+        StringJoiner joiner = new StringJoiner(DELIMITER, DELIMITER, "");
+        for (String part : parts) {
+            if (part != null) {
                 joiner.add(part);
             }
-            return joiner.toString();
         }
-
-        static Endpoint builder() {
-            return new Endpoint();
-        }
+        return joiner.toString();
     }
 
     /**
      * Utility class to build request's parameters map and centralize all parameter names.
      */
-    private static class Params {
+    static class Params {
         private final Map<String, String> params = new HashMap<>();
 
         private Params() {
@@ -173,7 +146,9 @@ final class Request {
 
         Params putParam(String key, String value) {
             if (Strings.hasLength(value)) {
-                params.put(key, value);
+                if (params.putIfAbsent(key, value) != null) {
+                    throw new IllegalArgumentException("Request parameter [" + key + "] is already registered");
+                }
             }
             return this;
         }

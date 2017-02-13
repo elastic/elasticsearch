@@ -151,31 +151,28 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testIndex() throws IOException {
-        {
-            for (XContentType xContentType : XContentType.values()) {
-                IndexRequest indexRequest = new IndexRequest("index", "type");
-                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
-
-                IndexResponse indexResponse = execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
-                assertEquals(RestStatus.CREATED, indexResponse.status());
-                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                assertEquals("index", indexResponse.getIndex());
-                assertEquals("type", indexResponse.getType());
-                assertTrue(Strings.hasLength(indexResponse.getId()));
-                assertEquals(1L, indexResponse.getVersion());
-                assertNotNull(indexResponse.getShardId());
-                assertEquals(-1, indexResponse.getShardId().getId());
-                assertEquals("index", indexResponse.getShardId().getIndexName());
-                assertEquals("index", indexResponse.getShardId().getIndex().getName());
-                assertEquals("_na_", indexResponse.getShardId().getIndex().getUUID());
-                assertNotNull(indexResponse.getShardInfo());
-                assertEquals(0, indexResponse.getShardInfo().getFailed());
-                assertTrue(indexResponse.getShardInfo().getSuccessful() > 0);
-                assertTrue(indexResponse.getShardInfo().getTotal() > 0);
-            }
-        }
-
         final XContentType xContentType = randomFrom(XContentType.values());
+        {
+            IndexRequest indexRequest = new IndexRequest("index", "type");
+            indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
+
+            IndexResponse indexResponse = execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+            assertEquals("index", indexResponse.getIndex());
+            assertEquals("type", indexResponse.getType());
+            assertTrue(Strings.hasLength(indexResponse.getId()));
+            assertEquals(1L, indexResponse.getVersion());
+            assertNotNull(indexResponse.getShardId());
+            assertEquals(-1, indexResponse.getShardId().getId());
+            assertEquals("index", indexResponse.getShardId().getIndexName());
+            assertEquals("index", indexResponse.getShardId().getIndex().getName());
+            assertEquals("_na_", indexResponse.getShardId().getIndex().getUUID());
+            assertNotNull(indexResponse.getShardInfo());
+            assertEquals(0, indexResponse.getShardInfo().getFailed());
+            assertTrue(indexResponse.getShardInfo().getSuccessful() > 0);
+            assertTrue(indexResponse.getShardInfo().getTotal() > 0);
+        }
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "id");
             indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("version", 1).endObject());

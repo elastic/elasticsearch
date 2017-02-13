@@ -217,7 +217,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             final Throwable cause) {
         try {
             final Exception e;
-            if (cause instanceof Exception) {
+            if (cause == null) {
+                e = new ElasticsearchException("unknown cause");
+            } else if (cause instanceof Exception) {
                 e = (Exception) cause;
             } else {
                 e = new ElasticsearchException(cause);

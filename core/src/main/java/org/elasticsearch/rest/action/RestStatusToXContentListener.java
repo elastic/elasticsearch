@@ -62,7 +62,7 @@ public class RestStatusToXContentListener<Response extends StatusToXContent> ext
         builder.endObject();
         BytesRestResponse restResponse = new BytesRestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {
-            String location = extractLocation.apply(response);
+            final String location = extractLocation.apply(response);
             if (location != null) {
                 restResponse.addHeader("Location", location);
             }

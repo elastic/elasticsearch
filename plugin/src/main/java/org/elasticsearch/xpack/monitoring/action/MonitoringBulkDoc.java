@@ -48,7 +48,7 @@ public class MonitoringBulkDoc extends MonitoringDoc {
         type = in.readOptionalString();
         id = in.readOptionalString();
         source = in.readBytesReference();
-        if (source != BytesArray.EMPTY && in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+        if (source != BytesArray.EMPTY && in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(source);
@@ -62,8 +62,7 @@ public class MonitoringBulkDoc extends MonitoringDoc {
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeBytesReference(source);
-        if (source != null && source != BytesArray.EMPTY && out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to
-            // onOrAfter after backporting
+        if (source != null && source != BytesArray.EMPTY && out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             xContentType.writeTo(out);
         }
     }

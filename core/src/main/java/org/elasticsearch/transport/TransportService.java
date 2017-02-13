@@ -1155,6 +1155,11 @@ public class TransportService extends AbstractLifecycleComponent {
         public String getChannelType() {
             return "direct";
         }
+
+        @Override
+        public Version getVersion() {
+            return localNode.getVersion();
+        }
     }
 
     /**

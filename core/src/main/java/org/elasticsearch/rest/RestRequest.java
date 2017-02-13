@@ -491,4 +491,5 @@ public abstract class RestRequest implements ToXContent.Params {
         }
         throw new IllegalArgumentException("empty Content-Type header");
     }
+
 }

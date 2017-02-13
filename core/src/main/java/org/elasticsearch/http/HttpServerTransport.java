@@ -35,15 +35,31 @@ public interface HttpServerTransport extends LifecycleComponent {
 
     HttpStats stats();
 
-    @FunctionalInterface
+    /**
+     * Dispatches HTTP requests.
+     */
     interface Dispatcher {
+
         /**
          * Dispatches the {@link RestRequest} to the relevant request handler or responds to the given rest channel directly if
          * the request can't be handled by any request handler.
-         * @param request the request to dispatch
-         * @param channel the response channel of this request
-         * @param threadContext the nodes thread context
+         *
+         * @param request       the request to dispatch
+         * @param channel       the response channel of this request
+         * @param threadContext the thread context
          */
-        void dispatch(RestRequest request, RestChannel channel, ThreadContext threadContext);
+        void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext);
+
+        /**
+         * Dispatches the {@link RestRequest} to the bad request handler.
+         *
+         * @param request       the request to dispatch
+         * @param channel       the response channel of this request
+         * @param threadContext the thread context
+         * @param cause         the cause of the bad request
+         */
+        void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause);
+
     }
+
 }

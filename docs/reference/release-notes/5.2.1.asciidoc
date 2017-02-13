@@ -1,0 +1,67 @@
+[[release-notes-5.2.1]]
+== 5.2.1 Release Notes
+
+Also see <<breaking-changes-5.2>>.
+
+[[deprecation-5.2.1]]
+[float]
+=== Deprecations
+
+Geo::
+* Geo distance range deprecation {pull}22835[#22835]
+
+
+
+[[enhancement-5.2.1]]
+[float]
+=== Enhancements
+
+Allocation::
+* Include stale replica shard info when explaining an unassigned primary {pull}22826[#22826]
+
+
+
+[[bug-5.2.1]]
+[float]
+=== Bug fixes
+
+Cache::
+* Invalidate cached query results if query timed out {pull}22807[#22807] (issue: {issue}22789[#22789])
+
+Mapping::
+* Range types causing `GetFieldMappingsIndexRequest` to fail due to `NullPointerException` in `RangeFieldMapper.doXContentBody` when `include_defaults=true` is on the query string {pull}22925[#22925]
+* Disallow introducing illegal object mappings (double '..') {pull}22891[#22891] (issue: {issue}22794[#22794])
+
+Plugin Ingest Attachment::
+* Add missing mime4j library {pull}22799[#22799] (issue: {issue}22764[#22764])
+
+Plugin Lang Painless::
+* Don't allow casting from void to def in painless {pull}22969[#22969] (issue: {issue}22908[#22908])
+* Fix def invoked qualified method refs {pull}22918[#22918]
+
+Reindex API::
+* Reindex: do not log when can't clear old scroll {pull}22942[#22942] (issue: {issue}22937[#22937])
+* Fix reindex-from-remote from <2.0 {pull}22931[#22931] (issue: {issue}22893[#22893])
+
+Settings::
+* Expose `search.highlight.term_vector_multi_value` as a node level setting {pull}22999[#22999]
+
+
+
+[[regression-5.2.1]]
+[float]
+=== Regressions
+
+Core::
+* Source filtering: only accept array items if the previous include pattern matches {pull}22593[#22593] (issue: {issue}22557[#22557])
+
+
+
+[[upgrade-5.2.1]]
+[float]
+=== Upgrades
+
+Internal::
+* Upgrade to Lucene 6.4.1. {pull}22978[#22978]
+
+

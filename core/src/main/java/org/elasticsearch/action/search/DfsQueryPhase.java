@@ -26,7 +26,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.Transport;
 
@@ -43,18 +42,18 @@ import java.util.function.Function;
 final class DfsQueryPhase extends SearchPhase {
     private final AtomicArray<QuerySearchResultProvider> queryResult;
     private final SearchPhaseController searchPhaseController;
-    private final AtomicArray<DfsSearchResult> firstResults;
+    private final AtomicArray<DfsSearchResult> dfsSearchResults;
     private final Function<AtomicArray<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
 
-    DfsQueryPhase(AtomicArray<DfsSearchResult> firstResults,
+    DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
                   Function<AtomicArray<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory, SearchPhaseContext context) {
         super("dfs_query");
-        this.queryResult = new AtomicArray<>(firstResults.length());
+        this.queryResult = new AtomicArray<>(dfsSearchResults.length());
         this.searchPhaseController = searchPhaseController;
-        this.firstResults = firstResults;
+        this.dfsSearchResults = dfsSearchResults;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
@@ -64,12 +63,12 @@ final class DfsQueryPhase extends SearchPhase {
     public void run() throws IOException {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
-        final AggregatedDfs dfs = searchPhaseController.aggregateDfs(firstResults);
-        final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, firstResults.asList().size(),
+        final AggregatedDfs dfs = searchPhaseController.aggregateDfs(dfsSearchResults);
+        final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, dfsSearchResults.asList().size(),
             () -> {
                 context.executeNextPhase(this, nextPhaseFactory.apply(queryResult));
             }, context);
-        for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
+        for (final AtomicArray.Entry<DfsSearchResult> entry : dfsSearchResults.asList()) {
             DfsSearchResult dfsResult = entry.value;
             final int shardIndex = entry.index;
             final SearchShardTarget searchShardTarget = dfsResult.shardTarget();

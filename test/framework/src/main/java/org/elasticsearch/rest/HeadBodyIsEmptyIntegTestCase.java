@@ -100,7 +100,7 @@ public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.array("index_patterns", "*");
+                builder.array("template", "*");
                 builder.startObject("settings");
                 {
                     builder.field("number_of_replicas", 0);

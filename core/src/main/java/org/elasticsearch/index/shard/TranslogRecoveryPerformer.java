@@ -122,7 +122,7 @@ public class TranslogRecoveryPerformer {
             out.writeInt(completedOperations);
         }
 
-        /** the number of succesful operations performed before the exception was thrown */
+        /** the number of successful operations performed before the exception was thrown */
         public int completedOperations() {
             return completedOperations;
         }

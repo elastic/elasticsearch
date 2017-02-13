@@ -37,11 +37,15 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
@@ -106,5 +110,10 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new SearchTemplateRequest(), null);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

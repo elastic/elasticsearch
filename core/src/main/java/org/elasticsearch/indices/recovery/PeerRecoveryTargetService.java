@@ -293,7 +293,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Obtains a snapshot of the store metadata for the recovery target.
      *
      * @param recoveryTarget the target of the recovery
-     * @return a snapshot of the store metdata
+     * @return a snapshot of the store metadata
      */
     private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
         try {

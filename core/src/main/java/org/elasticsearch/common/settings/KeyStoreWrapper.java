@@ -226,13 +226,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    public Set<String> getSettings() {
-        return settingNames;
-    }
-
     @Override
-    public boolean hasSetting(String setting) {
-        return settingNames.contains(setting);
+    public Set<String> getSettingNames() {
+        return settingNames;
     }
 
     // TODO: make settings accessible only to code that registered the setting

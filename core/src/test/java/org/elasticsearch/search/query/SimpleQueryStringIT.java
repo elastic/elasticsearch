@@ -21,11 +21,9 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -592,10 +590,10 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.totalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
-            hitIds.add(hit.id());
+            hitIds.add(hit.getId());
         }
         assertThat(hitIds, containsInAnyOrder(ids));
     }

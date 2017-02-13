@@ -276,7 +276,7 @@ final class Security {
      * Add dynamic {@link SocketPermission} based on HTTP settings.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
-     * @param settings the {@link Settings} instance to read the HTTP settingsfrom
+     * @param settings the {@link Settings} instance to read the HTTP settings from
      */
     private static void addSocketPermissionForHttp(final Permissions policy, final Settings settings) {
         // http is simple
@@ -357,7 +357,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
         // paths may not exist yet, this also checks accessibility
@@ -377,7 +377,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
         if (Files.isDirectory(path)) {

@@ -29,9 +29,14 @@ public class ConnectionProfileTests extends ESTestCase {
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue handshaketTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
             builder.setConnectTimeout(connectTimeout);
+        }
+        final boolean setHandshakeTimeout = randomBoolean();
+        if (setHandshakeTimeout) {
+            builder.setHandshakeTimeout(handshaketTimeout);
         }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
@@ -44,12 +49,22 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals("type [PING] is already registered", illegalArgumentException.getMessage());
         builder.addConnections(4, TransportRequestOptions.Type.REG);
         ConnectionProfile build = builder.build();
+        if (randomBoolean()) {
+            build = new ConnectionProfile.Builder(build).build();
+        }
         assertEquals(10, build.getNumConnections());
         if (setConnectTimeout) {
             assertEquals(connectTimeout, build.getConnectTimeout());
         } else {
             assertNull(build.getConnectTimeout());
         }
+
+        if (setHandshakeTimeout) {
+            assertEquals(handshaketTimeout, build.getHandshakeTimeout());
+        } else {
+            assertNull(build.getHandshakeTimeout());
+        }
+
         Integer[] array = new Integer[10];
         for (int i = 0; i < array.length; i++) {
             array[i] = i;

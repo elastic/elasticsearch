@@ -18,20 +18,16 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
@@ -245,11 +241,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // TODO these tests are bogus and need to be Fix
         // query by geohash subfield
         SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().totalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
 
         // query by latlon subfield
         searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
-        assertEquals(numDocs, searchResponse.getHits().totalHits());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits());
     }
 
 

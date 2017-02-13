@@ -234,7 +234,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
-import org.elasticsearch.rest.action.admin.indices.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
@@ -249,11 +248,9 @@ import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestHeadIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.RestIndicesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
@@ -528,14 +525,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteSnapshotAction(settings, restController));
         registerHandler.accept(new RestSnapshotsStatusAction(settings, restController));
 
-        registerHandler.accept(new RestIndicesExistsAction(settings, restController));
         registerHandler.accept(new RestTypesExistsAction(settings, restController));
         registerHandler.accept(new RestGetIndicesAction(settings, restController, indexScopedSettings, settingsFilter));
         registerHandler.accept(new RestIndicesStatsAction(settings, restController));
         registerHandler.accept(new RestIndicesSegmentsAction(settings, restController));
         registerHandler.accept(new RestIndicesShardStoresAction(settings, restController));
         registerHandler.accept(new RestGetAliasesAction(settings, restController));
-        registerHandler.accept(new RestAliasesExistAction(settings, restController));
         registerHandler.accept(new RestIndexDeleteAliasesAction(settings, restController));
         registerHandler.accept(new RestIndexPutAliasAction(settings, restController));
         registerHandler.accept(new RestIndicesAliasesAction(settings, restController));
@@ -553,7 +548,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetIndexTemplateAction(settings, restController));
         registerHandler.accept(new RestPutIndexTemplateAction(settings, restController));
         registerHandler.accept(new RestDeleteIndexTemplateAction(settings, restController));
-        registerHandler.accept(new RestHeadIndexTemplateAction(settings, restController));
 
         registerHandler.accept(new RestPutMappingAction(settings, restController));
         registerHandler.accept(new RestGetMappingAction(settings, restController));

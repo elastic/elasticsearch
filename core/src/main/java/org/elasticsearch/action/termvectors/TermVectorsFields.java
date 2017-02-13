@@ -82,7 +82,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * If the field statistics were requested ({@code hasFieldStatistics} is true,
  * see {@code headerRef}), the following numbers are stored:
  * <ul>
- * <li>vlong: sum of total term freqencies of the field (sumTotalTermFreq)</li>
+ * <li>vlong: sum of total term frequencies of the field (sumTotalTermFreq)</li>
  * <li>vlong: sum of document frequencies for each term (sumDocFreq)</li>
  * <li>vint: number of documents in the shard that has an entry for this field
  * (docCount)</li>

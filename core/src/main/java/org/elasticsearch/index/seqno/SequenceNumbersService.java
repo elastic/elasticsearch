@@ -108,7 +108,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * The current sequence number stats.
      *
-     * @return stats encapuslating the maximum sequence number, the local checkpoint and the global checkpoint
+     * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint
      */
     public SeqNoStats stats() {
         return localCheckpointTracker.getStats(getGlobalCheckpoint());

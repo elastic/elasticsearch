@@ -87,10 +87,10 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.explanation().toString(),
+            assertThat(hit.getExplanation().toString(),
                     containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
-            assertThat(hit.explanation().getDetails().length, equalTo(2));
+            assertThat(hit.getExplanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
+            assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }
     }

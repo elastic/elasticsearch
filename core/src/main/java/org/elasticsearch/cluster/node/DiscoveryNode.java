@@ -191,18 +191,24 @@ public class DiscoveryNode implements Writeable, ToXContent {
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
-        if (Node.NODE_INGEST_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.INGEST);
-        }
-        if (Node.NODE_MASTER_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.MASTER);
-        }
-        if (Node.NODE_DATA_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.DATA);
-        }
+        Set<Role> roles = getRolesFromSettings(settings);
 
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
+    }
+
+    /** extract node roles from the given settings */
+    public static Set<Role> getRolesFromSettings(Settings settings) {
+        Set<Role> roles = new HashSet<>();
+        if (Node.NODE_INGEST_SETTING.get(settings)) {
+            roles.add(Role.INGEST);
+        }
+        if (Node.NODE_MASTER_SETTING.get(settings)) {
+            roles.add(Role.MASTER);
+        }
+        if (Node.NODE_DATA_SETTING.get(settings)) {
+            roles.add(Role.DATA);
+        }
+        return roles;
     }
 
     /**

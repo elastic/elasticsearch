@@ -87,7 +87,7 @@ public class LegacyIpFieldMapperTests extends ESSingleNodeTestCase {
             LegacyIpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
             fail("Expected ip address parsing to fail but did not happen");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("not a valid ipv4 address"));
+            assertThat(e.getMessage(), containsString("Reindex into a new index to get IPv6 support"));
         }
     }
 

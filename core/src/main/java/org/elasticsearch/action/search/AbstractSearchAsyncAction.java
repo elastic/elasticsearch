@@ -42,9 +42,11 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends InitialSearchPhase<Result>
     implements SearchPhaseContext {
@@ -128,22 +130,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onPhaseFailure(currentPhase, "all shards failed", null);
         } else {
             if (logger.isTraceEnabled()) {
-                StringBuilder sb = new StringBuilder();
-                boolean hadOne = false;
-                for (int i = 0; i < results.length(); i++) {
-                    Result result = results.get(i);
-                    if (result == null) {
-                        continue; // failure
-                    }
-                    if (hadOne) {
-                        sb.append(",");
-                    } else {
-                        hadOne = true;
-                    }
-                    sb.append(result.shardTarget());
-                }
+                final String resultsFrom = results.asList().stream()
+                    .map(r -> r.value.shardTarget().toString()).collect(Collectors.joining(","));
                 logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                    currentPhase.getName(), nextPhase.getName(), sb, clusterStateVersion);
+                    currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
             }
             executePhase(nextPhase);
         }

@@ -60,14 +60,17 @@ final class FetchSearchPhase extends SearchPhase {
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context, Function<SearchResponse, SearchPhase> nextPhaseFactory) {
         super("fetch");
+        if (context.getNumShards() != queryResults.length()) {
+            throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
+                + context.getNumShards() + "!=" + queryResults.length());
+        }
         this.fetchResults = new AtomicArray<>(queryResults.length());
         this.searchPhaseController = searchPhaseController;
         this.queryResults = queryResults;
         this.nextPhaseFactory =  nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
-        assert context.getNumShards() == queryResults.length() : "number of shards must match the length of the query results but doesn't:"
-             + context.getNumShards() + "!=" + queryResults.length();
+
     }
 
     @Override

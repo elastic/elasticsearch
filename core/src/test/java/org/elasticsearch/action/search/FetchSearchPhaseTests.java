@@ -187,8 +187,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFetchDocsConcurrently() throws IOException, InterruptedException {
-        int resultSetSize = randomIntBetween(1, 100);
-        int numHits = randomIntBetween(1, 100); // also numshards --> 1 hit per shard
+        int resultSetSize = randomIntBetween(0, 100);
+        // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
+        int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(numHits);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         for (int i = 0; i < numHits; i++) {
@@ -196,7 +197,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(i+1, i)}, i), new DocValueFormat[0]);
             queryResult.size(resultSetSize); // the size of the result set
             results.set(i, queryResult);
-
         }
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
@@ -209,7 +209,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit((int) (request.id()+1))}, 1, 100F));
                     listener.onResponse(fetchResult);
                 }).start();
-
             }
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
@@ -238,7 +237,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
         assertEquals(0, responseRef.get().getFailedShards());
         assertEquals(numHits, responseRef.get().getSuccessfulShards());
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+        int sizeReleasedContexts = Math.max(0, numHits - resultSetSize); // all non fetched results will be freed
+        assertEquals(mockSearchPhaseContext.releasedSearchContexts.toString(),
+            sizeReleasedContexts, mockSearchPhaseContext.releasedSearchContexts.size());
     }
 
     public void testExceptionFailsPhase() throws IOException {

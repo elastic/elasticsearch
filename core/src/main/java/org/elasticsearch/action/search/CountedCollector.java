@@ -36,12 +36,14 @@ final class CountedCollector<R extends SearchPhaseResult> {
     private final SearchPhaseContext context;
 
     CountedCollector(AtomicArray<R> resultArray, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+        if (expectedOps > resultArray.length()) {
+            throw new IllegalStateException("unexpected number of operations. got: " + expectedOps + " but array size is: "
+                + resultArray.length());
+        }
         this.resultArray = resultArray;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
         this.context = context;
-        assert expectedOps <= resultArray.length() :
-            "unexpected number of operations. got: " + expectedOps + " but array size is: " + resultArray.length();
     }
 
     /**

@@ -199,10 +199,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
     public static class JobTask extends PersistentTask {
 
+        private final String jobId;
         private volatile Consumer<String> cancelHandler;
 
         JobTask(String jobId, long id, String type, String action, TaskId parentTask) {
             super(id, type, action, "job-" + jobId, parentTask);
+            this.jobId = jobId;
+        }
+
+        public String getJobId() {
+            return jobId;
         }
 
         @Override

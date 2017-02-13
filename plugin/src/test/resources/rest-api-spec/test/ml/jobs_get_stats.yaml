@@ -126,6 +126,8 @@ setup:
       xpack.ml.get_job_stats:
         job_id: _all
   - match: { count: 2 }
+  - match: { jobs.0.state: opened }
+  - match: { jobs.1.state: opened }
 
 ---
 "Test get all job stats implicitly":

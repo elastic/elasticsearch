@@ -36,13 +36,19 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+/**
+ * The REST handler for get source and head source APIs.
+ */
 public class RestGetSourceAction extends BaseRestHandler {
-    public RestGetSourceAction(Settings settings, RestController controller) {
+
+    public RestGetSourceAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
+        controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }
 
     @Override
@@ -50,7 +56,7 @@ public class RestGetSourceAction extends BaseRestHandler {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
+        getRequest.routing(request.param("routing"));
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
@@ -59,15 +65,16 @@ public class RestGetSourceAction extends BaseRestHandler {
 
         return channel -> {
             if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
-                ActionRequestValidationException validationError = new ActionRequestValidationException();
+                final ActionRequestValidationException validationError = new ActionRequestValidationException();
                 validationError.addValidationError("fetching source can not be disabled");
                 channel.sendResponse(new BytesRestResponse(channel, validationError));
             } else {
                 client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(GetResponse response) throws Exception {
-                        XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
-                        if (response.isSourceEmpty()) { // check if doc source (or doc itself) is missing
+                    public RestResponse buildResponse(final GetResponse response) throws Exception {
+                        final XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
+                        // check if doc source (or doc itself) is missing
+                        if (response.isSourceEmpty()) {
                             return new BytesRestResponse(NOT_FOUND, builder);
                         } else {
                             builder.rawValue(response.getSourceInternal());
@@ -78,4 +85,5 @@ public class RestGetSourceAction extends BaseRestHandler {
             }
         };
     }
+
 }

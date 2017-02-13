@@ -675,22 +675,15 @@ should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
 [float]
-=== Content-Type auto-detection
+=== Content-Type Requirements
 
-deprecated[5.3.0, Provide the proper Content-Type header]
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats (JSON, YAML, CBOR, SMILE, and NDJSON).
 
-The content sent in a request body or using the `source` query string
-parameter is inspected to automatically determine the content type
-(JSON, YAML, SMILE, or CBOR).
-
-A strict mode can be enabled which disables auto-detection and requires
-that all requests with a body have a Content-Type header that maps to
-a supported format. To enabled this strict mode, add the following
-setting to the `elasticsearch.yml` file:
-
-    http.content_type.required: true
-
-The default value is `false`.
+Additionally, when using the `source` query string parameter the
+content type should be specified using the `source_content_type` query
+string parameter.
 
 [[url-access-control]]
 == URL-based access control

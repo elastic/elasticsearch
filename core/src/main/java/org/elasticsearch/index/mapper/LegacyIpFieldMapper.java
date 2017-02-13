@@ -81,7 +81,9 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             }
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
+                // this must be ipv6, since isInetAddress returned true above
+                throw new IllegalArgumentException("ip [" + ip + "] is an IPv6 address, but this ip field is for an " +
+                                                   "index created before 5.0. Reindex into a new index to get IPv6 support.");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);

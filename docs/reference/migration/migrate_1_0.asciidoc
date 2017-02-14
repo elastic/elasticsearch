@@ -216,8 +216,10 @@ GET /_search
 
 === Multi-fields
 
-Multi-fields are dead! Long live multi-fields!  Well, the field type
-`multi_field` has been removed.  Instead, any of the core field types
+Multi-fields are dead! Long live multi-fields!  
+Multi-fields allow a single field to be used for different purposes. A typical use case is to index e.g. a `title` field in two ways: as an `analyzed` string for querying, and as a `not_analyzed` string for sorting.
+
+Well, the field type `multi_field` has been removed.  Instead, any of the core field types
 (excluding `object` and `nested`) now accept a `fields` parameter.  It's the
 same thing, but nicer. Instead of:
 
@@ -249,6 +251,38 @@ Existing multi-fields will be upgraded to the new format automatically.
 Also, instead of having to use the arcane `path` and `index_name` parameters
 in order to index multiple fields into a single ``custom +_all+ field'', you
 can now use the <<copy-to,`copy_to` parameter>>.
+
+If you already have a core field that would would like to use in the way describe above, you can easily upgrade without reindexing, using the [put_mapping API](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html). For instance, if we have a field called `title` which is currently mapped as a `string`:
+
+[source,json]
+---------------
+{
+    "title": { "type": "string"}
+}
+---------------
+We can upgrade it by adding a `raw` sub-field to `title` that is `non-analyzed`. This will allow us to sort on this field and can be done as follows:
+
+[source,json]
+---------------
+curl -XPUT localhost:9200/my_index/my_type/_mapping -d '
+{
+    "my_type": {
+        "properties": {
+            "title": {
+                "type":   "string",
+                "fields": {
+                    "raw": { 
+                      "type": "string",
+                      "index": "not_analyzed"
+                    }
+                }
+            }
+        }
+    }
+}
+'
+---------------
+
 
 === Stopwords
 

@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 /**
  * The hits of a search request.
  */
-public final class SearchHits implements Streamable, ToXContent, Iterable<SearchHit> {
+public class SearchHits implements Streamable, ToXContent, Iterable<SearchHit> {
 
     public static SearchHits empty() {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients

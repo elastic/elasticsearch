@@ -34,7 +34,7 @@ import java.util.List;
  *
  * @see SearchHit
  */
-public final class SearchHitField implements Streamable, Iterable<Object>  {
+public class SearchHitField implements Streamable, Iterable<Object>  {
 
     private String name;
     private List<Object> values;

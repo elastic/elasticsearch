@@ -71,7 +71,7 @@ import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.r
  *
  * @see SearchHits
  */
-public final class SearchHit implements Streamable, ToXContentObject, Iterable<SearchHitField> {
+public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchHitField> {
 
     private transient int docId;
 

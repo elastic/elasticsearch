@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Rectangle;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
@@ -362,8 +364,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         }
 
         if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            return LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+            Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
                 luceneTopLeft.getLon(), luceneBottomRight.getLon());
+            if (fieldType.hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newBoxQuery(fieldType.name(),
+                        luceneBottomRight.getLat(), luceneTopLeft.getLat(),
+                        luceneTopLeft.getLon(), luceneBottomRight.getLon());
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         } else if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {
             // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
             // if index created V_2_3 > use prefix encoded postings format

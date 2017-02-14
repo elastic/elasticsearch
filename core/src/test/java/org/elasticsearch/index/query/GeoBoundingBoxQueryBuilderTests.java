@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -271,6 +274,20 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
             } else {
                 assertTrue("Found no indexed geo query.", query instanceof Query);
+                if (query instanceof IndexOrDocValuesQuery) {
+                    Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                    assertEquals(LatLonPoint.newBoxQuery(queryBuilder.fieldName(),
+                            queryBuilder.bottomRight().lat(),
+                            queryBuilder.topLeft().lat(),
+                            queryBuilder.topLeft().lon(),
+                            queryBuilder.bottomRight().lon()), indexQuery);
+                    Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
+                    assertEquals(LatLonDocValuesField.newBoxQuery(queryBuilder.fieldName(),
+                            queryBuilder.bottomRight().lat(),
+                            queryBuilder.topLeft().lat(),
+                            queryBuilder.topLeft().lon(),
+                            queryBuilder.bottomRight().lon()), dvQuery);
+                }
             }
         }
     }

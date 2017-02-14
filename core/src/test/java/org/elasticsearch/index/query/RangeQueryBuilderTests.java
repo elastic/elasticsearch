@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -139,7 +140,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
             assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
+            if (query instanceof IndexOrDocValuesQuery) {
+                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(PointRangeQuery.class));
+            }
             MapperService mapperService = context.getQueryShardContext().getMapperService();
             MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
             final Long fromInMillis;
@@ -202,7 +207,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
             }
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             if (query instanceof LegacyNumericRangeQuery) {
                 LegacyNumericRangeQuery numericRangeQuery = (LegacyNumericRangeQuery) query;
                 assertThat(numericRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
@@ -211,6 +216,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(numericRangeQuery.includesMin(), equalTo(queryBuilder.includeLower()));
                 assertThat(numericRangeQuery.includesMax(), equalTo(queryBuilder.includeUpper()));
             } else {
+                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
                 int minInt, maxInt;
@@ -275,7 +282,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
             assertThat(rangeQuery.getField(), equalTo(INT_FIELD_NAME));
@@ -284,6 +291,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(rangeQuery.includesMin(), equalTo(true));
             assertThat(rangeQuery.includesMax(), equalTo(false));
         } else {
+            parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
+            assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
             assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, 23, 53), parsedQuery);
         }
     }
@@ -301,7 +310,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
 
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             // Min value was 01/01/2012 (dd/MM/yyyy)
@@ -312,6 +321,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
         } else {
+            parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
+            assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
             assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
                     DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
                     DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1),
@@ -342,7 +353,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
@@ -354,6 +365,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
             assertTrue(rangeQuery.includesMax());
         } else {
+            parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
+            assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
             assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
                     DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
                     DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()),
@@ -369,7 +382,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
@@ -381,6 +394,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
             assertFalse(rangeQuery.includesMax());
         } else {
+            parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
+            assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
             assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
                     DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
                     DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1),
@@ -402,8 +417,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "}";
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        if (parsedQuery instanceof PointRangeQuery) {
-            // TODO what can we assert
+        if (parsedQuery instanceof IndexOrDocValuesQuery) {
+            parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
+            assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         } else {
             assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
 

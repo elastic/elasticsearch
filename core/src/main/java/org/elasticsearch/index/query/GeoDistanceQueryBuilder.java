@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
@@ -296,7 +298,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         }
 
         if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            return LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+            Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+            if (fieldType.hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         } else if (indexVersionCreated.before(Version.V_2_2_0)) {
             LegacyGeoPointFieldMapper.LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldMapper.LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);

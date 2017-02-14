@@ -414,24 +414,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
             for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
-                String script = scriptField.script().getIdOrCode();
-
-                if (script.contains("domainSplit(")) {
-                    String modifiedCode = DomainSplitFunction.function + "\n" + script;
-                    Map<String, Object> modifiedParams = new HashMap<>(scriptField.script().getParams().size()
-                            + DomainSplitFunction.params.size());
-
-                    modifiedParams.putAll(scriptField.script().getParams());
-                    modifiedParams.putAll(DomainSplitFunction.params);
-
-                    Script newScript = new Script(scriptField.script().getType(), scriptField.script().getLang(),
-                            modifiedCode, modifiedParams);
-
-                    sorted.add(new SearchSourceBuilder.ScriptField(scriptField.fieldName(), newScript, scriptField.ignoreFailure()));
-                } else {
-                    sorted.add(scriptField);
-                }
-
+                sorted.add(scriptField);
             }
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;

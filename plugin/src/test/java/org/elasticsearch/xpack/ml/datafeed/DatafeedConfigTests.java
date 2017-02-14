@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -288,30 +287,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig datafeedConfig = builder.build();
 
         assertThat(datafeedConfig.hasAggregations(), is(true));
-    }
-
-    public void testDomainSplitInjection() {
-        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
-        datafeed.setIndexes(Arrays.asList("my_index"));
-        datafeed.setTypes(Arrays.asList("my_type"));
-
-        SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField(
-                "script1", new Script("return 1+1;"), false);
-        SearchSourceBuilder.ScriptField withSplit = new SearchSourceBuilder.ScriptField(
-                "script2", new Script("return domainSplit('foo.com', params);"), false);
-        datafeed.setScriptFields(Arrays.asList(withoutSplit, withSplit));
-
-        DatafeedConfig config = datafeed.build();
-        List<SearchSourceBuilder.ScriptField> scriptFields = config.getScriptFields();
-
-        assertThat(scriptFields.size(), equalTo(2));
-        assertThat(scriptFields.get(0).fieldName(), equalTo("script1"));
-        assertThat(scriptFields.get(0).script().getIdOrCode(), equalTo("return 1+1;"));
-        assertFalse(scriptFields.get(0).script().getParams().containsKey("exact"));
-
-        assertThat(scriptFields.get(1).fieldName(), equalTo("script2"));
-        assertThat(scriptFields.get(1).script().getIdOrCode(), containsString("List domainSplit(String host, Map params)"));
-        assertTrue(scriptFields.get(1).script().getParams().containsKey("exact"));
     }
 
     public static String randomValidDatafeedId() {

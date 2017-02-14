@@ -14,16 +14,21 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -111,8 +116,25 @@ class ScrollDataExtractor implements DataExtractor {
         } else {
             searchRequestBuilder.setFetchSource(sourceFields, null);
         }
-        context.scriptFields.forEach(f -> searchRequestBuilder.addScriptField(f.fieldName(), f.script()));
+        context.scriptFields.forEach(f -> searchRequestBuilder.addScriptField(
+                f.fieldName(), injectDomainSplit(f.script())));
         return searchRequestBuilder;
+    }
+
+    private Script injectDomainSplit(Script script) {
+        String code = script.getIdOrCode();
+        if (code.contains("domainSplit(")) {
+            String modifiedCode = DomainSplitFunction.function + "\n" + script;
+            Map<String, Object> modifiedParams = new HashMap<>(script.getParams().size()
+                    + DomainSplitFunction.params.size());
+
+            modifiedParams.putAll(script.getParams());
+            modifiedParams.putAll(DomainSplitFunction.params);
+
+            return new Script(script.getType(), script.getLang(),
+                    modifiedCode, modifiedParams);
+        }
+        return script;
     }
 
     private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {

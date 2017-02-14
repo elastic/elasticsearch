@@ -17,6 +17,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.script.Script;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -58,7 +59,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         private SearchResponse nextResponse;
 
         TestDataExtractor(long start, long end) {
-            super(client, createContext(start, end));
+            this(createContext(start, end));
+        }
+
+        TestDataExtractor(ScrollDataExtractorContext context) {
+            super(client, context);
         }
 
         @Override
@@ -268,6 +273,60 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         IOException e = expectThrows(IOException.class, () -> extractor.next());
         assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [1] unavailable shards"));
+    }
+
+    public void testDomainSplitScriptField() throws IOException {
+
+        SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField(
+                "script1", new Script("return 1+1;"), false);
+        SearchSourceBuilder.ScriptField withSplit = new SearchSourceBuilder.ScriptField(
+                "script2", new Script("return domainSplit('foo.com', params);"), false);
+
+        List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
+        ScrollDataExtractorContext context =  new ScrollDataExtractorContext(jobId, extractedFields, indexes,
+                types, query, sFields, scrollSize, 1000, 2000);
+
+        TestDataExtractor extractor = new TestDataExtractor(context);
+
+        SearchResponse response1 = createSearchResponse(
+                Arrays.asList(1100L, 1200L),
+                Arrays.asList("a1", "a2"),
+                Arrays.asList("b1", "b2")
+        );
+        extractor.setNextResponse(response1);
+
+        assertThat(extractor.hasNext(), is(true));
+        Optional<InputStream> stream = extractor.next();
+        assertThat(stream.isPresent(), is(true));
+        String expectedStream = "{\"time\":1100,\"field_1\":\"a1\"} {\"time\":1200,\"field_1\":\"a2\"}";
+        assertThat(asString(stream.get()), equalTo(expectedStream));
+
+        SearchResponse response2 = createEmptySearchResponse();
+        extractor.setNextResponse(response2);
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.hasNext(), is(false));
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+
+        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"size\":1000"));
+        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
+                "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false," +
+                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
+        assertThat(searchRequest, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
+        assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
+
+        // Check for the scripts
+        assertThat(searchRequest, containsString("{\"script\":{\"inline\":\"return 1 + 1;\",\"lang\":\"painless\"}"
+                .replaceAll("\\s", "")));
+        assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
+        assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));
+
+        assertThat(capturedContinueScrollIds.size(), equalTo(1));
+        assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));
+
+        assertThat(capturedClearScrollIds.size(), equalTo(1));
+        assertThat(capturedClearScrollIds.get(0), equalTo(response2.getScrollId()));
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {

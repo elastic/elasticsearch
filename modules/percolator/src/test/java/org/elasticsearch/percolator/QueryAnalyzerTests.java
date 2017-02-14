@@ -27,6 +27,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -91,6 +92,21 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
+    }
+
+    public void testExtractQueryMetadata_multiPhraseQuery() {
+        MultiPhraseQuery multiPhraseQuery = new MultiPhraseQuery.Builder()
+                .add(new Term("_field", "_long_term"))
+                .add(new Term[] {new Term("_field", "_long_term"), new Term("_field", "_term")})
+                .add(new Term[] {new Term("_field", "_long_term"), new Term("_field", "_very_long_term")})
+                .add(new Term[] {new Term("_field", "_very_long_term")})
+                .build();
+        Result result = analyze(multiPhraseQuery);
+        assertThat(result.verified, is(false));
+        List<Term> terms = new ArrayList<>(result.terms);
+        assertThat(terms.size(), equalTo(1));
+        assertThat(terms.get(0).field(), equalTo("_field"));
+        assertThat(terms.get(0).bytes().utf8ToString(), equalTo("_very_long_term"));
     }
 
     public void testExtractQueryMetadata_booleanQuery() {

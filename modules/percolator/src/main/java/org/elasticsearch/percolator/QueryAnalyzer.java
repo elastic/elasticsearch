@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +69,7 @@ public final class QueryAnalyzer {
         map.put(CommonTermsQuery.class, commonTermsQuery());
         map.put(BlendedTermQuery.class, blendedTermQuery());
         map.put(PhraseQuery.class, phraseQuery());
+        map.put(MultiPhraseQuery.class, multiPhraseQuery());
         map.put(SpanTermQuery.class, spanTermQuery());
         map.put(SpanNearQuery.class, spanNearQuery());
         map.put(SpanOrQuery.class, spanOrQuery());
@@ -195,6 +198,21 @@ public final class QueryAnalyzer {
                 }
             }
             return new Result(false, Collections.singleton(longestTerm));
+        };
+    }
+
+    static Function<Query, Result> multiPhraseQuery() {
+        return query -> {
+            Term[][] terms = ((MultiPhraseQuery) query).getTermArrays();
+            if (terms.length == 0) {
+                return new Result(true, Collections.emptySet());
+            }
+
+            Set<Term> bestTermArr = null;
+            for (Term[] termArr : terms) {
+                bestTermArr = selectTermListWithTheLongestShortestTerm(bestTermArr, new HashSet<>(Arrays.asList(termArr)));
+            }
+            return new Result(false, bestTermArr);
         };
     }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
@@ -209,7 +209,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
                 + "\"data_description\" : {\"time_field\":\"time stamp\"}"
                 + "}";
-        client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job));
 
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"time stamp\":{\"histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
@@ -219,7 +220,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
-        Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
@@ -232,7 +233,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
                 + "\"data_description\" : {\"time_field\":\"time stamp\"}"
                 + "}";
-        client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job));
 
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
@@ -242,7 +244,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
-        Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
@@ -257,13 +259,13 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         Response response = client().performRequest("post",
-                MlPlugin.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z");
+                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"started\":true}"));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest("get",
-                        MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+                        MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
                 String responseAsString = responseEntityToString(getJobResponse);
                 assertThat(responseAsString, containsString("\"processed_record_count\":2"));
             } catch (Exception e1) {
@@ -272,23 +274,23 @@ public class DatafeedJobIT extends ESRestTestCase {
         });
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId));
+                () -> client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
         assertThat(responseEntityToString(response), containsString("Cannot delete job [" + jobId + "] while datafeed [" + datafeedId
                 + "] refers to it"));
 
-        response = client().performRequest("post", MlPlugin.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
 
         client().performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close");
 
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "datafeeds/" + datafeedId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
 
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
     }
@@ -339,7 +341,8 @@ public class DatafeedJobIT extends ESRestTestCase {
             openJob(client(), jobId);
 
             startDatafeedAndWaitUntilStopped(datafeedId);
-            Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+            Response jobStatsResponse = client().performRequest("get",
+                    MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
             String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
             if (shouldSucceedInput) {
                 assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
@@ -357,13 +360,13 @@ public class DatafeedJobIT extends ESRestTestCase {
 
     private void startDatafeedAndWaitUntilStopped(String datafeedId) throws Exception {
         Response startDatafeedRequest = client().performRequest("post",
-                MlPlugin.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
+                MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
         assertThat(startDatafeedRequest.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(startDatafeedRequest), equalTo("{\"started\":true}"));
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest("get",
-                        MlPlugin.BASE_PATH + "datafeeds/" + datafeedId + "/_stats");
+                        MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats");
                 assertThat(responseEntityToString(datafeedStatsResponse), containsString("\"state\":\"stopped\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -379,7 +382,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "        \"time_field\":\"time stamp\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"
                 + "}";
 
-        return client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + id,
+        return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + id,
                 Collections.emptyMap(), new StringEntity(job));
     }
 
@@ -390,7 +393,7 @@ public class DatafeedJobIT extends ESRestTestCase {
     }
 
     public static void openJob(RestClient client, String jobId) throws IOException {
-        Response response = client.performRequest("post", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+        Response response = client.performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
@@ -398,14 +401,15 @@ public class DatafeedJobIT extends ESRestTestCase {
         String job = "{\"description\":\"Nested job\", \"analysis_config\" : {\"bucket_span\":3600,\"detectors\" :"
                 + "[{\"function\":\"mean\",\"field_name\":\"responsetime.millis\"}]}, \"data_description\" : {\"time_field\":\"time\"}"
                 + "}";
-        client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(), new StringEntity(job));
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job));
 
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").setSource(source).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
-        Response jobStatsResponse = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
@@ -455,7 +459,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
                     + "}";
-            return client().performRequest("put", MlPlugin.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
+            return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
                     new StringEntity(datafeedConfig));
         }
     }

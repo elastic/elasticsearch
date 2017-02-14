@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -247,11 +247,11 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutodetectProcessManager processManager, JobManager jobManager, TransportListTasksAction listTasksAction) {
-            super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, FlushJobAction.Request::new, FlushJobAction.Response::new, MlPlugin.THREAD_POOL_NAME,
-                    jobManager, processManager, Request::getJobId, listTasksAction);
+                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                AutodetectProcessManager processManager, JobManager jobManager, TransportListTasksAction listTasksAction) {
+            super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                    FlushJobAction.Request::new, FlushJobAction.Response::new, MachineLearning.THREAD_POOL_NAME, jobManager, processManager,
+                    Request::getJobId, listTasksAction);
         }
 
         @Override

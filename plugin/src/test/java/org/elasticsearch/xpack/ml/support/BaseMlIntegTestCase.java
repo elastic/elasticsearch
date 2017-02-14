@@ -12,7 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -54,8 +55,8 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(MlPlugin.USE_NATIVE_PROCESS_OPTION.getKey(), false);
-        settings.put(MlPlugin.ML_ENABLED.getKey(), true);
+        settings.put(MachineLearning.USE_NATIVE_PROCESS_OPTION.getKey(), false);
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         return settings.build();
     }
 
@@ -109,7 +110,7 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         for (int i = 0; i < numNodes; i++) {
             internalCluster().stopRandomDataNode();
         }
-        internalCluster().startNode(Settings.builder().put(MlPlugin.ML_ENABLED.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false));
     }
 
     private void deleteAllDatafeeds(Client client) throws Exception {

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.joda.time.DateTime;
 
@@ -269,8 +269,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "      }\n" +
                 "  }";
 
-        client().performRequest("PUT", MlPlugin.BASE_PATH + "anomaly_detectors/painless", Collections.emptyMap(), new StringEntity(job));
-        client().performRequest("POST", MlPlugin.BASE_PATH + "anomaly_detectors/painless/_open");
+        client().performRequest("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/painless", Collections.emptyMap(),
+                new StringEntity(job));
+        client().performRequest("POST", MachineLearning.BASE_PATH + "anomaly_detectors/painless/_open");
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
@@ -321,14 +322,15 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "         }\n" +
                 "      }";
 
-        client().performRequest("PUT", MlPlugin.BASE_PATH + "datafeeds/painless", Collections.emptyMap(), new StringEntity(body));
-        client().performRequest("POST", MlPlugin.BASE_PATH + "datafeeds/painless/_start");
+        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/painless", Collections.emptyMap(), new StringEntity(body));
+        client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/painless/_start");
 
         boolean passed = awaitBusy(() -> {
             try {
                 client().performRequest("POST", "/_refresh");
 
-                Response response = client().performRequest("GET", MlPlugin.BASE_PATH + "anomaly_detectors/painless/results/records");
+                Response response = client().performRequest("GET",
+                        MachineLearning.BASE_PATH + "anomaly_detectors/painless/results/records");
                 String responseBody = EntityUtils.toString(response.getEntity());
 
                 if (responseBody.contains("\"count\":2")) {

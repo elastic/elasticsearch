@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
@@ -22,7 +22,7 @@ public class RestPutDatafeedAction extends BaseRestHandler {
 
     public RestPutDatafeedAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, MlPlugin.BASE_PATH + "datafeeds/{"
+        controller.registerHandler(RestRequest.Method.PUT, MachineLearning.BASE_PATH + "datafeeds/{"
                 + DatafeedConfig.ID.getPreferredName() + "}", this);
     }
 

@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -93,7 +93,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         logger.info("Starting datafeed [{}] for job [{}] in [{}, {})", holder.datafeed.getId(), holder.datafeed.getJobId(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(startTime),
                 endTime == null ? INF_SYMBOL : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(endTime));
-        holder.future = threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
+        holder.future = threadPool.executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
             Long next = null;
             try {
                 next = holder.datafeedJob.runLookBack(startTime, endTime);
@@ -129,7 +129,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         if (holder.isRunning()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME, () -> {
+            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME, () -> {
                 long nextDelayInMsSinceEpoch;
                 try {
                     nextDelayInMsSinceEpoch = holder.datafeedJob.runRealtime();

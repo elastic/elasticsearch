@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
@@ -23,9 +23,9 @@ public class RestGetFiltersAction extends BaseRestHandler {
 
     public RestGetFiltersAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}",
                 this);
-        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH + "filters/", this);
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "filters/", this);
     }
 
     @Override

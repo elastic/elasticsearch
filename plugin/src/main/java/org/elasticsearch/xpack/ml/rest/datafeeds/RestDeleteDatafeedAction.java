@@ -11,7 +11,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
@@ -21,7 +21,7 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
 
     public RestDeleteDatafeedAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, MlPlugin.BASE_PATH + "datafeeds/{"
+        controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH + "datafeeds/{"
                 + DatafeedConfig.ID.getPreferredName() + "}", this);
     }
 

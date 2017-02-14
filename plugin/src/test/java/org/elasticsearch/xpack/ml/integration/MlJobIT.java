@@ -11,7 +11,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
@@ -63,7 +63,7 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testGetJob_GivenNoSuchJob() throws Exception {
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/non-existing-job/_stats"));
+                () -> client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/non-existing-job/_stats"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id 'non-existing-job'"));
@@ -72,7 +72,7 @@ public class MlJobIT extends ESRestTestCase {
     public void testGetJob_GivenJobExists() throws Exception {
         createFarequoteJob();
 
-        Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/farequote/_stats");
+        Response response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/farequote/_stats");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -84,7 +84,7 @@ public class MlJobIT extends ESRestTestCase {
         createFarequoteJob();
 
         // Explicit _all
-        Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/_all");
+        Response response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -92,7 +92,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"farequote\""));
 
         // Implicit _all
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors");
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
@@ -106,7 +106,7 @@ public class MlJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_3");
 
         // Explicit _all
-        Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/_all");
+        Response response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -116,7 +116,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_3\""));
 
         // Implicit _all
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors");
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
@@ -138,7 +138,7 @@ public class MlJobIT extends ESRestTestCase {
                 "\"time_field\":\"time\",\n"
                 + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n" + "    }\n" + "}";
 
-        return client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId,
+        return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
                 Collections.emptyMap(), new StringEntity(job));
     }
 
@@ -148,34 +148,34 @@ public class MlJobIT extends ESRestTestCase {
         params.put("end", "1400"); // exclusive
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params));
+                () -> client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/buckets", params));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
         addBucketResult("1", "1234", 1);
         addBucketResult("1", "1235", 1);
         addBucketResult("1", "1236", 1);
-        Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
+        Response response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":3"));
 
         params.put("end", "1235");
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
 
-        e = expectThrows(ResponseException.class, () -> client().performRequest("get", MlPlugin.BASE_PATH
+        e = expectThrows(ResponseException.class, () -> client().performRequest("get", MachineLearning.BASE_PATH
                 + "anomaly_detectors/2/results/buckets/1234"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '2'"));
 
         e = expectThrows(ResponseException.class, () -> client().performRequest("get",
-                MlPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets/1"));
+                MachineLearning.BASE_PATH + "anomaly_detectors/1/results/buckets/1"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets/1234");
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/buckets/1234");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, not(isEmptyString()));
@@ -187,20 +187,20 @@ public class MlJobIT extends ESRestTestCase {
         params.put("end", "1400"); // exclusive
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params));
+                () -> client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/records", params));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
         addRecordResult("1", "1234", 1, 1);
         addRecordResult("1", "1235", 1, 2);
         addRecordResult("1", "1236", 1, 3);
-        Response response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params);
+        Response response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":3"));
 
         params.put("end", "1235");
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params);
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
@@ -217,7 +217,7 @@ public class MlJobIT extends ESRestTestCase {
         String indexName = "non-default-index";
         String jobConfig = String.format(Locale.ROOT, jobTemplate, indexName);
 
-        Response response = client().performRequest("put", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
                 new StringEntity(jobConfig));
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -234,7 +234,7 @@ public class MlJobIT extends ESRestTestCase {
 
         addBucketResult(indexName, "1234", 1);
         addBucketResult(indexName, "1236", 1);
-        response = client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets");
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":2"));
@@ -247,9 +247,9 @@ public class MlJobIT extends ESRestTestCase {
         // test that we can't create another job with the same index_name
         String jobConfigSameIndexName = String.format(Locale.ROOT, jobTemplate, "new-job-id", indexName);
         expectThrows(ResponseException.class, () -> client().performRequest("put",
-                MlPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(jobConfigSameIndexName)));
+                MachineLearning.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(jobConfigSameIndexName)));
 
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         // check index and alias were deleted
@@ -274,7 +274,7 @@ public class MlJobIT extends ESRestTestCase {
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(indexName));
 
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         // check index was deleted
@@ -285,7 +285,7 @@ public class MlJobIT extends ESRestTestCase {
 
         // check that the job itself is gone
         expectThrows(ResponseException.class, () ->
-                client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
     public void testDeleteJobAfterMissingIndex() throws Exception {
@@ -303,7 +303,7 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("delete", indexName);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         // check index was deleted
@@ -313,7 +313,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(containsString(indexName)));
 
         expectThrows(ResponseException.class, () ->
-                client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
     public void testMultiIndexDelete() throws Exception {
@@ -366,7 +366,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"count\":1"));
 
         // Delete
-        response = client().performRequest("delete", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         client().performRequest("post", "_refresh");
@@ -389,7 +389,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"count\":0"));
 
         expectThrows(ResponseException.class, () ->
-                client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
     private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {

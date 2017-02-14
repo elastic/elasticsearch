@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.PutFilterAction;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ public class RestPutFilterAction extends BaseRestHandler {
 
     public RestPutFilterAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, MlPlugin.BASE_PATH + "filters", this);
+        controller.registerHandler(RestRequest.Method.PUT, MachineLearning.BASE_PATH + "filters", this);
     }
 
     @Override

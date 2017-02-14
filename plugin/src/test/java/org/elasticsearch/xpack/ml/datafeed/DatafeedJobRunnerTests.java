@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
@@ -96,7 +96,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).submit(any(Runnable.class));
-        when(threadPool.executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME)).thenReturn(executorService);
+        when(threadPool.executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
@@ -147,7 +147,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
         datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
 
-        verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
@@ -184,7 +184,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
         datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
 
-        verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
@@ -214,14 +214,14 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(1, "type", "action", null, "datafeed1");
         datafeedJobRunner.run("datafeed1", 0L, null, task, handler);
 
-        verify(threadPool, times(1)).executor(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop();
             verify(handler).accept(null);
         } else {
             verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
-            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MlPlugin.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
+            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
         }
     }
 

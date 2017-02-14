@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,13 +19,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
-
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -44,6 +44,9 @@ public class XPackLicenseState {
         });
         messages.put(XPackPlugin.GRAPH, new String[] {
             "Graph explore APIs are disabled"
+        });
+        messages.put(XPackPlugin.MACHINE_LEARNING, new String[] {
+            "Machine learning APIs are disabled"
         });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
@@ -347,6 +350,29 @@ public class XPackLicenseState {
      * @return {@code true} as long as the license is valid. Otherwise {@code false}.
      */
     public boolean isGraphAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        OperationMode operationMode = localStatus.mode;
+
+        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if Machine Learning should be enabled.
+     * <p>
+     * Machine Learning is only disabled when the license has expired or if the
+     * mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isMachineLearningAllowed() {
         // status is volatile
         Status localStatus = status;
         OperationMode operationMode = localStatus.mode;

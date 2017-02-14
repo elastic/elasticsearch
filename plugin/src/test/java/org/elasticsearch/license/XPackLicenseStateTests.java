@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.license;
 
-import java.util.Arrays;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.hamcrest.Matchers;
+
+import java.util.Arrays;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.License.OperationMode.BASIC;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
@@ -256,7 +256,29 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testGraphInactivePlatinumTrial() throws Exception {
-        assertAllowed(TRIAL, false, XPackLicenseState::isGraphAllowed, false);
-        assertAllowed(PLATINUM, false, XPackLicenseState::isGraphAllowed, false);
+        assertAllowed(TRIAL, false, XPackLicenseState::isMachineLearningAllowed, false);
+        assertAllowed(PLATINUM, false, XPackLicenseState::isMachineLearningAllowed, false);
+    }
+
+    public void testMachineLearningPlatinumTrial() throws Exception {
+        assertAllowed(TRIAL, true, XPackLicenseState::isMachineLearningAllowed, true);
+        assertAllowed(PLATINUM, true, XPackLicenseState::isMachineLearningAllowed, true);
+    }
+
+    public void testMachineLearningBasic() throws Exception {
+        assertAllowed(BASIC, true, XPackLicenseState::isMachineLearningAllowed, false);
+    }
+
+    public void testMachineLearningStandard() throws Exception {
+        assertAllowed(STANDARD, true, XPackLicenseState::isMachineLearningAllowed, false);
+    }
+
+    public void testMachineLearningInactiveBasic() {
+        assertAllowed(BASIC, false, XPackLicenseState::isMachineLearningAllowed, false);
+    }
+
+    public void testMachineLearningInactivePlatinumTrial() throws Exception {
+        assertAllowed(TRIAL, false, XPackLicenseState::isMachineLearningAllowed, false);
+        assertAllowed(PLATINUM, false, XPackLicenseState::isMachineLearningAllowed, false);
     }
 }

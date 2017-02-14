@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
@@ -184,7 +184,7 @@ public class UpdateProcessAction extends
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                JobManager jobManager, AutodetectProcessManager processManager, TransportListTasksAction listTasksAction) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MlPlugin.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId,
+                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId,
                     listTasksAction);
         }
 
@@ -197,7 +197,7 @@ public class UpdateProcessAction extends
 
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
-            threadPool.executor(MlPlugin.THREAD_POOL_NAME).execute(() -> {
+            threadPool.executor(MachineLearning.THREAD_POOL_NAME).execute(() -> {
                 try {
                     if (request.getModelDebugConfig() != null) {
                         processManager.writeUpdateModelDebugMessage(request.getJobId(), request.getModelDebugConfig());

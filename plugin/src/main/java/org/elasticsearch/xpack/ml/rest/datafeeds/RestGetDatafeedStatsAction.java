@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
@@ -22,9 +22,9 @@ public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
     public RestGetDatafeedStatsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
                 + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats", this);
-        controller.registerHandler(RestRequest.Method.GET, MlPlugin.BASE_PATH
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
                 + "datafeeds/_stats", this);
     }
 

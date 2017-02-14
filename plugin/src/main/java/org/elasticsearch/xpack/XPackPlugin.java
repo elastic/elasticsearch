@@ -68,7 +68,8 @@ import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.graph.GraphFeatureSet;
-import org.elasticsearch.xpack.ml.MlPlugin;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningFeatureSet;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -92,13 +93,11 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
-import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -119,6 +118,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+
+import javax.security.auth.DestroyFailedException;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -187,7 +188,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Monitoring monitoring;
     protected Watcher watcher;
     protected Graph graph;
-    protected MlPlugin machineLearning;
+    protected MachineLearning machineLearning;
 
     public XPackPlugin(Settings settings) throws IOException, CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException,
             KeyStoreException, DestroyFailedException, OperatorCreationException {
@@ -202,7 +203,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.monitoring = new Monitoring(settings, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
-        this.machineLearning = new MlPlugin(settings, env);
+        this.machineLearning = new MachineLearning(settings, env);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -452,6 +453,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, WATCHER, WatcherFeatureSet.Usage::new));
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new));
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MACHINE_LEARNING, MachineLearningFeatureSet.Usage::new));
         entries.addAll(watcher.getNamedWriteables());
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());

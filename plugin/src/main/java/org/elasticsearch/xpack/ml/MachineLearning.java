@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -37,6 +39,8 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
@@ -127,9 +131,11 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
+import org.elasticsearch.xpack.watcher.WatcherService;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -138,7 +144,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class MlPlugin extends Plugin implements ActionPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String THREAD_POOL_NAME = NAME;
@@ -149,28 +155,26 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     public static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
             Property.Deprecated);
 
-    /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> ML_ENABLED = Setting.boolSetting("xpack.ml.enabled", false, Setting.Property.NodeScope);
-
     private final Settings settings;
     private final Environment env;
     private boolean enabled;
+    private boolean transportClientMode;
 
-    public MlPlugin(Settings settings) {
+    public MachineLearning(Settings settings) {
         this(settings, new Environment(settings));
     }
 
-    public MlPlugin(Settings settings, Environment env) {
-        this.enabled = ML_ENABLED.get(settings);
+    public MachineLearning(Settings settings, Environment env) {
+        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.settings = settings;
         this.env = env;
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
-                        ML_ENABLED,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
@@ -241,7 +245,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
-                threadPool.executor(MlPlugin.THREAD_POOL_NAME));
+                threadPool.executor(MachineLearning.THREAD_POOL_NAME));
         AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
@@ -260,6 +264,18 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                 persistentActionRegistry,
                 new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService)
                 );
+    }
+
+    public Collection<Module> nodeModules() {
+        List<Module> modules = new ArrayList<>();
+        modules.add(b -> {
+            XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
+            if (transportClientMode || enabled == false) {
+                b.bind(WatcherService.class).toProvider(Providers.of(null));
+            }
+        });
+
+        return modules;
     }
 
     @Override

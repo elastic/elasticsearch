@@ -145,11 +145,12 @@ public class IncludeExclude implements Writeable, ToXContent {
         } else if (token == XContentParser.Token.START_ARRAY) {
             return new IncludeExclude(null, new TreeSet<>(parseArrayToSet(parser)));
         } else if (token == XContentParser.Token.START_OBJECT) {
+            String currentFieldName = null;
             String pattern = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    // the parser records the field name
-                } else if (PATTERN_FIELD.match(parser.currentName())) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (PATTERN_FIELD.match(currentFieldName)) {
                     pattern = parser.text();
                 } else {
                     throw new IllegalArgumentException("Unrecognized field [" + parser.currentName() + "]");

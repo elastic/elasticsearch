@@ -671,6 +671,9 @@ setup:
 ---
 "Pattern include/exclude":
 
+  - skip:
+      features: "warnings"
+
   - do:
       index:
         index: test_1
@@ -696,8 +699,10 @@ setup:
       indices.refresh: {}
 
   - do:
+      warnings:
+        - "Deprecated field [pattern] used, replaced by [Put patterns directly under the [include] or [exclude]]"
       search:
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"pattern": ".*d.*"}, "exclude": { "pattern": ".*e.*" } } } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"pattern": ".*d.*"}, "exclude": { "pattern": ".*e.*" } } } } }
 
   - match: { hits.total: 3 }
 

@@ -85,7 +85,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
         parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
-                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
         for (String name : significanceHeuristicParserRegistry.getNames()) {
             parser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,

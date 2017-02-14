@@ -13,7 +13,7 @@ You must checkout x-pack and elasticsearch with a specific directory structure. 
 elasticsearch checkout will be used when building x-pack. The structure is:
 
 - /path/to/elastic/elasticsearch
-- /path/to/elastic/elasticsearch-extra/x-pack
+- /path/to/elastic/elasticsearch-extra/x-pack-elasticsearch
 
 = Build
 

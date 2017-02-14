@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
 if (project.projectDir.name != 'x-pack-elasticsearch') {
-  throw new GradleException('You must checkout x-pack-elasticsearch in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/x-pack')
+  throw new GradleException('You must checkout x-pack-elasticsearch in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/x-pack-elasticsearch')
 }
 
 subprojects {

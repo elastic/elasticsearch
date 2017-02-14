@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchContextException;
@@ -65,9 +66,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after cannot be used with scroll.");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
+            }
         }
         try {
             client().prepareSearch("test")
@@ -79,9 +82,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after cannot be used with from > 0.");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+            }
         }
 
         try {
@@ -92,9 +97,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+            }
         }
 
         try {
@@ -106,9 +113,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .get();
             fail("Should fail on search_after size differs from sort field size");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+            }
         }
 
         try {
@@ -119,9 +128,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .get();
             fail("Should fail on search_after size differs from sort field size");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertTrue(e.shardFailures().length > 0);
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+            }
         }
 
         try {
@@ -133,9 +144,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+            }
         }
     }
 

@@ -52,7 +52,7 @@
 
         <!-- NOTE: when changing these versions, also update security.policy and test-framework.policy to match -->
         <!-- (we don't do any automatic property substitution on those resources, it could get confusing...     -->
-        <lucene.version>5.5.2</lucene.version>
+        <lucene.version>5.5.4</lucene.version>
         <!-- <lucene.snapshot.revision>850c6c2</lucene.snapshot.revision> -->
         <!-- <lucene.maven.version>5.5.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version> -->
         <lucene.maven.version>${lucene.version}</lucene.maven.version>

@@ -642,4 +642,36 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPositionLength(), equalTo(1));
     }
 
+    public void testAnalyzeKeywordField() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "keyword", "type=keyword"));
+        ensureGreen("test");
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        assertThat(token.getTerm(), equalTo("ABC"));
+        assertThat(token.getStartOffset(), equalTo(0));
+        assertThat(token.getEndOffset(), equalTo(3));
+        assertThat(token.getPosition(), equalTo(0));
+        assertThat(token.getPositionLength(), equalTo(1));
+    }
+
+    public void testAnalyzeNormalizedKeywordField() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+            .setSettings(Settings.builder().put(indexSettings())
+                .put("index.analysis.normalizer.my_normalizer.type", "custom")
+                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
+            .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
+        ensureGreen("test");
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        assertThat(token.getTerm(), equalTo("abc"));
+        assertThat(token.getStartOffset(), equalTo(0));
+        assertThat(token.getEndOffset(), equalTo(3));
+        assertThat(token.getPosition(), equalTo(0));
+        assertThat(token.getPositionLength(), equalTo(1));
+
+    }
 }

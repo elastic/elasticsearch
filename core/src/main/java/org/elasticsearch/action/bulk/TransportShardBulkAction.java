@@ -365,6 +365,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[i];
             if (item.isIgnoreOnReplica() == false) {
                 DocWriteRequest docWriteRequest = item.request();
+                // ensure request version is updated for replica operation during request execution in the primary
                 assert docWriteRequest.versionType() == docWriteRequest.versionType().versionTypeForReplicationAndRecovery()
                         : "unexpected version in replica " + docWriteRequest.version();
                 final Engine.Result operationResult;

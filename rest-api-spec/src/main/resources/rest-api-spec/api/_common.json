@@ -22,7 +22,7 @@
       "description": "The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests."
     },
     "filter_path": {
-      "type": "string",
+      "type": "list",
       "description": "A comma-separated list of filters used to reduce the respone."
     }
   }

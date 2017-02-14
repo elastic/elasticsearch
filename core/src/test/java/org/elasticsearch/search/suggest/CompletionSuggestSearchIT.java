@@ -209,7 +209,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             client().prepareSearch(INDEX, otherIndex).suggest(new SuggestBuilder().addSuggestion("foo", prefix))
                 .execute().actionGet();
             fail("querying on mixed completion suggester should throw an error");
-        } catch (ReduceSearchPhaseException e) {
+        } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(), containsString("detected mixed suggestion results"));
         }
     }

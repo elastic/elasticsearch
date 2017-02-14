@@ -418,8 +418,11 @@ public class TypeParsers {
     }
 
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1) && "default".equals(value)) {
-            // "default" similarity has been renamed into "classic" in 3.x.
+        if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1) &&
+            "default".equals(value) &&
+            // check if "default" similarity is overridden
+            parserContext.getSimilarity("default") == null) {
+            // "default" similarity has been renamed into "classic" in 5.x.
             value = "classic";
         }
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);

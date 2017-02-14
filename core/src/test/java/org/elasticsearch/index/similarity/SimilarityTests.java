@@ -259,4 +259,30 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), equalTo("Unknown Similarity type [default] for field [field1]"));
         }
     }
+
+    public void testSimilarityDefaultOveriddenBackCompat() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1")
+            .field("similarity", "default")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject().string();
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
+            .put("index.similarity.default.type", "LMJelinekMercer")
+            .put("index.similarity.default.lambda", 0.7f)
+            .build();
+
+        DocumentMapperParser parser = createIndex("test_v2.x", settings).mapperService().documentMapperParser();
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(),
+            instanceOf(LMJelinekMercerSimilarityProvider.class));
+        LMJelinekMercerSimilarity sim =
+            (LMJelinekMercerSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
+        assertThat(sim.getLambda(), equalTo(0.7f));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().name(), equalTo("default"));
+    }
 }

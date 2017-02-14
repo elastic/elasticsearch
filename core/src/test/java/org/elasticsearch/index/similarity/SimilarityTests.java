@@ -272,12 +272,17 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject().string();
         Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
-            .put("index.similarity.default.type", "BM25")
+            .put("index.similarity.default.type", "LMJelinekMercer")
+            .put("index.similarity.default.lambda", 0.7f)
             .build();
 
         DocumentMapperParser parser = createIndex("test_v2.x", settings).mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(BM25SimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(),
+            instanceOf(LMJelinekMercerSimilarityProvider.class));
+        LMJelinekMercerSimilarity sim =
+            (LMJelinekMercerSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
+        assertThat(sim.getLambda(), equalTo(0.7f));
         assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().name(), equalTo("default"));
     }
 }

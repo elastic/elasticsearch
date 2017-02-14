@@ -208,8 +208,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             private ScoreDoc doc;
             private SearchHit hit;
 
-            public static final ParseField CONTEXT = new ParseField("contexts");
-
+            public static final ParseField CONTEXTS = new ParseField("contexts");
 
             public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
@@ -257,7 +256,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     builder.field(SCORE.getPreferredName(), getScore());
                 }
                 if (contexts.size() > 0) {
-                    builder.startObject(CONTEXT.getPreferredName());
+                    builder.startObject(CONTEXTS.getPreferredName());
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                         builder.startArray(entry.getKey());
                         for (CharSequence context : entry.getValue()) {
@@ -279,20 +278,20 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                         Suggestion.Entry.Option.TEXT);
                 PARSER.declareFloat((map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
                         Suggestion.Entry.Option.SCORE);
-                PARSER.declareObject((map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName(), value),
-                        Option::parseContext, CompletionSuggestion.Entry.Option.CONTEXT);
+                PARSER.declareObject((map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName(), value),
+                        (p,c) -> parseContexts(p), CompletionSuggestion.Entry.Option.CONTEXTS);
             }
 
-            private static Map<String, Set<CharSequence>> parseContext(XContentParser parser, Void context) throws IOException {
+            private static Map<String, Set<CharSequence>> parseContexts(XContentParser parser) throws IOException {
                 Map<String, Set<CharSequence>> contexts = new HashMap<>();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
                 while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
                     String key = parser.currentName();
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
                     Set<CharSequence> values = new HashSet<>();
-                    for (Object value : parser.list()) {
-                        values.add((String) value);
+                    while((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
+                        values.add(parser.text());
                     }
                     contexts.put(key, values);
                 }
@@ -306,7 +305,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
                 @SuppressWarnings("unchecked")
                 Map<String, Set<CharSequence>> contexts = (Map<String, Set<CharSequence>>) values
-                        .get(CompletionSuggestion.Entry.Option.CONTEXT.getPreferredName());
+                        .get(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName());
                 if (contexts == null) {
                     contexts = Collections.emptyMap();
                 }

@@ -23,8 +23,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.InternalSearchHitTests;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
@@ -57,7 +57,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         SearchHit hit = null;
         float score = randomFloat();
         if (randomBoolean()) {
-            hit = InternalSearchHitTests.createTestItem(false);
+            hit = SearchHitTests.createTestItem(false);
             score = hit.getScore();
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);
@@ -70,6 +70,11 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toXContent(option, xContentType, humanReadable);
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
         Option parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsed = Option.fromXContent(parser);

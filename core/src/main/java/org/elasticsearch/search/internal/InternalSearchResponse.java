@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,7 +35,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
+import static org.elasticsearch.search.SearchHits.readSearchHits;
 
 /**
  *
@@ -44,10 +43,10 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false, null);
+        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null);
     }
 
-    private InternalSearchHits hits;
+    private SearchHits hits;
 
     private InternalAggregations aggregations;
 
@@ -62,7 +61,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
+    public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
                                   SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;

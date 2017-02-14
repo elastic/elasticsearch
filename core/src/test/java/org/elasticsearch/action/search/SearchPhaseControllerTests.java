@@ -28,8 +28,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -202,10 +202,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
             float maxScore = -1F;
             SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
-            List<InternalSearchHit> internalSearchHits = new ArrayList<>();
+            List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    internalSearchHits.add(new InternalSearchHit(scoreDoc.doc, "", new Text(""), Collections.emptyMap()));
+                    searchHits.add(new SearchHit(scoreDoc.doc, "", new Text(""), Collections.emptyMap()));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -216,7 +216,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                         ScoreDoc doc = option.getDoc();
                         if (doc.shardIndex == shardIndex) {
-                            internalSearchHits.add(new InternalSearchHit(doc.doc, "", new Text(""), Collections.emptyMap()));
+                            searchHits.add(new SearchHit(doc.doc, "", new Text(""), Collections.emptyMap()));
                             if (doc.score > maxScore) {
                                 maxScore = doc.score;
                             }
@@ -224,8 +224,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     }
                 }
             }
-            InternalSearchHit[] hits = internalSearchHits.toArray(new InternalSearchHit[internalSearchHits.size()]);
-            fetchSearchResult.hits(new InternalSearchHits(hits, hits.length, maxScore));
+            SearchHit[] hits = searchHits.toArray(new SearchHit[searchHits.size()]);
+            fetchSearchResult.hits(new SearchHits(hits, hits.length, maxScore));
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;

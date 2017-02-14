@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
@@ -330,11 +330,11 @@ public final class InnerHitsContext {
             }
         }
 
-        private boolean isParentHit(InternalSearchHit hit) {
+        private boolean isParentHit(SearchHit hit) {
             return hit.type().equals(documentMapper.parentFieldMapper().type());
         }
 
-        private boolean isChildHit(InternalSearchHit hit) {
+        private boolean isChildHit(SearchHit hit) {
             DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.type());
             return documentMapper.type().equals(hitDocumentMapper.parentFieldMapper().type());
         }

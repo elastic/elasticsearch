@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
@@ -57,7 +56,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             }
             SearchHitField hitField = hitContext.hit().fields().get(field);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(field, new ArrayList<>(2));
+                hitField = new SearchHitField(field, new ArrayList<>(2));
                 hitContext.hit().fields().put(field, hitField);
             }
             MappedFieldType fieldType = context.mapperService().fullName(field);

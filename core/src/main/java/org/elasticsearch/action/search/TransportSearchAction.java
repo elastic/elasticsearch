@@ -46,7 +46,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -331,17 +330,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener.wrap(response -> {
                 Iterator<MultiSearchResponse.Item> it = response.iterator();
                 for (SearchHit hit : searchResponse.getHits()) {
-                    InternalSearchHit internalHit = (InternalSearchHit) hit;
                     MultiSearchResponse.Item item = it.next();
                     if (item.isFailure()) {
                         finalListener.onFailure(item.getFailure());
                         return;
                     }
                     SearchHits innerHits = item.getResponse().getHits();
-                    if (internalHit.getInnerHits() == null) {
-                        internalHit.setInnerHits(new HashMap<>(1));
+                    if (hit.getInnerHits() == null) {
+                        hit.setInnerHits(new HashMap<>(1));
                     }
-                    internalHit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
+                    hit.getInnerHits().put(collapseBuilder.getInnerHit().getName(), innerHits);
                 }
                 finalListener.onResponse(searchResponse);
             }, finalListener::onFailure)

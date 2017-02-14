@@ -25,12 +25,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -201,7 +199,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         public static class Option extends Suggest.Suggestion.Entry.Option {
             private Map<String, Set<CharSequence>> contexts;
             private ScoreDoc doc;
-            private InternalSearchHit hit;
+            private SearchHit hit;
 
             public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
@@ -228,7 +226,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return doc;
             }
 
-            public InternalSearchHit getHit() {
+            public SearchHit getHit() {
                 return hit;
             }
 
@@ -236,7 +234,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.doc.shardIndex = shardIndex;
             }
 
-            public void setHit(InternalSearchHit hit) {
+            public void setHit(SearchHit hit) {
                 this.hit = hit;
             }
 
@@ -267,7 +265,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super.readFrom(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = InternalSearchHit.readSearchHit(in);
+                    this.hit = SearchHit.readSearchHit(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);

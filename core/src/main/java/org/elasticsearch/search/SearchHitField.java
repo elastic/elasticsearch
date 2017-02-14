@@ -19,8 +19,14 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.index.mapper.MapperService;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -28,40 +34,104 @@ import java.util.List;
  *
  * @see SearchHit
  */
-public interface SearchHitField extends Streamable, Iterable<Object> {
+public final class SearchHitField implements Streamable, Iterable<Object>  {
+
+    private String name;
+    private List<Object> values;
+
+    private SearchHitField() {
+    }
+
+    public SearchHitField(String name, List<Object> values) {
+        this.name = name;
+        this.values = values;
+    }
+
+    /**
+     * The name of the field.
+     * @deprecated use {@link #getName()} instead
+     */
+    @Deprecated
+    public String name() {
+        return name;
+    }
 
     /**
      * The name of the field.
      */
-    String name();
+    public String getName() {
+        return name();
+    }
 
     /**
-     * The name of the field.
+     * The first value of the hit.
+     * @deprecated use {@link #getValue()} instead
      */
-    String getName();
+    @Deprecated
+    public <T> T value() {
+        return getValue();
+    }
 
     /**
      * The first value of the hit.
      */
-    <V> V value();
+    public <T> T getValue() {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return (T) values.get(0);
+    }
 
     /**
-     * The first value of the hit.
+     * The field values.
+     * @deprecated use {@link #getValues()} instead
      */
-    <V> V getValue();
+    @Deprecated
+    public List<Object> values() {
+        return values;
+    }
 
     /**
      * The field values.
      */
-    List<Object> values();
-
-    /**
-     * The field values.
-     */
-    List<Object> getValues();
+    public List<Object> getValues() {
+        return values();
+    }
 
     /**
      * @return The field is a metadata field
      */
-    boolean isMetadataField();
+    public boolean isMetadataField() {
+        return MapperService.isMetadataField(name);
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
+        return values.iterator();
+    }
+
+    public static SearchHitField readSearchHitField(StreamInput in) throws IOException {
+        SearchHitField result = new SearchHitField();
+        result.readFrom(in);
+        return result;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        int size = in.readVInt();
+        values = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            values.add(in.readGenericValue());
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeVInt(values.size());
+        for (Object value : values) {
+            out.writeGenericValue(value);
+        }
+    }
 }

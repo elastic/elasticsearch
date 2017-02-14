@@ -38,7 +38,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -132,7 +131,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             }
             SearchHitField hitField = hitContext.hit().fields().get(NAME);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(NAME, new ArrayList<>(1));
+                hitField = new SearchHitField(NAME, new ArrayList<>(1));
                 hitContext.hit().fields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -371,35 +372,36 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public static class Entry<O extends Entry.Option> implements Iterable<O>, Streamable, ToXContent {
+        public static class Entry<O extends Entry.Option> implements Iterable<O>, Streamable, ToXContentObject {
 
-            static class Fields {
-
-                static final String TEXT = "text";
-                static final String OFFSET = "offset";
-                static final String LENGTH = "length";
-                static final String OPTIONS = "options";
-
-            }
+            protected static final String TEXT = "text";
+            protected static final String OFFSET = "offset";
+            protected static final String LENGTH = "length";
+            protected static final String OPTIONS = "options";
 
             protected Text text;
             protected int offset;
             protected int length;
 
-            protected List<O> options;
+            protected List<O> options = new ArrayList<>(5);
 
             public Entry(Text text, int offset, int length) {
                 this.text = text;
                 this.offset = offset;
                 this.length = length;
-                this.options = new ArrayList<>(5);
             }
 
-            public Entry() {
+            protected Entry() {
             }
 
             public void addOption(O option) {
                 options.add(option);
+            }
+
+            protected void addOptions(List<O> options) {
+                for (O option : options) {
+                    addOption(option);
+                }
             }
 
             protected void sort(Comparator<O> comparator) {
@@ -539,16 +541,34 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields.TEXT, text);
-                builder.field(Fields.OFFSET, offset);
-                builder.field(Fields.LENGTH, length);
-                builder.startArray(Fields.OPTIONS);
+                builder.field(TEXT, text);
+                builder.field(OFFSET, offset);
+                builder.field(LENGTH, length);
+                builder.startArray(OPTIONS);
                 for (Option option : options) {
                     option.toXContent(builder, params);
                 }
                 builder.endArray();
                 builder.endObject();
                 return builder;
+            }
+
+            private static ObjectParser<Entry<Option>, Void> PARSER = new ObjectParser<>("SuggestionEntryParser",
+                    true, Entry::new);
+
+            static {
+                declareCommonFields(PARSER);
+                PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            }
+
+            protected static void declareCommonFields(ObjectParser<? extends Entry<? extends Option>, Void> parser) {
+                parser.declareString((entry, text) -> entry.text = new Text(text), new ParseField(TEXT));
+                parser.declareInt((entry, offset) -> entry.offset = offset, new ParseField(OFFSET));
+                parser.declareInt((entry, length) -> entry.length = length, new ParseField(LENGTH));
+            }
+
+            public static Entry<? extends Option> fromXContent(XContentParser parser) {
+                return PARSER.apply(parser, null);
             }
 
             /**

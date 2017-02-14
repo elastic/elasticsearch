@@ -94,7 +94,7 @@ public class CollapseSearchPhaseTests extends ESTestCase {
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
             SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
             AtomicReference<SearchResponse> reference = new AtomicReference<>();
-            CollapseSearchPhase phase = new CollapseSearchPhase(mockSearchPhaseContext, response, r ->
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
                 new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
@@ -149,7 +149,7 @@ public class CollapseSearchPhaseTests extends ESTestCase {
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
         SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
         AtomicReference<SearchResponse> reference = new AtomicReference<>();
-        CollapseSearchPhase phase = new CollapseSearchPhase(mockSearchPhaseContext, response, r ->
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
             new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -183,7 +183,7 @@ public class CollapseSearchPhaseTests extends ESTestCase {
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
         SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
         AtomicReference<SearchResponse> reference = new AtomicReference<>();
-        CollapseSearchPhase phase = new CollapseSearchPhase(mockSearchPhaseContext, response, r ->
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
             new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {

@@ -54,7 +54,7 @@ final class FetchSearchPhase extends SearchPhase {
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
         this(queryResults, searchPhaseController, context,
-            (response) -> new CollapseSearchPhase(context, response, // collapse only happens if the request has inner hits
+            (response) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
                 (finalResponse) -> sendResponsePhase(finalResponse, context)));
     }
 

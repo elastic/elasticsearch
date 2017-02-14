@@ -39,14 +39,14 @@ import java.util.function.Function;
  * field-collapsing on the inner hits. This phase only executes if field collapsing is requested in the search request and otherwise
  * forwards to the next phase immediately.
  */
-final class CollapseSearchPhase extends SearchPhase {
+final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final SearchResponse searchResponse;
     private final Function<SearchResponse, SearchPhase> nextPhaseFactory;
 
-    CollapseSearchPhase(SearchPhaseContext context, SearchResponse searchResponse,
-                                  Function<SearchResponse, SearchPhase> nextPhaseFactory) {
-        super("collapse");
+    ExpandSearchPhase(SearchPhaseContext context, SearchResponse searchResponse,
+                      Function<SearchResponse, SearchPhase> nextPhaseFactory) {
+        super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -96,7 +96,7 @@ final class CollapseSearchPhase extends SearchPhase {
                     for (SearchHit hit : searchResponse.getHits()) {
                         MultiSearchResponse.Item item = it.next();
                         if (item.isFailure()) {
-                            context.onPhaseFailure(this, "failed to collapse hits", item.getFailure());
+                            context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
                             return;
                         }
                         SearchHits innerHits = item.getResponse().getHits();

@@ -211,7 +211,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return connection;
         };
 
-        // Only enrich the search response iff collapsing has been specified:
         searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }

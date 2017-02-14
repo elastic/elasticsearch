@@ -5,7 +5,7 @@ The get field mapping API allows you to retrieve mapping definitions for one or 
 This is useful when you do not need the complete type mapping returned by
 the <<indices-get-mapping>> API.
 
-The following returns the mapping of the field `text` only:
+The following returns the mapping of the field `message` only:
 
 [source,js]
 --------------------------------------------------
@@ -14,7 +14,7 @@ GET /twitter/_mapping/tweet/field/message
 // CONSOLE
 // TEST[setup:twitter]
 
-For which the response is (assuming `text` is a default string field):
+For which the response is (assuming `message` is a default string field):
 
 [source,js]
 --------------------------------------------------

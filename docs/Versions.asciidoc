@@ -1,7 +1,7 @@
-:version:               5.2.0
+:version:               5.2.1
 :major-version:         5.x
-:lucene_version:        6.4.0
-:lucene_version_path:   6_4_0
+:lucene_version:        6.4.1
+:lucene_version_path:   6_4_1
 :branch:                5.2
 :jdk:                   1.8.0_73
 

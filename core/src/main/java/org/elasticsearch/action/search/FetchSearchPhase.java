@@ -53,7 +53,9 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(AtomicArray<QuerySearchResultProvider> queryResults,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
-        this(queryResults, searchPhaseController, context, (response) -> sendResponsePhase(response, context));
+        this(queryResults, searchPhaseController, context,
+            (response) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
+                (finalResponse) -> sendResponsePhase(finalResponse, context)));
     }
 
     FetchSearchPhase(AtomicArray<QuerySearchResultProvider> queryResults,

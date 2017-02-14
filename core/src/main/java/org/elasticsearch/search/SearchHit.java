@@ -104,7 +104,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
     private transient String index;
 
     private Map<String, Object> sourceAsMap;
-    private byte[] sourceAsBytes;
 
     private Map<String, SearchHits> innerHits;
 
@@ -207,7 +206,6 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        this.sourceAsBytes = null;
         this.sourceAsMap = null;
         return this;
     }
@@ -344,9 +342,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
     /**
      * @return Inner hits or <code>null</code> if there are none
      */
-    @SuppressWarnings("unchecked")
     public Map<String, SearchHits> getInnerHits() {
-        return (Map) innerHits;
+        return innerHits;
     }
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {

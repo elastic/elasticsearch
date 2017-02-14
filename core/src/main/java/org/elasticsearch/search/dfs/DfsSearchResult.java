@@ -102,12 +102,6 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return fieldStatistics;
     }
 
-    public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
-        DfsSearchResult result = new DfsSearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -127,7 +121,6 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
 
         maxDoc = in.readVInt();
     }
-
 
   @Override
     public void writeTo(StreamOutput out) throws IOException {

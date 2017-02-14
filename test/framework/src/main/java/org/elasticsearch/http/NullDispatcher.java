@@ -17,35 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.http;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 
-import java.io.IOException;
+public class NullDispatcher implements HttpServerTransport.Dispatcher {
 
-/**
- * A transport channel allows to send a response to a request on the channel.
- */
-public interface TransportChannel {
+    @Override
+    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
 
-    String action();
-
-    String getProfileName();
-
-    long getRequestId();
-
-    String getChannelType();
-
-    void sendResponse(TransportResponse response) throws IOException;
-
-    void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;
-
-    void sendResponse(Exception exception) throws IOException;
-
-    /**
-     * Returns the version of the other party that this channel will send a response to.
-     */
-    default Version getVersion() {
-        return Version.CURRENT;
     }
+
+    @Override
+    public void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause) {
+
+    }
+
 }

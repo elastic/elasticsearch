@@ -16,36 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.action.search;
 
-package org.elasticsearch.transport;
-
-import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedRunnable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
- * A transport channel allows to send a response to a request on the channel.
+ * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
-public interface TransportChannel {
+abstract class SearchPhase implements CheckedRunnable<IOException> {
+    private final String name;
 
-    String action();
-
-    String getProfileName();
-
-    long getRequestId();
-
-    String getChannelType();
-
-    void sendResponse(TransportResponse response) throws IOException;
-
-    void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;
-
-    void sendResponse(Exception exception) throws IOException;
+    protected SearchPhase(String name) {
+        this.name = Objects.requireNonNull(name, "name must not be null");
+    }
 
     /**
-     * Returns the version of the other party that this channel will send a response to.
+     * Returns the phases name.
      */
-    default Version getVersion() {
-        return Version.CURRENT;
+    public String getName() {
+        return name;
     }
 }

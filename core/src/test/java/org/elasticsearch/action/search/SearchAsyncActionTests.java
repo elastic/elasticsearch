@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,14 +95,14 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
-        AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(logger, transportService, lookup::get,
-            aliasFilters, Collections.emptyMap(), null, null, request, responseListener, shardsIter, 0, 0, null) {
+        AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>("test", logger, transportService,
+            lookup::get, aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
-                                                 ActionListener listener) {
-                assertTrue("shard: " + request.shardId() + " has been queried twice", response.queried.add(request.shardId()));
+            protected void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener<TestSearchPhaseResult> listener) {
+                assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
+                Transport.Connection connection = getConnection(shard.currentNodeId());
                 TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
                     connection.getNode());
                 Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> new HashSet<>());
@@ -116,27 +115,19 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected CheckedRunnable<Exception> getNextPhase(AtomicArray<TestSearchPhaseResult> initialResults) {
-                return () -> {
-                    for (int i = 0; i < initialResults.length(); i++) {
-                        TestSearchPhaseResult result = initialResults.get(i);
-                        assertEquals(result.node.getId(), result.shardTarget().getNodeId());
-                        sendReleaseSearchContext(result.id(), new MockConnection(result.node));
+            protected SearchPhase getNextPhase(AtomicArray<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() throws IOException {
+                        for (int i = 0; i < results.length(); i++) {
+                            TestSearchPhaseResult result = results.get(i);
+                            assertEquals(result.node.getId(), result.shardTarget().getNodeId());
+                            sendReleaseSearchContext(result.id(), new MockConnection(result.node));
+                        }
+                        responseListener.onResponse(response);
+                        latch.countDown();
                     }
-                    responseListener.onResponse(response);
-                    latch.countDown();
                 };
-            }
-
-            @Override
-            protected String initialPhaseName() {
-                return "test";
-            }
-
-            @Override
-            protected Executor getExecutor() {
-                fail("no executor in this class");
-                return null;
             }
         };
         asyncAction.start();

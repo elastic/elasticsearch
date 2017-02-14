@@ -155,6 +155,10 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
             Property.Deprecated);
 
+    public static final String ALLOCATION_ENABLED_ATTR = "xpack.ml.allocation_enabled";
+    public static final Setting<Boolean> ALLOCATION_ENABLED = Setting.boolSetting("node.attr." + ALLOCATION_ENABLED_ATTR,
+            XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
+
     private final Settings settings;
     private final Environment env;
     private boolean enabled;
@@ -175,11 +179,32 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
+                        ALLOCATION_ENABLED,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        Boolean allocationEnabled = settings.getAsBoolean(ALLOCATION_ENABLED.getKey(), null);
+        if (allocationEnabled != null) {
+            if (enabled == false && allocationEnabled) {
+                // if the ml plugin has been disabled the ml allocation enabled node attribute shouldn't be set,
+                // otherwise other nodes will allocate jobs to this node and that will fail, because ml hasn't been loaded.
+                throw new IllegalArgumentException("Can't specify [" + ALLOCATION_ENABLED.getKey() + "] to true when [" +
+                        XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + "] has been set to false");
+            }
+            return super.additionalSettings();
+        } else {
+            // Make sure that we explicitly set allocation enabled node attribute if it has been specified in the node
+            // settings. So we can always rely on it during assigning job tasks to nodes.
+            return Settings.builder()
+                    .put(ALLOCATION_ENABLED.getKey(), ALLOCATION_ENABLED.get(settings))
+                    .build();
+        }
     }
 
     @Override

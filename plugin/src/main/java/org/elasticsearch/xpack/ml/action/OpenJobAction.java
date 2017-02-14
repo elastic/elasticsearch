@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -34,6 +35,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -265,6 +268,15 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
 
         @Override
+        public DiscoveryNode executorNode(Request request, ClusterState clusterState) {
+            return selectLeastLoadedNode(clusterState, node -> {
+                Map<String, String> nodeAttributes = node.getAttributes();
+                String allocationEnabled = nodeAttributes.get(MachineLearning.ALLOCATION_ENABLED_ATTR);
+                return "true".equals(allocationEnabled);
+            });
+        }
+
+        @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
@@ -308,8 +320,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
         PersistentTaskInProgress<?> task = MlMetadata.getJobTask(jobId, tasks);
         JobState jobState = MlMetadata.getJobState(jobId, tasks);
-        if (task != null && task.getExecutorNode() != null && jobState == JobState.OPENED) {
-            if (nodes.nodeExists(task.getExecutorNode()) == false) {
+        if (task != null && jobState == JobState.OPENED) {
+            if (task.getExecutorNode() == null) {
+                // We can skip the job state check below, because the task got unassigned after we went into
+                // opened state on a node that disappeared and we didn't have the opportunity to set the status to failed
+                return;
+            } else if (nodes.nodeExists(task.getExecutorNode()) == false) {
                 // The state is open and the node were running on no longer exists.
                 // We can skip the job state check below, because when the node
                 // disappeared we didn't have time to set the status to failed.

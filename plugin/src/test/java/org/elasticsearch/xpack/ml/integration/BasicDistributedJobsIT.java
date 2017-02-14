@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
@@ -16,6 +20,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.Collections;
 
@@ -118,6 +123,67 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
         cleanupWorkaround(2);
+    }
+
+    public void testDedicatedMlNode() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        // start 2 non ml node that will never get a job allocated. (but ml apis are accessable from this node)
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
+        // start ml node
+        if (randomBoolean()) {
+            internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+        } else {
+            // the default is based on 'xpack.ml.enabled', which is enabled in base test class.
+            internalCluster().startNode();
+        }
+        ensureStableCluster(3);
+
+        Job.Builder job = createJob("job_id");
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        assertTrue(putJobResponse.isAcknowledged());
+
+        OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        assertBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
+
+            DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
+            assertEquals(Collections.singletonMap(MachineLearning.ALLOCATION_ENABLED_ATTR, "true"), node.getAttributes());
+            assertEquals(JobState.OPENED, task.getStatus());
+        });
+
+        // stop the only running ml node
+        internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+        ensureStableCluster(2);
+        assertBusy(() -> {
+            // job should get and remain in a failed state:
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
+
+            assertNull(task.getExecutorNode());
+            // The status remains to be opened as from ml we didn't had the chance to set the status to failed:
+            assertEquals(JobState.OPENED, task.getStatus());
+        });
+
+        // start ml node
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+        ensureStableCluster(3);
+        assertBusy(() -> {
+            // job should be re-opened:
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksInProgress tasks = clusterState.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
+
+            assertNotNull(task.getExecutorNode());
+            DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
+            assertEquals(Collections.singletonMap(MachineLearning.ALLOCATION_ENABLED_ATTR, "true"), node.getAttributes());
+            assertEquals(JobState.OPENED, task.getStatus());
+        });
     }
 
 }

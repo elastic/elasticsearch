@@ -48,33 +48,18 @@ public abstract class RestHeadAction extends BaseRestHandler {
      */
     public static class Document extends RestHeadAction {
         public Document(Settings settings, RestController controller) {
-            super(settings, false);
+            super(settings);
             controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         }
     }
 
     /**
-     * Handler to check for document source existence (may be disabled in the mapping).
-     */
-    public static class Source extends RestHeadAction {
-        public Source(Settings settings, RestController controller) {
-            super(settings, true);
-            controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
-        }
-    }
-
-    private final boolean source;
-
-    /**
      * All subclasses must be registered in {@link org.elasticsearch.common.network.NetworkModule}.
+     *  @param settings injected settings
      *
-     * @param settings injected settings
-     * @param source   {@code false} to check for {@link GetResponse#isExists()}.
-     *                 {@code true} to also check for {@link GetResponse#isSourceEmpty()}.
      */
-    public RestHeadAction(Settings settings, boolean source) {
+    public RestHeadAction(Settings settings) {
         super(settings);
-        this.source = source;
     }
 
     @Override
@@ -94,8 +79,6 @@ public abstract class RestHeadAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                } else if (source && response.isSourceEmpty()) { // doc exists, but source might not (disabled in the mapping)
                     return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 } else {
                     return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);

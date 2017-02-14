@@ -564,7 +564,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetAction(settings, restController));
         registerHandler.accept(new RestGetSourceAction(settings, restController));
         registerHandler.accept(new RestHeadAction.Document(settings, restController));
-        registerHandler.accept(new RestHeadAction.Source(settings, restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
         registerHandler.accept(new RestDeleteAction(settings, restController));
         registerHandler.accept(new org.elasticsearch.rest.action.document.RestCountAction(settings, restController));

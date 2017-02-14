@@ -125,7 +125,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      */
     public abstract void preProcess(boolean rewrite);
 
-    public abstract Query searchFilter(String[] types);
+    /** Automatically apply all required filters to the given query such as
+     *  alias filters, types filters, etc. */
+    public abstract Query buildFilteredQuery(Query query);
 
     public abstract long id();
 

@@ -46,84 +46,100 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
-            if (metaData.custom(MlMetadata.TYPE) == null) {
-                if (installMlMetadataCheck.compareAndSet(false, true)) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                        clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                ClusterState.Builder builder = new ClusterState.Builder(currentState);
-                                MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                                metadataBuilder.putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA);
-                                builder.metaData(metadataBuilder.build());
-                                return builder.build();
-                            }
+            installMlMetadata(metaData);
+            createMlAuditIndex(metaData);
+            createMlMetaIndex(metaData);
+            createStateIndex(metaData);
+        }
+    }
 
-                            @Override
-                            public void onFailure(String source, Exception e) {
-                                logger.error("unable to install ml metadata upon startup", e);
-                            }
-                        });
+    private void installMlMetadata(MetaData metaData) {
+        if (metaData.custom(MlMetadata.TYPE) == null) {
+            if (installMlMetadataCheck.compareAndSet(false, true)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            ClusterState.Builder builder = new ClusterState.Builder(currentState);
+                            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+                            metadataBuilder.putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA);
+                            builder.metaData(metadataBuilder.build());
+                            return builder.build();
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error("unable to install ml metadata upon startup", e);
+                        }
                     });
-                }
-            } else {
-                installMlMetadataCheck.set(false);
+                });
             }
-            if (metaData.hasIndex(Auditor.NOTIFICATIONS_INDEX) == false) {
-                if (createMlAuditIndexCheck.compareAndSet(false, true)) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                        jobProvider.createNotificationMessageIndex((result, error) -> {
-                            if (result) {
-                                logger.info("successfully created {} index", Auditor.NOTIFICATIONS_INDEX);
+        } else {
+            installMlMetadataCheck.set(false);
+        }
+    }
+
+    private void createMlAuditIndex(MetaData metaData) {
+        if (metaData.hasIndex(Auditor.NOTIFICATIONS_INDEX) == false) {
+            if (createMlAuditIndexCheck.compareAndSet(false, true)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    jobProvider.createNotificationMessageIndex((result, error) -> {
+                        if (result) {
+                            logger.info("successfully created {} index", Auditor.NOTIFICATIONS_INDEX);
+                        } else {
+                            if (error instanceof ResourceAlreadyExistsException) {
+                                logger.debug("not able to create {} index as it already exists", Auditor.NOTIFICATIONS_INDEX);
                             } else {
-                                if (error instanceof ResourceAlreadyExistsException) {
-                                    logger.debug("not able to create {} index as it already exists", Auditor.NOTIFICATIONS_INDEX);
-                                } else {
-                                    logger.error(
-                                            new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
-                                }
+                                logger.error(
+                                        new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
                             }
-                            createMlAuditIndexCheck.set(false);
-                        });
+                        }
+                        createMlAuditIndexCheck.set(false);
                     });
-                }
+                });
             }
-            if (metaData.hasIndex(JobProvider.ML_META_INDEX) == false) {
-                if (createMlMetaIndexCheck.compareAndSet(false, true)) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                        jobProvider.createMetaIndex((result, error) -> {
-                            if (result) {
-                                logger.info("successfully created {} index", JobProvider.ML_META_INDEX);
+        }
+    }
+
+    private void createMlMetaIndex(MetaData metaData) {
+        if (metaData.hasIndex(JobProvider.ML_META_INDEX) == false) {
+            if (createMlMetaIndexCheck.compareAndSet(false, true)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    jobProvider.createMetaIndex((result, error) -> {
+                        if (result) {
+                            logger.info("successfully created {} index", JobProvider.ML_META_INDEX);
+                        } else {
+                            if (error instanceof ResourceAlreadyExistsException) {
+                                logger.debug("not able to create {} index as it already exists", JobProvider.ML_META_INDEX);
                             } else {
-                                if (error instanceof ResourceAlreadyExistsException) {
-                                    logger.debug("not able to create {} index as it already exists", JobProvider.ML_META_INDEX);
-                                } else {
-                                    logger.error(new ParameterizedMessage("not able to create {} index", JobProvider.ML_META_INDEX), error);
-                                }
+                                logger.error(new ParameterizedMessage("not able to create {} index", JobProvider.ML_META_INDEX), error);
                             }
-                            createMlMetaIndexCheck.set(false);
-                        });
+                        }
+                        createMlMetaIndexCheck.set(false);
                     });
-                }
+                });
             }
-            String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
-            if (metaData.hasIndex(stateIndexName) == false) {
-                if (createStateIndexCheck.compareAndSet(false, true)) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                        jobProvider.createJobStateIndex((result, error) -> {
-                            if (result) {
-                                logger.info("successfully created {} index", stateIndexName);
+        }
+    }
+
+    private void createStateIndex(MetaData metaData) {
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
+        if (metaData.hasIndex(stateIndexName) == false) {
+            if (createStateIndexCheck.compareAndSet(false, true)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    jobProvider.createJobStateIndex((result, error) -> {
+                        if (result) {
+                            logger.info("successfully created {} index", stateIndexName);
+                        } else {
+                            if (error instanceof ResourceAlreadyExistsException) {
+                                logger.debug("not able to create {} index as it already exists", stateIndexName);
                             } else {
-                                if (error instanceof ResourceAlreadyExistsException) {
-                                    logger.debug("not able to create {} index as it already exists", stateIndexName);
-                                } else {
-                                    logger.error("not able to create " + stateIndexName + " index", error);
-                                }
+                                logger.error("not able to create " + stateIndexName + " index", error);
                             }
-                            createStateIndexCheck.set(false);
-                        });
+                        }
+                        createStateIndexCheck.set(false);
                     });
-                }
+                });
             }
         }
     }

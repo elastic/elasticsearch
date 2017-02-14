@@ -6,6 +6,12 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,6 +24,7 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -56,6 +63,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -229,6 +239,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
+    @SuppressWarnings("unchecked")
     private void createJob() {
         Detector.Builder detectorBuilder = new Detector.Builder("avg", "metric_field");
         detectorBuilder.setByFieldName("by_instance");
@@ -237,7 +248,18 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         analysisConfBuilder.setInfluencers(Collections.singletonList("influence_field"));
         jobBuilder.setAnalysisConfig(analysisConfBuilder);
 
-        jobProvider.createJobResultIndex(jobBuilder.build(), new ActionListener<Boolean>() {
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of())).build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+
+        doAnswer(invocationOnMock -> {
+            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
+            task.execute(cs);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(eq("put-job-" + JOB_ID), any(AckedClusterStateUpdateTask.class));
+
+        jobProvider.createJobResultIndex(jobBuilder.build(), cs, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean aBoolean) {
             }

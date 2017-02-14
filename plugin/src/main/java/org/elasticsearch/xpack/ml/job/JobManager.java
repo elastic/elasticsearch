@@ -162,11 +162,11 @@ public class JobManager extends AbstractComponent {
     /**
      * Stores a job in the cluster state
      */
-    public void putJob(PutJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+    public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJob();
 
         ActionListener<Boolean> createResultsIndexListener = ActionListener.wrap(jobSaved ->
-                jobProvider.createJobResultIndex(job, new ActionListener<Boolean>() {
+                jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
                 audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
@@ -193,12 +193,7 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        ClusterState cs = updateClusterState(job, false, currentState);
-                        if (currentState.metaData().index(AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())) != null) {
-                            throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS,
-                                    AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())));
-                        }
-                        return cs;
+                        return updateClusterState(job, false, currentState);
                     }
                 });
     }

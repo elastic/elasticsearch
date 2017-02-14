@@ -213,50 +213,79 @@ public class MlJobIT extends ESRestTestCase {
                 "    },\n" +
                 "  \"index_name\" : \"%s\"}";
 
-        String jobId = "aliased-job";
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, "index-1");
+
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH
+                        + "anomaly_detectors/repeated-id" , Collections.emptyMap(), new StringEntity(jobConfig));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        final String jobConfig2 = String.format(Locale.ROOT, jobTemplate, "index-2");
+        ResponseException e = expectThrows(ResponseException.class,
+                () ->client().performRequest("put", MachineLearning.BASE_PATH
+                                + "anomaly_detectors/repeated-id" , Collections.emptyMap(), new StringEntity(jobConfig2)));
+
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("The job cannot be created with the Id 'repeated-id'. The Id is already used."));
+    }
+
+    public void testCreateJobsWithIndexNameOption() throws Exception {
+        String jobTemplate = "{\n" +
+                "  \"analysis_config\" : {\n" +
+                "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
+                "    },\n" +
+                "  \"index_name\" : \"%s\"}";
+
+        String jobId1 = "aliased-job-1";
         String indexName = "non-default-index";
         String jobConfig = String.format(Locale.ROOT, jobTemplate, indexName);
 
-        Response response = client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
-                new StringEntity(jobConfig));
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH
+                        + "anomaly_detectors/" + jobId1, Collections.emptyMap(), new StringEntity(jobConfig));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        String jobId2 = "aliased-job-2";
+        response = client().performRequest("put", MachineLearning.BASE_PATH
+                        + "anomaly_detectors/" + jobId2, Collections.emptyMap(), new StringEntity(jobConfig));
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         response = client().performRequest("get", "_aliases");
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
+
         assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsIndexName(indexName)
-                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "\""));
+                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsIndexName(jobId1) + "\":{},\"" +
+                AnomalyDetectorsIndex.jobResultsIndexName(jobId2)));
 
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(indexName));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId1))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId2))));
 
         addBucketResult(indexName, "1234", 1);
         addBucketResult(indexName, "1236", 1);
-        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets");
+        response = client().performRequest("get", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId1 + "/results/buckets");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":2"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(indexName) + "/result/_search");
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(indexName)
+                + "/result/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"total\":2"));
 
-        // test that we can't create another job with the same index_name
-        String jobConfigSameIndexName = String.format(Locale.ROOT, jobTemplate, "new-job-id", indexName);
-        expectThrows(ResponseException.class, () -> client().performRequest("put",
-                MachineLearning.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(jobConfigSameIndexName)));
-
-        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         // check index and alias were deleted
         response = client().performRequest("get", "_aliases");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId1))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId2))));
 
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());

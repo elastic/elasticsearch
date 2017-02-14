@@ -202,7 +202,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.putJob(request, listener);
+            jobManager.putJob(request, state, listener);
         }
 
         @Override

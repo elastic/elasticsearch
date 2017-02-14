@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
@@ -235,7 +237,7 @@ public class JobProvider {
     /**
      * Create the Elasticsearch index and the mappings
      */
-    public void createJobResultIndex(Job job, ActionListener<Boolean> listener) {
+    public void createJobResultIndex(Job job, ClusterState state, ActionListener<Boolean> listener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
         try {
             XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping(termFields);
@@ -247,14 +249,6 @@ public class JobProvider {
             boolean createIndexAlias = !job.getIndexName().equals(job.getId());
             String indexName = AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName());
 
-            LOGGER.trace("ES API CALL: create index {}", indexName);
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-            createIndexRequest.settings(mlResultsIndexSettings());
-            createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
-            createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
-            createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
-            createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
-
             if (createIndexAlias) {
                 final ActionListener<Boolean> responseListener = listener;
                 listener = ActionListener.wrap(aBoolean -> {
@@ -265,9 +259,37 @@ public class JobProvider {
                         listener::onFailure);
             }
 
-            final ActionListener<Boolean> createdListener = listener;
-            client.admin().indices().create(createIndexRequest,
-                    ActionListener.wrap(r -> createdListener.onResponse(true), createdListener::onFailure));
+            // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
+            // already in the CS
+            if (!state.getMetaData().hasIndex(indexName)) {
+                LOGGER.trace("ES API CALL: create index {}", indexName);
+                CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+                createIndexRequest.settings(mlResultsIndexSettings());
+                createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
+                createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
+                createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
+                createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
+
+                final ActionListener<Boolean> createdListener = listener;
+                client.admin().indices().create(createIndexRequest,
+                        ActionListener.wrap(r -> createdListener.onResponse(true),
+                                e -> {
+                                    // Possible that the index was created while the request was executing,
+                                    // so we need to handle that possibility
+                                    if (e instanceof ResourceAlreadyExistsException) {
+                                        LOGGER.info("Index already exists");
+                                        // Create the alias
+                                        createdListener.onResponse(true);
+                                    } else {
+                                        createdListener.onFailure(e);
+                                    }
+                                }
+                        ));
+            } else {
+                // Trigger the alias creation handler manually, since the index already exists
+                listener.onResponse(true);
+            }
+
         } catch (Exception e) {
             listener.onFailure(e);
         }

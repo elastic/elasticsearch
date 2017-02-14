@@ -87,13 +87,21 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     /**
      * ensures the cluster is healthy after the disruption
-     *
-     * {@link org.elasticsearch.cluster.NodeConnectionsService} will eventually reconnect but it's
-     * handy to be able to ensure this happens faster
-     **/
+     */
     public void ensureHealthy(InternalTestCluster cluster) {
         assert activeDisruption == false;
         ensureNodeCount(cluster);
+        ensureFullyConnectedCluster(cluster);
+    }
+
+    /**
+     * Ensures that all nodes in the cluster are connected to each other.
+     *
+     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * {@link org.elasticsearch.cluster.NodeConnectionsService} will eventually reconnect but it's
+     * handy to be able to ensure this happens faster
+     */
+    public static void ensureFullyConnectedCluster(InternalTestCluster cluster) {
         for (String node: cluster.getNodeNames()) {
             ClusterState stateOnNode = cluster.getInstance(ClusterService.class, node).state();
             cluster.getInstance(NodeConnectionsService.class, node).connectToNodes(stateOnNode.nodes());

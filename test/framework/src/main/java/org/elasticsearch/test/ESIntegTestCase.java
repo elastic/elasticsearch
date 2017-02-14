@@ -62,7 +62,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -126,6 +125,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1180,10 +1180,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * handy to be able to ensure this happens faster
      */
     protected void ensureFullyConnectedCluster() {
-        for (String node: internalCluster().getNodeNames()) {
-            ClusterState stateOnNode = internalCluster().getInstance(ClusterService.class, node).state();
-            internalCluster().getInstance(NodeConnectionsService.class, node).connectToNodes(stateOnNode.nodes());
-        }
+        NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
     }
 
     /**

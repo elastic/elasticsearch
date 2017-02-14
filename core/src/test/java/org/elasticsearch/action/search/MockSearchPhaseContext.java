@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,12 +51,13 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     Set<Long> releasedSearchContexts = new HashSet<>();
+    SearchRequest searchRequest = new SearchRequest();
+    AtomicInteger phasesExecuted = new AtomicInteger();
 
     public MockSearchPhaseContext(int numShards) {
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
     }
-
 
     public void assertNoFailure() {
         if (phaseFailure.get() != null) {
@@ -80,7 +82,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public SearchRequest getRequest() {
-        return new SearchRequest();
+        return searchRequest;
     }
 
     @Override
@@ -119,10 +121,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+        phasesExecuted.incrementAndGet();
         try {
             nextPhase.run();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+           onPhaseFailure(nextPhase, "phase failed", e);
         }
     }
 

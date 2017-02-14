@@ -53,7 +53,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Boolean terminatedEarly = null;
 
-    private InternalSearchResponse() {
+    public InternalSearchResponse() {
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,

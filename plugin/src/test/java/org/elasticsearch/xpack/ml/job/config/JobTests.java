@@ -48,7 +48,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNotNull(job.getDataDescription());
         assertNull(job.getDescription());
         assertNull(job.getFinishedTime());
-        assertNull(job.getIgnoreDowntime());
         assertNull(job.getLastDataTime());
         assertNull(job.getModelDebugConfig());
         assertNull(job.getRenormalizationWindowDays());
@@ -57,16 +56,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getResultsRetentionDays());
         assertNotNull(job.allFields());
         assertFalse(job.allFields().isEmpty());
-    }
-
-    public void testConstructor_GivenJobConfigurationWithIgnoreDowntime() {
-        Job.Builder builder = new Job.Builder("foo");
-        builder.setIgnoreDowntime(IgnoreDowntime.ONCE);
-        builder.setAnalysisConfig(createAnalysisConfig());
-        Job job = builder.build();
-
-        assertEquals("foo", job.getId());
-        assertEquals(IgnoreDowntime.ONCE, job.getIgnoreDowntime());
     }
 
     public void testNoId() {
@@ -143,16 +132,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         customSettings2.put("key2", "value2");
         jobDetails2.setCustomSettings(customSettings2);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
-    }
-
-    public void testEquals_GivenDifferentIgnoreDowntime() {
-        Job.Builder job1 = new Job.Builder();
-        job1.setIgnoreDowntime(IgnoreDowntime.NEVER);
-        Job.Builder job2 = new Job.Builder();
-        job2.setIgnoreDowntime(IgnoreDowntime.ONCE);
-
-        assertFalse(job1.equals(job2));
-        assertFalse(job2.equals(job1));
     }
 
     public void testSetAnalysisLimits() {
@@ -402,7 +381,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         if (randomBoolean()) {
             builder.setModelDebugConfig(new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)));
         }
-        builder.setIgnoreDowntime(randomFrom(IgnoreDowntime.values()));
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
         }

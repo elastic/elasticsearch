@@ -12,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.mockito.Mockito;
 import java.io.IOException;
@@ -51,9 +50,7 @@ public class ProcessCtrlTests extends ESTestCase {
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
-        job.setIgnoreDowntime(IgnoreDowntime.ONCE);
-
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, false, pid);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, true, pid);
         assertEquals(17, command.size());
         assertTrue(command.contains(ProcessCtrl.AUTODETECT_PATH));
         assertTrue(command.contains(ProcessCtrl.BATCH_SPAN_ARG + "100"));

@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
@@ -42,7 +41,6 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
             ModelDebugConfig modelDebugConfig = randomBoolean() ? new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)) : null;
-            IgnoreDowntime ignoreDowntime = randomFrom(IgnoreDowntime.values());
             Long normalizationWindowDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
             Long backgroundPersistInterval = randomBoolean() ? Long.valueOf(randomIntBetween(3600, 86400)) : null;
             Long modelSnapshotRetentionDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
@@ -53,7 +51,7 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             String indexName = randomBoolean() ? "index" + j : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
                     analysisConfig, analysisLimits, dataDescription,
-                    modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
+                    modelDebugConfig, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId, indexName, randomBoolean());
 
             jobList.add(job);

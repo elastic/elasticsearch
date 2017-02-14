@@ -15,7 +15,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.BufferedWriter;
@@ -215,10 +214,6 @@ public class ProcessCtrl {
 
         int maxQuantileInterval = BASE_MAX_QUANTILE_INTERVAL + intervalStagger;
         command.add(MAX_QUANTILE_INTERVAL_ARG + maxQuantileInterval);
-
-        ignoreDowntime = ignoreDowntime
-                || job.getIgnoreDowntime() == IgnoreDowntime.ONCE
-                || job.getIgnoreDowntime() == IgnoreDowntime.ALWAYS;
 
         if (ignoreDowntime) {
             command.add(IGNORE_DOWNTIME_ARG);

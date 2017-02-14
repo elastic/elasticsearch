@@ -94,7 +94,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
 
         private String jobId;
-        private boolean ignoreDowntime;
+        private boolean ignoreDowntime = true;
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
 
         public Request(String jobId) {

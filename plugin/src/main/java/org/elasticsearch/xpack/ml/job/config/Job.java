@@ -52,7 +52,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField DATA_DESCRIPTION = new ParseField("data_description");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
-    public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
     public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
     public static final ParseField MODEL_DEBUG_CONFIG = new ParseField("model_debug_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
@@ -106,7 +105,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
         PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
-        PARSER.declareField(Builder::setIgnoreDowntime, (p, c) -> IgnoreDowntime.fromString(p.text()), IGNORE_DOWNTIME, ValueType.STRING);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareLong(Builder::setBackgroundPersistInterval, BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
@@ -127,7 +125,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
     private final ModelDebugConfig modelDebugConfig;
-    private final IgnoreDowntime ignoreDowntime;
     private final Long renormalizationWindowDays;
     private final Long backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
@@ -139,9 +136,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
-               ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
-               Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
-               Map<String, Object> customSettings, String modelSnapshotId, String indexName, boolean deleted) {
+               ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, Long backgroundPersistInterval,
+               Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
+               String modelSnapshotId, String indexName, boolean deleted) {
         if (analysisConfig == null) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
         }
@@ -173,7 +170,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
         this.modelDebugConfig = modelDebugConfig;
-        this.ignoreDowntime = ignoreDowntime;
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
@@ -194,7 +190,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
         modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
-        ignoreDowntime = in.readOptionalWriteable(IgnoreDowntime::fromStream);
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalLong();
         modelSnapshotRetentionDays = in.readOptionalLong();
@@ -287,10 +282,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public AnalysisLimits getAnalysisLimits() {
         return analysisLimits;
-    }
-
-    public IgnoreDowntime getIgnoreDowntime() {
-        return ignoreDowntime;
     }
 
     public ModelDebugConfig getModelDebugConfig() {
@@ -395,7 +386,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
         out.writeOptionalWriteable(modelDebugConfig);
-        out.writeOptionalWriteable(ignoreDowntime);
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalLong(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
@@ -440,9 +430,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (modelDebugConfig != null) {
             builder.field(MODEL_DEBUG_CONFIG.getPreferredName(), modelDebugConfig, params);
         }
-        if (ignoreDowntime != null) {
-            builder.field(IGNORE_DOWNTIME.getPreferredName(), ignoreDowntime);
-        }
         if (renormalizationWindowDays != null) {
             builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
         }
@@ -486,7 +473,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelDebugConfig, that.modelDebugConfig)
-                && Objects.equals(this.ignoreDowntime, that.ignoreDowntime)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
@@ -501,7 +487,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public int hashCode() {
         return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, analysisConfig,
                 analysisLimits, dataDescription, modelDebugConfig, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, ignoreDowntime, customSettings,
+                backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                 modelSnapshotId, indexName, deleted);
     }
 
@@ -533,7 +519,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Long backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
         private Long resultsRetentionDays;
-        private IgnoreDowntime ignoreDowntime;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String indexName;
@@ -558,7 +543,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.resultsRetentionDays = job.getResultsRetentionDays();
-            this.ignoreDowntime = job.getIgnoreDowntime();
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
         }
@@ -636,10 +620,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.resultsRetentionDays = resultsRetentionDays;
         }
 
-        public void setIgnoreDowntime(IgnoreDowntime ignoreDowntime) {
-            this.ignoreDowntime = ignoreDowntime;
-        }
-
         public void setModelSnapshotId(String modelSnapshotId) {
             this.modelSnapshotId = modelSnapshotId;
         }
@@ -681,9 +661,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
-                    dataDescription, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    indexName, deleted);
+                    dataDescription, modelDebugConfig, renormalizationWindowDays, backgroundPersistInterval,
+                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId, indexName, deleted);
         }
     }
 }

@@ -132,16 +132,16 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.tokenized() == false && fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
-                        throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
-                    }
-                    if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                    if (fieldType.tokenized()) {
+                        analyzer = fieldType.indexAnalyzer();
+                    } else if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
                         analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
                         if (analyzer == null) {
+                            // this will be KeywordAnalyzer
                             analyzer = fieldType.indexAnalyzer();
                         }
                     } else {
-                        analyzer = fieldType.indexAnalyzer();
+                        throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
                     }
                     field = fieldType.name();
                 }

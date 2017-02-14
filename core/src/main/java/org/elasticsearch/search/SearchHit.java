@@ -833,9 +833,9 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
      */
     public static final class NestedIdentity implements Writeable, ToXContent {
 
-        public static final String _NESTED = "_nested";
-        public static final String _NESTED_FIELD = "field";
-        public static final String _NESTED_OFFSET = "offset";
+        private static final String _NESTED = "_nested";
+        private static final String FIELD = "field";
+        private static final String OFFSET = "offset";
 
         private Text field;
         private int offset;
@@ -896,10 +896,10 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (field != null) {
-                builder.field(_NESTED_FIELD, field);
+                builder.field(FIELD, field);
             }
             if (offset != -1) {
-                builder.field(_NESTED_OFFSET, offset);
+                builder.field(OFFSET, offset);
             }
             if (child != null) {
                 builder = child.toXContent(builder, params);
@@ -912,8 +912,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
                 "nested_identity",
                 ctorArgs -> new NestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (NestedIdentity) ctorArgs[2]));
         static {
-            PARSER.declareString(constructorArg(), new ParseField(_NESTED_FIELD));
-            PARSER.declareInt(constructorArg(), new ParseField(_NESTED_OFFSET));
+            PARSER.declareString(constructorArg(), new ParseField(FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(OFFSET));
             PARSER.declareObject(optionalConstructorArg(), PARSER, new ParseField(_NESTED));
         }
 

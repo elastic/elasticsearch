@@ -42,11 +42,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         if (enabled) {
+            settings.put("xpack.ml.enabled", enabled);
+        } else {
             if (randomBoolean()) {
                 settings.put("xpack.ml.enabled", enabled);
             }
-        } else {
-            settings.put("xpack.ml.enabled", enabled);
         }
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));

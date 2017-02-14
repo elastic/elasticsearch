@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class CollapseSearchPhaseTests extends ESTestCase {
+public class ExpandSearchPhaseTests extends ESTestCase {
 
     public void testCollapseSingleHit() throws IOException {
         final int iters = randomIntBetween(5, 10);

@@ -13,13 +13,15 @@ when you might expect otherwise.
 [float]
 === Explain API Request
 
-To explain the allocation of a shard, issue a request:
+To explain the allocation of a shard, first an index should exist:
 
 [source,js]
 --------------------------------------------------
 PUT /myindex
 --------------------------------------------------
 // TESTSETUP
+
+And then the allocation for shards of that index can be explained:
 
 [source,js]
 --------------------------------------------------

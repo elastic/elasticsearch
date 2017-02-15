@@ -121,7 +121,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/types/percolator.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
-  'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...
+  'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
@@ -154,7 +154,7 @@ integTest {
   }
 }
 
-// Build the cluser with all plugins
+// Build the cluster with all plugins
 
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
@@ -176,8 +176,6 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
-  // This file simply doesn't pass yet. We should figure out how to fix it.
-  exclude 'reference/modules/snapshots.asciidoc'
 }
 
 Closure setupTwitter = { String name, int count ->

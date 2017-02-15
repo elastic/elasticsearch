@@ -24,20 +24,22 @@ Elasticsearch. The repository settings are repository-type specific. See below f
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_backup
+PUT /_snapshot/my_backup
 {
   "type": "fs",
   "settings": {
-        ... repository specific settings ...
+    "location": "my_backup_location"
   }
 }
 -----------------------------------
+// CONSOLE
+// TESTSETUP
 
 Once a repository is registered, its information can be obtained using the following command:
 
 [source,js]
 -----------------------------------
-GET _snapshot/my_backup
+GET /_snapshot/my_backup
 -----------------------------------
 // CONSOLE
 
@@ -49,12 +51,12 @@ which returns:
   "my_backup": {
     "type": "fs",
     "settings": {
-      "compress": true,
-      "location": "/mount/backups/my_backup"
+      "location": "my_backup_location"
     }
   }
 }
 -----------------------------------
+// TESTRESPONSE
 
 Information about multiple repositories can be fetched in one go by using a comma-delimited list of repository names.
 Star wildcards are supported as well. For example, information about repositories that start with `repo` or that contain `backup`
@@ -62,7 +64,7 @@ can be obtained using the following command:
 
 [source,js]
 -----------------------------------
-GET _snapshot/repo*,*backup*
+GET /_snapshot/repo*,*backup*
 -----------------------------------
 // CONSOLE
 
@@ -71,7 +73,7 @@ all repositories currently registered in the cluster:
 
 [source,js]
 -----------------------------------
-GET _snapshot
+GET /_snapshot
 -----------------------------------
 // CONSOLE
 
@@ -79,7 +81,7 @@ or
 
 [source,js]
 -----------------------------------
-GET _snapshot/_all
+GET /_snapshot/_all
 -----------------------------------
 // CONSOLE
 
@@ -112,32 +114,34 @@ the name `my_backup`:
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_backup
+PUT /_snapshot/my_fs_backup
 {
     "type": "fs",
     "settings": {
-        "location": "/mount/backups/my_backup",
+        "location": "/mount/backups/my_fs_backup_location",
         "compress": true
     }
 }
 -----------------------------------
 // CONSOLE
+// TEST[skip:no access to absolute path]
 
 If the repository location is specified as a relative path this path will be resolved against the first path specified
 in `path.repo`:
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_backup
+PUT /_snapshot/my_fs_backup
 {
     "type": "fs",
     "settings": {
-        "location": "my_backup",
+        "location": "my_fs_backup_location",
         "compress": true
     }
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The following settings are supported:
 
@@ -190,24 +194,25 @@ verification when registering or updating a repository:
 
 [source,js]
 -----------------------------------
-PUT _snapshot/s3_repository?verify=false
+PUT /_snapshot/my_unverified_backup?verify=false
 {
-  "type": "s3",
+  "type": "fs",
   "settings": {
-    "bucket": "my_s3_bucket",
-    "region": "eu-west-1"
+    "location": "my_unverified_backup_location"
   }
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The verification process can also be executed manually by running the following command:
 
 [source,js]
 -----------------------------------
-POST _snapshot/s3_repository/_verify
+POST /_snapshot/my_unverified_backup/_verify
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
@@ -220,9 +225,10 @@ command:
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_backup/snapshot_1?wait_for_completion=true
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
 initialization (default) or wait for snapshot completion. During snapshot initialization, information about all
@@ -234,7 +240,7 @@ specifying the list of indices in the body of the snapshot request.
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_backup/snapshot_1
+PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
@@ -242,6 +248,7 @@ PUT _snapshot/my_backup/snapshot_1
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
 supports <<search-multi-index-type,multi index syntax>>. The snapshot request also supports the
@@ -275,25 +282,28 @@ Once a snapshot is created information about this snapshot can be obtained using
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_1
+GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_*,some_other_snapshot
+GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 All snapshots currently stored in the repository can be listed using the following command:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/_all
+GET /_snapshot/my_backup/_all
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unavailable` can be used to
 return all snapshots that are currently available.
@@ -302,17 +312,19 @@ A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/_current
+GET /_snapshot/my_backup/_current
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 A snapshot can be deleted from the repository using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE _snapshot/my_backup/snapshot_1
+DELETE /_snapshot/my_backup/snapshot_2
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 When a snapshot is deleted from a repository, Elasticsearch deletes all files that are associated with the deleted
 snapshot and not used by any other snapshots. If the deleted snapshot operation is executed while the snapshot is being
@@ -324,9 +336,10 @@ A repository can be deleted using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE _snapshot/my_backup
+DELETE /_snapshot/my_fs_backup
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
 the snapshots. The snapshots themselves are left untouched and in place.
@@ -338,9 +351,10 @@ A snapshot can be restored using the following command:
 
 [source,sh]
 -----------------------------------
-POST _snapshot/my_backup/snapshot_1/_restore
+POST /_snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 By default, all indices in the snapshot are restored, and the cluster state is
 *not* restored. It's possible to select indices that should be restored as well
@@ -356,7 +370,7 @@ with associated indices
 
 [source,js]
 -----------------------------------
-POST _snapshot/my_backup/snapshot_1/_restore
+POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
@@ -366,6 +380,7 @@ POST _snapshot/my_backup/snapshot_1/_restore
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The restore operation can be performed on a functioning cluster. However, an
 existing index can be only restored if it's <<indices-open-close,closed>> and
@@ -394,7 +409,7 @@ the index `index_1` without creating any replicas while switching back to defaul
 
 [source,js]
 -----------------------------------
-POST _snapshot/my_backup/snapshot_1/_restore
+POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1",
   "index_settings": {
@@ -406,6 +421,7 @@ POST _snapshot/my_backup/snapshot_1/_restore
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 Please note, that some settings such as `index.number_of_shards` cannot be changed during restore operation.
 
@@ -437,35 +453,39 @@ A list of currently running snapshots with their detailed status information can
 
 [source,sh]
 -----------------------------------
-GET _snapshot/_status
+GET /_snapshot/_status
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
 to limit the results to a particular repository:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/_status
+GET /_snapshot/my_backup/_status
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
 if it's not currently running:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_1/_status
+GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 Multiple ids are also supported:
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_1,snapshot_2/_status
+GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 === Monitoring snapshot/restore progress
@@ -478,9 +498,10 @@ The snapshot operation can be also monitored by periodic calls to the snapshot i
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_1
+GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 Please note that snapshot info operation uses the same resources and thread pool as the snapshot operation. So,
 executing a snapshot info operation while large shards are being snapshotted can cause the snapshot info operation to wait
@@ -490,9 +511,10 @@ To get more immediate and complete information about snapshots the snapshot stat
 
 [source,sh]
 -----------------------------------
-GET _snapshot/my_backup/snapshot_1/_status
+GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 While snapshot info method returns only basic information about the snapshot in progress, the snapshot status returns
 complete breakdown of the current state for each shard participating in the snapshot.
@@ -519,9 +541,10 @@ that snapshot before deleting the snapshot data from the repository.
 
 [source,sh]
 -----------------------------------
-DELETE _snapshot/my_backup/snapshot_1
+DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
+// TEST[continued]
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed

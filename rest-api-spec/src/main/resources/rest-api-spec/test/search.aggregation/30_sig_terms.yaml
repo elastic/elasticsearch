@@ -158,7 +158,7 @@
             settings:
                 number_of_shards: "1"
             mappings:
-                doc:
+                test:
                     properties:
                         str:
                             type: keyword

@@ -21,6 +21,7 @@ import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ml.action.MlDeleteByQueryAction;
+import org.elasticsearch.xpack.ml.job.config.Job;
 
 
 import java.util.function.Consumer;
@@ -69,8 +70,8 @@ public class JobStorageDeletionTask extends Task {
         // Step 1. DeleteByQuery on the index, matching all docs with the right job_id
         // -------
         SearchRequest searchRequest = new SearchRequest(indexPattern);
-        searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("job_id", jobId)));
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder(Job.ID.getPreferredName(), jobId)));
         request.setSlices(5);
 
         client.execute(MlDeleteByQueryAction.INSTANCE, request,

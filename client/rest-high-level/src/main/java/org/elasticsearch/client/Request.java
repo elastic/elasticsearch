@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
@@ -120,19 +121,18 @@ final class Request {
     }
 
     static Request delete(DeleteRequest deleteRequest) {
-        return new Request("DELETE", deleteEndpoint(deleteRequest), deleteParams(deleteRequest), null);
+        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
 
-        Map<String, String> params = new HashMap<>();
-        putParam("routing", deleteRequest.routing(), params);
-        putParam("parent", deleteRequest.parent(), params);
-        if (deleteRequest.version() != Versions.MATCH_ANY) {
-            params.put("version", Long.toString(deleteRequest.version()));
-        }
-        if (deleteRequest.versionType() != VersionType.INTERNAL) {
-            params.put("version_type", deleteRequest.versionType().name().toLowerCase(Locale.ROOT));
-        }
-        return Collections.unmodifiableMap(params);
+        Params parameters = Params.builder();
+        parameters.withRouting(deleteRequest.routing());
+        parameters.withParent(deleteRequest.parent());
+        parameters.withTimeout(deleteRequest.timeout());
+        parameters.withVersion(deleteRequest.version());
+        parameters.withVersionType(deleteRequest.versionType());
+        parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
+        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
 
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     /**
@@ -141,6 +141,7 @@ final class Request {
     static String endpoint(String... parts) {
         if (parts == null || parts.length == 0) {
             return DELIMITER;
+        }
 
         StringJoiner joiner = new StringJoiner(DELIMITER, DELIMITER, "");
         for (String part : parts) {

@@ -89,7 +89,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
-                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
     }
 
     public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {

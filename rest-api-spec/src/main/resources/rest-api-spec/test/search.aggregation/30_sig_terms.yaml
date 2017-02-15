@@ -145,4 +145,68 @@
       search:
         body: { "size" : 0, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
   
- 
+---
+"Pattern include/exclude":
+
+  - skip:
+      features: "warnings"
+
+  - do:
+      indices.create:
+          index:  test_1
+          body:
+            settings:
+                number_of_shards: "1"
+            mappings:
+                test:
+                    properties:
+                        str:
+                            type: keyword
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "str" : "abc" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "str": "bcd" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "str": "cde" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 4
+        body: { }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      warnings:
+        - "Deprecated field [pattern] used, replaced by [Put patterns directly under the [include] or [exclude]]"
+      search:
+        body: { "size" : 0, "query" : { "exists" : { "field" : "str" } }, "aggs" : { "str_terms" : { "significant_terms" : { "field" : "str", "min_doc_count": 1, "include" : {"pattern": ".*d.*"}, "exclude": { "pattern": ".*e.*" } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }

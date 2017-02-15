@@ -17,6 +17,12 @@ To explain the allocation of a shard, issue a request:
 
 [source,js]
 --------------------------------------------------
+PUT /myindex
+--------------------------------------------------
+// TESTSETUP
+
+[source,js]
+--------------------------------------------------
 GET /_cluster/allocation/explain
 {
   "index": "myindex",
@@ -37,7 +43,6 @@ specified as either the node id or node name.
 
 [source,js]
 --------------------------------------------------
-GET /_cluster/allocation/explain
 {
   "index": "myindex",
   "shard": 0,
@@ -45,7 +50,6 @@ GET /_cluster/allocation/explain
   "current_node": "nodeA"                         <1>
 }
 --------------------------------------------------
-// CONSOLE
 <1> The node where shard 0 currently has a replica on
 
 You can also have Elasticsearch explain the allocation of the first unassigned

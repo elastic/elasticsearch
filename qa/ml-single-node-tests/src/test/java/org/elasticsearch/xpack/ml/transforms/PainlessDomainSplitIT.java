@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -192,7 +193,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     private void createIndex(String name, Settings settings, String mapping) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-                new StringEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }")));
+                new StringEntity("{ \"settings\": " + Strings.toString(settings)
+                        + ", \"mappings\" : {" + mapping + "} }")));
     }
 
     public void testIsolated() throws Exception {
@@ -202,7 +204,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        client().performRequest("PUT", "painless/test/1", Collections.emptyMap(), new StringEntity("{\"test\": \"test\"}"));
+        client().performRequest("PUT", "painless/test/1", Collections.emptyMap(),
+                new StringEntity("{\"test\": \"test\"}"));
         client().performRequest("POST", "painless/_refresh");
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
@@ -221,7 +224,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" + DomainSplitFunction.function + " return domainSplit(params['host'], params); \",\n" +
+                    "                \"inline\": \"" + DomainSplitFunction.function +
+                    " return domainSplit(params['host'], params); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +
                     "        }\n" +
@@ -244,8 +248,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
             // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
             if (testConfig.subDomainExpected != null) {
-                assertThat("Expected subdomain [" + testConfig.subDomainExpected + "] but found [" + actualSubDomain + "]. Actual "
-                        + actualTotal + " vs Expected " + expectedTotal, actualSubDomain, equalTo(testConfig.subDomainExpected));
+                assertThat("Expected subdomain [" + testConfig.subDomainExpected + "] but found [" + actualSubDomain
+                        + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                        equalTo(testConfig.subDomainExpected));
             }
 
             assertThat("Expected domain [" + testConfig.domainExpected + "] but found [" + actualDomain + "].  Actual "
@@ -278,8 +283,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex("painless", settings.build(), "\"test\": { \"properties\": { \"domain\": { \"type\": \"keyword\" },\"time\": { " +
-                "\"type\": \"date\" } } }");
+        createIndex("painless", settings.build(), "\"test\": { \"properties\": { \"domain\": { \"type\": \"keyword\" }," +
+                "\"time\": { \"type\": \"date\" } } }");
 
         // Index some data
         DateTime baseTime = new DateTime().minusYears(1);
@@ -298,13 +303,15 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 for (int j = 0; j < 100; j++) {
                     client().performRequest("PUT", "painless/test/" + time.toDateTimeISO() + "_" + j,
                             Collections.emptyMap(),
-                            new StringEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO() + "\"}"));
+                            new StringEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO()
+                                    + "\"}"));
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
                 client().performRequest("PUT", "painless/test/" + time.toDateTimeISO(),
                         Collections.emptyMap(),
-                        new StringEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO() + "\"}"));
+                        new StringEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO()
+                                + "\"}"));
             }
         }
 
@@ -322,8 +329,10 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "         }\n" +
                 "      }";
 
-        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/painless", Collections.emptyMap(), new StringEntity(body));
+        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/painless", Collections.emptyMap(),
+                new StringEntity(body));
         client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/painless/_start");
+
 
         boolean passed = awaitBusy(() -> {
             try {
@@ -348,8 +357,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
                     // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
                     if (test.subDomainExpected != null) {
-                        assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain + "]. Actual "
-                                + actualTotal + " vs Expected " + expectedTotal, actualSubDomain, equalTo(test.subDomainExpected));
+                        assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
+                                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                                equalTo(test.subDomainExpected));
                     }
 
                     assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
@@ -357,6 +367,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
                     return true;
                 } else {
+                    logger.error(responseBody);
                     return false;
                 }
 

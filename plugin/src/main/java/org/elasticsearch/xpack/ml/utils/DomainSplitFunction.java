@@ -271,7 +271,7 @@ public final class DomainSplitFunction {
                 "    }\n" +
                 "    return [subDomain, highestRegistered];\n" +
                 "}\n";
-        fn = fn.replace("\n","");
+        fn = fn.replace("\n"," ");
         function = fn;
     }
 }

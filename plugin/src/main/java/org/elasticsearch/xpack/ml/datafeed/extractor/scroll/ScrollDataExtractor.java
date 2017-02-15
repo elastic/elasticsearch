@@ -123,16 +123,15 @@ class ScrollDataExtractor implements DataExtractor {
 
     private Script injectDomainSplit(Script script) {
         String code = script.getIdOrCode();
-        if (code.contains("domainSplit(")) {
-            String modifiedCode = DomainSplitFunction.function + "\n" + script;
+        if (code.contains("domainSplit(") && script.getLang().equals("painless")) {
+            String modifiedCode = DomainSplitFunction.function + code;
             Map<String, Object> modifiedParams = new HashMap<>(script.getParams().size()
                     + DomainSplitFunction.params.size());
 
             modifiedParams.putAll(script.getParams());
             modifiedParams.putAll(DomainSplitFunction.params);
 
-            return new Script(script.getType(), script.getLang(),
-                    modifiedCode, modifiedParams);
+            return new Script(script.getType(), script.getLang(), modifiedCode, modifiedParams);
         }
         return script;
     }

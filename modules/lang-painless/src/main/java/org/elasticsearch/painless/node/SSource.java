@@ -334,6 +334,7 @@ public final class SSource extends AStatement {
         // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
         //   throw this.convertToScriptException(e, e.getHeaders())
         // }
+        // We *think* it is ok to catch OutOfMemoryError and StackOverflowError because Painless is stateless
         writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
         writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
         writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());

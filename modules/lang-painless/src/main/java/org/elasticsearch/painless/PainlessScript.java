@@ -107,7 +107,7 @@ public abstract class PainlessScript {
         private final String source;
         private final BitSet statements;
 
-        protected ScriptMetadata(String name, String source, BitSet statements) {
+        ScriptMetadata(String name, String source, BitSet statements) {
             this.name = name;
             this.source = source;
             this.statements = statements;

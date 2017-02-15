@@ -23,6 +23,10 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
@@ -152,7 +156,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertEquals(Collections.singletonMap(MachineLearning.ALLOCATION_ENABLED_ATTR, "true"), node.getAttributes());
+            Map<String, String> expectedNodeAttr = new HashMap<>();
+            expectedNodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
+            expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+            assertEquals(expectedNodeAttr, node.getAttributes());
             assertEquals(JobState.OPENED, task.getStatus());
         });
 
@@ -181,7 +188,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             assertNotNull(task.getExecutorNode());
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertEquals(Collections.singletonMap(MachineLearning.ALLOCATION_ENABLED_ATTR, "true"), node.getAttributes());
+            Map<String, String> expectedNodeAttr = new HashMap<>();
+            expectedNodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
+            expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+            assertEquals(expectedNodeAttr, node.getAttributes());
             assertEquals(JobState.OPENED, task.getStatus());
         });
     }

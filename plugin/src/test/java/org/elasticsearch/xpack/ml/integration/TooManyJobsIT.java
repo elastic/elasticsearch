@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.concurrent.ExecutionException;
@@ -45,25 +44,19 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertTrue(putJobResponse.isAcknowledged());
         expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("2")).actionGet());
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("2")).actionGet();
-            assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.FAILED);
-        });
 
-        // close second job:
-        client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request("2")).actionGet();
-        // ensure that we remove persistent task for job 2, so that we stop the persistent task allocation loop:
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
-            assertEquals(1, tasks.taskMap().size());
-            // now just double check that the first job is still opened:
-            PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
-            assertEquals(JobState.OPENED, task.getStatus());
-            OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
-            assertEquals("1", openJobRequest.getJobId());
-        });
+        // Ensure that the second job didn't even attempt to be opened and we still have 1 job open:
+        GetJobsStatsAction.Response statsResponse =
+                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("2")).actionGet();
+        assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        PersistentTasksInProgress tasks = state.custom(PersistentTasksInProgress.TYPE);
+        assertEquals(1, tasks.taskMap().size());
+        // now just double check that the first job is still opened:
+        PersistentTasksInProgress.PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
+        assertEquals(JobState.OPENED, task.getStatus());
+        OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
+        assertEquals("1", openJobRequest.getJobId());
     }
 
     public void testSingleNode() throws Exception {
@@ -83,9 +76,9 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
 
+            OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
             try {
-                OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-                PersistentActionResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+                client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
                 assertBusy(() -> {
                     GetJobsStatsAction.Response statsResponse =
                             client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
@@ -95,13 +88,14 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             } catch (ExecutionException e) {
                 Exception cause = (Exception) e.getCause();
                 assertEquals(ElasticsearchStatusException.class, cause.getClass());
-                assertEquals("[" + i + "] expected state [" + JobState.OPENED + "] but got [" + JobState.FAILED +"]", cause.getMessage());
+                assertEquals("no nodes available to open job [" + i + "]", cause.getMessage());
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // close the first job and check if the latest job gets opened:
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request("1");
                 CloseJobAction.Response closeResponse = client().execute(CloseJobAction.INSTANCE, closeRequest).actionGet();
                 assertTrue(closeResponse.isClosed());
+                client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
                 assertBusy(() -> {
                     GetJobsStatsAction.Response statsResponse =
                             client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +56,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActionResponse, OpenJobAction.RequestBuilder> {
 
@@ -237,6 +240,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
     public static class TransportAction extends TransportPersistentAction<Request> {
 
         private final JobStateObserver observer;
+        private final ClusterService clusterService;
         private final AutodetectProcessManager autodetectProcessManager;
 
         @Inject
@@ -246,12 +250,21 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                                ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
             super(settings, OpenJobAction.NAME, false, threadPool, transportService, persistentActionService,
                     persistentActionRegistry, actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+            this.clusterService = clusterService;
             this.autodetectProcessManager = autodetectProcessManager;
             this.observer = new JobStateObserver(threadPool, clusterService);
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
+            // If we already know that we can't find an ml node because all ml nodes are running at capacity or
+            // simply because there are no ml nodes in the cluster then we fail quickly here:
+            ClusterState clusterState = clusterService.state();
+            if (selectLeastLoadedMlNode(request.getJobId(), clusterState, logger) == null) {
+                throw new ElasticsearchStatusException("no nodes available to open job [" + request.getJobId() + "]",
+                        RestStatus.TOO_MANY_REQUESTS);
+            }
+
             ActionListener<PersistentActionResponse> finalListener =
                     ActionListener.wrap(response -> waitForJobStarted(request, response, listener), listener::onFailure);
             super.doExecute(request, finalListener);
@@ -269,11 +282,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
         @Override
         public DiscoveryNode executorNode(Request request, ClusterState clusterState) {
-            return selectLeastLoadedNode(clusterState, node -> {
-                Map<String, String> nodeAttributes = node.getAttributes();
-                String allocationEnabled = nodeAttributes.get(MachineLearning.ALLOCATION_ENABLED_ATTR);
-                return "true".equals(allocationEnabled);
-            });
+            return selectLeastLoadedMlNode(request.getJobId(), clusterState, logger);
         }
 
         @Override
@@ -336,5 +345,38 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             throw new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.CLOSED
                     + "] or [" + JobState.FAILED + "], but got [" + jobState +"]", RestStatus.CONFLICT);
         }
+    }
+
+    static DiscoveryNode selectLeastLoadedMlNode(String jobId, ClusterState clusterState, Logger logger) {
+        long maxAvailable = Long.MIN_VALUE;
+        DiscoveryNode leastLoadedNode = null;
+        PersistentTasksInProgress persistentTasksInProgress = clusterState.custom(PersistentTasksInProgress.TYPE);
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            Map<String, String> nodeAttributes = node.getAttributes();
+            String allocationEnabled = nodeAttributes.get(MachineLearning.ALLOCATION_ENABLED_ATTR);
+            if ("true".equals(allocationEnabled) == false) {
+                logger.debug("Not opening job [{}] on node [{}], because this node isn't a ml node.", jobId, node);
+                continue;
+            }
+
+            long numberOfOpenedJobs;
+            if (persistentTasksInProgress != null) {
+                numberOfOpenedJobs = persistentTasksInProgress.getNumberOfTasksOnNode(node.getId(), OpenJobAction.NAME);
+            } else {
+                numberOfOpenedJobs = 0;
+            }
+            long maxNumberOfOpenJobs = Long.parseLong(node.getAttributes().get(MAX_RUNNING_JOBS_PER_NODE.getKey()));
+            long available = maxNumberOfOpenJobs - numberOfOpenedJobs;
+            if (available == 0) {
+                logger.debug("Not opening job [{}] on node [{}], because this node is full. Number of opened jobs [{}], {} [{}]",
+                        jobId, node, numberOfOpenedJobs, MAX_RUNNING_JOBS_PER_NODE.getKey(), maxNumberOfOpenJobs);
+                continue;
+            }
+            if (maxAvailable < available) {
+                maxAvailable = available;
+                leastLoadedNode = node;
+            }
+        }
+        return leastLoadedNode;
     }
 }

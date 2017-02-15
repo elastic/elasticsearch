@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
@@ -20,8 +23,11 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
 public class OpenJobActionTests extends ESTestCase {
 
@@ -90,6 +96,81 @@ public class OpenJobActionTests extends ESTestCase {
         e = expectThrows(ElasticsearchStatusException.class,
                 () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks2, nodes));
         assertEquals("[job_id] expected state [closed] or [failed], but got [" + jobState +"]", e.getMessage());
+    }
+
+    public void testSelectLeastLoadedMlNode() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
+        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        taskMap.put(0L, new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), "_node_id1"));
+        taskMap.put(1L, new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id2"), "_node_id1"));
+        taskMap.put(2L, new PersistentTaskInProgress<>(2L, OpenJobAction.NAME, new OpenJobAction.Request("job_id3"), "_node_id2"));
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(3L, taskMap);
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), logger);
+        assertEquals("_node_id3", result.getId());
+    }
+
+    public void testSelectLeastLoadedMlNode_maxCapacity() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = randomIntBetween(1, 100);
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
+        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), String.valueOf(maxRunningJobsPerNode));
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        for (int i = 0; i < numNodes; i++) {
+            String nodeId = "_node_id" + i;
+            TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i);
+            nodes.add(new DiscoveryNode("_node_name" + i, nodeId, address, nodeAttr, Collections.emptySet(), Version.CURRENT));
+            for (int j = 0; j < maxRunningJobsPerNode; j++) {
+                long id = j + (maxRunningJobsPerNode * i);
+                taskMap.put(id, new PersistentTaskInProgress<>(id, OpenJobAction.NAME, new OpenJobAction.Request("job_id" + id), nodeId));
+            }
+        }
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(numNodes * maxRunningJobsPerNode, taskMap);
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), logger);
+        assertNull(result);
+    }
+
+    public void testSelectLeastLoadedMlNode_noMlNodes() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "false");
+        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        PersistentTaskInProgress<OpenJobAction.Request> task =
+                new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), "_node_id1");
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), logger);
+        assertNull(result);
     }
 
 }

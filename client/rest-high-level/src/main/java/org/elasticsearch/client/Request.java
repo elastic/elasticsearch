@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -67,6 +68,10 @@ final class Request {
         return new Request("GET", getEndpoint(getRequest), getParams(getRequest), null);
     }
 
+    static Request delete(DeleteRequest deleteRequest) {
+        return new Request("DELETE", deleteEndpoint(deleteRequest), deleteParams(deleteRequest), null);
+    }
+
     private static Map<String, String> getParams(GetRequest getRequest) {
         Map<String, String> params = new HashMap<>();
         putParam("preference", getRequest.preference(), params);
@@ -102,9 +107,27 @@ final class Request {
         return Collections.unmodifiableMap(params);
     }
 
+    private static Map<String, String> deleteParams(DeleteRequest deleteRequest) {
+        Map<String, String> params = new HashMap<>();
+        putParam("routing", deleteRequest.routing(), params);
+        putParam("parent", deleteRequest.parent(), params);
+        if (deleteRequest.version() != Versions.MATCH_ANY) {
+            params.put("version", Long.toString(deleteRequest.version()));
+        }
+        if (deleteRequest.versionType() != VersionType.INTERNAL) {
+            params.put("version_type", deleteRequest.versionType().name().toLowerCase(Locale.ROOT));
+        }
+        return Collections.unmodifiableMap(params);
+    }
+
     private static String getEndpoint(GetRequest getRequest) {
         StringJoiner pathJoiner = new StringJoiner("/", "/", "");
         return pathJoiner.add(getRequest.index()).add(getRequest.type()).add(getRequest.id()).toString();
+    }
+
+    private static String deleteEndpoint(DeleteRequest deleteRequest) {
+        StringJoiner pathJoiner = new StringJoiner("/", "/", "");
+        return pathJoiner.add(deleteRequest.index()).add(deleteRequest.type()).add(deleteRequest.id()).toString();
     }
 
     private static void putParam(String key, String value, Map<String, String> params) {

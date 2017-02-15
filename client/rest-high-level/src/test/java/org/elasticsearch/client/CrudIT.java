@@ -22,6 +22,9 @@ package org.elasticsearch.client;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
@@ -139,6 +142,42 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             assertEquals("value1", sourceAsMap.get("field1"));
+        }
+    }
+
+    public void testDelete() throws IOException {
+        {
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "does_not_exist");
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals("does_not_exist", deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
+            assertEquals(1, deleteResponse.getVersion());
+        }
+        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
+        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
+        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+        {
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "id").version(2);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, " + "reason=[type][id]: " +
+                    "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        {
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "id");
+            if (randomBoolean()) {
+                deleteRequest.version(1L);
+            }
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals("id", deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         }
     }
 }

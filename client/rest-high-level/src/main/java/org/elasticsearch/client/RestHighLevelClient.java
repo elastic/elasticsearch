@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.main.MainRequest;
@@ -90,6 +92,22 @@ public class RestHighLevelClient {
     public void existsAsync(GetRequest getRequest, ActionListener<Boolean> listener, Header... headers) {
         performRequestAsync(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, listener,
                 Collections.emptySet(), headers);
+    }
+
+    /**
+     * Deletes a document by id using the delete api
+     */
+    public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
+            headers);
+    }
+
+    /**
+     * Asynchronously deletes a document by id using the delete api
+     */
+    public void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
+            Collections.singleton(404), headers);
     }
 
     private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request, Function<Req, Request>  requestConverter,

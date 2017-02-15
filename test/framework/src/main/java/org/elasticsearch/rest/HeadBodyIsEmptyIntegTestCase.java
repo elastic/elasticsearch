@@ -65,20 +65,21 @@ public class HeadBodyIsEmptyIntegTestCase extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test/1", emptyMap(), equalTo(0));
-        headTestCase("test/test/1", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/test/1", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/test/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap(), greaterThan(0));
-        headTestCase("test", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test", emptyMap(), greaterThan(0));
+        headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test", emptyMap(), equalTo(0));
-        headTestCase("test/test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test", emptyMap(), equalTo(0));
+        headTestCase("/test/test", singletonMap("pretty", "true"), equalTo(0));
     }
 
     public void testAliasExists() throws IOException {

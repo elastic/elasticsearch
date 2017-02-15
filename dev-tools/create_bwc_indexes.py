@@ -390,7 +390,7 @@ def parse_config():
                         help='Recreate all existing backwards compatibility indexes')
   parser.add_argument('--releases-dir', '-d', default='backwards', metavar='DIR',
                       help='The directory containing elasticsearch releases')
-  parser.add_argument('--output-dir', '-o', default='elasticsearch/src/test/resources/indices/bwc/',
+  parser.add_argument('--output-dir', '-o', default='plugin/src/test/resources/indices/bwc/',
                       help='The directory to write the zipped index into')
 
   cfg = parser.parse_args()

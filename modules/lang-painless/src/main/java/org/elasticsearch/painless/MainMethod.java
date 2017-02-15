@@ -22,9 +22,12 @@ package org.elasticsearch.painless;
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_TYPE;
 
 /**
  * Information about the "main method" implemented by a Painless script.
@@ -32,35 +35,45 @@ import static java.util.Collections.unmodifiableList;
 public class MainMethod {
     private final org.objectweb.asm.commons.Method asmMethod;
     private final List<MethodArgument> arguments;
+    private final List<org.objectweb.asm.commons.Method> usesMethods;
 
     public MainMethod(Class<?> iface) {
-        if (false == iface.isAnnotationPresent(FunctionalInterface.class)) {
-            throw new IllegalArgumentException("iface must be a @FunctionalInterface but was [" + iface.getName() + "]");
-        }
         java.lang.reflect.Method mainMethod = null;
+        List<org.objectweb.asm.commons.Method> usesMethods = new ArrayList<>();
         for (java.lang.reflect.Method m : iface.getMethods()) {
             if (m.isDefault()) {
                 continue;
             }
-            if (mainMethod == null) {
-                mainMethod = m;
-            } else {
-                throw new IllegalArgumentException("iface must have a single non-default method but has [" + mainMethod + "] and ["
-                        + m + "]");
+            if (m.getName().equals("execute")) {
+                if (mainMethod == null) {
+                    mainMethod = m;
+                } else {
+                    throw new IllegalArgumentException(
+                            "Painless can only implement interfaces that have a single method named [execute] but [" + iface.getName()
+                                    + "] has more than one.");
+                }
+                continue;
             }
-        }
-        if (mainMethod.isVarArgs()) {
-            throw new IllegalArgumentException(
-                    "Painless doesn't know how to compile varargs methods but tried to compile to [" + mainMethod + "]");
-        }
-        if (mainMethod.getName().equals("getMetadata")) {
-            throw new IllegalArgumentException("Painless cannot compile [" + iface.getName() + "] because it contains a method named "
-                    + "[getMetadata] which can collide with PainlessScript#getMetadata");
+            if (m.getName().startsWith("uses$")) {
+                if (false == m.getReturnType().equals(boolean.class)) {
+                    throw new IllegalArgumentException("Painless can only implement uses$ methods that return boolean but ["
+                            + iface.getName() + "#" + m.getName() + "] returns [" + m.getReturnType().getName() + "].");
+                }
+                if (m.getParameterTypes().length > 0) {
+                    throw new IllegalArgumentException("Painless can only implement uses$ methods that do not take parameters but ["
+                            + iface.getName() + "#" + m.getName() + "] does.");
+                }
+                usesMethods.add(new org.objectweb.asm.commons.Method(m.getName(), USES_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
+                continue;
+            }
+            throw new IllegalArgumentException("Painless can only implement methods named [execute] and [uses$varName] but ["
+                    + iface.getName() + "] contains a method named [" + m.getName() + "]");
         }
 
         MethodType methodType = MethodType.methodType(mainMethod.getReturnType(), mainMethod.getParameterTypes());
         asmMethod = new org.objectweb.asm.commons.Method(mainMethod.getName(), methodType.toMethodDescriptorString());
 
+        Set<String> argumentNames = new LinkedHashSet<>();
         List<MethodArgument> arguments = new ArrayList<>();
         Annotation[][] annotations = mainMethod.getParameterAnnotations();
         Class<?>[] types = mainMethod.getParameterTypes();
@@ -77,8 +90,17 @@ public class MainMethod {
                         + mainMethod + "] was missing it.");
             }
             arguments.add(new MethodArgument(argType(argInfo.name(), types[arg]), argInfo.name()));
+            argumentNames.add(argInfo.name());
         }
         this.arguments = unmodifiableList(arguments);
+
+        for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
+            if (false == argumentNames.contains(usesMethod.getName().substring("uses$".length()))) {
+                throw new IllegalArgumentException("Painless can only implement uses$ methods that match a parameter name but ["
+                        + iface.getName() + "#" + usesMethod.getName() + "] doesn't match any of " + argumentNames + ".");
+            }
+        }
+        this.usesMethods = unmodifiableList(usesMethods);
     }
 
     public org.objectweb.asm.commons.Method getAsmMethod() {

@@ -29,13 +29,12 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for Painless implementing different interfaces.
  */
 public class ImplementInterfacesTests extends ScriptTestCase {
-    @FunctionalInterface
     public interface NoArgs {
-        Object test();
+        Object execute();
     }
     public void testNoArgs() {
-        assertEquals(1, scriptEngine.compile(NoArgs.class, null, "1", emptyMap()).test());
-        assertEquals("foo", scriptEngine.compile(NoArgs.class, null, "'foo'", emptyMap()).test());
+        assertEquals(1, scriptEngine.compile(NoArgs.class, null, "1", emptyMap()).execute());
+        assertEquals("foo", scriptEngine.compile(NoArgs.class, null, "'foo'", emptyMap()).execute());
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(NoArgs.class, null, "doc", emptyMap()));
@@ -46,15 +45,14 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals("Variable [_score] is not defined.", e.getMessage());
     }
 
-    @FunctionalInterface
     public interface OneArg {
-        Object test(@Arg(name = "arg") Object foo);
+        Object execute(@Arg(name = "arg") Object foo);
     }
     public void testOneArg() {
         Object rando = randomInt();
-        assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).test(rando));
+        assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).execute(rando));
         rando = randomAsciiOfLength(5);
-        assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).test(rando));
+        assertEquals(rando, scriptEngine.compile(OneArg.class, null, "arg", emptyMap()).execute(rando));
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(NoArgs.class, null, "doc", emptyMap()));
@@ -65,39 +63,35 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals("Variable [_score] is not defined.", e.getMessage());
     }
 
-    @FunctionalInterface
     public interface ArrayArg {
-        Object test(@Arg(name = "arg") String[] arg);
+        Object execute(@Arg(name = "arg") String[] arg);
     }
     public void testArrayArg() {
         String rando = randomAsciiOfLength(5);
-        assertEquals(rando, scriptEngine.compile(ArrayArg.class, null, "arg[0]", emptyMap()).test(new String[] {rando, "foo"}));
+        assertEquals(rando, scriptEngine.compile(ArrayArg.class, null, "arg[0]", emptyMap()).execute(new String[] {rando, "foo"}));
     }
 
-    @FunctionalInterface
     public interface PrimitiveArrayArg {
-        Object test(@Arg(name = "arg") int[] arg);
+        Object execute(@Arg(name = "arg") int[] arg);
     }
     public void testPrimitiveArrayArg() {
         int rando = randomInt();
-        assertEquals(rando, scriptEngine.compile(PrimitiveArrayArg.class, null, "arg[0]", emptyMap()).test(new int[] {rando, 10}));
+        assertEquals(rando, scriptEngine.compile(PrimitiveArrayArg.class, null, "arg[0]", emptyMap()).execute(new int[] {rando, 10}));
     }
 
-    @FunctionalInterface
     public interface DefArrayArg {
-        Object test(@Arg(name = "arg") Object[] arg);
+        Object execute(@Arg(name = "arg") Object[] arg);
     }
     public void testDefArrayArg() {
         Object rando = randomInt();
-        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).test(new Object[] {rando, 10}));
+        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).execute(new Object[] {rando, 10}));
         rando = randomAsciiOfLength(5);
-        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).test(new Object[] {rando, 10}));
-        assertEquals(5, scriptEngine.compile(DefArrayArg.class, null, "arg[0].length()", emptyMap()).test(new Object[] {rando, 10}));
+        assertEquals(rando, scriptEngine.compile(DefArrayArg.class, null, "arg[0]", emptyMap()).execute(new Object[] {rando, 10}));
+        assertEquals(5, scriptEngine.compile(DefArrayArg.class, null, "arg[0].length()", emptyMap()).execute(new Object[] {rando, 10}));
     }
 
-    @FunctionalInterface
     public interface ManyArgs {
-        Object test(
+        Object execute(
                 @Arg(name = "a") int a,
                 @Arg(name = "b") int b,
                 @Arg(name = "c") int c,
@@ -105,8 +99,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
     public void testManyArgs() {
         int rando = randomInt();
-        assertEquals(rando, scriptEngine.compile(ManyArgs.class, null, "a", emptyMap()).test(rando, 0, 0, 0));
-        assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).test(1, 2, 3, 4));
+        assertEquals(rando, scriptEngine.compile(ManyArgs.class, null, "a", emptyMap()).execute(rando, 0, 0, 0));
+        assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).execute(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
         assertUsedVariables(ManyArgs.class, "a", "a");
@@ -119,9 +113,16 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 ((PainlessScript) scriptEngine.compile(iface, null, script, emptyMap())).getMetadata().getUsedVariables());
     }
 
-    @FunctionalInterface
+    public interface VarargTest {
+        Object execute(@Arg(name="arg") String... arg);
+    }
+    public void testVararg() {
+        assertEquals("foo bar baz", scriptEngine.compile(VarargTest.class, null, "String.join(' ', Arrays.asList(arg))", emptyMap())
+                    .execute("foo", "bar", "baz"));
+    }
+
     public interface NoAnnotationOnArg {
-        Object test(String foo);
+        Object execute(String foo);
     }
     public void testNoAnnotationOnArg() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -129,9 +130,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertThat(e.getMessage(), startsWith("All arguments must be annotated with @Arg but the [1]th argument of"));
     }
 
-    @FunctionalInterface
     public interface UnknownArgType {
-        Object test(@Arg(name = "foo") UnknownArgType foo);
+        Object execute(@Arg(name = "foo") UnknownArgType foo);
     }
     public void testUnknownArgType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -140,9 +140,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "that are of whitelisted types.", e.getMessage());
     }
 
-    @FunctionalInterface
     public interface UnknownArgTypeInArray {
-        Object test(@Arg(name = "foo") UnknownArgTypeInArray[] foo);
+        Object execute(@Arg(name = "foo") UnknownArgTypeInArray[] foo);
     }
     public void testUnknownArgTypeInArray() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -151,14 +150,57 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 + "arguments that are of whitelisted types.", e.getMessage());
     }
 
-    @FunctionalInterface
-    public interface MethodClash {
-        PainlessScript.ScriptMetadata getMetadata();
+    public interface TwoExecuteMethods {
+        Object execute();
+        Object execute(boolean foo);
     }
-    public void testMethodClash() {
+    public void testTwoExecutoMethods() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(MethodClash.class, null, "null", emptyMap()));
-        assertEquals("Painless cannot compile [" + MethodClash.class.getName() + "] because it contains a method named "
-                + "[getMetadata] which can collide with PainlessScript#getMetadata", e.getMessage());
+            scriptEngine.compile(TwoExecuteMethods.class, null, "null", emptyMap()));
+        assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["
+                + TwoExecuteMethods.class.getName() + "] has more than one.", e.getMessage());
+    }
+
+    public interface BadMethod {
+        Object something();
+    }
+    public void testBadMethod() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(BadMethod.class, null, "null", emptyMap()));
+        assertEquals("Painless can only implement methods named [execute] and [uses$varName] but [" + BadMethod.class.getName()
+                + "] contains a method named [something]", e.getMessage());
+    }
+
+    public interface BadUsesReturn {
+        Object execute(String foo);
+        Object uses$foo();
+    }
+    public void testBadUsesReturn() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(BadUsesReturn.class, null, "null", emptyMap()));
+        assertEquals("Painless can only implement uses$ methods that return boolean but [" + BadUsesReturn.class.getName()
+                + "#uses$foo] returns [java.lang.Object].", e.getMessage());
+    }
+
+    public interface BadUsesParameter {
+        Object execute(@Arg(name="foo") String foo, @Arg(name="bar") String bar);
+        boolean uses$bar(boolean foo);
+    }
+    public void testBadUsesParameter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(BadUsesParameter.class, null, "null", emptyMap()));
+        assertEquals("Painless can only implement uses$ methods that do not take parameters but [" + BadUsesParameter.class.getName()
+                + "#uses$bar] does.", e.getMessage());
+    }
+
+    public interface BadUsesName {
+        Object execute(@Arg(name="foo") String foo, @Arg(name="bar") String bar);
+        boolean uses$baz();
+    }
+    public void testBadUsesName() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(BadUsesName.class, null, "null", emptyMap()));
+        assertEquals("Painless can only implement uses$ methods that match a parameter name but [" + BadUsesName.class.getName()
+                + "#uses$baz] doesn't match any of [foo, bar].", e.getMessage());
     }
 }

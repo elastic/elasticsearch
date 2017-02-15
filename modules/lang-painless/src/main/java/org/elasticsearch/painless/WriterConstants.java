@@ -56,6 +56,8 @@ public final class WriterConstants {
 
     public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
+    public static final MethodType USES_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
+
     public static final Type SCORER_TYPE = Type.getType(Scorer.class);
     public static final Method SCORER_SCORE = getAsmMethod(float.class, "score");
 

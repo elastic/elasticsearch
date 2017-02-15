@@ -33,7 +33,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -62,20 +61,21 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test/1", emptyMap(), equalTo(0));
-        headTestCase("test/test/1", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/test/1", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/test/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap(), greaterThan(0));
-        headTestCase("test", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test", emptyMap(), greaterThan(0));
+        headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test", emptyMap(), equalTo(0));
-        headTestCase("test/test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test", emptyMap(), equalTo(0));
+        headTestCase("/test/test", singletonMap("pretty", "true"), equalTo(0));
     }
 
     public void testAliasExists() throws IOException {

@@ -45,6 +45,7 @@ specified as either the node id or node name.
 
 [source,js]
 --------------------------------------------------
+GET /_cluster/allocation/explain
 {
   "index": "myindex",
   "shard": 0,
@@ -52,6 +53,8 @@ specified as either the node id or node name.
   "current_node": "nodeA"                         <1>
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:no way of knowing the current_node]
 <1> The node where shard 0 currently has a replica on
 
 You can also have Elasticsearch explain the allocation of the first unassigned

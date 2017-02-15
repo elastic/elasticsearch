@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -32,6 +32,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -47,6 +48,8 @@ public final class WriterConstants {
     public static final int ASM_VERSION = Opcodes.ASM5;
     public static final String BASE_CLASS_NAME = PainlessScript.class.getName();
     public static final Type BASE_CLASS_TYPE   = Type.getType(PainlessScript.class);
+    public static final Method CONVERT_TO_SCRIPT_EXCEPTION_METHOD = getAsmMethod(ScriptException.class, "convertToScriptException",
+            Throwable.class, Map.class);
 
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
@@ -54,12 +57,19 @@ public final class WriterConstants {
     public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", PainlessScript.ScriptMetadata.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
-    public static final Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
+    // All of these types are caught by the main method and rethrown as ScriptException
+    public static final Type PAINLESS_ERROR_TYPE         = Type.getType(PainlessError.class);
+    public static final Type BOOTSTRAP_METHOD_ERROR_TYPE = Type.getType(BootstrapMethodError.class);
+    public static final Type OUT_OF_MEMORY_ERROR_TYPE    = Type.getType(OutOfMemoryError.class);
+    public static final Type STACK_OVERFLOW_ERROR_TYPE   = Type.getType(StackOverflowError.class);
+    public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
+    public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
+    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders");
+
+    public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
+    public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
 
     public static final MethodType USES_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
-
-    public static final Type SCORER_TYPE = Type.getType(Scorer.class);
-    public static final Method SCORER_SCORE = getAsmMethod(float.class, "score");
 
     public static final Type MAP_TYPE  = Type.getType(Map.class);
     public static final Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);

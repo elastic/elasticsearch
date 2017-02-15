@@ -27,12 +27,13 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.util.Printer;
@@ -52,8 +53,18 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
+import static org.elasticsearch.painless.WriterConstants.CONVERT_TO_SCRIPT_EXCEPTION_METHOD;
+import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
+import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
+import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
+import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STACK_OVERFLOW_ERROR_TYPE;
 
 /**
  * The root of all Painless trees.  Contains a series of statements.
@@ -278,6 +289,14 @@ public final class SSource extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        // We wrap the whole method in a few try/catches to handle and/or convert other exceptions to ScriptException
+        Label startTry = new Label();
+        Label endTry = new Label();
+        Label startExplainCatch = new Label();
+        Label startOtherCatch = new Label();
+        Label endCatch = new Label();
+        writer.mark(startTry);
+
         if (reserved.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
@@ -296,6 +315,37 @@ public final class SSource extends AStatement {
             writer.visitInsn(Opcodes.ACONST_NULL);
             writer.returnValue();
         }
+
+        writer.mark(endTry);
+        writer.goTo(endCatch);
+        // This looks like:
+        // } catch (PainlessExplainError e) {
+        //   throw this.convertToScriptException(e, e.getHeaders())
+        // }
+        writer.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
+        writer.mark(startExplainCatch);
+        writer.loadThis();
+        writer.swap();
+        writer.dup();
+        writer.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
+        writer.invokeVirtual(BASE_CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+        writer.throwException();
+        // This looks like:
+        // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
+        //   throw this.convertToScriptException(e, e.getHeaders())
+        // }
+        writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, PAINLESS_ERROR_TYPE.getInternalName());
+        writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, BOOTSTRAP_METHOD_ERROR_TYPE.getInternalName());
+        writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, OUT_OF_MEMORY_ERROR_TYPE.getInternalName());
+        writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, STACK_OVERFLOW_ERROR_TYPE.getInternalName());
+        writer.visitTryCatchBlock(startTry, endTry, startOtherCatch, EXCEPTION_TYPE.getInternalName());
+        writer.mark(startOtherCatch);
+        writer.loadThis();
+        writer.swap();
+        writer.invokeStatic(COLLECTIONS_TYPE, EMPTY_MAP_METHOD);
+        writer.invokeVirtual(BASE_CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
+        writer.throwException();
+        writer.mark(endCatch);
     }
 
     public BitSet getStatements() {

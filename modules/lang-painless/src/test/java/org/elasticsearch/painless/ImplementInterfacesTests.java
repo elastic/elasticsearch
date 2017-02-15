@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class ImplementInterfacesTests extends ScriptTestCase {
     public interface NoArgs {
+        String[] ARGUMENTS = new String[] {};
         Object execute();
     }
     public void testNoArgs() {
@@ -43,7 +44,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface OneArg {
-        Object execute(@Arg(name = "arg") Object foo);
+        String[] ARGUMENTS = new String[] {"arg"};
+        Object execute(Object arg);
     }
     public void testOneArg() {
         Object rando = randomInt();
@@ -61,7 +63,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface ArrayArg {
-        Object execute(@Arg(name = "arg") String[] arg);
+        String[] ARGUMENTS = new String[] {"arg"};
+        Object execute(String[] arg);
     }
     public void testArrayArg() {
         String rando = randomAsciiOfLength(5);
@@ -69,7 +72,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface PrimitiveArrayArg {
-        Object execute(@Arg(name = "arg") int[] arg);
+        String[] ARGUMENTS = new String[] {"arg"};
+        Object execute(int[] arg);
     }
     public void testPrimitiveArrayArg() {
         int rando = randomInt();
@@ -77,7 +81,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface DefArrayArg {
-        Object execute(@Arg(name = "arg") Object[] arg);
+        String[] ARGUMENTS = new String[] {"arg"};
+        Object execute(Object[] arg);
     }
     public void testDefArrayArg() {
         Object rando = randomInt();
@@ -88,11 +93,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface ManyArgs {
-        Object execute(
-                @Arg(name = "a") int a,
-                @Arg(name = "b") int b,
-                @Arg(name = "c") int c,
-                @Arg(name = "d") int d);
+        String[] ARGUMENTS = new String[] {"a", "b", "c", "d"};
+        Object execute(int a, int b, int c, int d);
         boolean uses$a();
         boolean uses$b();
         boolean uses$c();
@@ -122,24 +124,68 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface VarargTest {
-        Object execute(@Arg(name="arg") String... arg);
+        String[] ARGUMENTS = new String[] {"arg"};
+        Object execute(String... arg);
     }
     public void testVararg() {
         assertEquals("foo bar baz", scriptEngine.compile(VarargTest.class, null, "String.join(' ', Arrays.asList(arg))", emptyMap())
                     .execute("foo", "bar", "baz"));
     }
 
-    public interface NoAnnotationOnArg {
+    public interface DefaultMethods {
+        String[] ARGUMENTS = new String[] {"a", "b", "c", "d"};
+        Object execute(int a, int b, int c, int d);
+        default Object executeWithOne() {
+            return execute(1, 1, 1, 1);
+        }
+        default Object executeWithASingleOne(int a, int b, int c) {
+            return execute(a, b, c, 1);
+        }
+    }
+    public void testDefaultMethods() {
+        int rando = randomInt();
+        assertEquals(rando, scriptEngine.compile(DefaultMethods.class, null, "a", emptyMap()).execute(rando, 0, 0, 0));
+        assertEquals(rando, scriptEngine.compile(DefaultMethods.class, null, "a", emptyMap()).executeWithASingleOne(rando, 0, 0));
+        assertEquals(10, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).execute(1, 2, 3, 4));
+        assertEquals(4, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).executeWithOne());
+        assertEquals(7, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).executeWithASingleOne(1, 2, 3));
+    }
+
+    public interface NoArgumentsConstant {
         Object execute(String foo);
     }
-    public void testNoAnnotationOnArg() {
+    public void testNoArgumentsConstant() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(NoAnnotationOnArg.class, null, "1", emptyMap()));
-        assertThat(e.getMessage(), startsWith("All arguments must be annotated with @Arg but the [1]th argument of"));
+            scriptEngine.compile(NoArgumentsConstant.class, null, "1", emptyMap()));
+        assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                + "names of the method arguments but [" + NoArgumentsConstant.class.getName() + "] doesn't have one."));
+    }
+
+    public interface WrongArgumentsConstant {
+        boolean[] ARGUMENTS = new boolean[] {false};
+        Object execute(String foo);
+    }
+    public void testWrongArgumentsConstant() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(WrongArgumentsConstant.class, null, "1", emptyMap()));
+        assertThat(e.getMessage(), startsWith("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                + "names of the method arguments but [" + WrongArgumentsConstant.class.getName() + "] doesn't have one."));
+    }
+
+    public interface WrongLengthOfArgumentConstant {
+        String[] ARGUMENTS = new String[] {"foo", "bar"};
+        Object execute(String foo);
+    }
+    public void testWrongLengthOfArgumentConstant() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(WrongLengthOfArgumentConstant.class, null, "1", emptyMap()));
+        assertThat(e.getMessage(), startsWith("[" + WrongLengthOfArgumentConstant.class.getName() + "#ARGUMENTS] has length [2] but ["
+                + WrongLengthOfArgumentConstant.class.getName() + "#execute] takes [1] argument."));
     }
 
     public interface UnknownArgType {
-        Object execute(@Arg(name = "foo") UnknownArgType foo);
+        String[] ARGUMENTS = new String[] {"foo"};
+        Object execute(UnknownArgType foo);
     }
     public void testUnknownArgType() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -149,7 +195,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface UnknownArgTypeInArray {
-        Object execute(@Arg(name = "foo") UnknownArgTypeInArray[] foo);
+        String[] ARGUMENTS = new String[] {"foo"};
+        Object execute(UnknownArgTypeInArray[] foo);
     }
     public void testUnknownArgTypeInArray() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -180,6 +227,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface BadUsesReturn {
+        String[] ARGUMENTS = new String[] {"foo"};
         Object execute(String foo);
         Object uses$foo();
     }
@@ -191,7 +239,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface BadUsesParameter {
-        Object execute(@Arg(name="foo") String foo, @Arg(name="bar") String bar);
+        String[] ARGUMENTS = new String[] {"foo", "bar"};
+        Object execute(String foo, String bar);
         boolean uses$bar(boolean foo);
     }
     public void testBadUsesParameter() {
@@ -202,7 +251,8 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     }
 
     public interface BadUsesName {
-        Object execute(@Arg(name="foo") String foo, @Arg(name="bar") String bar);
+        String[] ARGUMENTS = new String[] {"foo", "bar"};
+        Object execute(String foo, String bar);
         boolean uses$baz();
     }
     public void testBadUsesName() {

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,7 +30,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_TYPE;
 
 /**
- * Information about the interface being implemented by the painless script..
+ * Information about the interface being implemented by the painless script.
  */
 public class ScriptInterface {
     private final Class<?> iface;
@@ -79,22 +79,15 @@ public class ScriptInterface {
         // Look up the argument names
         Set<String> argumentNames = new LinkedHashSet<>();
         List<MethodArgument> arguments = new ArrayList<>();
-        Annotation[][] annotations = executeMethod.getParameterAnnotations();
+        String[] argumentNamesConstant = readArgumentNamesConstant(iface);
         Class<?>[] types = executeMethod.getParameterTypes();
+        if (argumentNamesConstant.length != types.length) {
+            throw new IllegalArgumentException("[" + iface.getName() + "#ARGUMENTS] has length [2] but ["
+                    + iface.getName() + "#execute] takes [1] argument.");
+        }
         for (int arg = 0; arg < types.length; arg++) {
-            Arg argInfo = null;
-            for (Annotation ann : annotations[arg]) {
-                if (ann.annotationType().equals(Arg.class)) {
-                    argInfo = (Arg) ann;
-                    break;
-                }
-            }
-            if (argInfo == null) {
-                throw new IllegalArgumentException("All arguments must be annotated with @Arg but the [" + (arg + 1) + "]th argument of ["
-                        + executeMethod + "] was missing it.");
-            }
-            arguments.add(new MethodArgument(argType(argInfo.name(), types[arg]), argInfo.name()));
-            argumentNames.add(argInfo.name());
+            arguments.add(new MethodArgument(argType(argumentNamesConstant[arg], types[arg]), argumentNamesConstant[arg]));
+            argumentNames.add(argumentNamesConstant[arg]);
         }
         this.arguments = unmodifiableList(arguments);
 
@@ -160,5 +153,24 @@ public class ScriptInterface {
             struct = runtimeClass.getStruct();
         }
         return Definition.getType(struct, dimensions);
+    }
+
+    private static String[] readArgumentNamesConstant(Class<?> iface) {
+        Field argumentNamesField;
+        try {
+            argumentNamesField = iface.getField("ARGUMENTS");
+        } catch (NoSuchFieldException e) {
+            throw new IllegalArgumentException("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                    + "names of the method arguments but [" + iface.getName() + "] doesn't have one.", e);
+        }
+        if (false == argumentNamesField.getType().equals(String[].class)) {
+            throw new IllegalArgumentException("Painless needs a constant [String[] ARGUMENTS] on all interfaces it implements with the "
+                    + "names of the method arguments but [" + iface.getName() + "] doesn't have one.");
+        }
+        try {
+            return (String[]) argumentNamesField.get(null);
+        } catch (IllegalArgumentException | IllegalAccessException e) {
+            throw new IllegalArgumentException("Error trying to read [" + iface.getName() + "#ARGUMENTS]", e);
+        }
     }
 }

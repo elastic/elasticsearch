@@ -94,8 +94,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -735,13 +733,13 @@ public class TasksIT extends ESIntegTestCase {
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
-        assertEquals(1L, searchResponse.getHits().totalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
 
         searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
                 .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
                 .get();
 
-        assertEquals(1L, searchResponse.getHits().totalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());

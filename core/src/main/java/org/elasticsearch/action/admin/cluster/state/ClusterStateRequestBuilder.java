@@ -69,7 +69,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include teh {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
      * to <tt>true</tt>.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {

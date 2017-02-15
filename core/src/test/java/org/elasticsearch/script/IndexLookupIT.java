@@ -606,7 +606,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
-                    Matchers.closeTo(hit.score(), 1.e-4));
+                    Matchers.closeTo(hit.getScore(), 1.e-4));
         }
     }
 
@@ -967,7 +967,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         try {
             SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                     .execute().actionGet();
-            assertThat(sr.getHits().hits().length, equalTo(0));
+            assertThat(sr.getHits().getHits().length, equalTo(0));
             ShardSearchFailure[] shardFails = sr.getShardFailures();
             for (ShardSearchFailure fail : shardFails) {
                 assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
@@ -992,7 +992,7 @@ public class IndexLookupIT extends ESIntegTestCase {
             Object expectedResult = expectedFieldVals.get(hit.getId());
             assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
-                    Matchers.closeTo(hit.score(), 1.e-4));
+                    Matchers.closeTo(hit.getScore(), 1.e-4));
         }
     }
 

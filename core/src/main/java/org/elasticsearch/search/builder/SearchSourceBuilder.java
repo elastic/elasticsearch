@@ -1359,7 +1359,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if (SCRIPT_FIELD.match(currentFieldName)) {
-                            script = Script.parse(parser, context.getDefaultScriptLanguage());
+                            script = Script.parse(parser);
                         } else if (IGNORE_FAILURE_FIELD.match(currentFieldName)) {
                             ignoreFailure = parser.booleanValue();
                         } else {
@@ -1368,7 +1368,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (SCRIPT_FIELD.match(currentFieldName)) {
-                            script = Script.parse(parser, context.getDefaultScriptLanguage());
+                            script = Script.parse(parser);
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());

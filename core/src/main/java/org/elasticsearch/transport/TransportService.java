@@ -1006,7 +1006,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     /**
-     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
+     * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the handle methods
      * are invoked we restore the context.
      */
     public static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
@@ -1154,6 +1154,11 @@ public class TransportService extends AbstractLifecycleComponent {
         @Override
         public String getChannelType() {
             return "direct";
+        }
+
+        @Override
+        public Version getVersion() {
+            return localNode.getVersion();
         }
     }
 

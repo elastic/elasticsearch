@@ -42,9 +42,9 @@ public class NamedXContentRegistry {
     /**
      * The empty {@link NamedXContentRegistry} for use when you are sure that you aren't going to call
      * {@link XContentParser#namedObject(Class, String, Object)}. Be *very* careful with this singleton because a parser using it will fail
-     * every call to {@linkplain XContentParser#namedObject(Class, String, Object)}. Every non-test usage really should be checked thorowly
-     * and marked with a comment about how it was checked. That way anyone that sees code that uses it knows that it is potentially
-     * dangerous.
+     * every call to {@linkplain XContentParser#namedObject(Class, String, Object)}. Every non-test usage really should be checked
+     * thoroughly and marked with a comment about how it was checked. That way anyone that sees code that uses it knows that it is
+     * potentially dangerous.
      */
     public static final NamedXContentRegistry EMPTY = new NamedXContentRegistry(emptyList());
 

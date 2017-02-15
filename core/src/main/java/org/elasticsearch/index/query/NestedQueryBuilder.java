@@ -32,6 +32,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.index.search.NestedHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -232,22 +234,29 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
-        final Query childFilter;
-        final Query innerQuery;
+        Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
-        childFilter = nestedObjectMapper.nestedTypeFilter();
+
         try {
             context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
         }
-        return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
+
+        // ToParentBlockJoinQuery requires that the inner query only matches documents
+        // in its child space
+        if (new NestedHelper(context.getMapperService()).mightMatchNonNestedDocs(innerQuery, path)) {
+            innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
+        }
+
+        return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
+                objectMapper == null ? null : objectMapper.fullPath());
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -342,7 +343,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
      *
-     * NOTE: the listener is not remmoved on timeout. This is the responsibility of the caller.
+     * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
      */
     public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
@@ -558,13 +559,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         return true;
     }
 
-    /** asserts that the current stack trace does <b>NOT</b> invlove a cluster state applier */
+    /** asserts that the current stack trace does <b>NOT</b> involve a cluster state applier */
     private static boolean assertNotCalledFromClusterStateApplier(String reason) {
         if (Thread.currentThread().getName().contains(UPDATE_THREAD_NAME)) {
-            for (StackTraceElement element: Thread.currentThread().getStackTrace()) {
-                if (element.getClassName().equals(ClusterService.class.getName())
-                    && element.getMethodName().equals("callClusterStateAppliers")) {
-                   throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
+            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                final String className = element.getClassName();
+                final String methodName = element.getMethodName();
+                if (className.equals(ClusterStateObserver.class.getName())) {
+                    // people may start an observer from an applier
+                    return true;
+                } else if (className.equals(ClusterService.class.getName())
+                    && methodName.equals("callClusterStateAppliers")) {
+                    throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
                 }
             }
         }

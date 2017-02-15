@@ -554,8 +554,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed)
-                throws IOException {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
                 return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)

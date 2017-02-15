@@ -859,7 +859,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         } while (expected != null);
     }
 
-    private static Tuple<Throwable, ElasticsearchException> randomExceptions() {
+    public static Tuple<Throwable, ElasticsearchException> randomExceptions() {
         Throwable actual;
         ElasticsearchException expected;
 

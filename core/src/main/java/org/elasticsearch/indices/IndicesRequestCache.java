@@ -176,7 +176,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
-         * entities assiciated with it can remain in the cache. ie. IndexShard is still open.
+         * entities associated with it can remain in the cache. ie. IndexShard is still open.
          */
         boolean isOpen();
 

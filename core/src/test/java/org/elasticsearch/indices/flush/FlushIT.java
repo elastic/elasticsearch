@@ -184,12 +184,12 @@ public class FlushIT extends ESIntegTestCase {
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
-        logger.info("indexed {} docs", client().prepareSearch().setSize(0).get().getHits().totalHits());
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs.get()));
+        logger.info("indexed {} docs", client().prepareSearch().setSize(0).get().getHits().getTotalHits());
         logClusterState();
         internalCluster().fullRestart();
         ensureGreen();
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs.get()));
     }
 
     private void assertFlushResponseEqualsShardStats(ShardStats[] shardsStats, List<ShardsSyncedFlushResult> syncedFlushResults) {

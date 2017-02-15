@@ -271,7 +271,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the hightlighter builder for this request.
+     * Gets the highlighter builder for this request.
      */
     public HighlightBuilder highlighter() {
         return highlightBuilder;
@@ -640,7 +640,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
-                                        script = Script.parse(parser, context.getDefaultScriptLanguage());
+                                        script = Script.parse(parser);
                                     } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName)) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
@@ -650,7 +650,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
-                                        script = Script.parse(parser, context.getDefaultScriptLanguage());
+                                        script = Script.parse(parser);
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
                                                 "Unknown key for a " + token + " in [" + currentFieldName + "].",

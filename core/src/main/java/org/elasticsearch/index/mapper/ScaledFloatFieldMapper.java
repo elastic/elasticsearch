@@ -251,7 +251,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue * scalingFactor));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }

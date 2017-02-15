@@ -30,7 +30,7 @@ import java.util.List;
 public interface RecoveryTargetHandler {
 
     /**
-     * Prepares the tranget to receive translog operations, after all file have been copied
+     * Prepares the target to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
      * @param maxUnsafeAutoIdTimestamp the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.

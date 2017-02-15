@@ -19,12 +19,23 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -154,5 +165,146 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.params);
         assertNull(request.entity);
         assertEquals(method, request.method);
+    }
+
+    public void testIndex() throws IOException {
+        String index = randomAsciiOfLengthBetween(3, 10);
+        String type = randomAsciiOfLengthBetween(3, 10);
+        IndexRequest indexRequest = new IndexRequest(index, type);
+
+        String id = randomBoolean() ? randomAsciiOfLengthBetween(3, 10) : null;
+        indexRequest.id(id);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        String method = "POST";
+        if (id != null) {
+            method = "PUT";
+            if (randomBoolean()) {
+                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            }
+        }
+
+        // There is some logic around _create endpoint and version/version type
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
+            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+        } else {
+            if (randomBoolean()) {
+                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+                indexRequest.version(version);
+                if (version != Versions.MATCH_ANY) {
+                    expectedParams.put("version", Long.toString(version));
+                }
+            }
+            if (randomBoolean()) {
+                VersionType versionType = randomFrom(VersionType.values());
+                indexRequest.versionType(versionType);
+                if (versionType != VersionType.INTERNAL) {
+                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            indexRequest.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+
+        if (frequently()) {
+            if (randomBoolean()) {
+                String routing = randomAsciiOfLengthBetween(3, 10);
+                indexRequest.routing(routing);
+                expectedParams.put("routing", routing);
+            }
+            if (randomBoolean()) {
+                String parent = randomAsciiOfLengthBetween(3, 10);
+                indexRequest.parent(parent);
+                expectedParams.put("parent", parent);
+            }
+            if (randomBoolean()) {
+                String pipeline = randomAsciiOfLengthBetween(3, 10);
+                indexRequest.setPipeline(pipeline);
+                expectedParams.put("pipeline", pipeline);
+            }
+
+            if (randomBoolean()) {
+                WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+                indexRequest.setRefreshPolicy(refreshPolicy);
+                if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                    expectedParams.put("refresh", refreshPolicy.getValue());
+                }
+            }
+        }
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        int nbFields = randomIntBetween(0, 10);
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            for (int i = 0; i < nbFields; i++) {
+                builder.field("field_" + i, i);
+            }
+            builder.endObject();
+            indexRequest.source(builder);
+        }
+
+        Request request = Request.index(indexRequest);
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.endpoint);
+        } else if (id != null) {
+            assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
+        } else {
+            assertEquals("/" + index + "/" + type, request.endpoint);
+        }
+        assertEquals(expectedParams, request.params);
+        assertEquals(method, request.method);
+
+        HttpEntity entity = request.entity;
+        assertNotNull(entity);
+        assertTrue(entity instanceof ByteArrayEntity);
+
+        try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
+            assertEquals(nbFields, parser.map().size());
+        }
+    }
+
+    public void testParams() {
+        final int nbParams = randomIntBetween(0, 10);
+        Request.Params params = Request.Params.builder();
+        Map<String, String> expectedParams = new HashMap<>();
+        for (int i = 0; i < nbParams; i++) {
+            String paramName = "p_" + i;
+            String paramValue = randomAsciiOfLength(5);
+            params.putParam(paramName, paramValue);
+            expectedParams.put(paramName, paramValue);
+        }
+
+        Map<String, String> requestParams = params.getParams();
+        assertEquals(nbParams, requestParams.size());
+        assertEquals(expectedParams, requestParams);
+    }
+
+    public void testParamsNoDuplicates() {
+        Request.Params params = Request.Params.builder();
+        params.putParam("test", "1");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> params.putParam("test", "2"));
+        assertEquals("Request parameter [test] is already registered", e.getMessage());
+
+        Map<String, String> requestParams = params.getParams();
+        assertEquals(1L, requestParams.size());
+        assertEquals("1", requestParams.values().iterator().next());
+    }
+
+    public void testEndpoint() {
+        assertEquals("/", Request.endpoint());
+        assertEquals("/", Request.endpoint(Strings.EMPTY_ARRAY));
+        assertEquals("/", Request.endpoint(""));
+        assertEquals("/a/b", Request.endpoint("a", "b"));
+        assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
+        assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
     }
 }

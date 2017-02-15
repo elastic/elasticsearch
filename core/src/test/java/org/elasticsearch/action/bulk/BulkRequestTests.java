@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -57,10 +55,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
-        // translate Windows line endings (\r\n) to standard ones (\n)
-        if (Constants.WINDOWS) {
-            bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
-        }
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
@@ -74,7 +68,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }\r")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         Map<String, Object> sourceMap = XContentHelper.convertToMap(((IndexRequest) bulkRequest.requests().get(0)).source(),
             false, XContentType.JSON).v2();
         assertEquals("value1", sourceMap.get("field1"));

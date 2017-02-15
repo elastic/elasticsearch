@@ -376,40 +376,52 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 fail(e.getMessage());
             }
         };
-        serviceA.registerRequestHandler("action", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+        final String ACTION = "action";
+        serviceA.registerRequestHandler(ACTION, TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             requestHandler);
-        serviceB.registerRequestHandler("action", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+        serviceB.registerRequestHandler(ACTION, TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             requestHandler);
 
 
-        class CountingTracer  extends MockTransportService.Tracer  {
+        class CountingTracer extends MockTransportService.Tracer {
             AtomicInteger requestsReceived = new AtomicInteger();
             AtomicInteger requestsSent = new AtomicInteger();
             AtomicInteger responseReceived = new AtomicInteger();
             AtomicInteger responseSent = new AtomicInteger();
+
             @Override
             public void receivedRequest(long requestId, String action) {
-                requestsReceived.incrementAndGet();
+                if (action.equals(ACTION)) {
+                    requestsReceived.incrementAndGet();
+                }
             }
 
             @Override
             public void responseSent(long requestId, String action) {
-                responseSent.incrementAndGet();
+                if (action.equals(ACTION)) {
+                    responseSent.incrementAndGet();
+                }
             }
 
             @Override
             public void responseSent(long requestId, String action, Throwable t) {
-                responseSent.incrementAndGet();
+                if (action.equals(ACTION)) {
+                    responseSent.incrementAndGet();
+                }
             }
 
             @Override
             public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-                responseReceived.incrementAndGet();
+                if (action.equals(ACTION)) {
+                    responseReceived.incrementAndGet();
+                }
             }
 
             @Override
             public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-                requestsSent.incrementAndGet();
+                if (action.equals(ACTION)) {
+                    requestsSent.incrementAndGet();
+                }
             }
         }
         final CountingTracer tracerA = new CountingTracer();
@@ -419,7 +431,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         try {
             serviceA
-                .submitRequest(nodeB, "action", TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+                .submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -439,7 +451,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         try {
             serviceA
-                .submitRequest(nodeA, "action", TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+                .submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
@@ -1236,6 +1248,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     response.value1 = 1;
                     response.value2 = 2;
                     channel.sendResponse(response);
+                    assertEquals(version0, channel.getVersion());
                 }
             });
 
@@ -1277,6 +1290,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     Version0Response response = new Version0Response();
                     response.value1 = 1;
                     channel.sendResponse(response);
+                    assertEquals(version0, channel.getVersion());
                 }
             });
 
@@ -1321,6 +1335,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 response.value1 = 1;
                 response.value2 = 2;
                 channel.sendResponse(response);
+                assertEquals(version1, channel.getVersion());
             });
 
         Version1Request version1Request = new Version1Request();
@@ -1362,6 +1377,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Version0Response response = new Version0Response();
                 response.value1 = 1;
                 channel.sendResponse(response);
+                assertEquals(version0, channel.getVersion());
             });
 
         Version0Request version0Request = new Version0Request();

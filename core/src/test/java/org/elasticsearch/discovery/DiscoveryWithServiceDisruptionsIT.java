@@ -1142,7 +1142,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // wait for relocation to finish
         endRelocationLatch.await();
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
     }
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {

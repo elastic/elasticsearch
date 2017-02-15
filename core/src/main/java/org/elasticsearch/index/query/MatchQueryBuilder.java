@@ -100,7 +100,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private Float cutoffFrequency = null;
 
-    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = true;
 
     /**
      * Constructs a new match query.
@@ -407,7 +407,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Default is <tt>false</tt>.
+     * Default is <tt>true</tt>.
      */
     public MatchQueryBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
@@ -454,9 +454,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         if (cutoffFrequency != null) {
             builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
-        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
-            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
-        }
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -539,7 +537,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         boolean lenient = MatchQuery.DEFAULT_LENIENCY;
         Float cutOffFrequency = null;
         ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
-        boolean autoGenerateSynonymsPhraseQuery = false;
+        boolean autoGenerateSynonymsPhraseQuery = true;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;

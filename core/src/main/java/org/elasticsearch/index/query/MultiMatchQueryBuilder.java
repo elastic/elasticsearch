@@ -93,7 +93,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private boolean lenient = DEFAULT_LENIENCY;
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
-    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = true;
 
     public enum Type implements Writeable {
 
@@ -530,7 +530,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Default is <tt>false</tt>.
+     * Default is <tt>true</tt>.
      */
     public boolean autoGenerateMultiTermsSynonymsPhraseQuery() {
         return autoGenerateMultiTermsSynonymsPhraseQuery;
@@ -573,9 +573,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
         builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
-            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
-        }
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -599,7 +597,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         Float cutoffFrequency = null;
         boolean lenient = DEFAULT_LENIENCY;
         MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
-        boolean autoGenerateSynonymsPhraseQuery = false;
+        boolean autoGenerateSynonymsPhraseQuery = true;
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;

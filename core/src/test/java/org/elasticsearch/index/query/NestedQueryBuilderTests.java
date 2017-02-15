@@ -138,6 +138,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "              \"fuzzy_transpositions\" : true,\n" +
                 "              \"lenient\" : false,\n" +
                 "              \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "              \"boost\" : 1.0\n" +
                 "            }\n" +
                 "          }\n" +

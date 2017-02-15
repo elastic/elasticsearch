@@ -89,7 +89,7 @@ Instead  the queryparser would parse around only real 'operators'. Default to `f
 It is not allowed to set this option to `false` if `autoGeneratePhraseQueries` is already set to `true`.
 
 |`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
-Default to `false.
+Default to `true`.
 
 |`all_fields` | Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no

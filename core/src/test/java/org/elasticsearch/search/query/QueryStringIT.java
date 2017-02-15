@@ -324,6 +324,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 .defaultField("field")
                 .splitOnWhitespace(true)
                 .defaultOperator(Operator.AND)
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertNoSearchHits(searchResponse);
@@ -334,6 +335,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 .defaultField("field")
                 .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 6L);
@@ -346,6 +348,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
                 .analyzer("lower_graphsyns")
+                .autoGenerateMultiTermsSynonymsPhraseQuery(false)
                 .minimumShouldMatch("80%")).get();
 
         assertHitCount(searchResponse, 3L);
@@ -357,7 +360,6 @@ public class QueryStringIT extends ESIntegTestCase {
                 .defaultField("field")
                 .splitOnWhitespace(false)
                 .defaultOperator(Operator.AND)
-                .autoGenerateMultiTermsSynonymsPhraseQuery(true)
                 .analyzer("lower_graphsyns"))
             .get();
         assertHitCount(searchResponse, 3L);

@@ -134,7 +134,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
 
-    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = true;
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
@@ -370,7 +370,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Default is <tt>false</tt>.
+     * Default is <tt>true</tt>.
      */
     public SimpleQueryStringBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
@@ -481,9 +481,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (useAllFields != null) {
             builder.field(ALL_FIELDS_FIELD.getPreferredName(), useAllFields);
         }
-        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
-            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
-        }
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
 
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -505,7 +503,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
         Boolean useAllFields = null;
-        boolean autoGenerateSynonymsPhraseQuery = false;
+        boolean autoGenerateSynonymsPhraseQuery = true;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

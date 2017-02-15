@@ -189,7 +189,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
 
-    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = false;
+    private boolean autoGenerateMultiTermsSynonymsPhraseQuery = true;
 
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
@@ -633,7 +633,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Default is <tt>false</tt>.
+     * Default is <tt>true</tt>.
      */
     public QueryStringQueryBuilder autoGenerateMultiTermsSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateMultiTermsSynonymsPhraseQuery = enable;
@@ -702,9 +702,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.useAllFields != null) {
             builder.field(ALL_FIELDS_FIELD.getPreferredName(), this.useAllFields);
         }
-        if (autoGenerateMultiTermsSynonymsPhraseQuery) {
-            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
-        }
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateMultiTermsSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -740,7 +738,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String rewrite = null;
         boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
         Boolean useAllFields = null;
-        boolean autoGenerateSynonymsPhraseQuery = false;
+        boolean autoGenerateSynonymsPhraseQuery = true;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

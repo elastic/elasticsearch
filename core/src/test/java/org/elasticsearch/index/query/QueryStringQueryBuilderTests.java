@@ -398,6 +398,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryParser.reset(settings);
 
             // simple multi-term
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             Query query = queryParser.parse("guinea pig");
             Query expectedQuery = new GraphQuery(
                 new BooleanQuery.Builder()
@@ -408,8 +409,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             );
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // simple multi-term with phrase query
             queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(true);
+            // simple multi-term with phrase query
             query = queryParser.parse("guinea pig");
             expectedQuery = new GraphQuery(
                 new PhraseQuery.Builder()
@@ -852,6 +853,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
                 "    \"split_on_whitespace\" : true,\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

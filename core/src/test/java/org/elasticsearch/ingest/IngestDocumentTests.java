@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,7 +46,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
-    private static final Date BOGUS_TIMESTAMP = new Date(0L);
+    private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 19, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
 
     @Before
@@ -85,7 +87,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
         assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
                 both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {

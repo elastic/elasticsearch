@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -94,7 +93,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static IncludeExclude parseInclude(XContentParser parser, QueryParseContext context) throws IOException {
+    public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new IncludeExclude(parser.text(), null);
@@ -121,9 +120,17 @@ public class IncludeExclude implements Writeable, ToXContent {
                             "Unknown parameter in Include/Exclude clause: " + currentFieldName);
                 }
             }
+
+            final boolean hasPattern = pattern != null;
+            final boolean hasPartition = partition != null || numPartitions != null;
+            if (hasPattern && hasPartition) {
+                throw new IllegalArgumentException("Cannot mix pattern-based and partition-based includes");
+            }
+
             if (pattern != null) {
                 return new IncludeExclude(pattern, null);
             }
+
             if (partition == null) {
                 throw new IllegalArgumentException("Missing [" + PARTITION_FIELD.getPreferredName()
                     + "] parameter for partition-based include");
@@ -138,7 +145,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static IncludeExclude parseExclude(XContentParser parser, QueryParseContext context) throws IOException {
+    public static IncludeExclude parseExclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new IncludeExclude(null, parser.text());

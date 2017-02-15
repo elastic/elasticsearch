@@ -80,7 +80,7 @@ public class RestClearScrollActionTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
     }
 
-    public void testParseSearchScrollPlaintext() throws Exception {
+    public void testParseClearScrollPlaintext() throws Exception {
         RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY, mock(RestController.class));
         NodeClient mockNodeClient = mock(NodeClient.class);
         final List<String> scrollIds = Arrays.asList(generateRandomStringArray(4, 30, false, false));

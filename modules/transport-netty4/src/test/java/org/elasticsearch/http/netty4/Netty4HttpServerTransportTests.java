@@ -144,7 +144,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testExpectContinueHeader() throws InterruptedException {
         final Settings settings = Settings.EMPTY;
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
-        runExceptContinueHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
     }
 
     /**
@@ -157,7 +157,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final int maxContentLength = randomIntBetween(1, 104857600);
         final Settings settings = Settings.builder().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
-        runExceptContinueHeaderTest(
+        runExpectHeaderTest(
                 settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
     }
 
@@ -167,10 +167,10 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        runExceptContinueHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+        runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
-    private void runExceptContinueHeaderTest(
+    private void runExpectHeaderTest(
             final Settings settings,
             final String expectation,
             final int contentLength,

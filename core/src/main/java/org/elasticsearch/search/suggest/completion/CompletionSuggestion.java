@@ -20,23 +20,31 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -197,14 +205,16 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<CharSequence>> contexts;
+            private Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
             private ScoreDoc doc;
             private SearchHit hit;
+
+            public static final ParseField CONTEXT = new ParseField("contexts");
 
             public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
-                this.contexts = contexts;
+                this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
             }
 
             protected Option() {
@@ -240,14 +250,14 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field("text", getText());
+                builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
                     hit.toInnerXContent(builder, params);
                 } else {
-                    builder.field("score", getScore());
+                    builder.field(SCORE.getPreferredName(), getScore());
                 }
                 if (contexts.size() > 0) {
-                    builder.startObject("contexts");
+                    builder.startObject(CONTEXT.getPreferredName());
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                         builder.startArray(entry.getKey());
                         for (CharSequence context : entry.getValue()) {
@@ -258,6 +268,68 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     builder.endObject();
                 }
                 return builder;
+            }
+
+            public static Option fromXContent(XContentParser parser) throws IOException  {
+                XContentParser.Token token = parser.nextToken();
+                String currentFieldName = null;
+                String text = null;
+                float score = -1;
+                Map<String, Set<CharSequence>> contexts = new HashMap<>();
+                SearchHit searchHit = null;
+                boolean foundHit = false;
+                try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).startObject()) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                            if ("text".equals(currentFieldName) == false && "score".equals(currentFieldName) == false
+                                    && "contexts".equals(currentFieldName) == false) {
+                                builder.copyCurrentStructure(parser);
+                                foundHit = true;
+                            }
+                        } else if (token.isValue()) {
+                            if ("text".equals(currentFieldName)) {
+                                text = parser.text();
+                            } else if ("score".equals(currentFieldName)) {
+                                score = parser.floatValue();
+                            } else {
+                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            }
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            if ("contexts".equals(currentFieldName)) {
+                                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                    if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                        currentFieldName = parser.currentName();
+                                    } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                                        Set<CharSequence> set = new HashSet<>();
+                                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                            set.add(parser.text());
+                                        }
+                                        contexts.put(currentFieldName, set);
+                                    } else {
+                                        throw new IllegalStateException();
+                                    }
+                                }
+                            } else {
+                                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            throwUnknownToken(token, parser.getTokenLocation());
+                        }
+                    }
+                    BytesReference bytes = builder.endObject().bytes();
+                    if (foundHit) {
+                        try (XContentParser hitsParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(),
+                                bytes)) {
+                            hitsParser.nextToken();
+                            searchHit = SearchHit.fromXContent(hitsParser);
+                            score = searchHit.getScore();
+                        }
+                    }
+                }
+                Option option = new Option(1, new Text(text), score, contexts);
+                option.setHit(searchHit);
+                return option;
             }
 
             @Override
@@ -317,7 +389,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append("]");
                 return stringBuilder.toString();
             }
-
         }
     }
 

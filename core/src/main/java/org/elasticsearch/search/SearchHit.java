@@ -550,13 +550,9 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<S
         return searchHit;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> T get(String key, Map<String, Object> map, T defaultValue) {
-        @SuppressWarnings("unchecked")
-        T value = (T) map.get(key);
-        if (value == null) {
-            value = defaultValue;
-        }
-        return value;
+        return (T) map.getOrDefault(key, defaultValue);
     }
 
     private static float parseScore(XContentParser parser) throws IOException {

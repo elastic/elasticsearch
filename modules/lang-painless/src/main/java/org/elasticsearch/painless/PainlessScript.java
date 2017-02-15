@@ -32,7 +32,7 @@ import java.util.Map;
 public abstract class PainlessScript {
     private final ScriptMetadata metadata;
 
-    public PainlessScript(ScriptMetadata metadata) {
+    protected PainlessScript(ScriptMetadata metadata) {
         this.metadata = metadata;
     }
 

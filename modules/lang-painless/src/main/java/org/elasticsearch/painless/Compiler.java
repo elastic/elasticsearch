@@ -99,9 +99,9 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        ScriptInterface mainMethod = new ScriptInterface(iface);
+        ScriptInterface scriptInterface = new ScriptInterface(iface);
 
-        SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, null);
+        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, null);
 
         root.analyze();
         root.write();
@@ -132,9 +132,9 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        ScriptInterface mainMethod = new ScriptInterface(iface);
+        ScriptInterface scriptInterface = new ScriptInterface(iface);
 
-        SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, debugStream);
+        SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, debugStream);
 
         root.analyze();
         root.write();

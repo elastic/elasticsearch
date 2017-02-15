@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -96,6 +93,10 @@ public class ImplementInterfacesTests extends ScriptTestCase {
                 @Arg(name = "b") int b,
                 @Arg(name = "c") int c,
                 @Arg(name = "d") int d);
+        boolean uses$a();
+        boolean uses$b();
+        boolean uses$c();
+        boolean uses$d();
     }
     public void testManyArgs() {
         int rando = randomInt();
@@ -103,14 +104,21 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(10, scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap()).execute(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
-        assertUsedVariables(ManyArgs.class, "a", "a");
-        assertUsedVariables(ManyArgs.class, "a + b + c", "a", "b", "c");
-        assertUsedVariables(ManyArgs.class, "a + b + c + d", "a", "b", "c", "d");
-    }
-
-    private void assertUsedVariables(Class<?> iface, String script, String... usedVariables) {
-        assertEquals(new HashSet<>(Arrays.asList(usedVariables)),
-                ((PainlessScript) scriptEngine.compile(iface, null, script, emptyMap())).getMetadata().getUsedVariables());
+        ManyArgs script = scriptEngine.compile(ManyArgs.class, null, "a", emptyMap());
+        assertTrue(script.uses$a());
+        assertFalse(script.uses$b());
+        assertFalse(script.uses$c());
+        assertFalse(script.uses$d());
+        script = scriptEngine.compile(ManyArgs.class, null, "a + b + c", emptyMap());
+        assertTrue(script.uses$a());
+        assertTrue(script.uses$b());
+        assertTrue(script.uses$c());
+        assertFalse(script.uses$d());
+        script = scriptEngine.compile(ManyArgs.class, null, "a + b + c + d", emptyMap());
+        assertTrue(script.uses$a());
+        assertTrue(script.uses$b());
+        assertTrue(script.uses$c());
+        assertTrue(script.uses$d());
     }
 
     public interface VarargTest {
@@ -154,7 +162,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         Object execute();
         Object execute(boolean foo);
     }
-    public void testTwoExecutoMethods() {
+    public void testTwoExecuteMethods() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(TwoExecuteMethods.class, null, "null", emptyMap()));
         assertEquals("Painless can only implement interfaces that have a single method named [execute] but ["

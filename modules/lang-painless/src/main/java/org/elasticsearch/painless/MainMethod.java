@@ -103,12 +103,16 @@ public class MainMethod {
         this.usesMethods = unmodifiableList(usesMethods);
     }
 
-    public org.objectweb.asm.commons.Method getAsmMethod() {
+    public org.objectweb.asm.commons.Method getAsmMethod() { // NOCOMMIT rename to executeMethod
         return asmMethod;
     }
 
     public List<MethodArgument> getArguments() {
         return arguments;
+    }
+
+    public List<org.objectweb.asm.commons.Method> getUsesMethods() {
+        return usesMethods;
     }
 
     public static class MethodArgument {

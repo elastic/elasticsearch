@@ -19,21 +19,30 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
+
+import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 
 public class RestSearchScrollActionTests extends ESTestCase {
@@ -71,4 +80,20 @@ public class RestSearchScrollActionTests extends ESTestCase {
                 () -> RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest));
         assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
     }
+
+    public void testParseSearchScrollPlaintext() throws Exception {
+        RestSearchScrollAction action = new RestSearchScrollAction(Settings.EMPTY, mock(RestController.class));
+        NodeClient mockNodeClient = mock(NodeClient.class);
+        final String scrollId = randomAsciiOfLengthBetween(1, 30);
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(scrollId), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain")))
+            .build();
+        action.handleRequest(fakeRestRequest, mock(RestChannel.class), mockNodeClient);
+        ArgumentCaptor<SearchScrollRequest> captor = ArgumentCaptor.forClass(SearchScrollRequest.class);
+        verify(mockNodeClient).searchScroll(captor.capture(), any(ActionListener.class));
+
+        assertEquals(scrollId, captor.getValue().scrollId());
+    }
+
 }

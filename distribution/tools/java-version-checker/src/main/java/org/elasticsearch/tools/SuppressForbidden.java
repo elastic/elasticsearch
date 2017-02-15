@@ -17,25 +17,17 @@
  * under the License.
  */
 
+package org.elasticsearch.tools;
 
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
-
-apply plugin: 'elasticsearch.build'
-apply plugin: 'ru.vyarus.animalsniffer'
-
-sourceCompatibility = JavaVersion.VERSION_1_6
-targetCompatibility = JavaVersion.VERSION_1_6
-
-dependencies {
-    signature "org.codehaus.mojo.signature:java16:1.0@signature"
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+/**
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+@interface SuppressForbidden {
+    String reason();
 }
-
-forbiddenApisMain {
-    // java-version-checker does not depend on core so only JDK signatures should be checked
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-}
-
-test.enabled = false
-loggerUsageCheck.enabled = false
-jarHell.enabled=false

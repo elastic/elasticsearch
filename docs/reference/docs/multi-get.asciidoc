@@ -9,7 +9,7 @@ API. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET _mget
+GET /_mget
 {
     "docs" : [
         {
@@ -32,7 +32,7 @@ is not required in the body):
 
 [source,js]
 --------------------------------------------------
-GET test/_mget
+GET /test/_mget
 {
     "docs" : [
         {
@@ -52,7 +52,7 @@ And type:
 
 [source,js]
 --------------------------------------------------
-GET test/type/_mget
+GET /test/type/_mget
 {
     "docs" : [
         {
@@ -71,7 +71,7 @@ request:
 
 [source,js]
 --------------------------------------------------
-GET test/type/_mget
+GET /test/type/_mget
 {
     "ids" : ["1", "2"]
 }
@@ -93,7 +93,7 @@ will give you back only the same document twice:
 
 [source,js]
 --------------------------------------------------
-GET test/_mget
+GET /test/_mget
 {
     "ids" : ["1", "1"]
 }
@@ -104,7 +104,7 @@ You need in that case to explicitly set the `_type`:
 
 [source,js]
 --------------------------------------------------
-GET test/_mget/
+GET /test/_mget/
 {
   "docs" : [
         {
@@ -134,7 +134,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET _mget
+GET /_mget
 {
     "docs" : [
         {
@@ -173,7 +173,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-GET _mget
+GET /_mget
 {
     "docs" : [
         {
@@ -198,7 +198,7 @@ as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-GET test/type/_mget?stored_fields=field1,field2
+GET /test/type/_mget?stored_fields=field1,field2
 {
     "docs" : [
         {
@@ -228,7 +228,7 @@ You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------
-GET _mget?routing=key1
+GET /_mget?routing=key1
 {
     "docs" : [
         {

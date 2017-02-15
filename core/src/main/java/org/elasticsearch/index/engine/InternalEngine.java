@@ -478,6 +478,14 @@ public class InternalEngine extends Engine {
         return false;
     }
 
+    private boolean assertVersionType(final Engine.Operation operation) {
+        if (operation.origin() == Operation.Origin.REPLICA) {
+            assert operation.versionType() == VersionType.EXTERNAL
+                    : "replca: version: " + operation.version() + " type: " + operation.versionType();
+        }
+        return true;
+    }
+
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
@@ -499,6 +507,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
             assert assertSequenceNumber(index.origin(), index.seqNo());
+            assert assertVersionType(index);
             final Translog.Location location;
             long seqNo = index.seqNo();
             try (Releasable ignored = acquireLock(index.uid());
@@ -692,6 +701,7 @@ public class InternalEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         DeleteResult result;
         try (ReleasableLock ignored = readLock.acquire()) {
+            assert assertVersionType(delete);
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);

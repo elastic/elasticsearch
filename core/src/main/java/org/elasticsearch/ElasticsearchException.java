@@ -586,7 +586,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return new ElasticsearchException(buildMessage("exception", parser.text(), null));
         }
 
-        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         token = parser.nextToken();
 
         // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.

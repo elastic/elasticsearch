@@ -58,12 +58,19 @@ public class IndexResponseTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
+        final XContentType xContentType = XContentType.JSON;//randomFrom(XContentType.values());
 
         // Create a random IndexResponse and converts it to XContent in bytes
         IndexResponse indexResponse = randomIndexResponse();
         boolean humanReadable = randomBoolean();
         BytesReference indexResponseBytes = toXContent(indexResponse, xContentType, humanReadable);
+
+        // Shuffle the XContent fields
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), indexResponseBytes)) {
+                indexResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
 
         // Parse the XContent bytes to obtain a parsed
         IndexResponse parsedIndexResponse;
@@ -149,7 +156,7 @@ public class IndexResponseTests extends ESTestCase {
         }
     }
 
-    private static void assertIndexResponse(IndexResponse expected, Map<String, Object> actual) {
+    public static void assertIndexResponse(IndexResponse expected, Map<String, Object> actual) {
         assertDocWriteResponse(expected, actual);
         if (expected.getResult() == DocWriteResponse.Result.CREATED) {
             assertTrue((boolean) actual.get("created"));
@@ -158,7 +165,7 @@ public class IndexResponseTests extends ESTestCase {
         }
     }
 
-    private static IndexResponse randomIndexResponse() {
+    public static IndexResponse randomIndexResponse() {
         ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);

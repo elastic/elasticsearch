@@ -20,19 +20,15 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -45,7 +41,6 @@ public class IndexResponse extends DocWriteResponse {
     private static final String CREATED = "created";
 
     public IndexResponse() {
-
     }
 
     public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
@@ -77,32 +72,48 @@ public class IndexResponse extends DocWriteResponse {
         return builder;
     }
 
-    /**
-     * ConstructingObjectParser used to parse the {@link IndexResponse}. We use a ObjectParser here
-     * because most fields are parsed by the parent abstract class {@link DocWriteResponse} and it's
-     * not easy to parse part of the fields in the parent class and other fields in the children class
-     * using the usual streamed parsing method.
-     */
-    private static final ConstructingObjectParser<IndexResponse, Void> PARSER;
-    static {
-        PARSER = new ConstructingObjectParser<>(IndexResponse.class.getName(),
-                args -> {
-                    // index uuid and shard id are unknown and can't be parsed back for now.
-                    ShardId shardId = new ShardId(new Index((String) args[0], IndexMetaData.INDEX_UUID_NA_VALUE), -1);
-                    String type = (String) args[1];
-                    String id = (String) args[2];
-                    long version = (long) args[3];
-                    ShardInfo shardInfo = (ShardInfo) args[5];
-                    boolean created = (boolean) args[6];
-                    IndexResponse indexResponse = new IndexResponse(shardId, type, id, version, created);
-                    indexResponse.setShardInfo(shardInfo);
-                    return indexResponse;
-                });
-        DocWriteResponse.declareParserFields(PARSER);
-        PARSER.declareBoolean(constructorArg(), new ParseField(CREATED));
+    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        IndexResponseBuilder context = new IndexResponseBuilder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
     }
 
-    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, IndexResponseBuilder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (CREATED.equals(currentFieldName)) {
+            if (token.isValue()) {
+                context.setCreated(parser.booleanValue());
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    public static class IndexResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+
+        private boolean created = false;
+
+        public void setCreated(boolean created) {
+            this.created = created;
+        }
+
+        @Override
+        public IndexResponse build() {
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, version, created);
+            indexResponse.setForcedRefresh(forcedRefresh);
+            if (shardInfo != null) {
+                indexResponse.setShardInfo(shardInfo);
+            }
+            return indexResponse;
+        }
     }
 }

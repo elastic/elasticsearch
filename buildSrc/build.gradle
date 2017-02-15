@@ -122,6 +122,9 @@ if (GradleVersion.current() == GradleVersion.version("2.13")) {
 if (project == rootProject) {
 
   repositories {
+    if (System.getProperty("repos.mavenLocal") != null) {
+      mavenLocal()
+    }
     mavenCentral()
   }
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'

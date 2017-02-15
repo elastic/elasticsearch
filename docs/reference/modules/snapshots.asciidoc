@@ -24,7 +24,7 @@ Elasticsearch. The repository settings are repository-type specific. See below f
 
 [source,js]
 -----------------------------------
-PUT /_snapshot/my_backup
+PUT _snapshot/my_backup
 {
   "type": "fs",
   "settings": {
@@ -37,7 +37,7 @@ Once a repository is registered, its information can be obtained using the follo
 
 [source,js]
 -----------------------------------
-GET /_snapshot/my_backup
+GET _snapshot/my_backup
 -----------------------------------
 // CONSOLE
 
@@ -62,23 +62,26 @@ can be obtained using the following command:
 
 [source,js]
 -----------------------------------
-GET /_snapshot/repo*,*backup*
+GET _snapshot/repo*,*backup*
 -----------------------------------
+// CONSOLE
 
 If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
 all repositories currently registered in the cluster:
 
 [source,js]
 -----------------------------------
-GET /_snapshot
+GET _snapshot
 -----------------------------------
+// CONSOLE
 
 or
 
 [source,js]
 -----------------------------------
-GET /_snapshot/_all
+GET _snapshot/_all
 -----------------------------------
+// CONSOLE
 
 [float]
 ===== Shared File System Repository
@@ -109,28 +112,32 @@ the name `my_backup`:
 
 [source,js]
 -----------------------------------
-$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+PUT _snapshot/my_backup
+{
     "type": "fs",
     "settings": {
         "location": "/mount/backups/my_backup",
         "compress": true
     }
-}'
+}
 -----------------------------------
+// CONSOLE
 
 If the repository location is specified as a relative path this path will be resolved against the first path specified
 in `path.repo`:
 
 [source,js]
 -----------------------------------
-$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+PUT _snapshot/my_backup
+{
     "type": "fs",
     "settings": {
         "location": "my_backup",
         "compress": true
     }
-}'
+}
 -----------------------------------
+// CONSOLE
 
 The following settings are supported:
 
@@ -183,7 +190,7 @@ verification when registering or updating a repository:
 
 [source,js]
 -----------------------------------
-PUT /_snapshot/s3_repository?verify=false
+PUT _snapshot/s3_repository?verify=false
 {
   "type": "s3",
   "settings": {
@@ -198,7 +205,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-POST /_snapshot/s3_repository/_verify
+POST _snapshot/s3_repository/_verify
 -----------------------------------
 // CONSOLE
 
@@ -213,7 +220,7 @@ command:
 
 [source,js]
 -----------------------------------
-PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+PUT _snapshot/my_backup/snapshot_1?wait_for_completion=true
 -----------------------------------
 // CONSOLE
 
@@ -227,7 +234,7 @@ specifying the list of indices in the body of the snapshot request.
 
 [source,js]
 -----------------------------------
-PUT /_snapshot/my_backup/snapshot_1
+PUT _snapshot/my_backup/snapshot_1
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
@@ -268,7 +275,7 @@ Once a snapshot is created information about this snapshot can be obtained using
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_1
+GET _snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
 
@@ -276,7 +283,7 @@ Similar as for repositories, information about multiple snapshots can be queried
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
+GET _snapshot/my_backup/snapshot_*,some_other_snapshot
 -----------------------------------
 // CONSOLE
 
@@ -284,7 +291,7 @@ All snapshots currently stored in the repository can be listed using the followi
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/_all
+GET _snapshot/my_backup/_all
 -----------------------------------
 // CONSOLE
 
@@ -295,14 +302,15 @@ A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
 -----------------------------------
-$ curl -XGET "localhost:9200/_snapshot/my_backup/_current"
+GET _snapshot/my_backup/_current
 -----------------------------------
+// CONSOLE
 
 A snapshot can be deleted from the repository using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_backup/snapshot_1
+DELETE _snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
 
@@ -316,7 +324,7 @@ A repository can be deleted using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_backup
+DELETE _snapshot/my_backup
 -----------------------------------
 // CONSOLE
 
@@ -330,7 +338,7 @@ A snapshot can be restored using the following command:
 
 [source,sh]
 -----------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
+POST _snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
 // CONSOLE
 
@@ -348,7 +356,7 @@ with associated indices
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
+POST _snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
@@ -386,7 +394,7 @@ the index `index_1` without creating any replicas while switching back to defaul
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
+POST _snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1",
   "index_settings": {
@@ -429,7 +437,7 @@ A list of currently running snapshots with their detailed status information can
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/_status
+GET _snapshot/_status
 -----------------------------------
 // CONSOLE
 
@@ -438,7 +446,7 @@ to limit the results to a particular repository:
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/_status
+GET _snapshot/my_backup/_status
 -----------------------------------
 // CONSOLE
 
@@ -447,7 +455,7 @@ if it's not currently running:
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_1/_status
+GET _snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
 
@@ -455,7 +463,7 @@ Multiple ids are also supported:
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
+GET _snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
 // CONSOLE
 
@@ -470,7 +478,7 @@ The snapshot operation can be also monitored by periodic calls to the snapshot i
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_1
+GET _snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
 
@@ -482,7 +490,7 @@ To get more immediate and complete information about snapshots the snapshot stat
 
 [source,sh]
 -----------------------------------
-GET /_snapshot/my_backup/snapshot_1/_status
+GET _snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
 
@@ -511,7 +519,7 @@ that snapshot before deleting the snapshot data from the repository.
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_backup/snapshot_1
+DELETE _snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
 

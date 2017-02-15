@@ -39,10 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -200,6 +197,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
+    @Override
     public RestStatus status() {
         return getShardInfo().status();
     }
@@ -352,7 +350,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     /**
      * {@link DocWriteResponseBuilder} is used to build {@link DocWriteResponse} objects during XContent parsing.
      */
-    public static abstract class DocWriteResponseBuilder {
+    public abstract static class DocWriteResponseBuilder {
 
         protected ShardId shardId = null;
         protected String type = null;

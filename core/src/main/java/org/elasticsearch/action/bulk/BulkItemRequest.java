@@ -87,7 +87,18 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        DocWriteRequest.writeDocumentRequest(out, request);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
+            // old nodes expect updated version and version type on the request
+            if (primaryResponse != null) {
+                request.version(primaryResponse.getVersion());
+                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+                DocWriteRequest.writeDocumentRequest(out, request);
+            } else {
+                DocWriteRequest.writeDocumentRequest(out, request);
+            }
+        } else {
+            DocWriteRequest.writeDocumentRequest(out, request);
+        }
         out.writeOptionalStreamable(primaryResponse);
         if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
             if (primaryResponse != null) {

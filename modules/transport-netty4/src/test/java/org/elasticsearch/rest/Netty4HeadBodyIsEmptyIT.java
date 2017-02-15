@@ -74,8 +74,10 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/test", emptyMap(), equalTo(0));
-        headTestCase("/test/test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/_mapping/test", emptyMap(), greaterThan(0));
+        headTestCase("/test/_mapping/test", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/test", emptyMap(), greaterThan(0));
+        headTestCase("/test/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testAliasExists() throws IOException {

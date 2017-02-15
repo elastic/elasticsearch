@@ -42,14 +42,17 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetMappingAction extends BaseRestHandler {
-    public RestGetMappingAction(Settings settings, RestController controller) {
+
+    public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
         controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
+        controller.registerWithDeprecatedHandler(HEAD, "/{index}/_mapping/{type}", this, HEAD, "/{index}/{type}", deprecationLogger);
         controller.registerHandler(GET, "/_mapping/{type}", this);
     }
 
@@ -57,15 +60,14 @@ public class RestGetMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
-
-                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
+            public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
+                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty()) {
                     if (indices.length != 0 && types.length != 0) {
                         return new BytesRestResponse(OK, builder.startObject().endObject());
@@ -81,27 +83,28 @@ public class RestGetMappingAction extends BaseRestHandler {
                 }
 
                 builder.startObject();
-                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
-                    if (indexEntry.value.isEmpty()) {
-                        continue;
+                {
+                    for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
+                        if (indexEntry.value.isEmpty()) {
+                            continue;
+                        }
+                        builder.startObject(indexEntry.key);
+                        {
+                            builder.startObject("mappings");
+                            {
+                                for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                                    builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
+                                }
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
                     }
-                    builder.startObject(indexEntry.key);
-                    builder.startObject(Fields.MAPPINGS);
-                    for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
-                        builder.field(typeEntry.key);
-                        builder.map(typeEntry.value.sourceAsMap());
-                    }
-                    builder.endObject();
-                    builder.endObject();
                 }
-
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
         });
     }
 
-    static class Fields {
-        static final String MAPPINGS = "mappings";
-    }
 }

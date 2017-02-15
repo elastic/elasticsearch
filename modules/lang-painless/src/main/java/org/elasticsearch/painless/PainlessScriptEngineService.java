@@ -214,7 +214,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
              */
             @Override
             public boolean needsScores() {
-                return ((PainlessScript) compiledScript.compiled()).getMetadata().getUsedVariables().contains("_score");
+                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
             }
         };
     }

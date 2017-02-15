@@ -26,7 +26,6 @@ import java.util.Map;
 /**
  * Generic script interface that all scripts that elasticsearch uses implement.
  */
-@FunctionalInterface
 public interface GenericElasticsearchScript {
     Object execute(
             @Arg(name="params")  Map<String, Object> params,
@@ -34,4 +33,7 @@ public interface GenericElasticsearchScript {
             @Arg(name="doc")     Map<String, ScriptDocValues<?>> doc,
             @Arg(name="_value")  Object _value,
             @Arg(name="ctx")     Map<?, ?> ctx);
+
+    boolean uses$_score();
+    boolean uses$ctx();
 }

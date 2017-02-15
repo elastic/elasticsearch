@@ -99,19 +99,19 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        MainMethod mainMethod = new MainMethod(iface);
+        ScriptInterface mainMethod = new ScriptInterface(iface);
 
         SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, null);
 
         root.analyze();
-        root.write(iface);
+        root.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.define(CLASS_NAME, root.getBytes());
             java.lang.reflect.Constructor<? extends PainlessScript> constructor =
                     clazz.getConstructor(PainlessScript.ScriptMetadata.class);
             PainlessScript.ScriptMetadata scriptMetadata =
-                    new PainlessScript.ScriptMetadata(name, source, root.getStatements(), root.getUsedVariables());
+                    new PainlessScript.ScriptMetadata(name, source, root.getStatements());
 
             return iface.cast(constructor.newInstance(scriptMetadata));
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
@@ -132,12 +132,12 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        MainMethod mainMethod = new MainMethod(iface);
+        ScriptInterface mainMethod = new ScriptInterface(iface);
 
         SSource root = Walker.buildPainlessTree(mainMethod, name, source, settings, debugStream);
 
         root.analyze();
-        root.write(iface);
+        root.write();
 
         return root.getBytes();
     }

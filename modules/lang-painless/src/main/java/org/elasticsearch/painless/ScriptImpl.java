@@ -47,11 +47,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     private final GenericElasticsearchScript script;
 
     /**
-     * Metadata about the Painless script.
-     */
-    private final PainlessScript.ScriptMetadata scriptMetadata;
-
-    /**
      * A map that can be used to access input parameters at run-time.
      */
     private final Map<String, Object> variables;
@@ -96,7 +91,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     ScriptImpl(final GenericElasticsearchScript script, final Map<String, Object> vars, final LeafSearchLookup lookup) {
         this.script = script;
-        this.scriptMetadata = ((PainlessScript) script).getMetadata();
         this.lookup = lookup;
         this.variables = new HashMap<>();
 
@@ -111,8 +105,8 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
             doc = null;
         }
 
-        scoreLookup = scriptMetadata.getUsedVariables().contains("_score") ? scorer -> scorer.score() : scorer -> 0.0;
-        ctxLookup = scriptMetadata.getUsedVariables().contains("ctx") ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
+        scoreLookup = script.uses$_score() ? scorer -> scorer.score() : scorer -> 0.0;
+        ctxLookup = script.uses$ctx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     /**
@@ -158,6 +152,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> metadata) {
         // create a script stack: this is just the script portion
+        // NOCOMMIT move this into the script's implementation
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
@@ -167,17 +162,17 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
                     offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = scriptMetadata.getPreviousStatement(offset);
+                    int startOffset = ((PainlessScript) script).getMetadata().getPreviousStatement(offset);
                     if (startOffset == -1) {
                         assert false; // should never happen unless we hit exc in ctor prologue...
                         startOffset = 0;
                     }
-                    int endOffset = scriptMetadata.getNextStatement(startOffset);
+                    int endOffset = ((PainlessScript) script).getMetadata().getNextStatement(startOffset);
                     if (endOffset == -1) {
-                        endOffset = scriptMetadata.getSource().length();
+                        endOffset = ((PainlessScript) script).getMetadata().getSource().length();
                     }
                     // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = scriptMetadata.getSource().substring(startOffset, endOffset);
+                    String snippet = ((PainlessScript) script).getMetadata().getSource().substring(startOffset, endOffset);
                     scriptStack.add(snippet);
                     StringBuilder pointer = new StringBuilder();
                     for (int i = startOffset; i < offset; i++) {
@@ -194,10 +189,10 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         }
         // build a name for the script:
         final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(scriptMetadata.getName())) {
-            name = scriptMetadata.getSource();
+        if (PainlessScriptEngineService.INLINE_NAME.equals(((PainlessScript) script).getMetadata().getName())) {
+            name = ((PainlessScript) script).getMetadata().getSource();
         } else {
-            name = scriptMetadata.getName();
+            name = ((PainlessScript) script).getMetadata().getName();
         }
         ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {

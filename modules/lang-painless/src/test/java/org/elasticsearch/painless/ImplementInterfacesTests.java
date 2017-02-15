@@ -175,7 +175,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
     public void testBadMethod() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(BadMethod.class, null, "null", emptyMap()));
-        assertEquals("Painless can only implement methods named [execute] and [uses$varName] but [" + BadMethod.class.getName()
+        assertEquals("Painless can only implement methods named [execute] and [uses$argName] but [" + BadMethod.class.getName()
                 + "] contains a method named [something]", e.getMessage());
     }
 

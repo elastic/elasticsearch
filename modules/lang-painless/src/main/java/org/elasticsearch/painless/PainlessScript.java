@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import java.util.BitSet;
-import java.util.Set;
 
 /**
  * Abstract superclass on top of which all Painless scripts are built.
@@ -46,13 +45,11 @@ public abstract class PainlessScript {
         private final String name;
         private final String source;
         private final BitSet statements;
-        private final Set<String> usedVariables;
 
-        protected ScriptMetadata(String name, String source, BitSet statements, Set<String> usedVariables) {
+        protected ScriptMetadata(String name, String source, BitSet statements) {
             this.name = name;
             this.source = source;
             this.statements = statements;
-            this.usedVariables = usedVariables;
         }
 
         /**
@@ -81,14 +78,6 @@ public abstract class PainlessScript {
          */
         public int getNextStatement(int offset) {
             return statements.nextSetBit(offset + 1);
-        }
-
-        /**
-         * Variables used by the script's main method including arguments. If an argument to the script isn't in this then it wasn't used by
-         * the script and can safely be set to anything.
-         */
-        public Set<String> getUsedVariables() {
-            return usedVariables;
         }
     }
 }

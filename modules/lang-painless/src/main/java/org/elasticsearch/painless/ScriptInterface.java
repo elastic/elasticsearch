@@ -30,23 +30,27 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_TYPE;
 
 /**
- * Information about the "main method" implemented by a Painless script.
+ * Information about the interface being implemented by the painless script..
  */
-public class MainMethod {
-    private final org.objectweb.asm.commons.Method asmMethod;
+public class ScriptInterface {
+    private final Class<?> iface;
+    private final org.objectweb.asm.commons.Method executeMethod;
     private final List<MethodArgument> arguments;
     private final List<org.objectweb.asm.commons.Method> usesMethods;
 
-    public MainMethod(Class<?> iface) {
-        java.lang.reflect.Method mainMethod = null;
+    public ScriptInterface(Class<?> iface) {
+        this.iface = iface;
+
+        // Find the main method and the uses$argName methods
+        java.lang.reflect.Method executeMethod = null;
         List<org.objectweb.asm.commons.Method> usesMethods = new ArrayList<>();
         for (java.lang.reflect.Method m : iface.getMethods()) {
             if (m.isDefault()) {
                 continue;
             }
             if (m.getName().equals("execute")) {
-                if (mainMethod == null) {
-                    mainMethod = m;
+                if (executeMethod == null) {
+                    executeMethod = m;
                 } else {
                     throw new IllegalArgumentException(
                             "Painless can only implement interfaces that have a single method named [execute] but [" + iface.getName()
@@ -66,17 +70,17 @@ public class MainMethod {
                 usesMethods.add(new org.objectweb.asm.commons.Method(m.getName(), USES_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
                 continue;
             }
-            throw new IllegalArgumentException("Painless can only implement methods named [execute] and [uses$varName] but ["
+            throw new IllegalArgumentException("Painless can only implement methods named [execute] and [uses$argName] but ["
                     + iface.getName() + "] contains a method named [" + m.getName() + "]");
         }
+        MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
+        this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
 
-        MethodType methodType = MethodType.methodType(mainMethod.getReturnType(), mainMethod.getParameterTypes());
-        asmMethod = new org.objectweb.asm.commons.Method(mainMethod.getName(), methodType.toMethodDescriptorString());
-
+        // Look up the argument names
         Set<String> argumentNames = new LinkedHashSet<>();
         List<MethodArgument> arguments = new ArrayList<>();
-        Annotation[][] annotations = mainMethod.getParameterAnnotations();
-        Class<?>[] types = mainMethod.getParameterTypes();
+        Annotation[][] annotations = executeMethod.getParameterAnnotations();
+        Class<?>[] types = executeMethod.getParameterTypes();
         for (int arg = 0; arg < types.length; arg++) {
             Arg argInfo = null;
             for (Annotation ann : annotations[arg]) {
@@ -87,13 +91,14 @@ public class MainMethod {
             }
             if (argInfo == null) {
                 throw new IllegalArgumentException("All arguments must be annotated with @Arg but the [" + (arg + 1) + "]th argument of ["
-                        + mainMethod + "] was missing it.");
+                        + executeMethod + "] was missing it.");
             }
             arguments.add(new MethodArgument(argType(argInfo.name(), types[arg]), argInfo.name()));
             argumentNames.add(argInfo.name());
         }
         this.arguments = unmodifiableList(arguments);
 
+        // Validate that the uses$argName methods reference argument names
         for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
             if (false == argumentNames.contains(usesMethod.getName().substring("uses$".length()))) {
                 throw new IllegalArgumentException("Painless can only implement uses$ methods that match a parameter name but ["
@@ -103,8 +108,12 @@ public class MainMethod {
         this.usesMethods = unmodifiableList(usesMethods);
     }
 
-    public org.objectweb.asm.commons.Method getAsmMethod() { // NOCOMMIT rename to executeMethod
-        return asmMethod;
+    public Class<?> getInterface() {
+        return iface;
+    }
+
+    public org.objectweb.asm.commons.Method getExecuteMethod() {
+        return executeMethod;
     }
 
     public List<MethodArgument> getArguments() {

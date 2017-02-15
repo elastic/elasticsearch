@@ -31,7 +31,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MainMethod;
+import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
@@ -173,12 +173,12 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(MainMethod mainMethod, String sourceName, String sourceText, CompilerSettings settings,
+    public static SSource buildPainlessTree(ScriptInterface mainMethod, String sourceName, String sourceText, CompilerSettings settings,
             Printer debugStream) {
         return new Walker(mainMethod, sourceName, sourceText, settings, debugStream).source;
     }
 
-    private final MainMethod mainMethod;
+    private final ScriptInterface scriptInterface;
     private final SSource source;
     private final CompilerSettings settings;
     private final Printer debugStream;
@@ -189,8 +189,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Globals globals;
     private int syntheticCounter = 0;
 
-    private Walker(MainMethod mainMethod, String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
-        this.mainMethod = mainMethod;
+    private Walker(ScriptInterface scriptInterface, String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        this.scriptInterface = scriptInterface;
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
@@ -260,7 +260,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(mainMethod, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptInterface, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 

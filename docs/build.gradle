@@ -86,7 +86,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
-  'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',
   'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',

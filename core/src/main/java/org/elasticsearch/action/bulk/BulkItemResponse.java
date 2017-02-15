@@ -83,11 +83,17 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         return builder;
     }
 
+    /**
+     * Reads a {@link BulkItemResponse} from a {@link XContentParser}.
+     *
+     * @param parser the {@link XContentParser}
+     * @param id the id to assign to the parsed {@link BulkItemResponse}. It is usually the index of
+     *           the item in the {@link BulkResponse#getItems} array.
+     */
     public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
 
-        token = parser.nextToken();
+        XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
         String currentFieldName = parser.currentName();
@@ -98,25 +104,21 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         DocWriteResponse.DocWriteResponseBuilder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
-        Supplier<? extends DocWriteResponse> itemSupplier = null;
 
         if (opType == OpType.INDEX || opType == OpType.CREATE) {
             final IndexResponse.IndexResponseBuilder indexResponseBuilder = new IndexResponse.IndexResponseBuilder();
             builder = indexResponseBuilder;
             itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
-            itemSupplier = indexResponseBuilder::build;
 
         } else if (opType == OpType.UPDATE) {
             final UpdateResponse.UpdateResponseBuilder updateResponseBuilder = new UpdateResponse.UpdateResponseBuilder();
             builder = updateResponseBuilder;
             itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
-            itemSupplier = updateResponseBuilder::build;
 
         } else if (opType == OpType.DELETE) {
             final DeleteResponse.DeleteResponseBuilder deleteResponseBuilder = new DeleteResponse.DeleteResponseBuilder();
             builder = deleteResponseBuilder;
             itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
-            itemSupplier = deleteResponseBuilder::build;
         } else {
             throwUnknownField(currentFieldName, parser.getTokenLocation());
         }
@@ -127,19 +129,13 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
                 currentFieldName = parser.currentName();
             }
 
-            if (STATUS.equals(currentFieldName)) {
-                // ignoring status field
-                continue;
-            }
-
             if (ERROR.equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     exception = ElasticsearchException.fromXContent(parser);
                 }
-                continue;
+            } else if (STATUS.equals(currentFieldName) == false) {
+                itemParser.accept(parser);
             }
-
-            itemParser.accept(parser);
         }
 
         ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
@@ -151,7 +147,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
-            bulkItemResponse = new BulkItemResponse(id, opType, itemSupplier.get());
+            bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
         }
         return bulkItemResponse;
     }

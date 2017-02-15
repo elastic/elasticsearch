@@ -74,9 +74,6 @@ public class BulkItemResponseTests extends ESTestCase {
                 Tuple<UpdateResponse, UpdateResponse> updates = randomUpdateResponse(xContentType);
                 expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, updates.v2());
                 originalBytes = toXContent(new BulkItemResponse(bulkItemId, opType, updates.v1()), xContentType, humanReadable);
-
-            } else {
-                fail("Test does not support opType [" + opType + "]");
             }
 
             // Shuffle the XContent fields
@@ -88,6 +85,7 @@ public class BulkItemResponseTests extends ESTestCase {
 
             BulkItemResponse parsedBulkItemResponse;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
@@ -146,6 +144,7 @@ public class BulkItemResponseTests extends ESTestCase {
 
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
             assertNull(parser.nextToken());
         }

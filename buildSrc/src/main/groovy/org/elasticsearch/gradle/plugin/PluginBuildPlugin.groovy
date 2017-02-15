@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
@@ -71,6 +72,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
+                addNoticeGeneration(project)
             }
 
             project.namingConventions {
@@ -241,6 +243,25 @@ public class PluginBuildPlugin extends BuildPlugin {
                         scmNode.appendNode('url', project.scminfo.origin)
                     }
                 }
+            }
+        }
+    }
+
+    protected void addNoticeGeneration(Project project) {
+        File licenseFile = project.pluginProperties.extension.licenseFile
+        if (licenseFile != null) {
+            project.bundlePlugin.into('/') {
+                from(licenseFile.parentFile) {
+                    include(licenseFile.name)
+                }
+            }
+        }
+        File noticeFile = project.pluginProperties.extension.licenseFile
+        if (noticeFile != null) {
+            NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
+            generateNotice.dependencies(project)
+            project.bundlePlugin.into('/') {
+                from(generateNotice)
             }
         }
     }

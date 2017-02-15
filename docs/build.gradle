@@ -107,7 +107,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/put-mapping.asciidoc',
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
-  'reference/indices/shadow-replicas.asciidoc',
   'reference/indices/shard-stores.asciidoc',
   'reference/ingest/ingest-node.asciidoc',
   'reference/mapping/dynamic/templates.asciidoc',

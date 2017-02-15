@@ -57,7 +57,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        request.withContentOrSourceParamParserOrNull(xContentParser -> {
+        request.withContentOrSourceParamParserOrNullLenient(xContentParser -> {
             if (xContentParser == null) {
                 if (request.hasContent()) {
                     // TODO: why do we accept this plain text value? maybe we can just use the scroll params?

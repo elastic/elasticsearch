@@ -27,8 +27,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,10 +57,10 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     public void testDCGAt() {
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
-        InternalSearchHit[] hits = new InternalSearchHit[6];
+        SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -101,14 +101,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     public void testDCGAtSixMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();
         Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1};
-        InternalSearchHit[] hits = new InternalSearchHit[6];
+        SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
                 if (relevanceRatings[i] != null) {
                     rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
                 }
             }
-            hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -161,9 +161,9 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             }
         }
         // only create four hits
-        InternalSearchHit[] hits = new InternalSearchHit[4];
+        SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
-            hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();

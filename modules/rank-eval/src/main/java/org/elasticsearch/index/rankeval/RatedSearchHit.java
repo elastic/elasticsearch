@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,7 +42,7 @@ public class RatedSearchHit implements Writeable, ToXContent {
     }
 
     public RatedSearchHit(StreamInput in) throws IOException {
-        this(InternalSearchHit.readSearchHit(in), in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
+        this(SearchHit.readSearchHit(in), in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
     }
 
     @Override

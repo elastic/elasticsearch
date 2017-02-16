@@ -21,7 +21,6 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,7 +31,7 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
         Optional<Integer> rating = randomBoolean() ? Optional.empty() : Optional.of(randomIntBetween(0, 5));
-        SearchHit searchHit = new InternalSearchHit(randomIntBetween(0, 10), randomAsciiOfLength(10), new Text(randomAsciiOfLength(10)),
+        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAsciiOfLength(10), new Text(randomAsciiOfLength(10)),
                 Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
@@ -40,13 +39,13 @@ public class RatedSearchHitTests extends ESTestCase {
 
     private static RatedSearchHit mutateTestItem(RatedSearchHit original) {
         Optional<Integer> rating = original.getRating();
-        InternalSearchHit hit = (InternalSearchHit) original.getSearchHit();
+        SearchHit hit = original.getSearchHit();
         switch (randomIntBetween(0, 1)) {
         case 0:
             rating = rating.isPresent() ? Optional.of(rating.get() + 1) : Optional.of(randomInt(5));
             break;
         case 1:
-            hit = new InternalSearchHit(hit.docId(), hit.getId() + randomAsciiOfLength(10), new Text(hit.getType()),
+            hit = new SearchHit(hit.docId(), hit.getId() + randomAsciiOfLength(10), new Text(hit.getType()),
                     Collections.emptyMap());
             break;
         default:

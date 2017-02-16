@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -115,8 +114,8 @@ public class PrecisionTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test", "testtype"), 3);
-        searchHits[2] = new InternalSearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
-        ((InternalSearchHit)searchHits[2]).shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+        searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
+        searchHits[2].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
 
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
@@ -133,9 +132,9 @@ public class PrecisionTests extends ESTestCase {
     }
 
     public void testNoRatedDocs() throws Exception {
-        InternalSearchHit[] hits = new InternalSearchHit[5];
+        SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i+"", new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
         }
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits, Collections.emptyList());
@@ -228,9 +227,9 @@ public class PrecisionTests extends ESTestCase {
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index, String type) {
-        InternalSearchHit[] hits = new InternalSearchHit[rated.size()];
+        SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text(type), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i+"", new Text(type), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
         }
         return hits;

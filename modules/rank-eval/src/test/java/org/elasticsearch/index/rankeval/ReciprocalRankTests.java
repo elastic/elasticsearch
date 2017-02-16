@@ -29,7 +29,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -140,13 +139,13 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     /**
-     * Create InternalSearchHits for testing, starting from dociId 'from' up to docId 'to'.
+     * Create SearchHits for testing, starting from dociId 'from' up to docId 'to'.
      * The search hits index and type also need to be provided
      */
     private static SearchHit[] createSearchHits(int from, int to, String index, String type) {
-        InternalSearchHit[] hits = new InternalSearchHit[to + 1 - from];
+        SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text(type), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i+"", new Text(type), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
         }
         return hits;

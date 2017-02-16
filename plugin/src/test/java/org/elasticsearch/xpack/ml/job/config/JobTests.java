@@ -309,21 +309,21 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_setsDefaultIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
-        assertEquals("foo", job.getIndexName());
+        assertEquals("foo", job.getResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setIndexName("carol");
+        builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals("carol", job.getIndexName());
+        assertEquals("carol", job.getResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows () {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setIndexName("_bad^name");
+        builder.setResultsIndexName("_bad^name");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
-        assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.INDEX_NAME.getPreferredName()), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName()), e.getMessage());
     }
 
     public static Job.Builder buildJobBuilder(String id) {
@@ -400,7 +400,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setModelSnapshotId(randomAsciiOfLength(10));
         }
         if (randomBoolean()) {
-            builder.setIndexName(randomValidJobId());
+            builder.setResultsIndexName(randomValidJobId());
         }
         return builder.build();
     }

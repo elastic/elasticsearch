@@ -193,7 +193,7 @@ public class JobProviderTests extends ESTestCase {
         clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsIndexName("foo"), AnomalyDetectorsIndex.jobResultsIndexName("foo123"));
 
         Job.Builder job = buildJobBuilder("foo123");
-        job.setIndexName("foo");
+        job.setResultsIndexName("foo");
         JobProvider provider = createProvider(clientBuilder.build());
 
         Index index = mock(Index.class);
@@ -245,7 +245,7 @@ public class JobProviderTests extends ESTestCase {
         clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsIndexName("bar"), AnomalyDetectorsIndex.jobResultsIndexName("foo"));
 
         Job.Builder job = buildJobBuilder("foo");
-        job.setIndexName("bar");
+        job.setResultsIndexName("bar");
         Client client = clientBuilder.build();
         JobProvider provider = createProvider(client);
 
@@ -290,7 +290,7 @@ public class JobProviderTests extends ESTestCase {
         clientBuilder.createIndexRequest(AnomalyDetectorsIndex.jobResultsIndexName("foo"), captor);
 
         Job.Builder job = buildJobBuilder("foo");
-        job.setIndexName("foo");
+        job.setResultsIndexName("foo");
         Client client = clientBuilder.build();
         JobProvider provider = createProvider(client);
 

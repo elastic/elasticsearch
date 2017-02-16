@@ -34,7 +34,7 @@ public final class AnomalyDetectorsIndex {
      */
     public static String getCurrentResultsIndex(ClusterState state, String jobId) {
         MlMetadata meta = state.getMetaData().custom(MlMetadata.TYPE);
-        return RESULTS_INDEX_PREFIX + meta.getJobs().get(jobId).getIndexName();
+        return RESULTS_INDEX_PREFIX + meta.getJobs().get(jobId).getResultsIndexName();
     }
 
     /**

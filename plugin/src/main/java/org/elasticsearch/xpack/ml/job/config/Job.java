@@ -59,7 +59,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
-    public static final ParseField INDEX_NAME = new ParseField("index_name");
+    public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETED = new ParseField("deleted");
 
     // Used for QueryPage
@@ -111,7 +111,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
-        PARSER.declareString(Builder::setIndexName, INDEX_NAME);
+        PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         PARSER.declareBoolean(Builder::setDeleted, DELETED);
     }
 
@@ -131,14 +131,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final Long resultsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
-    private final String indexName;
+    private final String resultsIndexName;
     private final boolean deleted;
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, Long backgroundPersistInterval,
                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-               String modelSnapshotId, String indexName, boolean deleted) {
+               String modelSnapshotId, String resultsIndexName, boolean deleted) {
         if (analysisConfig == null) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
         }
@@ -155,10 +155,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
         }
 
-        if (Strings.isNullOrEmpty(indexName)) {
-            indexName = jobId;
-        } else if (!MlStrings.isValidId(indexName)) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, INDEX_NAME.getPreferredName()));
+        if (Strings.isNullOrEmpty(resultsIndexName)) {
+            resultsIndexName = jobId;
+        } else if (!MlStrings.isValidId(resultsIndexName)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName()));
         }
 
         this.jobId = jobId;
@@ -176,7 +176,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.resultsRetentionDays = resultsRetentionDays;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
-        this.indexName = indexName;
+        this.resultsIndexName = resultsIndexName;
         this.deleted = deleted;
     }
 
@@ -196,7 +196,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        indexName = in.readString();
+        resultsIndexName = in.readString();
         deleted = in.readBoolean();
     }
 
@@ -214,8 +214,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      * This defaults to {@link #getId()} if a specific index name is not set.
      * @return The job's index name
      */
-    public String getIndexName() {
-        return indexName;
+    public String getResultsIndexName() {
+        return resultsIndexName;
     }
 
     /**
@@ -392,7 +392,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        out.writeString(indexName);
+        out.writeString(resultsIndexName);
         out.writeBoolean(deleted);
     }
 
@@ -448,7 +448,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (modelSnapshotId != null) {
             builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
         }
-        builder.field(INDEX_NAME.getPreferredName(), indexName);
+        builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
         if (params.paramAsBoolean("all", false)) {
             builder.field(DELETED.getPreferredName(), deleted);
         }
@@ -479,7 +479,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
-                && Objects.equals(this.indexName, that.indexName)
+                && Objects.equals(this.resultsIndexName, that.resultsIndexName)
                 && Objects.equals(this.deleted, that.deleted);
     }
 
@@ -488,7 +488,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, analysisConfig,
                 analysisLimits, dataDescription, modelDebugConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, indexName, deleted);
+                modelSnapshotId, resultsIndexName, deleted);
     }
 
     // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -521,7 +521,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
-        private String indexName;
+        private String resultsIndexName;
         private boolean deleted;
 
         public Builder() {
@@ -624,8 +624,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.modelSnapshotId = modelSnapshotId;
         }
 
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
+        public void setResultsIndexName(String resultsIndexName) {
+            this.resultsIndexName = resultsIndexName;
         }
 
         public void setDeleted(boolean deleted) {
@@ -662,7 +662,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
                     dataDescription, modelDebugConfig, renormalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId, indexName, deleted);
+                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
         }
     }
 }

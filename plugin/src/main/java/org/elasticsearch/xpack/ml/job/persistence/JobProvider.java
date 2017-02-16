@@ -246,8 +246,8 @@ public class JobProvider {
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
 
             String jobId = job.getId();
-            boolean createIndexAlias = !job.getIndexName().equals(job.getId());
-            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName());
+            boolean createIndexAlias = !job.getResultsIndexName().equals(job.getId());
+            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(job.getResultsIndexName());
 
             if (createIndexAlias) {
                 final ActionListener<Boolean> responseListener = listener;

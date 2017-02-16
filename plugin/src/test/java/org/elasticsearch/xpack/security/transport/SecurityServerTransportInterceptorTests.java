@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -40,6 +41,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -120,7 +122,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -147,13 +149,15 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        sender.sendRequest(null, "internal:foo", null, null, null);
+        Connection connection = mock(Connection.class);
+        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class));
+        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -178,7 +182,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("there should always be a user when sending a message", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -207,7 +211,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100)));
+        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100));
+        when(connection.getVersion()).thenReturn(version);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
@@ -238,7 +243,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
 
         verify(xPackLicenseState, times(3)).isAuthAllowed();
-        verify(securityContext, times(1)).executeAsUser(any(User.class), any(Consumer.class));
+        verify(securityContext, times(1)).executeAsUser(any(User.class), any(Consumer.class), eq(version));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 

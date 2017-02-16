@@ -27,10 +27,14 @@ public class Authentication {
     private final Version version;
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
+        this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
+    }
+
+    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version) {
         this.user = Objects.requireNonNull(user);
         this.authenticatedBy = Objects.requireNonNull(authenticatedBy);
         this.lookedUpBy = lookedUpBy;
-        this.version = Version.CURRENT;
+        this.version = version;
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -147,7 +151,7 @@ public class Authentication {
 
     String encode() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        Version.writeVersion(Version.CURRENT, output);
+        Version.writeVersion(version, output);
         writeTo(output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }

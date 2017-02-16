@@ -92,7 +92,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                                 new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                        , handler), sender));
+                                        , handler), sender), connection.getVersion());
                     } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
                             KibanaUser.NAME.equals(securityContext.getUser().principal())) {
                         final User kibanaUser = securityContext.getUser();
@@ -100,7 +100,15 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                 kibanaUser.email(), kibanaUser.metadata(), kibanaUser.enabled());
                         securityContext.executeAsUser(bwcKibanaUser, (original) -> sendWithUser(connection, action, request, options,
                                 new TransportService.ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
-                                        handler), sender));
+                                        handler), sender), connection.getVersion());
+                    } else if (securityContext.getAuthentication() != null &&
+                            securityContext.getAuthentication().getVersion().equals(connection.getVersion()) == false) {
+                        // re-write the authentication since we want the authentication version to match the version of the connection
+                        securityContext.executeAsUser(securityContext.getUser(),
+                                (original) -> sendWithUser(connection, action, request, options,
+                                    new TransportService.ContextRestoreResponseHandler<>(
+                                            threadPool.getThreadContext().wrapRestorable(original), handler), sender),
+                                    connection.getVersion());
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }

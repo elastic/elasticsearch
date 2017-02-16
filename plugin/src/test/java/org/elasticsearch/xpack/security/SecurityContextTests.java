@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -51,11 +52,11 @@ public class SecurityContextTests extends ESTestCase {
         final User user = new User("test");
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setUser(user);
+        securityContext.setUser(user, Version.CURRENT);
         assertEquals(user, securityContext.getUser());
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE)));
+                () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
         assertEquals("authentication is already present in the context", e.getMessage());
     }
 
@@ -74,7 +75,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAsUser(executionUser, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             contextAtomicReference.set(originalCtx);
-        });
+        }, Version.CURRENT);
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);

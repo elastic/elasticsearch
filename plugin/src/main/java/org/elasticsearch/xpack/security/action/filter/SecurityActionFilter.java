@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -121,7 +122,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                         } catch (IOException e) {
                             listener.onFailure(e);
                         }
-                    });
+                    }, Version.CURRENT);
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
                         applyInternal(action, request, authenticatedListener);

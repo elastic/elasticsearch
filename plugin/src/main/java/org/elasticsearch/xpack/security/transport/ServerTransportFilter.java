@@ -137,7 +137,7 @@ public interface ServerTransportFilter {
                                             listener.onResponse(null);
                                         });
                                 asyncAuthorizer.authorize(authzService);
-                            });
+                            }, transportChannel.getVersion());
                         } else {
                             throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
                         }
@@ -151,7 +151,7 @@ public interface ServerTransportFilter {
                                         listener.onResponse(null);
                                     });
                             asyncAuthorizer.authorize(authzService);
-                        });
+                        }, transportChannel.getVersion());
                     } else {
                         final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
                                 new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {

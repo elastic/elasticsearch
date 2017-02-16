@@ -225,8 +225,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         User user = new User("kibana", "kibana");
         Authentication authentication = mock(Authentication.class);
-        when(authentication.getVersion())
-                .thenReturn(Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100)));
+        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100));
+        when(authentication.getVersion()).thenReturn(version);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getRunAsUser()).thenReturn(user);
         doAnswer((i) -> {
@@ -246,6 +246,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         ServerTransportFilter filter = getClientOrNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
+        when(channel.getVersion()).thenReturn(version);
         filter.inbound("_action", request, channel, future);
         assertNotNull(rolesRef.get());
         assertThat(rolesRef.get(), arrayContaining("kibana_system"));

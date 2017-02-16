@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,7 +61,7 @@ public class SecurityContext {
      * Sets the user forcefully to the provided user. There must not be an existing user in the ThreadContext otherwise an exception
      * will be thrown. This method is package private for testing.
      */
-    void setUser(User user) {
+    void setUser(User user, Version version) {
         Objects.requireNonNull(user);
         final Authentication.RealmRef lookedUpBy;
         if (user.runAs() == null) {
@@ -71,7 +72,7 @@ public class SecurityContext {
 
         try {
             Authentication authentication =
-                    new Authentication(user, new Authentication.RealmRef("__attach", "__attach", nodeName), lookedUpBy);
+                    new Authentication(user, new Authentication.RealmRef("__attach", "__attach", nodeName), lookedUpBy, version);
             authentication.writeToContext(threadContext);
         } catch (IOException e) {
             throw new AssertionError("how can we have a IOException with a user we set", e);
@@ -82,10 +83,10 @@ public class SecurityContext {
      * Runs the consumer in a new context as the provided user. The original constext is provided to the consumer. When this method
      * returns, the original context is restored.
      */
-    public void executeAsUser(User user, Consumer<StoredContext> consumer) {
+    public void executeAsUser(User user, Consumer<StoredContext> consumer, Version version) {
         final StoredContext original = threadContext.newStoredContext(true);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            setUser(user);
+            setUser(user, version);
             consumer.accept(original);
         }
     }

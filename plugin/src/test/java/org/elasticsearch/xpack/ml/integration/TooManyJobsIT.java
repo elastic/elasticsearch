@@ -57,6 +57,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertEquals(JobState.OPENED, task.getStatus());
         OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
         assertEquals("1", openJobRequest.getJobId());
+        cleanupWorkaround(1);
     }
 
     public void testSingleNode() throws Exception {

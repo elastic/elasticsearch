@@ -118,6 +118,8 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
             internalCluster().stopRandomDataNode();
         }
         internalCluster().startNode(Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false));
+        ensureStableCluster(1);
+        cluster().wipe(Collections.emptySet());
     }
 
     private void deleteAllDatafeeds(Client client) throws Exception {

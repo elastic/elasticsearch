@@ -206,7 +206,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"count\":1"));
     }
 
-    public void testCreateJobWithIndexNameOption() throws Exception {
+    public void testCantCreateJobWithSameID() throws Exception {
         String jobTemplate = "{\n" +
                 "  \"analysis_config\" : {\n" +
                 "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
@@ -291,6 +291,43 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, not(containsString(indexName)));
+    }
+
+    public void testCreateJobInSharedIndexUpdatesMapping() throws Exception {
+        String jobTemplate = "{\n" +
+                "  \"analysis_config\" : {\n" +
+                "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"metric\", \"by_field_name\":\"%s\"}]\n" +
+                "    },\n" +
+                "  \"index_name\" : \"shared-index\"}";
+
+        String jobId1 = "job-1";
+        String byFieldName1 = "responsetime";
+        String jobId2 = "job-2";
+        String byFieldName2 = "cpu-usage";
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName1);
+
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId1, Collections.emptyMap(), new StringEntity(jobConfig));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Check the index mapping contains the first by_field_name
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName("shared-index") + "/_mapping?pretty");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(byFieldName1));
+        assertThat(responseAsString, not(containsString(byFieldName2)));
+
+        jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName2);
+        response = client().performRequest("put", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId2, Collections.emptyMap(), new StringEntity(jobConfig));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Check the index mapping now contains both fields
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName("shared-index") + "/_mapping?pretty");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(byFieldName1));
+        assertThat(responseAsString, containsString(byFieldName2));
     }
 
     public void testDeleteJob() throws Exception {

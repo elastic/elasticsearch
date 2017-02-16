@@ -14,6 +14,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -25,9 +27,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,6 +55,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -85,6 +90,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -124,10 +130,19 @@ public class JobProvider {
     // for at least a minute for shards to get allocated.
     private final TimeValue delayedNodeTimeOutSetting;
 
-    public JobProvider(Client client, int numberOfReplicas, TimeValue delayedNodeTimeOutSetting) {
+    private final Settings settings;
+
+    public JobProvider(Client client, int numberOfReplicas, Settings settings) {
         this.client = Objects.requireNonNull(client);
         this.numberOfReplicas = numberOfReplicas;
-        this.delayedNodeTimeOutSetting = delayedNodeTimeOutSetting;
+        this.settings = settings;
+
+        // Whether we are using native process is a good way to detect whether we are in dev / test mode:
+        if (MachineLearning.USE_NATIVE_PROCESS_OPTION.get(settings)) {
+            delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
+        } else {
+            delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
+        }
     }
 
     /**
@@ -286,13 +301,78 @@ public class JobProvider {
                                 }
                         ));
             } else {
-                // Trigger the alias creation handler manually, since the index already exists
-                listener.onResponse(true);
+                // Add the job's term fields to the index mapping
+                updateIndexMappingWithTermFields(indexName, termFields, listener);
             }
 
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
+
+        checkNumberOfFieldsLimit(indexName, termFields.size(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean aBoolean) {
+                try {
+                    client.admin().indices().preparePutMapping(indexName).setType(Result.TYPE.getPreferredName())
+                            .setSource(ElasticsearchMappings.termFieldsMapping(termFields))
+                            .execute(new ActionListener<PutMappingResponse>() {
+                        @Override
+                        public void onResponse(PutMappingResponse putMappingResponse) {
+                            listener.onResponse(putMappingResponse.isAcknowledged());
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void checkNumberOfFieldsLimit(String indexName, long additionalFieldCount, ActionListener<Boolean> listener) {
+        client.admin().indices().prepareGetMappings(indexName).execute(new ActionListener<GetMappingsResponse>() {
+            @Override
+            public void onResponse(GetMappingsResponse getMappingsResponse) {
+                ImmutableOpenMap<String, MappingMetaData> typeMappings = getMappingsResponse.mappings().get(indexName);
+                Iterator<com.carrotsearch.hppc.cursors.ObjectObjectCursor<String, MappingMetaData>> iter = typeMappings.iterator();
+                long numFields = 0;
+                try {
+                    while (iter.hasNext()) {
+                        Map<String, Object> props = (Map<String, Object>)iter.next().value.getSourceAsMap().get("properties");
+                        numFields += props.size();
+                    }
+                }
+                catch (IOException e) {
+                    listener.onFailure(e);
+                }
+
+                long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
+                if (numFields + additionalFieldCount > fieldCountLimit) {
+                    String message = "Cannot create job in index '" + indexName + "' as the " +
+                            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
+                    listener.onFailure(new IllegalArgumentException(message));
+                } else {
+                    listener.onResponse(true);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     public void createJobStateIndex(BiConsumer<Boolean, Exception> listener) {
@@ -314,7 +394,6 @@ public class JobProvider {
             LOGGER.error("Error creating the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
         }
     }
-
 
     /**
      * Delete all the job related documents from the database.

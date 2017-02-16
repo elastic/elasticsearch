@@ -242,15 +242,9 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         if (false == enabled || this.transportClientMode) {
             return emptyList();
         }
-        // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-        TimeValue delayedNodeTimeOutSetting;
-        if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
-            delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-        } else {
-            delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-        }
+
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        JobProvider jobProvider = new JobProvider(client, 1, delayedNodeTimeOutSetting);
+        JobProvider jobProvider = new JobProvider(client, 1, settings);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);

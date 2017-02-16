@@ -127,7 +127,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testResultMapping() throws IOException {
+    public void testResultMapping_WithExtraTermFields() throws IOException {
 
         XContentBuilder builder = ElasticsearchMappings.resultsMapping(
                 Arrays.asList("instance", AnomalyRecord.ANOMALY_SCORE.getPreferredName()));
@@ -148,4 +148,27 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         assertEquals(ElasticsearchMappings.DOUBLE, dataType);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testTermFieldMapping() throws IOException {
+
+        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
+                AnomalyRecord.BUCKET_SPAN.getPreferredName()));
+
+        XContentParser parser = createParser(builder);
+        Map<String, Object> properties = (Map<String, Object>) parser.map().get(ElasticsearchMappings.PROPERTIES);
+
+        Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
+        assertNotNull(instanceMapping);
+        String dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
+        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
+
+        instanceMapping = (Map<String, Object>) properties.get("strawberry");
+        assertNotNull(instanceMapping);
+        dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
+        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
+
+        // check no mapping for the reserved field
+        instanceMapping = (Map<String, Object>) properties.get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
+        assertNull(instanceMapping);
+    }
 }

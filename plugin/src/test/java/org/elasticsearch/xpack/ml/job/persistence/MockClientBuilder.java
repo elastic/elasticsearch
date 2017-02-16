@@ -20,6 +20,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -31,8 +35,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -41,7 +43,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -312,29 +313,41 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareUpdateScript(String index, String type, String id, ArgumentCaptor<Script> getSource,
-            ArgumentCaptor<Map<String, Object>> getParams) {
-        UpdateRequestBuilder builder = mock(UpdateRequestBuilder.class);
-        when(client.prepareUpdate(index, type, id)).thenReturn(builder);
-        when(builder.setScript(getSource.capture())).thenReturn(builder);
-        when(builder.setUpsert(getParams.capture())).thenReturn(builder);
-        when(builder.setRetryOnConflict(any(int.class))).thenReturn(builder);
-        when(builder.get()).thenReturn(mock(UpdateResponse.class));
+    public MockClientBuilder preparePutMapping(PutMappingResponse response, String type) {
+        PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
+        when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
+        when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<PutMappingResponse> listener =
+                        (ActionListener<PutMappingResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(requestBuilder).execute(any());
+
+        when(indicesAdminClient.preparePutMapping(any())).thenReturn(requestBuilder);
         return this;
     }
 
-    public MockClientBuilder prepareUpdateScript(String index, String type, String id, ArgumentCaptor<Script> getSource,
-            ArgumentCaptor<Map<String, Object>> getParams, Exception e) {
-        UpdateRequestBuilder builder = mock(UpdateRequestBuilder.class);
-        when(client.prepareUpdate(index, type, id)).thenReturn(builder);
-        when(builder.setScript(getSource.capture())).thenReturn(builder);
-        when(builder.setUpsert(getParams.capture())).thenReturn(builder);
-        when(builder.setRetryOnConflict(any(int.class))).thenReturn(builder);
-        doAnswer(invocation -> {
-            throw e;
-        }).when(builder).get();
+    public MockClientBuilder prepareGetMapping(GetMappingsResponse response) {
+        GetMappingsRequestBuilder builder = mock(GetMappingsRequestBuilder.class);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<GetMappingsResponse> listener =
+                        (ActionListener<GetMappingsResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(builder).execute(any());
+
+        when(indicesAdminClient.prepareGetMappings(any())).thenReturn(builder);
         return this;
     }
+
 
     public Client build() {
         return client;

@@ -255,11 +255,7 @@ public class ElasticsearchMappings {
         addInfluencerFieldsToMapping(builder);
         addModelSizeStatsFieldsToMapping(builder);
 
-        for (String fieldName : termFieldNames) {
-            if (ReservedFieldNames.isValidFieldName(fieldName)) {
-                builder.startObject(fieldName).field(TYPE, KEYWORD).endObject();
-            }
-        }
+        addTermFields(builder, termFieldNames);
 
         // End result properties
         builder.endObject();
@@ -269,6 +265,20 @@ public class ElasticsearchMappings {
         builder.endObject();
 
         return builder;
+    }
+
+    public static XContentBuilder termFieldsMapping(Collection<String> termFields) throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject().startObject(PROPERTIES);
+        addTermFields(builder, termFields);
+        return builder.endObject().endObject();
+    }
+
+    private static void addTermFields(XContentBuilder builder, Collection<String> termFields) throws IOException {
+        for (String fieldName : termFields) {
+            if (ReservedFieldNames.isValidFieldName(fieldName)) {
+                builder.startObject(fieldName).field(TYPE, KEYWORD).endObject();
+            }
+        }
     }
 
     /**

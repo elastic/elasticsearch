@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -91,7 +92,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     public void createComponents() {
         renormalizer = new NoOpRenormalizer();
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
-        jobProvider = new JobProvider(client(), 1, TimeValue.timeValueSeconds(1));
+        Settings.Builder builder = Settings.builder()
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        jobProvider = new JobProvider(client(), 1, builder.build());
     }
 
     public void testProcessResults() throws Exception {

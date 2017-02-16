@@ -17,17 +17,17 @@
  * under the License.
  */
 
-// only configure immediate children of plugins dir
-configure(subprojects.findAll { it.parent.path == project.path }) {
-  group = 'org.elasticsearch.plugin'
+package org.apache.lucene.search;
 
-  apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.test.ESTestCase;
 
-  esplugin {
-    // for local ES plugins, the name of the plugin is the same as the directory
-    name project.name
-    
-    licenseFile rootProject.file('LICENSE.txt')
-    noticeFile rootProject.file('NOTICE.txt')
-  }
+public class QueriesTests extends ESTestCase {
+
+    public void testNonNestedQuery() {
+        // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
+        assertEquals(Queries.newNonNestedFilter(), Queries.newNonNestedFilter());
+        assertEquals(Queries.newNonNestedFilter().hashCode(), Queries.newNonNestedFilter().hashCode());
+    }
+
 }

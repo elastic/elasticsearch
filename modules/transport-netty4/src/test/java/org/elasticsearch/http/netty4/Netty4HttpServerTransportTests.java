@@ -25,6 +25,8 @@ import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
@@ -137,8 +139,44 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
     /**
      * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     * @throws InterruptedException if the client communication with the server is interrupted
      */
-    public void testExpectContinueHeader() throws Exception {
+    public void testExpectContinueHeader() throws InterruptedException {
+        final Settings settings = Settings.EMPTY;
+        final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
+    }
+
+    /**
+     * Test that {@link Netty4HttpServerTransport} responds to a
+     * 100-continue expectation with too large a content-length
+     * with a 413 status.
+     * @throws InterruptedException if the client communication with the server is interrupted
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
+    public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
+        final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
+        final int maxContentLength = randomIntBetween(1, 104857600);
+        final Settings settings = Settings.builder().put(key, maxContentLength + "b").build();
+        final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
+        runExpectHeaderTest(
+                settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+    }
+
+    /**
+     * Test that {@link Netty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
+     * @throws InterruptedException if the client communication with the server is interrupted
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
+    public void testExpectUnsupportedExpectation() throws InterruptedException {
+        runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+    }
+
+    private void runExpectHeaderTest(
+            final Settings settings,
+            final String expectation,
+            final int contentLength,
+            final HttpResponseStatus expectedStatus) throws InterruptedException {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
@@ -150,23 +188,25 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 throw new AssertionError();
             }
         };
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
                 xContentRegistry(), dispatcher)) {
             transport.start();
-            TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
-                FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
-                HttpUtil.set100ContinueExpected(request, true);
-                HttpUtil.setContentLength(request, 10);
+                final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+                request.headers().set(HttpHeaderNames.EXPECT, expectation);
+                HttpUtil.setContentLength(request, contentLength);
 
-                FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), is(HttpResponseStatus.CONTINUE));
+                final FullHttpResponse response = client.post(remoteAddress.address(), request);
+                assertThat(response.status(), equalTo(expectedStatus));
+                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                    final FullHttpRequest continuationRequest =
+                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
 
-                request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), is(HttpResponseStatus.OK));
-                assertThat(new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8), is("done"));
+                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                }
             }
         }
     }

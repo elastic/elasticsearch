@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
@@ -40,6 +41,20 @@ buildscript {
 }
 
 /*****************************************************************************
+ *                                Notice file                                *
+ *****************************************************************************/
+
+// integ test zip only uses core, so a different notice file is needed there
+task buildCoreNotice(type: NoticeTask) {
+  dependencies project(':core')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildFullNotice(type: NoticeTask) {
+  dependencies project(':core')
+}
+
+/*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
 
@@ -54,6 +69,9 @@ ext.restTestExpansions = [
 // depend on it, but we don't actually configure it until here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+  buildFullNotice {
+    dependencies module
+  }
   buildModules {
     dependsOn({ project(module.path).bundlePlugin })
     into(module.name) {
@@ -172,9 +190,16 @@ subprojects {
 
     commonFiles = copySpec {
       from rootProject.projectDir
-      include 'NOTICE.txt'
       include 'LICENSE.txt'
       include 'README.textile'
+    }
+
+    noticeFile = copySpec {
+      if (project.name == 'integ-test-zip') {
+        from buildCoreNotice
+      } else {
+        from buildFullNotice
+      }
     }
   }
 
@@ -224,6 +249,7 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
         }
       }
       with commonFiles
+      with noticeFile
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
@@ -375,6 +401,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
         exclude 'LICENSE.txt'
       }
     }
+    with noticeFile
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'

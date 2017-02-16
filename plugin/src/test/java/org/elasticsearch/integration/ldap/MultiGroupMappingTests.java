@@ -27,7 +27,7 @@ public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
     }
 
     @Override
-    protected String configRoleMappings() {
+    protected String configRoleMappings(RealmConfig realm) {
         return "MarvelCharacters:  \n" +
                 "  - \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +
                 "  - \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n" +

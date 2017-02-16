@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.spy;
@@ -272,6 +274,29 @@ public class LdapRealmTests extends LdapTestCase {
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("avenger"));
+    }
+
+    /**
+     * The contract for {@link org.elasticsearch.xpack.security.authc.Realm} implementations is that they should log-and-return-null (and
+     * not call {@link ActionListener#onFailure(Exception)}) if there is an internal exception that prevented them from performing an
+     * authentication.
+     * This method tests that when an LDAP server is unavailable (invalid hostname), there is a <code>null</code> result
+     * rather than an exception.
+     */
+    public void testLdapConnectionFailureIsTreatedAsAuthenticationFailure() throws Exception {
+        LDAPURL url = new LDAPURL("ldap", "..", 12345, null, null, null, null);
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplate = VALID_USER_TEMPLATE;
+        Settings settings = buildLdapSettings(new String[] { url.toString() }, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService);
+        LdapRealm ldap = new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService),
+                threadPool);
+
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
+        User user = future.actionGet();
+        assertThat(user, nullValue());
     }
 
     public void testUsageStats() throws Exception {

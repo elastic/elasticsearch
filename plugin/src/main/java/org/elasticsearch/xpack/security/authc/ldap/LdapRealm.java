@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.unboundid.ldap.sdk.LDAPException;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -116,7 +118,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
         threadPool.generic().execute(() -> sessionFactory.session(token.principal(), token.credentials(),
-                    new LdapSessionActionListener(token.principal(), listener, roleMapper)));
+                    new LdapSessionActionListener("authenticate", token.principal(), listener, roleMapper, logger)));
     }
 
     @Override
@@ -125,7 +127,8 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
             // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
             threadPool.generic().execute(() ->
-                sessionFactory.unauthenticatedSession(username, new LdapSessionActionListener(username, listener, roleMapper)));
+                sessionFactory.unauthenticatedSession(username,
+                        new LdapSessionActionListener("lookup", username, listener, roleMapper, logger)));
         } else {
             listener.onResponse(null);
         }
@@ -173,14 +176,19 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     private static class LdapSessionActionListener implements ActionListener<LdapSession> {
 
         private final AtomicReference<LdapSession> ldapSessionAtomicReference = new AtomicReference<>();
+        private String action;
+        private Logger logger;
         private final String username;
         private final ActionListener<User> userActionListener;
         private final DnRoleMapper roleMapper;
 
-        LdapSessionActionListener(String username, ActionListener<User> userActionListener, DnRoleMapper roleMapper) {
+        LdapSessionActionListener(String action, String username, ActionListener<User> userActionListener,
+                                  DnRoleMapper roleMapper, Logger logger) {
+            this.action = action;
             this.username = username;
             this.userActionListener = userActionListener;
             this.roleMapper = roleMapper;
+            this.logger = logger;
         }
 
         @Override
@@ -197,10 +205,13 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         public void onFailure(Exception e) {
             if (ldapSessionAtomicReference.get() != null) {
                 IOUtils.closeWhileHandlingException(ldapSessionAtomicReference.get());
-                userActionListener.onFailure(e);
-            } else {
-                userActionListener.onFailure(e);
             }
+            logger.info("{} failed for user [{}]: {}", action, username, e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.debug(new ParameterizedMessage("{} failed", action), e);
+            }
+            userActionListener.onResponse(null);
         }
+
     }
 }

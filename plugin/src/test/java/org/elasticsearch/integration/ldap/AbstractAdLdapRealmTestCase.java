@@ -52,6 +52,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
                     "Gods: [ \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n" +
                     "Philanthropists: [ \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n";
 
+    protected static final String TESTNODE_KEYSTORE = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks";
     protected static RealmConfig realmConfig;
     protected static boolean useGlobalSSL;
 
@@ -70,8 +71,8 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Path nodeFiles = createTempDir();
-        Path store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
+        Path store = getDataPath(TESTNODE_KEYSTORE);
         Settings.Builder builder = Settings.builder();
         if (useGlobalSSL) {
             builder.put(super.nodeSettings(nodeOrdinal).filter((s) -> s.startsWith("xpack.ssl.") == false))
@@ -79,16 +80,23 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         } else {
             builder.put(super.nodeSettings(nodeOrdinal));
         }
-        builder.put(realmConfig.buildSettings(store, "testnode"))
+        builder.put(buildRealmSettings(realm, store));
+        return builder.build();
+    }
+
+    protected Settings buildRealmSettings(RealmConfig realm, Path store) {
+        Settings.Builder builder = Settings.builder();
+        Path nodeFiles = createTempDir();
+        builder.put(realm.buildSettings(store, "testnode"))
                 .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml",
-                        configRoleMappings()));
+                        configRoleMappings(realm)));
         return builder.build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         if (useGlobalSSL) {
-            Path store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            Path store = getDataPath(TESTNODE_KEYSTORE);
             return Settings.builder()
                     .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false))
                     .put(sslSettingsForStore(store, "testnode"))
@@ -102,8 +110,8 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         return useGlobalSSL == false;
     }
 
-    protected String configRoleMappings() {
-        return realmConfig.configRoleMappings();
+    protected String configRoleMappings(RealmConfig realm) {
+        return realm.configRoleMappings();
     }
 
     @Override
@@ -238,7 +246,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         final boolean mapGroupsAsRoles;
         final boolean loginWithCommonName;
         private final String roleMappings;
-        private final Settings settings;
+        final Settings settings;
 
         RealmConfig(boolean loginWithCommonName, String roleMappings, Settings settings) {
             this.settings = settings;
@@ -248,8 +256,12 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         }
 
         public Settings buildSettings(Path store, String password) {
+            return buildSettings(store, password, 1);
+        }
+
+        protected Settings buildSettings(Path store, String password, int order) {
             Settings.Builder builder = Settings.builder()
-                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", 1)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
                     .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                     .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
                     .put(this.settings);

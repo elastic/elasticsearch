@@ -374,9 +374,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          */
         public static class Entry<O extends Entry.Option> implements Iterable<O>, Streamable, ToXContentObject {
 
-            protected static final String TEXT = "text";
-            protected static final String OFFSET = "offset";
-            protected static final String LENGTH = "length";
+            private static final String TEXT = "text";
+            private static final String OFFSET = "offset";
+            private static final String LENGTH = "length";
             protected static final String OPTIONS = "options";
 
             protected Text text;
@@ -553,8 +553,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return builder;
             }
 
-            private static ObjectParser<Entry<Option>, Void> PARSER = new ObjectParser<>("SuggestionEntryParser",
-                    true, Entry::new);
+            private static ObjectParser<Entry<Option>, Void> PARSER = new ObjectParser<>("SuggestionEntryParser", true, Entry::new);
 
             static {
                 declareCommonFields(PARSER);

@@ -46,7 +46,7 @@ public class SuggestionEntryTests extends ESTestCase {
 
     @SuppressWarnings("rawtypes")
     private static final Map<Class<? extends Entry>, Function<XContentParser, ? extends Entry>> ENTRY_PARSERS = new HashMap<>();
-    {
+    static {
         ENTRY_PARSERS.put(Suggestion.Entry.class, Suggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
@@ -54,9 +54,7 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     /**
-     * Create a randomized Suggestion.Entry, determined by the type argument.
-     * @param type determines the entry type for this test. Valid arguments are 0 for {@link TermSuggestion.Entry},
-     * 1 for {@link PhraseSuggestion.Entry} and 2 for {@link CompletionSuggestion.Entry}
+     * Create a randomized Suggestion.Entry
      */
     @SuppressWarnings("unchecked")
     public static <O extends Option> Entry<O> createTestItem(Class<? extends Entry> entryType) {
@@ -70,14 +68,14 @@ public class SuggestionEntryTests extends ESTestCase {
             entry = new Suggestion.Entry<>(entryText, offset, length);
             supplier = SuggestionOptionTests::createTestItem;
         } else if (entryType == TermSuggestion.Entry.class) {
-                entry = new TermSuggestion.Entry(entryText, offset, length);
-                supplier = TermSuggestionOptionTests::createTestItem;
+            entry = new TermSuggestion.Entry(entryText, offset, length);
+            supplier = TermSuggestionOptionTests::createTestItem;
         } else if (entryType == PhraseSuggestion.Entry.class) {
-                entry = new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());
-                supplier = SuggestionOptionTests::createTestItem;
+            entry = new PhraseSuggestion.Entry(entryText, offset, length, randomDouble());
+            supplier = SuggestionOptionTests::createTestItem;
         } else if (entryType == CompletionSuggestion.Entry.class) {
-                entry = new CompletionSuggestion.Entry(entryText, offset, length);
-                supplier = CompletionSuggestionOptionTests::createTestItem;
+            entry = new CompletionSuggestion.Entry(entryText, offset, length);
+            supplier = CompletionSuggestionOptionTests::createTestItem;
         }
         int numOptions = randomIntBetween(0, 5);
         for (int i = 0; i < numOptions; i++) {
@@ -89,26 +87,26 @@ public class SuggestionEntryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testFromXContent() throws IOException {
         for (Class<? extends Entry> entryType : ENTRY_PARSERS.keySet()) {
-        Entry<Option> entry = createTestItem(entryType);
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(entry, xContentType, humanReadable);
-        Entry<Option> parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
-        }
-        assertEquals(entry.getClass(), parsed.getClass());
-        assertEquals(entry.getText(), parsed.getText());
-        assertEquals(entry.getLength(), parsed.getLength());
-        assertEquals(entry.getOffset(), parsed.getOffset());
-        assertEquals(entry.getOptions().size(), parsed.getOptions().size());
-        for (int i = 0; i < entry.getOptions().size(); i++) {
-            assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            Entry<Option> entry = createTestItem(entryType);
+            XContentType xContentType = randomFrom(XContentType.values());
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toXContent(entry, xContentType, humanReadable);
+            Entry<Option> parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertEquals(entry.getClass(), parsed.getClass());
+            assertEquals(entry.getText(), parsed.getText());
+            assertEquals(entry.getLength(), parsed.getLength());
+            assertEquals(entry.getOffset(), parsed.getOffset());
+            assertEquals(entry.getOptions().size(), parsed.getOptions().size());
+            for (int i = 0; i < entry.getOptions().size(); i++) {
+                assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
+            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
         }
     }
 

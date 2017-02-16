@@ -113,7 +113,7 @@ command line with `es.node.name` or in the config file with `node.name`.
 Elasticsearch uses http://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
 file. Elasticsearch exposes three properties, `${sys:es.logs.base_path},
-`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name} (if the node name
+`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` (if the node name
 is explicitly set via `node.name`) that can be referenced in the configuration
 file to determine the location of the log files. The property
 `${sys:es.logs.base_path}` will resolve to the log directory,

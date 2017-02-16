@@ -40,9 +40,11 @@ class PluginPropertiesTask extends Copy {
                 templateFile.setText(resourceTemplate.getText('UTF-8'), 'UTF-8')
             }
         }
+        doFirst {
+            project.delete(generatedResourcesDir)
+        }
         dependsOn(copyPluginPropertiesTemplate)
         extension = project.extensions.create('esplugin', PluginPropertiesExtension, project)
-        project.clean.delete(generatedResourcesDir)
         project.afterEvaluate {
             // check require properties are set
             if (extension.name == null) {

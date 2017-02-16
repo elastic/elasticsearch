@@ -44,6 +44,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/23196")
     public void testExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");

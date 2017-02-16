@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorF
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -62,10 +64,9 @@ public class DatafeedJobRunner extends AbstractComponent {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
-    public void run(String datafeedId, long startTime, Long endTime, StartDatafeedAction.DatafeedTask task,
-                    Consumer<Exception> handler) {
+    public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
         MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(task.getDatafeedId());
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
         gatherInformation(job.getId(), (buckets, dataCounts) -> {
             long latestFinalBucketEndMs = -1L;
@@ -81,7 +82,7 @@ public class DatafeedJobRunner extends AbstractComponent {
             UpdatePersistentTaskStatusAction.Request updateDatafeedStatus =
                     new UpdatePersistentTaskStatusAction.Request(task.getPersistentTaskId(), DatafeedState.STARTED);
             client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateDatafeedStatus, ActionListener.wrap(r -> {
-                innerRun(holder, startTime, endTime);
+                innerRun(holder, task.getStartTime(), task.getEndTime());
             }, handler));
         }, handler);
     }
@@ -165,7 +166,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
-        Holder holder = new Holder(datafeed, datafeedJob, new ProblemTracker(() -> auditor), handler);
+        Holder holder = new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(() -> auditor), handler);
         task.setHolder(holder);
         return holder;
     }
@@ -225,13 +226,16 @@ public class DatafeedJobRunner extends AbstractComponent {
 
         private final DatafeedConfig datafeed;
         private final DatafeedJob datafeedJob;
+        private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        private Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, ProblemTracker problemTracker, Consumer<Exception> handler) {
+        private Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
+                       Consumer<Exception> handler) {
             this.datafeed = datafeed;
             this.datafeedJob = datafeedJob;
+            this.autoCloseJob = autoCloseJob;
             this.problemTracker = problemTracker;
             this.handler = handler;
         }
@@ -259,7 +263,11 @@ public class DatafeedJobRunner extends AbstractComponent {
                     if (datafeedJob.stop()) {
                         FutureUtils.cancel(future);
                         handler.accept(e);
+                        jobProvider.audit(datafeed.getJobId()).info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                         logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
+                        if (autoCloseJob) {
+                            closeJob();
+                        }
                     } else {
                         logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
                     }
@@ -267,5 +275,25 @@ public class DatafeedJobRunner extends AbstractComponent {
             });
         }
 
+        private void closeJob() {
+            logger.info("[{}] closing job", datafeed.getJobId());
+            CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
+            client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
+
+                @Override
+                public void onResponse(CloseJobAction.Response response) {
+                    if (response.isClosed()) {
+                        logger.info("[{}] job closed", datafeed.getJobId());
+                    } else {
+                        logger.error("[{}] job close action was not acknowledged", datafeed.getJobId());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("[" + datafeed.getJobId() + "] failed to close job", e);
+                }
+            });
+        }
     }
 }

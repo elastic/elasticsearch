@@ -220,6 +220,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
         Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
@@ -244,6 +245,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
         Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
@@ -268,6 +270,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                         MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
                 String responseAsString = responseEntityToString(getJobResponse);
                 assertThat(responseAsString, containsString("\"processed_record_count\":2"));
+                assertThat(responseAsString, containsString("\"state\":\"opened\""));
             } catch (Exception e1) {
                 throw new RuntimeException(e1);
             }
@@ -341,6 +344,8 @@ public class DatafeedJobIT extends ESRestTestCase {
             openJob(client(), jobId);
 
             startDatafeedAndWaitUntilStopped(datafeedId);
+            waitUntilJobIsClosed(jobId);
+
             Response jobStatsResponse = client().performRequest("get",
                     MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
             String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
@@ -368,6 +373,18 @@ public class DatafeedJobIT extends ESRestTestCase {
                 Response datafeedStatsResponse = client().performRequest("get",
                         MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats");
                 assertThat(responseEntityToString(datafeedStatsResponse), containsString("\"state\":\"stopped\""));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void waitUntilJobIsClosed(String jobId) throws Exception {
+        assertBusy(() -> {
+            try {
+                Response jobStatsResponse = client().performRequest("get",
+                        MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+                assertThat(responseEntityToString(jobStatsResponse), containsString("\"state\":\"closed\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -409,6 +426,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
         Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));

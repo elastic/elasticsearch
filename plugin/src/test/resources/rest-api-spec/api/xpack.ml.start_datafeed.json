@@ -24,6 +24,7 @@
         },
         "timeout": {
           "type": "time",
+          "required": false,
           "description": "Controls the time to wait until a datafeed has started. Default to 20 seconds"
         }
       }

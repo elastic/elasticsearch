@@ -144,8 +144,8 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenReturn(Optional.of(in));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
-        datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, 60000L);
+        datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
@@ -181,8 +181,8 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
-        datafeedJobRunner.run("datafeed1", 0L, 60000L, task, handler);
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, 60000L);
+        datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
@@ -211,8 +211,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
-        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(1, "type", "action", null, "datafeed1");
-        datafeedJobRunner.run("datafeed1", 0L, null, task, handler);
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed1", 0L);
+        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(1, "type", "action", null, startDatafeedRequest);
+        datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
@@ -310,6 +311,14 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         Job.Builder builder = new Job.Builder("foo");
         builder.setAnalysisConfig(acBuilder);
         return builder;
+    }
+
+    private static StartDatafeedAction.DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
+        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
+        when(task.getDatafeedId()).thenReturn(datafeedId);
+        when(task.getStartTime()).thenReturn(startTime);
+        when(task.getEndTime()).thenReturn(endTime);
+        return task;
     }
 
     @SuppressWarnings("unchecked")

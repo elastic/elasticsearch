@@ -150,7 +150,7 @@ public class StartDatafeedAction
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new DatafeedTask(id, type, action, parentTaskId, datafeedId);
+            return new DatafeedTask(id, type, action, parentTaskId, this);
         }
 
         @Override
@@ -219,10 +219,33 @@ public class StartDatafeedAction
 
     public static class DatafeedTask extends PersistentTask {
 
+        private final String datafeedId;
+        private final long startTime;
+        private final Long endTime;
         private volatile DatafeedJobRunner.Holder holder;
 
-        public DatafeedTask(long id, String type, String action, TaskId parentTaskId, String datafeedId) {
-            super(id, type, action, "datafeed-" + datafeedId, parentTaskId);
+        public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
+            super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
+            this.datafeedId = request.getDatafeedId();
+            this.startTime = request.startTime;
+            this.endTime = request.endTime;
+        }
+
+        public String getDatafeedId() {
+            return datafeedId;
+        }
+
+        public long getStartTime() {
+            return startTime;
+        }
+
+        @org.elasticsearch.common.Nullable
+        public Long getEndTime() {
+            return endTime;
+        }
+
+        public boolean isLookbackOnly() {
+            return endTime != null;
         }
 
         public void setHolder(DatafeedJobRunner.Holder holder) {
@@ -300,8 +323,7 @@ public class StartDatafeedAction
         @Override
         protected void nodeOperation(PersistentTask persistentTask, Request request, ActionListener<TransportResponse.Empty> listener) {
             DatafeedTask datafeedTask = (DatafeedTask) persistentTask;
-            datafeedJobRunner.run(request.getDatafeedId(), request.getStartTime(), request.getEndTime(),
-                    datafeedTask,
+            datafeedJobRunner.run(datafeedTask,
                     (error) -> {
                         if (error != null) {
                             listener.onFailure(error);

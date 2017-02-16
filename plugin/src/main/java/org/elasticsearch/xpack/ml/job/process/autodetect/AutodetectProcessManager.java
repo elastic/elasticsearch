@@ -279,7 +279,12 @@ public class AutodetectProcessManager extends AbstractComponent {
             return;
         }
 
-        logger.info("Closing job [{}], because [{}]", jobId, errorReason);
+        if (errorReason == null) {
+            logger.info("Closing job [{}]", jobId);
+        } else {
+            logger.info("Closing job [{}], because [{}]", jobId, errorReason);
+        }
+
         try {
             communicator.close(errorReason);
         } catch (Exception e) {

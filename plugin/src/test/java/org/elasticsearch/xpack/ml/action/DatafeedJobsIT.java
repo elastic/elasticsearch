@@ -80,8 +80,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
         startDatafeedRequest.setEndTime(now);
-        PersistentActionResponse startDatafeedResponse =
-                client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+        client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));

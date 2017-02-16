@@ -116,7 +116,6 @@ class DatafeedJob {
      */
     public boolean stop() {
         if (running.compareAndSet(true, false)) {
-            auditor.info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
             return true;
         } else {
             return false;

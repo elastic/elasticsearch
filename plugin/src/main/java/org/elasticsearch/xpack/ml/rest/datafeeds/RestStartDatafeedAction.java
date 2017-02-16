@@ -54,8 +54,9 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             }
             jobDatafeedRequest = new StartDatafeedAction.Request(datafeedId, startTimeMillis);
             jobDatafeedRequest.setEndTime(endTimeMillis);
-            if (restRequest.hasParam("timeout")) {
-                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(20));
+            if (restRequest.hasParam(StartDatafeedAction.TIMEOUT.getPreferredName())) {
+                TimeValue openTimeout = restRequest.paramAsTime(
+                        StartDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
                 jobDatafeedRequest.setTimeout(openTimeout);
             }
         }

@@ -187,24 +187,26 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     @Override
     public Settings additionalSettings() {
-        Settings.Builder addtionalSettings = Settings.builder();
+        Settings.Builder additionalSettings = Settings.builder();
         Boolean allocationEnabled = settings.getAsBoolean(ALLOCATION_ENABLED.getKey(), null);
-        if (allocationEnabled != null) {
-            if (enabled == false && allocationEnabled) {
+        if (enabled == false) {
+            if (allocationEnabled != null) {
                 // if the ml plugin has been disabled the ml allocation enabled node attribute shouldn't be set,
                 // otherwise other nodes will allocate jobs to this node and that will fail, because ml hasn't been loaded.
                 throw new IllegalArgumentException("Can't specify [" + ALLOCATION_ENABLED.getKey() + "] to true when [" +
                         XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + "] has been set to false");
             }
-        } else {
+            return super.additionalSettings();
+        }
+        if (allocationEnabled == null) {
             // Make sure that we explicitly set allocation enabled node attribute if it has been specified in the node
             // settings. So we can always rely on it during assigning job tasks to nodes.
-            addtionalSettings.put(ALLOCATION_ENABLED.getKey(), ALLOCATION_ENABLED.get(settings));
+            additionalSettings.put(ALLOCATION_ENABLED.getKey(), ALLOCATION_ENABLED.get(settings));
         }
         // Add max running job limit as node attribute so that we use this information assigning job tasks to nodes
-        addtionalSettings.put("node.attr." + AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(),
+        additionalSettings.put("node.attr." + AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(),
                 AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
-        return addtionalSettings.build();
+        return additionalSettings.build();
     }
 
     @Override

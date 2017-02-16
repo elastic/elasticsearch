@@ -211,7 +211,7 @@ public class MlJobIT extends ESRestTestCase {
                 "  \"analysis_config\" : {\n" +
                 "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
                 "    },\n" +
-                "  \"index_name\" : \"%s\"}";
+                "  \"results_index_name\" : \"%s\"}";
 
         String jobConfig = String.format(Locale.ROOT, jobTemplate, "index-1");
 
@@ -233,7 +233,7 @@ public class MlJobIT extends ESRestTestCase {
                 "  \"analysis_config\" : {\n" +
                 "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
                 "    },\n" +
-                "  \"index_name\" : \"%s\"}";
+                "  \"results_index_name\" : \"%s\"}";
 
         String jobId1 = "aliased-job-1";
         String indexName = "non-default-index";

@@ -53,19 +53,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public abstract int totalOperations();
 
-    /**
-     * Get the minimum sequence number in the translog generation represented by this translog reader.
-     *
-     * @return the minimum sequence number in the referenced translog generation
-     */
-    abstract long getMinSeqNo();
-
-    /**
-     * Get the maximum sequence number in the translog generation represented by this translog reader.
-     *
-     * @return the maximum sequence number in the referenced translog generation
-     */
-    abstract long getMaxSeqNo();
+    abstract Checkpoint getCheckpoint();
 
     public final long getFirstOperationOffset() {
         return firstOperationOffset;

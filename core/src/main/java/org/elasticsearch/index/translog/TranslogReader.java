@@ -47,8 +47,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
     protected final long length;
     private final int totalOperations;
-    private final long minSeqNo;
-    private final long maxSeqNo;
+    private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
@@ -63,8 +62,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         super(checkpoint.generation, channel, path, firstOperationOffset);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
-        this.minSeqNo = checkpoint.minSeqNo;
-        this.maxSeqNo = checkpoint.maxSeqNo;
+        this.checkpoint = checkpoint;
     }
 
     /**
@@ -161,13 +159,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    public long getMinSeqNo() {
-        return minSeqNo;
-    }
-
-    @Override
-    public long getMaxSeqNo() {
-        return maxSeqNo;
+    Checkpoint getCheckpoint() {
+        return checkpoint;
     }
 
     /**

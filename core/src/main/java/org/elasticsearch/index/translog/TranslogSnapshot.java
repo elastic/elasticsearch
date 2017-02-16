@@ -23,14 +23,11 @@ import org.elasticsearch.common.io.Channels;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Path;
 
 final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snapshot {
 
     private final int totalOperations;
-    private final long minSeqNo;
-    private final long maxSeqNo;
+    private final Checkpoint checkpoint;
     protected final long length;
 
     private final ByteBuffer reusableBuffer;
@@ -45,8 +42,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
         super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
         this.length = length;
         this.totalOperations = reader.totalOperations();
-        this.minSeqNo = reader.getMinSeqNo();
-        this.maxSeqNo = reader.getMaxSeqNo();
+        this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
         readOperations = 0;
         position = firstOperationOffset;
@@ -59,13 +55,8 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     }
 
     @Override
-    long getMinSeqNo() {
-        return minSeqNo;
-    }
-
-    @Override
-    long getMaxSeqNo() {
-        return maxSeqNo;
+    Checkpoint getCheckpoint() {
+        return checkpoint;
     }
 
     @Override

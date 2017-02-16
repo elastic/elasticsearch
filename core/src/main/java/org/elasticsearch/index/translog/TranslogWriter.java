@@ -224,12 +224,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return operationCounter;
     }
 
-    public long getMinSeqNo() {
-        return minSeqNo;
-    }
-
-    public long getMaxSeqNo() {
-        return maxSeqNo;
+    @Override
+    Checkpoint getCheckpoint() {
+        return getLastSyncedCheckpoint();
     }
 
     @Override
@@ -398,7 +395,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * @return the last synced checkpoint
      */
-    public Checkpoint getLastSyncedCheckpoint() {
+    Checkpoint getLastSyncedCheckpoint() {
         return lastSyncedCheckpoint;
     }
 

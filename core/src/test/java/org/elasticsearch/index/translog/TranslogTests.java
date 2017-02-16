@@ -1004,8 +1004,8 @@ public class TranslogTests extends ESTestCase {
             final int value = buffer.getInt();
             assertEquals(i, value);
         }
-        assertThat(reader.getMinSeqNo(), equalTo(minSeqNo));
-        assertThat(reader.getMaxSeqNo(), equalTo(maxSeqNo));
+        assertThat(reader.getCheckpoint().minSeqNo, equalTo(minSeqNo));
+        assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 
         out.reset(bytes);
         out.writeInt(2048);

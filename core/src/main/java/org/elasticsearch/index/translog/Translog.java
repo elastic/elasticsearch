@@ -128,9 +128,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
 
-    static final long INITIAL_MIN_SEQ_NO = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-    static final long INITIAL_MAX_SEQ_NO = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
      * {@code null}. If the generation is {@code null} this method is destructive and will delete all files in the translog path given. If

@@ -27,6 +27,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -179,25 +180,28 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             throw ex;
         }
         totalOffset += data.length();
-        operationCounter++;
 
-        if (minSeqNo == Translog.INITIAL_MIN_SEQ_NO) {
-            if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                minSeqNo = seqNo;
-            }
+        if (minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+            assert operationCounter == 0;
+            minSeqNo = seqNo;
+        } else if (minSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            minSeqNo = seqNo;
         } else {
             assert seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO;
             minSeqNo = Math.min(minSeqNo, seqNo);
         }
 
-        if (maxSeqNo == Translog.INITIAL_MAX_SEQ_NO) {
-            if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                maxSeqNo = seqNo;
-            }
+        if (maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+            assert operationCounter == 0;
+            maxSeqNo = seqNo;
+        } else if (maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            maxSeqNo = seqNo;
         } else {
             assert seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO;
             maxSeqNo = Math.max(maxSeqNo, seqNo);
         }
+
+        operationCounter++;
 
         return new Translog.Location(generation, offset, data.length());
     }

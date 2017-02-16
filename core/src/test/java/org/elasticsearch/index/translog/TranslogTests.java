@@ -964,13 +964,11 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogWriter() throws IOException {
         final TranslogWriter writer = translog.createWriter(0);
-        final int numOps = randomIntBetween(10, 100);
+        final int numOps = randomIntBetween(8, 128);
         byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-        long minSeqNo = Translog.INITIAL_MIN_SEQ_NO;
-        long maxSeqNo = Translog.INITIAL_MAX_SEQ_NO;
         final Set<Long> seenSeqNos = new HashSet<>();
-        boolean opsHaveValidSequenceNumbers = false;
+        boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
             out.reset(bytes);
             out.writeInt(i);
@@ -981,16 +979,6 @@ public class TranslogTests extends ESTestCase {
             } while (seenSeqNos.contains(seqNo));
             if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);
-                if (minSeqNo == Translog.INITIAL_MIN_SEQ_NO) {
-                    minSeqNo = seqNo;
-                } else {
-                    minSeqNo = Math.min(minSeqNo, seqNo);
-                }
-                if (maxSeqNo == Translog.INITIAL_MAX_SEQ_NO) {
-                    maxSeqNo = seqNo;
-                } else {
-                    maxSeqNo = Math.max(maxSeqNo, seqNo);
-                }
             }
             writer.add(new BytesArray(bytes), seqNo);
         }
@@ -1004,6 +992,8 @@ public class TranslogTests extends ESTestCase {
             final int value = buffer.getInt();
             assertEquals(i, value);
         }
+        final long minSeqNo = seenSeqNos.stream().min(Long::compareTo).orElse(SequenceNumbersService.NO_OPS_PERFORMED);
+        final long maxSeqNo = seenSeqNos.stream().max(Long::compareTo).orElse(SequenceNumbersService.NO_OPS_PERFORMED);
         assertThat(reader.getCheckpoint().minSeqNo, equalTo(minSeqNo));
         assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 

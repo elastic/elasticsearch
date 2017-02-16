@@ -97,18 +97,21 @@ final class Checkpoint {
     }
 
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint) {
-        return new Checkpoint(offset, 0, generation, Translog.INITIAL_MIN_SEQ_NO, Translog.INITIAL_MAX_SEQ_NO, globalCheckpoint);
+        final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint);
     }
 
-    static Checkpoint readChecksummedV2(DataInput in) throws IOException {
+    static Checkpoint readChecksummedV2(final DataInput in) throws IOException {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
-    static Checkpoint readChecksummedV1(DataInput in) throws IOException {
-        final long minSeqNo = Translog.INITIAL_MIN_SEQ_NO;
-        final long maxSeqNo = Translog.INITIAL_MAX_SEQ_NO;
-        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+    static Checkpoint readChecksummedV1(final DataInput in) throws IOException {
+        final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        final long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), minSeqNo, maxSeqNo, globalCheckpoint);
     }
 
     @Override

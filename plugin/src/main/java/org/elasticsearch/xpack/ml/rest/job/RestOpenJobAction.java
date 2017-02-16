@@ -38,9 +38,9 @@ public class RestOpenJobAction extends BaseRestHandler {
             request = OpenJobAction.Request.parseRequest(restRequest.param(Job.ID.getPreferredName()), restRequest.contentParser());
         } else {
             request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-            request.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.Request.IGNORE_DOWNTIME.getPreferredName(), false));
+            request.setIgnoreDowntime(restRequest.paramAsBoolean(OpenJobAction.Request.IGNORE_DOWNTIME.getPreferredName(), true));
             if (restRequest.hasParam("timeout")) {
-                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(30));
+                TimeValue openTimeout = restRequest.paramAsTime("timeout", TimeValue.timeValueSeconds(20));
                 request.setTimeout(openTimeout);
             }
         }

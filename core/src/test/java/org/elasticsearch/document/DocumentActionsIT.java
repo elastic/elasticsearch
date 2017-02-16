@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
@@ -161,14 +162,14 @@ public class DocumentActionsIT extends ESIntegTestCase {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1")).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // count with no query is a match all one
             countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
             assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
-            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
@@ -185,7 +186,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
                 .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
                 .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }")) // failure
+                .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));

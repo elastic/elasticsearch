@@ -74,7 +74,7 @@ PUT my_index
       "properties": {
         "date": {
           "type":   "date",
-          "format": "yyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
         }
       }
     }
@@ -116,14 +116,6 @@ The following parameters are accepted by `date` fields:
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
     numbers throw an exception and reject the whole document.
-
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 

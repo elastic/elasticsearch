@@ -345,8 +345,8 @@ public class Setting<T> extends ToXContentToBytes {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
-            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
-                "See the breaking changes lists in the documentation for details", getKey());
+            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.", getKey());
         }
     }
 
@@ -563,7 +563,7 @@ public class Setting<T> extends ToXContentToBytes {
         private final Logger logger;
         private final Consumer<T> accept;
 
-        public Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             this.accept = accept;

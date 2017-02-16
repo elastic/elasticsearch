@@ -145,7 +145,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     static final class SeqNoFieldType extends MappedFieldType {
 
-        public SeqNoFieldType() {
+        SeqNoFieldType() {
         }
 
         protected SeqNoFieldType(SeqNoFieldType ref) {

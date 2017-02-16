@@ -402,10 +402,10 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        public NodeTasksResponse() {
+        NodeTasksResponse() {
         }
 
-        public NodeTasksResponse(String nodeId,
+        NodeTasksResponse(String nodeId,
                                  List<TaskResponse> results,
                                  List<TaskOperationFailure> exceptions) {
             this.nodeId = nodeId;

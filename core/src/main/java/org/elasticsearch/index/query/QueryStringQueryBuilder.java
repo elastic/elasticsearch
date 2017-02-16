@@ -94,7 +94,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
             .withAllDeprecated("Decision is now made by the analyzer");
-    private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increment");
+    private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
     private static final ParseField ESCAPE_FIELD = new ParseField("escape");
     private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max");
     private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");

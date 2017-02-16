@@ -24,7 +24,7 @@ package org.elasticsearch.common.inject.internal;
  * @author Bob Lee
  */
 class NullOutputException extends NullPointerException {
-    public NullOutputException(String s) {
+    NullOutputException(String s) {
         super(s);
     }
 }

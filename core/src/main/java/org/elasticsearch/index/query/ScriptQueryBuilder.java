@@ -100,7 +100,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
-                    script = Script.parse(parser, parseContext.getDefaultScriptLanguage());
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -110,7 +110,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
-                    script = Script.parse(parser, parseContext.getDefaultScriptLanguage());
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -136,7 +136,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         final Script script;
         final SearchScript searchScript;
 
-        public ScriptQuery(Script script, SearchScript searchScript) {
+        ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
             this.searchScript = searchScript;
         }

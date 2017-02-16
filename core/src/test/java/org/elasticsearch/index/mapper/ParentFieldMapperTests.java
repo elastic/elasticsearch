@@ -25,6 +25,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -53,7 +54,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
 
         try {
             docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_parent", "1122").endObject().bytes()));
+                .startObject().field("_parent", "1122").endObject().bytes(), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
@@ -72,13 +73,14 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
 
         // Indexing parent doc:
         DocumentMapper parentDocMapper = indexService.mapperService().documentMapper("parent_type");
-        ParsedDocument doc = parentDocMapper.parse(SourceToParse.source("test", "parent_type", "1122", new BytesArray("{}")));
+        ParsedDocument doc =
+            parentDocMapper.parse(SourceToParse.source("test", "parent_type", "1122", new BytesArray("{}"), XContentType.JSON));
         assertEquals(1, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#parent_type").utf8ToString());
 
         // Indexing child doc:
         DocumentMapper childDocMapper = indexService.mapperService().documentMapper("child_type");
-        doc = childDocMapper.parse(SourceToParse.source("test", "child_type", "1", new BytesArray("{}")).parent("1122"));
+        doc = childDocMapper.parse(SourceToParse.source("test", "child_type", "1", new BytesArray("{}"), XContentType.JSON).parent("1122"));
 
         assertEquals(1, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#parent_type").utf8ToString());
@@ -92,7 +94,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("x_field", "x_value")
                 .endObject()
-                .bytes()));
+                .bytes(), XContentType.JSON));
         assertEquals(0, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
     }
 

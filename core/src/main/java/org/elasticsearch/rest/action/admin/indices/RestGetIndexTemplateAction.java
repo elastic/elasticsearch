@@ -34,22 +34,27 @@ import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+/**
+ * The REST handler for get template and head template APIs.
+ */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
-    public RestGetIndexTemplateAction(Settings settings, RestController controller) {
-        super(settings);
 
+    public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
+        controller.registerHandler(HEAD, "/_template/{name}", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
-        GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+        final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
@@ -60,9 +65,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                         .indices()
                         .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
                             @Override
-                            protected RestStatus getStatus(GetIndexTemplatesResponse response) {
-                                boolean templateExists = false == response.getIndexTemplates().isEmpty();
-
+                            protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
+                                final boolean templateExists = response.getIndexTemplates().isEmpty() == false;
                                 return (templateExists || implicitAll) ? OK : NOT_FOUND;
                             }
                         });

@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -61,7 +62,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -293,7 +293,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Obtains a snapshot of the store metadata for the recovery target.
      *
      * @param recoveryTarget the target of the recovery
-     * @return a snapshot of the store metdata
+     * @return a snapshot of the store metadata
      */
     private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
         try {
@@ -365,7 +365,15 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
-            return recoveryTarget.store().loadSeqNoStats(globalCheckpoint).getLocalCheckpoint() + 1;
+            final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
+            if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
+                // commit point is good for seq no based recovery as the maximum seq# including in it
+                // is below the global checkpoint (i.e., it excludes any ops thay may not be on the primary)
+                // Recovery will start at the first op after the local check point stored in the commit.
+                return seqNoStats.getLocalCheckpoint() + 1;
+            } else {
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
         } catch (final IOException e) {
             // this can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
             // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and

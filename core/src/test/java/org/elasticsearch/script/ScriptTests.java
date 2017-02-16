@@ -78,10 +78,9 @@ public class ScriptTests extends ESTestCase {
         }
         return new Script(
             scriptType,
-            randomFrom("_lang1", "_lang2", "_lang3"),
+            scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : Collections.emptyMap(),
+            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : null,
             params
         );
     }

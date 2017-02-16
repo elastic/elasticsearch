@@ -26,12 +26,13 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -207,10 +208,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        TermsQuery termsQuery = (TermsQuery) fieldType.createCandidateQuery(indexReader);
+        BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
+        assertEquals(2, candidateQuery.clauses().size());
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
+        TermInSetQuery termsQuery = (TermInSetQuery) candidateQuery.clauses().get(0).getQuery();
 
         PrefixCodedTerms terms = termsQuery.getTermData();
-        assertThat(terms.size(), equalTo(15L));
+        assertThat(terms.size(), equalTo(14L));
         PrefixCodedTerms.TermIterator termIterator = terms.iterator();
         assertTermIterator(termIterator, "_field3\u0000me", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "_field3\u0000unhide", fieldType.queryTermsField.name());
@@ -226,7 +230,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertTermIterator(termIterator, "field2\u0000some", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "field2\u0000text", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "field4\u0000123", fieldType.queryTermsField.name());
-        assertTermIterator(termIterator, EXTRACTION_FAILED, fieldType.extractionResultField.name());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+                candidateQuery.clauses().get(1).getQuery());
     }
 
     private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
@@ -565,7 +572,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
@@ -592,7 +599,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();

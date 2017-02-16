@@ -133,10 +133,10 @@ are not independent of each other. Fields with:
 * and *must have the same mapping*.
 
 If a `title` field exists in both the `user` and `blogpost` mapping types, the
-`title` fields must have exactly the same mapping in each type.  The only
+`title` fields must have exactly the same mapping in each type. The only
 exceptions to this rule are the <<copy-to>>, <<dynamic>>, <<enabled>>,
-<<ignore-above>>, <<include-in-all>>, and <<properties>> parameters, which may
-have different settings per field.
+<<ignore-above>>, and <<properties>> parameters, which may have different
+settings per field.
 
 Usually, fields with the same name also contain the same type of data, so
 having the same mapping is not a problem.  When conflicts do arise, these can

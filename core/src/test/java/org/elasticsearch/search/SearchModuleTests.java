@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +69,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -259,18 +256,6 @@ public class SearchModuleTests extends ModuleTestCase {
                 hasSize(1));
     }
 
-    public void testRegisterSearchResponseListener() {
-        BiConsumer<SearchRequest, SearchResponse> listener = (s, r) -> {};
-        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
-            public List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
-                return singletonList(listener);
-            }
-        }));
-        List<BiConsumer<SearchRequest, SearchResponse>> listeners = module.getSearchResponseListeners();
-        assertEquals(listeners.size(), 1);
-        assertEquals(listeners.get(0), listener);
-    }
-
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
             "bool",
             "boosting",
@@ -374,7 +359,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregationBuilder(StreamInput in) throws IOException {
+        TestPipelineAggregationBuilder(StreamInput in) throws IOException {
             super(in, "test");
         }
 
@@ -419,7 +404,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregator(StreamInput in) throws IOException {
+        TestPipelineAggregator(StreamInput in) throws IOException {
             super(in);
         }
         @Override

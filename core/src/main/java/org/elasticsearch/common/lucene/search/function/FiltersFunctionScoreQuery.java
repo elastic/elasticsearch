@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -157,7 +156,7 @@ public class FiltersFunctionScoreQuery extends Query {
         final Weight[] filterWeights;
         final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
+        CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
             this.filterWeights = filterWeights;

@@ -21,7 +21,6 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -31,6 +30,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
@@ -71,7 +71,7 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testExtractQueryMetadata_termsQuery() {
-        TermsQuery termsQuery = new TermsQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
+        TermInSetQuery termsQuery = new TermInSetQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
         Result result = analyze(termsQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
@@ -80,18 +80,6 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(0).field(), equalTo("_field"));
         assertThat(terms.get(0).text(), equalTo("_term1"));
         assertThat(terms.get(1).field(), equalTo("_field"));
-        assertThat(terms.get(1).text(), equalTo("_term2"));
-
-        // test with different fields
-        termsQuery = new TermsQuery(new Term("_field1", "_term1"), new Term("_field2", "_term2"));
-        result = analyze(termsQuery);
-        assertThat(result.verified, is(true));
-        terms = new ArrayList<>(result.terms);
-        Collections.sort(terms);
-        assertThat(terms.size(), equalTo(2));
-        assertThat(terms.get(0).field(), equalTo("_field1"));
-        assertThat(terms.get(0).text(), equalTo("_term1"));
-        assertThat(terms.get(1).field(), equalTo("_field2"));
         assertThat(terms.get(1).text(), equalTo("_term2"));
     }
 

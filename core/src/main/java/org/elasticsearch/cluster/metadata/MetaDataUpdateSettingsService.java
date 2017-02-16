@@ -212,13 +212,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (closeIndices.size() > 0 && closedSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
-                    throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update [%s] on closed indices %s - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
-                            closeIndices
-                    ));
-                }
-                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s",
                             skippedSettigns.getAsMap().keySet(),

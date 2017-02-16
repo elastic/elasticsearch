@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
@@ -287,10 +287,10 @@ public final class InnerHitsContext {
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             final Query hitQuery;
             if (isParentHit(hitContext.hit())) {
-                String field = ParentFieldMapper.joinField(hitContext.hit().type());
-                hitQuery = new DocValuesTermsQuery(field, hitContext.hit().id());
+                String field = ParentFieldMapper.joinField(hitContext.hit().getType());
+                hitQuery = new DocValuesTermsQuery(field, hitContext.hit().getId());
             } else if (isChildHit(hitContext.hit())) {
-                DocumentMapper hitDocumentMapper = mapperService.documentMapper(hitContext.hit().type());
+                DocumentMapper hitDocumentMapper = mapperService.documentMapper(hitContext.hit().getType());
                 final String parentType = hitDocumentMapper.parentFieldMapper().type();
                 SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
                 if (parentField == null) {
@@ -328,12 +328,12 @@ public final class InnerHitsContext {
             }
         }
 
-        private boolean isParentHit(InternalSearchHit hit) {
-            return hit.type().equals(documentMapper.parentFieldMapper().type());
+        private boolean isParentHit(SearchHit hit) {
+            return hit.getType().equals(documentMapper.parentFieldMapper().type());
         }
 
-        private boolean isChildHit(InternalSearchHit hit) {
-            DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.type());
+        private boolean isChildHit(SearchHit hit) {
+            DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.getType());
             return documentMapper.type().equals(hitDocumentMapper.parentFieldMapper().type());
         }
     }

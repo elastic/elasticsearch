@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IllegalFormatCodePointException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -270,21 +272,21 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
             someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
 
         diff = settings.diff(
                 Settings.builder().put("foo.bar", 5).build(),
                 Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
-        assertEquals(4, diff.getAsMap().size()); // 4 since foo.bar.quux has 3 values essentially
+        assertEquals(4, diff.size()); // 4 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
             Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
-        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
@@ -295,7 +297,7 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
             Settings.builder().put("some.prefix.foobar.somekey", 17,
                 "some.prefix.foo.somekey", 18).build());
-        assertEquals(6, diff.getAsMap().size()); // 6 since foo.bar.quux has 3 values essentially
+        assertEquals(6, diff.size()); // 6 since foo.bar.quux has 3 values essentially
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
@@ -314,21 +316,21 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
             someGroup, someAffix)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(1, diff.getAsMap().size());
+        assertEquals(1, diff.size());
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
 
         diff = settings.diff(
             Settings.builder().put("foo.bar", 5).build(),
             Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
-        assertEquals(4, diff.getAsMap().size());
+        assertEquals(4, diff.size());
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
 
         diff = settings.diff(
             Settings.builder().put("some.group.foo", 5).build(),
             Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
-        assertEquals(3, diff.getAsMap().size());
+        assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
         assertNull(diff.get("some.group.foo"));
         assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
@@ -339,7 +341,7 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.builder().put("some.prefix.foo.somekey", 5).build(),
             Settings.builder().put("some.prefix.foobar.somekey", 17,
                 "some.prefix.foo.somekey", 18).build());
-        assertEquals(3, diff.getAsMap().size());
+        assertEquals(3, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
@@ -353,7 +355,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .putArray("foo.bar.quux", "x", "y", "z")
             .putArray("foo.baz.quux", "d", "e", "f")
                 .build());
-        assertEquals(9, diff.getAsMap().size());
+        assertEquals(9, diff.size());
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"x", "y", "z"});
@@ -402,40 +404,39 @@ public class ScopedSettingsTests extends ESTestCase {
             " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true)));
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build()));
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
-        try {
-            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate(Settings.builder().put("index.store.type", "boom", "index.number_of_replicas", true).build()));
+        assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
-        try {
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build()));
+        assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
-        try {
-            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build());
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build()));
+        assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
+    }
+
+    public void testValidateSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.secure.setting", "secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.emptySet());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings));
+        assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
+
+        ClusterSettings clusterSettings2 = new ClusterSettings(settings,
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+        clusterSettings2.validate(settings);
     }
 
 
@@ -495,6 +496,17 @@ public class ScopedSettingsTests extends ESTestCase {
 
         new ClusterSettings(
             Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.NodeScope)));
+    }
+
+    public void testAffixKeyPattern() {
+        assertTrue(AbstractScopedSettings.isValidAffixKey("prefix.*.suffix"));
+        assertTrue(AbstractScopedSettings.isValidAffixKey("prefix.*.split.suffix"));
+        assertTrue(AbstractScopedSettings.isValidAffixKey("split.prefix.*.split.suffix"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("prefix.*.suffix."));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("prefix.*"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("*.suffix"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey("*"));
+        assertFalse(AbstractScopedSettings.isValidAffixKey(""));
     }
 
     public void testLoggingUpdates() {

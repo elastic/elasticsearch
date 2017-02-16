@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -226,6 +229,19 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
+        } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint
+            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            assertEquals(LatLonPoint.newBoxQuery(queryBuilder.fieldName(),
+                    queryBuilder.bottomRight().lat(),
+                    queryBuilder.topLeft().lat(),
+                    queryBuilder.topLeft().lon(),
+                    queryBuilder.bottomRight().lon()), indexQuery);
+            Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
+            assertEquals(LatLonDocValuesField.newBoxQuery(queryBuilder.fieldName(),
+                    queryBuilder.bottomRight().lat(),
+                    queryBuilder.topLeft().lat(),
+                    queryBuilder.topLeft().lon(),
+                    queryBuilder.bottomRight().lon()), dvQuery);
         }
     }
 
@@ -404,43 +420,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
-    }
-
-    public void testFromJsonCoerceIsDeprecated() throws IOException {
-        String json =
-                "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
-                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
-                "    },\n" +
-                "    \"coerce\" : true,\n" +
-                "    \"type\" : \"MEMORY\",\n" +
-                        "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-
-        parseQuery(json);
-        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
-    }
-
-    public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
-        String json =
-                "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
-                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
-                "    },\n" +
-                "    \"ignore_malformed\" : true,\n" +
-                "    \"type\" : \"MEMORY\",\n" +
-                        "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-        parseQuery(json);
-        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

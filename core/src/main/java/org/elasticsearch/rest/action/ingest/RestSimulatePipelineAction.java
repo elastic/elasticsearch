@@ -21,7 +21,10 @@ package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -40,7 +43,8 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(restRequest.contentOrSourceParam());
+        Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
+        SimulatePipelineRequest request = new SimulatePipelineRequest(sourceTuple.v2(), sourceTuple.v1());
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
         return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));

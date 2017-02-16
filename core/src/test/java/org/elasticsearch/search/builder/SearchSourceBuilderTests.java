@@ -280,7 +280,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference source = builder.bytes();
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(0, sourceAsMap.size());
         }
         {
@@ -289,7 +289,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference source = builder.bytes();
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
         }

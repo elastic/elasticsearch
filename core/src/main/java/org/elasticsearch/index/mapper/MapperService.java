@@ -21,12 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
@@ -37,6 +35,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -98,8 +97,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
-    @Deprecated
-    public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -189,8 +186,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
+    /**
+     * Parses the mappings (formatted as JSON) into a map
+     */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(xContentRegistry, mappingSource)) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, mappingSource)) {
             return parser.map();
         }
     }
@@ -318,7 +318,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     && mappers.containsKey(type) == false;
 
             try {
-                DocumentMapper documentMapper = documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                DocumentMapper documentMapper =
+                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
                 documentMappers.add(documentMapper);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -488,12 +489,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
-        if (legacyIndex) {
-            return mapper.type().startsWith(".") && !PERCOLATOR_LEGACY_TYPE_NAME.equals(mapper.type());
-        } else {
-            return mapper.type().startsWith(".");
-        }
+        return mapper.type().startsWith(".");
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

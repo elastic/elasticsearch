@@ -30,7 +30,7 @@ GET /twitter/tweet/_search
 WARNING: The total number of hits in the response indicates the number of matching documents without collapsing.
 The total number of distinct group is unknown.
 
-The field used for collapsing must be a single valued <<keyword, `keyword`> or <<number, `number`>> field with <<doc-values, `doc_values`>> activated
+The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated
 
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
@@ -54,7 +54,8 @@ GET /twitter/tweet/_search
             "name": "last_tweets", <2>
             "size": 5, <3>
             "sort": [{ "date": "asc" }] <4>
-        }
+        },
+        "max_concurrent_group_searches": 4 <5>
     },
     "sort": ["likes"]
 }
@@ -65,8 +66,15 @@ GET /twitter/tweet/_search
 <2> the name used for the inner hit section in the response
 <3> the number of inner_hits to retrieve per collapse key
 <4> how to sort the document inside each group
+<5> the number of concurrent requests allowed to retrieve the inner_hits` per group
 
 See <<search-request-inner-hits, inner hits>> for the complete list of supported options and the format of the response.
+
+The expansion of the group is done by sending an additional query for each
+collapsed hit returned in the response.
+The `max_concurrent_group_searches` request parameter can be used to control
+the maximum number of concurrent searches allowed in this phase.
+The default is based on the number of data nodes and the default search thread pool size.
 
 WARNING: `collapse` cannot be used in conjunction with <<search-request-scroll, scroll>>,
 <<search-request-rescore, rescore>> or <<search-request-search-after, search after>>.

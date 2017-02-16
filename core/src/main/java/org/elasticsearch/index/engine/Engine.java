@@ -282,7 +282,7 @@ public abstract class Engine implements Closeable {
      *
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
-    public abstract IndexResult index(final Index index) throws IOException;
+    public abstract IndexResult index(Index index) throws IOException;
 
     /**
      * Perform document delete operation on the engine
@@ -292,9 +292,9 @@ public abstract class Engine implements Closeable {
      *
      * Note: engine level failures (i.e. persistent engine failures) are thrown
      */
-    public abstract DeleteResult delete(final Delete delete) throws IOException;
+    public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract NoOpResult noOp(final NoOp noOp);
+    public abstract NoOpResult noOp(NoOp noOp);
 
     /**
      * Base class for index and delete operation results
@@ -488,7 +488,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Returns a new searcher instance. The consumer of this
-     * API is responsible for releasing the returned seacher in a
+     * API is responsible for releasing the returned searcher in a
      * safe manner, preferably in a try/finally block.
      *
      * @see Searcher#close()
@@ -569,7 +569,7 @@ public abstract class Engine implements Closeable {
      */
     public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
+        try (Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
                 final SegmentReader segmentReader = segmentReader(reader.reader());

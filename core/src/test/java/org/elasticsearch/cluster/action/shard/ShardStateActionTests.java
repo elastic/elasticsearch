@@ -72,7 +72,7 @@ public class ShardStateActionTests extends ESTestCase {
     private ClusterService clusterService;
 
     private static class TestShardStateAction extends ShardStateAction {
-        public TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
+        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
             super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 

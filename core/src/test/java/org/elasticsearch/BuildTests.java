@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class BuildTests extends ESTestCase {
     public void testJarMetadata() throws IOException {
         URL url = Build.getElasticsearchCodebase();
         // throws exception if does not exist, or we cannot access it
-        try (InputStream ignored = url.openStream()) {}
+        try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null
         assertNotNull(Build.CURRENT.date());
         assertNotNull(Build.CURRENT.shortHash());

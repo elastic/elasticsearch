@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -244,7 +245,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Adds a framed data in binary format
+     * @deprecated use {@link #add(byte[], int, int, XContentType)}
      */
+    @Deprecated
     public BulkRequest add(byte[] data, int from, int length) throws IOException {
         return add(data, from, length, null, null);
     }
@@ -252,6 +255,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
+    public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
+        return add(data, from, length, null, null, xContentType);
+    }
+
+    /**
+     * Adds a framed data in binary format
+     * @deprecated use {@link #add(byte[], int, int, String, String, XContentType)}
+     */
+    @Deprecated
     public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
         return add(new BytesArray(data, from, length), defaultIndex, defaultType);
     }
@@ -259,6 +271,17 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
+                           XContentType xContentType) throws IOException {
+        return add(new BytesArray(data, from, length), defaultIndex, defaultType, xContentType);
+    }
+
+    /**
+     * Adds a framed data in binary format
+     *
+     * @deprecated use {@link #add(BytesReference, String, String, XContentType)}
+     */
+    @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, true);
     }
@@ -266,12 +289,40 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+                           XContentType xContentType) throws IOException {
+        return add(data, defaultIndex, defaultType, null, null, null, null, null, true, xContentType);
+    }
+
+    /**
+     * Adds a framed data in binary format
+     *
+     * @deprecated use {@link #add(BytesReference, String, String, boolean, XContentType)}
+     */
+    @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex);
     }
 
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
+                           XContentType xContentType) throws IOException {
+        return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex, xContentType);
+    }
+
+    @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws IOException {
-        XContent xContent = XContentFactory.xContent(data);
+        XContentType xContentType = XContentFactory.xContentType(data);
+        return add(data, defaultIndex, defaultType, defaultRouting, defaultFields, defaultFetchSourceContext, defaultPipeline, payload,
+            allowExplicitIndex, xContentType);
+    }
+
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String
+        defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String
+        defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex, XContentType xContentType) throws IOException {
+        XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
         int length = data.length();
@@ -387,23 +438,25 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
-                                    .setPipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
+                                    .setPipeline(pipeline)
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
-                                    .source(data.slice(from, nextMarker - from)), payload);
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline)
-                                .source(data.slice(from, nextMarker - from)), payload);
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
                                 .routing(routing)
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject
-                        try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
+                        try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                                                        sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -432,6 +485,20 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             }
         }
         return this;
+    }
+
+    /**
+     * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
+     * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
+     */
+    private BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker, XContentType xContentType) {
+        final int length;
+        if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
+            length = nextMarker - from - 1;
+        } else {
+            length = nextMarker - from;
+        }
+        return bytesReference.slice(from, length);
     }
 
     /**

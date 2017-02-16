@@ -191,20 +191,17 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         client().admin().indices().prepareClose("test").execute().actionGet();
 
-        try {
-            client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
-                .execute()
-                .actionGet();
-            fail("can't change number of replicas on a closed index");
-        } catch (IllegalArgumentException ex) {
-            assertTrue(ex.getMessage(), ex.getMessage().startsWith("Can't update [index.number_of_replicas] on closed indices [[test/"));
-            assertTrue(ex.getMessage(), ex.getMessage().endsWith("]] - can leave index in an unopenable state"));
-            // expected
-        }
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+            .execute()
+            .actionGet();
+
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(1));
+
         client()
             .admin()
             .indices()
@@ -244,7 +241,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;
 
-        public MockAppender(final String name) throws IllegalAccessException {
+        MockAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 

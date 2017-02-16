@@ -23,23 +23,29 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 
 public class BytesRestResponse extends RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+
+    private static final String STATUS = "status";
 
     private final RestStatus status;
     private final BytesReference content;
@@ -92,7 +98,7 @@ public class BytesRestResponse extends RestResponse {
             this.content = BytesArray.EMPTY;
             this.contentType = TEXT_CONTENT_TYPE;
         } else {
-            try (final XContentBuilder builder = build(channel, status, e)) {
+            try (XContentBuilder builder = build(channel, status, e)) {
                 this.content = builder.bytes();
                 this.contentType = builder.contentType().mediaType();
             }
@@ -136,8 +142,51 @@ public class BytesRestResponse extends RestResponse {
 
         XContentBuilder builder = channel.newErrorBuilder().startObject();
         ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
-        builder.field("status", status.getStatus());
+        builder.field(STATUS, status.getStatus());
         builder.endObject();
         return builder;
+    }
+
+    static BytesRestResponse createSimpleErrorResponse(RestStatus status, String errorMessage) throws IOException {
+        return new BytesRestResponse(status, JsonXContent.contentBuilder().startObject()
+            .field("error", errorMessage)
+            .field("status", status.getStatus())
+            .endObject());
+    }
+
+    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        ElasticsearchException exception = null;
+        RestStatus status = null;
+
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+            if (STATUS.equals(currentFieldName)) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                exception = ElasticsearchException.failureFromXContent(parser);
+            }
+        }
+
+        if (exception == null) {
+            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
+        }
+
+        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        for (String header : exception.getHeaderKeys()) {
+            result.addHeader(header, exception.getHeader(header));
+        }
+        for (String metadata : exception.getMetadataKeys()) {
+            result.addMetadata(metadata, exception.getMetadata(metadata));
+        }
+        return result;
     }
 }

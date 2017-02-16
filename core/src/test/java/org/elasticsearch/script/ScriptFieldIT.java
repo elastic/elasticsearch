@@ -65,7 +65,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
                 .addScriptField("float", new Script(ScriptType.INLINE, "native", "float", Collections.emptyMap()))
                 .addScriptField("double", new Script(ScriptType.INLINE, "native", "double", Collections.emptyMap()))
                 .addScriptField("long", new Script(ScriptType.INLINE, "native", "long", Collections.emptyMap())).execute().actionGet();
-        assertThat(sr.getHits().hits().length, equalTo(6));
+        assertThat(sr.getHits().getHits().length, equalTo(6));
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("int").getValues().get(0);
             assertThat(result, equalTo((Object) intArray));

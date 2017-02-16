@@ -63,7 +63,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
      * This implementation is only for use with a single bucket aggregation.
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -78,7 +78,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
             private SortedNumericDocValues values;
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
             }
 

@@ -22,7 +22,6 @@ import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -32,6 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
@@ -62,7 +62,7 @@ public final class QueryAnalyzer {
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
         map.put(TermQuery.class, termQuery());
-        map.put(TermsQuery.class, termsQuery());
+        map.put(TermInSetQuery.class, termInSetQuery());
         map.put(CommonTermsQuery.class, commonTermsQuery());
         map.put(BlendedTermQuery.class, blendedTermQuery());
         map.put(PhraseQuery.class, phraseQuery());
@@ -145,11 +145,11 @@ public final class QueryAnalyzer {
         });
     }
 
-    static Function<Query, Result> termsQuery() {
+    static Function<Query, Result> termInSetQuery() {
         return query -> {
-            TermsQuery termsQuery = (TermsQuery) query;
+            TermInSetQuery termInSetQuery = (TermInSetQuery) query;
             Set<Term> terms = new HashSet<>();
-            PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
+            PrefixCodedTerms.TermIterator iterator = termInSetQuery.getTermData().iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
@@ -380,7 +380,7 @@ public final class QueryAnalyzer {
 
         private final Query unsupportedQuery;
 
-        public UnsupportedQueryException(Query unsupportedQuery) {
+        UnsupportedQueryException(Query unsupportedQuery) {
             super(LoggerMessageFormat.format("no query terms can be extracted from query [{}]", unsupportedQuery));
             this.unsupportedQuery = unsupportedQuery;
         }

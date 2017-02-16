@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 abstract class ESElasticsearchCliTestCase extends ESTestCase {
 
     interface InitConsumer {
-        void accept(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv);
+        void accept(boolean foreground, Path pidFile, boolean quiet, Environment initialEnv);
     }
 
     void runTest(

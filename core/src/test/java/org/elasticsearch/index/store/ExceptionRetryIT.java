@@ -30,7 +30,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -39,8 +38,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -139,7 +136,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 if (!found_duplicate_already) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
                         searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
-                    assertThat(dupIdResponse.getHits().totalHits(), greaterThan(1L));
+                    assertThat(dupIdResponse.getHits().getTotalHits(), greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {
                         logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());

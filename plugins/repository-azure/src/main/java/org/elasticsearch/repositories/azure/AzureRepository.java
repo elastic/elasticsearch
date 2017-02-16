@@ -19,12 +19,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Function;
-
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
@@ -32,19 +26,23 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotCreationException;
+import org.elasticsearch.snapshots.SnapshotId;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MAX_CHUNK_SIZE;
 import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUNK_SIZE;
@@ -154,32 +152,10 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        try {
-            if (!blobStore.doesContainerExist(blobStore.container())) {
-                logger.debug("container [{}] does not exist. Creating...", blobStore.container());
-                blobStore.createContainer(blobStore.container());
-            }
-            super.initializeSnapshot(snapshotId, indices, clusterMetadata);
-        } catch (StorageException | URISyntaxException e) {
-            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-            throw new SnapshotCreationException(getMetadata().name(), snapshotId, e);
+        if (blobStore.doesContainerExist(blobStore.container()) == false) {
+            throw new IllegalArgumentException("The bucket [" + blobStore.container() + "] does not exist. Please create it before " +
+                " creating an azure snapshot repository backed by it.");
         }
-    }
-
-    @Override
-    public String startVerification() {
-        if (readonly == false) {
-            try {
-                if (!blobStore.doesContainerExist(blobStore.container())) {
-                    logger.debug("container [{}] does not exist. Creating...", blobStore.container());
-                    blobStore.createContainer(blobStore.container());
-                }
-            } catch (StorageException | URISyntaxException e) {
-                logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-                throw new RepositoryVerificationException(getMetadata().name(), "can not initialize container " + blobStore.container(), e);
-            }
-        }
-        return super.startVerification();
     }
 
     @Override

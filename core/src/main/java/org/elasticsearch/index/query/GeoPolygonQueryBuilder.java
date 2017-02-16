@@ -33,7 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -48,9 +48,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
-
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField POINTS_FIELD = new ParseField("points");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
@@ -162,7 +159,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+        if (!(fieldType instanceof GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -232,8 +229,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         List<GeoPoint> shell = null;
 
         Float boost = null;
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
-        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
         String queryName = null;
         String currentFieldName = null;
@@ -271,15 +266,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (COERCE_FIELD.match(currentFieldName)) {
-                    coerce = parser.booleanValue();
-                    if (coerce) {
-                        ignoreMalformed = true;
-                    }
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (IGNORE_MALFORMED_FIELD.match(currentFieldName)) {
-                    ignoreMalformed = parser.booleanValue();
                 } else if (VALIDATION_METHOD.match(currentFieldName)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
@@ -294,8 +282,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         if (validationMethod != null) {
             // if GeoValidationMethod was explicitly set ignore deprecated coerce and ignoreMalformed settings
             builder.setValidationMethod(validationMethod);
-        } else {
-            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
 
         if (queryName != null) {

@@ -318,6 +318,19 @@ public final class Locals {
         public int getSlot() {
             return slot;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder();
+            b.append("Variable[type=").append(type);
+            b.append(",name=").append(name);
+            b.append(",slot=").append(slot);
+            if (readonly) {
+                b.append(",readonly");
+            }
+            b.append(']');
+            return b.toString();
+        }
     }
 
     public static final class Parameter {

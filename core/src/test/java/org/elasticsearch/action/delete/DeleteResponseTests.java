@@ -63,6 +63,13 @@ public class DeleteResponseTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType, humanReadable);
 
+        // Shuffle the XContent fields
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
+                deleteResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
+
         // Parse the XContent bytes to obtain a parsed
         DeleteResponse parsedDeleteResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
@@ -81,7 +88,7 @@ public class DeleteResponseTests extends ESTestCase {
         }
     }
 
-    private static void assertDeleteResponse(DeleteResponse expected, Map<String, Object> actual) {
+    public static void assertDeleteResponse(DeleteResponse expected, Map<String, Object> actual) {
         assertDocWriteResponse(expected, actual);
         if (expected.getResult() == DocWriteResponse.Result.DELETED) {
             assertTrue((boolean) actual.get("found"));
@@ -90,7 +97,7 @@ public class DeleteResponseTests extends ESTestCase {
         }
     }
 
-    private static DeleteResponse randomDeleteResponse() {
+    public static DeleteResponse randomDeleteResponse() {
         ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);

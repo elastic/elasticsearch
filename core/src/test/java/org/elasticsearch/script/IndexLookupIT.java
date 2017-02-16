@@ -580,15 +580,19 @@ public class IndexLookupIT extends ESIntegTestCase {
                     .addScriptField("tvtest", script)
                     .get();
 
-            assertThat(numPrimaries, greaterThan(1));
+            // (partial) success when at least one shard succeeds
+            assertThat(numPrimaries, greaterThan(response.getShardFailures().length));
             assertThat(response.getFailedShards(), greaterThanOrEqualTo(1));
 
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 assertThat(failure.reason(), containsString(expectedError));
             }
         } catch (SearchPhaseExecutionException e) {
-            assertThat(numPrimaries, equalTo(1));
-            assertThat(e.toString(), containsString(expectedError));
+            // Exception thrown when *all* shards fail
+            assertThat(numPrimaries, equalTo(e.shardFailures().length));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.reason(), containsString(expectedError));
+            }
         }
 
         // Should not throw an exception this way round

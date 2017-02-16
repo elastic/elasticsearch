@@ -293,6 +293,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(containsString(indexName)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/584")
     public void testCreateJobInSharedIndexUpdatesMapping() throws Exception {
         String jobTemplate = "{\n" +
                 "  \"analysis_config\" : {\n" +

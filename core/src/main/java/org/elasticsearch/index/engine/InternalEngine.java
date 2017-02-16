@@ -479,9 +479,14 @@ public class InternalEngine extends Engine {
     }
 
     private boolean assertVersionType(final Engine.Operation operation) {
-        if (operation.origin() == Operation.Origin.REPLICA) {
-            assert operation.versionType() == VersionType.EXTERNAL
-                    : "replca: version: " + operation.version() + " type: " + operation.versionType();
+        if (operation.origin() == Operation.Origin.REPLICA ||
+                operation.origin() == Operation.Origin.PEER_RECOVERY ||
+                operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            // ensure that replica operation has expected version type for replication
+            assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
+                    : "unexpected version type in request from [" + operation.origin().name() + "] " +
+                    "found [" + operation.versionType().name() + "] " +
+                    "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
         }
         return true;
     }

@@ -673,6 +673,8 @@ setup:
 
   - skip:
       features: "warnings"
+      version: " - 5.2.99"
+      reason:  text was deprecated in 5.3.0
 
   - do:
       index:

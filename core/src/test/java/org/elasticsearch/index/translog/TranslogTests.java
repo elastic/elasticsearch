@@ -1022,6 +1022,29 @@ public class TranslogTests extends ESTestCase {
         IOUtils.close(writer);
     }
 
+    public void testCloseIntoReader() throws IOException {
+        try (TranslogWriter writer = translog.createWriter(0)) {
+            final int numOps = randomIntBetween(8, 128);
+            final byte[] bytes = new byte[4];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            for (int i = 0; i < numOps; i++) {
+                out.reset(bytes);
+                out.writeInt(i);
+                writer.add(new BytesArray(bytes), randomNonNegativeLong());
+            }
+            writer.sync();
+            try (TranslogReader reader = writer.closeIntoReader()) {
+                for (int i = 0; i < numOps; i++) {
+                    final ByteBuffer buffer = ByteBuffer.allocate(4);
+                    reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
+                    buffer.flip();
+                    final int value = buffer.getInt();
+                    assertEquals(i, value);
+                }
+            }
+        }
+    }
+
     public void testBasicRecovery() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);

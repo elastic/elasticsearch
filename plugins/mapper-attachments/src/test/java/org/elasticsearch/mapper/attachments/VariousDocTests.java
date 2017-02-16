@@ -44,7 +44,9 @@ import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.N
 import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.TITLE;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -119,6 +121,40 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     public void testAsciidocDocument() throws Exception {
         assertParseable("asciidoc.asciidoc");
         testMapper("asciidoc.asciidoc", false);
+    }
+
+    public void testWordDocumentWithVisioSchema() throws Exception {
+        assertParseable("issue-22077.docx");
+        testMapper("issue-22077.docx", false);
+    }
+
+    public void testLegacyWordDocumentWithVisioSchema() throws Exception {
+        assertParseable("issue-22077.doc");
+        testMapper("issue-22077.doc", false);
+    }
+
+    public void testVisioIsExcluded() throws Exception {
+        String filename = "issue-22077.vsdx";
+        try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" +
+            filename)) {
+            byte bytes[] = IOUtils.toByteArray(is);
+            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
+            assertThat(parsedContent, isEmptyString());
+        }
+
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename);
+        BytesReference json = jsonBuilder()
+                .startObject()
+                    .startObject("file")
+                        .field("_name", filename)
+                        .field("_content", html)
+                    .endObject()
+                .endObject().bytes();
+
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().name()), isEmptyString());
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().name()), is("application/vnd.ms-visio.drawing"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_length").fieldType().name()), is("210451"));
     }
 
     void assertException(String filename, String expectedMessage) throws Exception {

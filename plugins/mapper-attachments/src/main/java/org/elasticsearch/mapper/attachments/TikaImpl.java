@@ -22,8 +22,10 @@ package org.elasticsearch.mapper.attachments;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
+import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.SuppressForbidden;
@@ -45,7 +47,9 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
+import java.util.Collections;
 import java.util.PropertyPermission;
+import java.util.Set;
 
 /**
  * Runs tika with limited parsers and limited permissions.
@@ -53,6 +57,9 @@ import java.util.PropertyPermission;
  * Do NOT make public
  */
 final class TikaImpl {
+
+    /** Exclude some formats */
+    private static final Set<MediaType> EXCLUDES = Collections.singleton(MediaType.application("x-tika-ooxml"));
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
@@ -63,7 +70,7 @@ final class TikaImpl {
         new org.apache.tika.parser.txt.TXTParser(),
         new org.apache.tika.parser.microsoft.OfficeParser(),
         new org.apache.tika.parser.microsoft.OldExcelParser(),
-        new org.apache.tika.parser.microsoft.ooxml.OOXMLParser(),
+        ParserDecorator.withoutTypes(new org.apache.tika.parser.microsoft.ooxml.OOXMLParser(), EXCLUDES),
         new org.apache.tika.parser.odf.OpenDocumentParser(),
         new org.apache.tika.parser.iwork.IWorkPackageParser(),
         new org.apache.tika.parser.xml.DcXMLParser(),

@@ -121,7 +121,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeHeader(out, ref);
             channel.force(true);
             final Checkpoint checkpoint =
-                writeCheckpoint(channelFactory, headerLength, 0, Translog.INITIAL_MIN_SEQ_NO, Translog.INITIAL_MAX_SEQ_NO, globalCheckpointSupplier.getAsLong(), file.getParent(), fileGeneration);
+                    Checkpoint.emptyTranslogCheckpoint(headerLength, fileGeneration, globalCheckpointSupplier.getAsLong());
+            writeCheckpoint(channelFactory, file.getParent(), checkpoint);
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize, globalCheckpointSupplier);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -372,18 +373,24 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private static Checkpoint writeCheckpoint(
-        ChannelFactory channelFactory,
-        long syncPosition,
-        int numOperations,
-        long minSeqNo,
-        long maxSeqNo,
-        long globalCheckpoint,
-        Path translogFile,
-        long generation) throws IOException {
-        final Path checkpointFile = translogFile.resolve(Translog.CHECKPOINT_FILE_NAME);
+            ChannelFactory channelFactory,
+            long syncPosition,
+            int numOperations,
+            long minSeqNo,
+            long maxSeqNo,
+            long globalCheckpoint,
+            Path translogFile,
+            long generation) throws IOException {
         final Checkpoint checkpoint = new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint);
-        Checkpoint.write(channelFactory::open, checkpointFile, checkpoint, StandardOpenOption.WRITE);
+        writeCheckpoint(channelFactory, translogFile, checkpoint);
         return checkpoint;
+    }
+
+    private static void writeCheckpoint(
+            final ChannelFactory channelFactory,
+            final Path translogFile,
+            final Checkpoint checkpoint) throws IOException {
+        Checkpoint.write(channelFactory, translogFile.resolve(Translog.CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE);
     }
 
     /**

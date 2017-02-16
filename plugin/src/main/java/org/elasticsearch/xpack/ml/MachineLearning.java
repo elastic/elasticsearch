@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -132,8 +131,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
-import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
-import org.elasticsearch.xpack.watcher.WatcherService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -240,7 +237,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        if (false == enabled) {
+        if (false == enabled || this.transportClientMode) {
             return emptyList();
         }
         // Whether we are using native process is a good way to detect whether we are in dev / test mode:
@@ -298,10 +295,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
-            if (transportClientMode || enabled == false) {
-                b.bind(WatcherService.class).toProvider(Providers.of(null));
-            }
+            XPackPlugin.bindFeatureSet(b, MachineLearningFeatureSet.class);
         });
 
         return modules;

@@ -28,8 +28,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
@@ -180,13 +184,15 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final JobManager jobManager;
+        private XPackLicenseState licenseState;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters,
+                ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
             super(settings, PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
+            this.licenseState = licenseState;
             this.jobManager = jobManager;
         }
 
@@ -208,6 +214,15 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            if (licenseState.isMachineLearningAllowed()) {
+                super.doExecute(task, request, listener);
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
+            }
         }
     }
 }

@@ -30,12 +30,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -242,14 +245,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         private final JobStateObserver observer;
         private final ClusterService clusterService;
         private final AutodetectProcessManager autodetectProcessManager;
+        private XPackLicenseState licenseState;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
             super(settings, OpenJobAction.NAME, false, threadPool, transportService, persistentActionService,
                     persistentActionRegistry, actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+            this.licenseState = licenseState;
             this.clusterService = clusterService;
             this.autodetectProcessManager = autodetectProcessManager;
             this.observer = new JobStateObserver(threadPool, clusterService);
@@ -257,17 +262,21 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
         @Override
         protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
-            // If we already know that we can't find an ml node because all ml nodes are running at capacity or
-            // simply because there are no ml nodes in the cluster then we fail quickly here:
-            ClusterState clusterState = clusterService.state();
-            if (selectLeastLoadedMlNode(request.getJobId(), clusterState, logger) == null) {
-                throw new ElasticsearchStatusException("no nodes available to open job [" + request.getJobId() + "]",
-                        RestStatus.TOO_MANY_REQUESTS);
-            }
+            if (licenseState.isMachineLearningAllowed()) {
+                // If we already know that we can't find an ml node because all ml nodes are running at capacity or
+                // simply because there are no ml nodes in the cluster then we fail quickly here:
+                ClusterState clusterState = clusterService.state();
+                if (selectLeastLoadedMlNode(request.getJobId(), clusterState, logger) == null) {
+                    throw new ElasticsearchStatusException("no nodes available to open job [" + request.getJobId() + "]",
+                            RestStatus.TOO_MANY_REQUESTS);
+                }
 
-            ActionListener<PersistentActionResponse> finalListener =
-                    ActionListener.wrap(response -> waitForJobStarted(request, response, listener), listener::onFailure);
-            super.doExecute(request, finalListener);
+                ActionListener<PersistentActionResponse> finalListener =
+                         ActionListener.wrap(response -> waitForJobStarted(request, response, listener), listener::onFailure);
+                super.doExecute(request, finalListener);
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
+            }
         }
 
         void waitForJobStarted(Request request, PersistentActionResponse response, ActionListener<PersistentActionResponse> listener) {

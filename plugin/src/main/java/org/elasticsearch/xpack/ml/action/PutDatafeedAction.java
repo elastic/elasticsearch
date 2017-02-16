@@ -29,10 +29,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -175,12 +179,15 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
+        private XPackLicenseState licenseState;
+
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
+                               ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, PutDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -225,6 +232,15 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            if (licenseState.isMachineLearningAllowed()) {
+                super.doExecute(task, request, listener);
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
+            }
         }
     }
 }

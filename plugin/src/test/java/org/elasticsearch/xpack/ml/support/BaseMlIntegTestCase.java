@@ -60,6 +60,13 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         return settings.build();
     }
 
+    @Override
+    protected Settings transportClientSettings() {
+        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
+        return settings.build();
+    }
+
     protected Job.Builder createJob(String id) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.JSON);

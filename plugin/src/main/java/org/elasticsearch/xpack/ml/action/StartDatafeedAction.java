@@ -28,12 +28,15 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
@@ -244,23 +247,29 @@ public class StartDatafeedAction
 
         private final DatafeedStateObserver observer;
         private final DatafeedJobRunner datafeedJobRunner;
+        private XPackLicenseState licenseState;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, DatafeedJobRunner datafeedJobRunner) {
             super(settings, NAME, false, threadPool, transportService, persistentActionService, persistentActionRegistry,
                     actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+            this.licenseState = licenseState;
             this.datafeedJobRunner = datafeedJobRunner;
             this.observer = new DatafeedStateObserver(threadPool, clusterService);
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
-            ActionListener<PersistentActionResponse> finalListener =
-                    ActionListener.wrap(response -> waitForDatafeedStarted(request, response, listener), listener::onFailure);
-            super.doExecute(request, finalListener);
+            if (licenseState.isMachineLearningAllowed()) {
+                ActionListener<PersistentActionResponse> finalListener = ActionListener
+                        .wrap(response -> waitForDatafeedStarted(request, response, listener), listener::onFailure);
+                super.doExecute(request, finalListener);
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
+            }
         }
 
         void waitForDatafeedStarted(Request request,

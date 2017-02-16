@@ -36,6 +36,7 @@ forbiddenApisMain {
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
+javadoc.enabled = false
 test.enabled = false
 loggerUsageCheck.enabled = false
 jarHell.enabled=false

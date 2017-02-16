@@ -212,7 +212,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableTestNodesAction[] actions = new CancellableTestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
-            logger.info("The action in the node [{}] should block: [{}]", testNodes[i].discoveryNode.getId(), shouldBlock);
+            logger.info("The action in the node [{}] should block: [{}]", testNodes[i].getNodeId(), shouldBlock);
             actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
@@ -251,7 +251,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Cancel main task
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()));
+        request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)
             .get();
@@ -288,7 +288,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Make sure that tasks are no longer running
         ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
             .transportListTasksAction.execute(new ListTasksRequest().setTaskId(
-                new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()))).get();
+                new TaskId(testNodes[0].getNodeId(), mainTask.getId()))).get();
         assertEquals(0, listTasksResponse.getTasks().size());
 
         // Make sure that there are no leftover bans, the ban removal is async, so we might return from the cancellation
@@ -323,7 +323,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Cancel all child tasks without cancelling the main task, which should quit on its own
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setParentTaskId(new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()));
+        request.setParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
         CancelTasksResponse response = testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction.execute(request)
             .get();
@@ -339,7 +339,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
                 ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
                     .transportListTasksAction.execute(new ListTasksRequest().setTaskId(
-                        new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()))).get();
+                        new TaskId(testNodes[0].getNodeId(), mainTask.getId()))).get();
                 assertEquals(0, listTasksResponse.getTasks().size());
 
             } catch (ExecutionException | InterruptedException ex) {
@@ -374,7 +374,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
         });
 
-        String mainNode = testNodes[0].discoveryNode.getId();
+        String mainNode = testNodes[0].getNodeId();
 
         // Make sure that tasks are running
         ListTasksResponse listTasksResponse = testNodes[randomIntBetween(0, testNodes.length - 1)]
@@ -384,12 +384,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Simulate the coordinating node leaving the cluster
         DiscoveryNode[] discoveryNodes = new DiscoveryNode[testNodes.length - 1];
         for (int i = 1; i < testNodes.length; i++) {
-            discoveryNodes[i - 1] = testNodes[i].discoveryNode;
+            discoveryNodes[i - 1] = testNodes[i].discoveryNode();
         }
         DiscoveryNode master = discoveryNodes[0];
         for (int i = 1; i < testNodes.length; i++) {
             // Notify only nodes that should remain in the cluster
-            setState(testNodes[i].clusterService, ClusterStateCreationUtils.state(testNodes[i].discoveryNode, master, discoveryNodes));
+            setState(testNodes[i].clusterService, ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
         }
 
         if (simulateBanBeforeLeaving) {
@@ -397,7 +397,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Simulate issuing cancel request on the node that is about to leave the cluster
             CancelTasksRequest request = new CancelTasksRequest();
             request.setReason("Testing Cancellation");
-            request.setTaskId(new TaskId(testNodes[0].discoveryNode.getId(), mainTask.getId()));
+            request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
             // And send the cancellation request to a random node
             CancelTasksResponse response = testNodes[0].transportCancelTasksAction.execute(request).get();
             logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");

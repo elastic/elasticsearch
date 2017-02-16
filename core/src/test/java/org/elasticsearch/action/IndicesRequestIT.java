@@ -550,7 +550,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
@@ -571,32 +571,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchTransportService.DFS_ACTION_NAME, SearchTransportService.QUERY_ID_ACTION_NAME,
                 SearchTransportService.FETCH_ID_ACTION_NAME);
-        //free context messages are not necessarily sent, but if they are, check their indices
-        assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
-    }
-
-    public void testSearchQueryAndFetch() throws Exception {
-        interceptTransportActions(SearchTransportService.QUERY_FETCH_ACTION_NAME,
-                SearchTransportService.FREE_CONTEXT_ACTION_NAME);
-
-        String[] randomIndicesOrAliases = randomIndicesOrAliases();
-        for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i], "type", "id-" + i).setSource("field", "value").get();
-        }
-        refresh();
-
-        SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_AND_FETCH);
-        SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
-
-        clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchTransportService.QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }

@@ -199,7 +199,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
 To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
-run the command below in https://www.elastic.co/guide/en/kibana/{branch}/console-kibana.html[Kibana's Console]
+run the command below in {kibana}/console-kibana.html[Kibana's Console]
 by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
 link below and pasting it into a terminal.
 
@@ -588,7 +588,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // NOTCONSOLE
@@ -677,8 +677,8 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `sort` - sort key for results (missing if sorting by score)
-* `_score` and `max_score` - ignore these fields for now
+* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits._score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:
 

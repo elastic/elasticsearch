@@ -46,7 +46,7 @@ This is particularly useful for indexing text like camel-case code, eg
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/  -d '
+PUT test
 {
    "settings" : {
       "analysis" : {
@@ -69,8 +69,8 @@ curl -XPUT localhost:9200/test/  -d '
       }
    }
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 When used to analyze the text
 
@@ -87,7 +87,7 @@ Another example is analyzing email addresses:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/  -d '
+PUT test
 {
    "settings" : {
       "analysis" : {
@@ -112,8 +112,8 @@ curl -XPUT localhost:9200/test/  -d '
       }
    }
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 When the above analyzer is used on an email address like:
 

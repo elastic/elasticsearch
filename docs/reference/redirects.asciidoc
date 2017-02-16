@@ -60,14 +60,14 @@ directory.  Instead, mappings should be created using the API with:
 
 The `memcached` transport is no longer supported.  Instead use the REST
 interface over <<modules-http,HTTP>> or the
-https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+{javaclient}/index.html[Java API].
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
 interface over <<modules-http,HTTP>> or the
-https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+{javaclient}/index.html[Java API].
 
 // QUERY DSL
 
@@ -86,7 +86,7 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+The `not` query has been replaced by using a `must_not` clause in a `bool` query (see <<query-dsl-bool-query>>).
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter

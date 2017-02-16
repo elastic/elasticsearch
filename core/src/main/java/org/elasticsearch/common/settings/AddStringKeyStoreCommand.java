@@ -67,7 +67,7 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         if (setting == null) {
             throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
         }
-        if (keystore.getSettings().contains(setting) && options.has(forceOption) == false) {
+        if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
                 return;

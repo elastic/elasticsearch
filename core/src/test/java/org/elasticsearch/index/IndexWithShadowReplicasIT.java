@@ -684,7 +684,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addDocValueField("foo").addSort("foo", SortOrder.ASC).get();
         assertHitCount(resp, 4);
         assertOrderedSearchHits(resp, "2", "3", "4", "1");
-        SearchHit[] hits = resp.getHits().hits();
+        SearchHit[] hits = resp.getHits().getHits();
         assertThat(hits[0].field("foo").getValue().toString(), equalTo("bar"));
         assertThat(hits[1].field("foo").getValue().toString(), equalTo("baz"));
         assertThat(hits[2].field("foo").getValue().toString(), equalTo("eggplant"));

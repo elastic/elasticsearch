@@ -51,10 +51,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
@@ -185,7 +183,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
             // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
-            searchRequest.searchType(QUERY_AND_FETCH);
+            searchRequest.searchType(QUERY_THEN_FETCH);
         }
         if (searchRequest.isSuggestOnly()) {
             // disable request cache if we have only suggest
@@ -213,22 +211,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return connection;
         };
 
-        final ActionListener<SearchResponse> wrapper;
-        if (searchPhaseController.getSearchResponseListener().size() > 0) {
-            wrapper = ActionListener.wrap(searchResponse -> {
-                List<BiConsumer<SearchRequest, SearchResponse>> responseListeners =
-                    searchPhaseController.getSearchResponseListener();
-                for (BiConsumer<SearchRequest, SearchResponse> respListener : responseListeners) {
-                    respListener.accept(searchRequest, searchResponse);
-                }
-                listener.onResponse(searchResponse);
-
-            }, listener::onFailure);
-        } else {
-            wrapper = listener;
-        }
         searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, connectionLookup, clusterState.version(),
-            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, wrapper).start();
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
     private static GroupShardsIterator mergeShardsIterators(GroupShardsIterator localShardsIterator,
@@ -266,11 +250,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
-                    clusterStateVersion, task);
-                break;
-            case QUERY_AND_FETCH:
-                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;

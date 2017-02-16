@@ -113,8 +113,8 @@ setup:
                 script_fields:
                     field:
                         script:
-                            inline: "doc['date'].get(0)"
-    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+                            inline: "doc.date.get(0)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
     - do:
         search:
@@ -122,8 +122,8 @@ setup:
                 script_fields:
                     field:
                         script:
-                            inline: "doc['date'].value"
-    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+                            inline: "doc.date.value"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
 ---
 "geo_point":

@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A mock implementation of secure settings for tests to use.
@@ -36,8 +37,8 @@ public class MockSecureSettings implements SecureSettings {
     }
 
     @Override
-    public boolean hasSetting(String setting) {
-        return secureStrings.containsKey(setting);
+    public Set<String> getSettingNames() {
+        return secureStrings.keySet();
     }
 
     @Override

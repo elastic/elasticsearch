@@ -28,12 +28,13 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 public class BulkShardRequestTests extends ESTestCase {
     public void testToString() {
         String index = randomSimpleString(random(), 10);
-        int count = between(1, 100);
-        BulkShardRequest r = new BulkShardRequest(new ShardId(index, "ignored", 0), RefreshPolicy.NONE, new BulkItemRequest[count]);
-        assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests", r.toString());
-        r = new BulkShardRequest(new ShardId(index, "ignored", 0), RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
-        assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests and a refresh", r.toString());
-        r = new BulkShardRequest(new ShardId(index, "ignored", 0), RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
-        assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests blocking until refresh", r.toString());
+        int count = between(2, 100);
+        final ShardId shardId = new ShardId(index, "ignored", 0);
+        BulkShardRequest r = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[count]);
+        assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests", r.toString());
+        r = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
+        assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests and a refresh", r.toString());
+        r = new BulkShardRequest(shardId, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
+        assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests blocking until refresh", r.toString());
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -223,7 +222,6 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
-import org.elasticsearch.search.collapse.ExpandCollapseSearchResponseListener;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
@@ -280,17 +278,12 @@ public class SearchModule {
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
-    private final List<BiConsumer<SearchRequest, SearchResponse> > searchResponseListeners = new ArrayList<> ();
 
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
-        this(settings, transportClient, plugins, null);
-    }
-
-    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins, Client client) {
         this.settings = settings;
         this.transportClient = transportClient;
         registerSuggesters(plugins);
@@ -306,9 +299,6 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
-        if (false == transportClient) {
-            registerSearchResponseListeners(client, plugins);
-        }
         registerShapes();
     }
 
@@ -339,13 +329,6 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
-    }
-
-    /**
-     * Returns the search response listeners registry
-     */
-    public List<BiConsumer<SearchRequest, SearchResponse> > getSearchResponseListeners() {
-        return searchResponseListeners;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -699,13 +682,6 @@ public class SearchModule {
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
     }
 
-    private void registerSearchResponseListeners(Client client, List<SearchPlugin> plugins) {
-        if (client != null) {
-            registerSearchResponseListener(new ExpandCollapseSearchResponseListener(client));
-        }
-        registerFromPlugin(plugins, p -> p.getSearchResponseListeners(), this::registerSearchResponseListener);
-    }
-
     private void registerSearchExts(List<SearchPlugin> plugins) {
         registerFromPlugin(plugins, SearchPlugin::getSearchExts, this::registerSearchExt);
     }
@@ -789,10 +765,6 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
                 (p, c) -> spec.getParser().fromXContent((QueryParseContext) c)));
-    }
-
-    private void registerSearchResponseListener(BiConsumer<SearchRequest, SearchResponse> listener) {
-        searchResponseListeners.add(requireNonNull(listener, "SearchResponseListener must not be null"));
     }
 
     public FetchPhase getFetchPhase() {

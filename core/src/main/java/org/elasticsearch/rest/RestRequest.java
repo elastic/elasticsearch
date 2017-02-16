@@ -181,9 +181,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Sets the {@link XContentType}
-     * @deprecated this is only used to allow BWC with content-type detection
      */
-    @Deprecated
     final void setXContentType(XContentType xContentType) {
         this.xContentType.set(xContentType);
     }
@@ -493,4 +491,5 @@ public abstract class RestRequest implements ToXContent.Params {
         }
         throw new IllegalArgumentException("empty Content-Type header");
     }
+
 }

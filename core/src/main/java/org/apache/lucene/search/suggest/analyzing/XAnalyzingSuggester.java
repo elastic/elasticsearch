@@ -486,7 +486,7 @@ public long ramBytesUsed() {
     }
   }
 
-    /** Non-null if this sugggester created a temp dir, needed only during build */
+    /** Non-null if this suggester created a temp dir, needed only during build */
     private static FSDirectory tmpBuildDir;
 
     @SuppressForbidden(reason = "access temp directory for building index")

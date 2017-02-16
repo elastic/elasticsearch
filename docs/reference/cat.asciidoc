@@ -106,7 +106,7 @@ by all the shards, not number of documents).  The `/_cat/indices` API
 is ideal.  We only need to tweak two things.  First, we want to turn
 off human mode.  We'll use a byte-level resolution.  Then we'll pipe
 our output into `sort` using the appropriate column, which in this
-case is the eight one.
+case is the eighth one.
 
 [source,sh]
 --------------------------------------------------

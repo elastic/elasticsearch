@@ -150,6 +150,8 @@
 
   - skip:
       features: "warnings"
+      version: " - 5.2.99"
+      reason:  include/pattern was deprecated in 5.3.0
 
   - do:
       indices.create:

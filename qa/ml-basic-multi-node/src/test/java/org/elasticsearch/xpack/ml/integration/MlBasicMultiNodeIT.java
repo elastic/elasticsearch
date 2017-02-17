@@ -21,9 +21,20 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
+    @SuppressWarnings("unchecked")
+    public void testMachineLearningInstalled() throws Exception {
+        Response response = client().performRequest("get", "/_xpack");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        Map<String, Object> features = (Map<String, Object>) responseEntityToMap(response).get("features");
+        Map<String, Object> ml = (Map<String, Object>) features.get("ml");
+        assertNotNull(ml);
+        assertTrue((Boolean) ml.get("available"));
+        assertTrue((Boolean) ml.get("enabled"));
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequote() throws Exception {
         String jobId = "foo1";
         createFarequoteJob(jobId);
@@ -76,6 +87,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequoteWithDatafeeder() throws Exception {
         String mappings = "{"
                 + "  \"mappings\": {"

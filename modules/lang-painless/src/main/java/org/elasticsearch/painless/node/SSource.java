@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
@@ -312,7 +313,12 @@ public final class SSource extends AStatement {
         }
 
         if (!methodEscape) {
-            writer.visitInsn(Opcodes.ACONST_NULL);
+            if (scriptInterface.getExecuteMethodReturnType().equals(Definition.DEF_TYPE)) {
+                // TODO this should fail too but it can't to keep compatibility with Elasticsearch scripts
+                writer.visitInsn(Opcodes.ACONST_NULL);
+            } else if (false == scriptInterface.getExecuteMethodReturnType().equals(Definition.VOID_TYPE)) {
+                throw new IllegalArgumentException("Expected all paths to [return] but not all did."); // TODO better error message
+            }
             writer.returnValue();
         }
 

@@ -24,6 +24,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -165,6 +167,42 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(singletonMap("a", "foo"), map);
         scriptEngine.compile(ReturnsVoid.class, null, "map.remove('a')", emptyMap()).execute(map);
         assertEquals(emptyMap(), map);
+        String debug = Debugger.toString(ReturnsVoid.class, "map.remove('a')", new CompilerSettings());
+        System.err.print(debug);
+        assertThat(debug, not(containsString("ACONST_NULL")));
+        assertThat(debug, containsString("RETURN"));
+    }
+
+    public interface ReturnsPrimitive {
+        String[] ARGUMENTS = new String[] {};
+        int execute();
+    }
+    public void testReturnsPrimitive() {
+//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "1", emptyMap()).execute());
+//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "def i = 1; i", emptyMap()).execute());
+//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1L", emptyMap()).execute());
+//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1.1d", emptyMap()).execute());
+//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1.1f", emptyMap()).execute());
+//        NOCOMMIT def or all of the funny types
+//
+//        assertEquals(2, scriptEngine.compile(ReturnsPrimitive.class, null, "1 + 1", emptyMap()).execute());
+//
+//        expectScriptThrows(ClassCastException.class, () ->
+//                scriptEngine.compile(ReturnsPrimitive.class, null, "1L", emptyMap()).execute());
+//        expectScriptThrows(ClassCastException.class, () ->
+//                scriptEngine.compile(ReturnsPrimitive.class, null, "1.1f", emptyMap()).execute());
+//        expectScriptThrows(ClassCastException.class, () ->
+//                scriptEngine.compile(ReturnsPrimitive.class, null, "1.1d", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitive.class, null, "Integer.valueOf(1)", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitive.class, "1", new CompilerSettings());
+        assertThat(debug, containsString("ICONST_1"));
+        assertThat(debug, containsString("IRETURN"));
+
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(ReturnsPrimitive.class, null, "int i = 0", emptyMap()));
+        assertEquals("Expected all paths to [return] but not all did.", e.getMessage());
     }
 
     public interface NoArgumentsConstant {
@@ -208,6 +246,17 @@ public class ImplementInterfacesTests extends ScriptTestCase {
             scriptEngine.compile(UnknownArgType.class, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
                 + "that are of whitelisted types.", e.getMessage());
+    }
+
+    public interface UnknownReturnType {
+        String[] ARGUMENTS = new String[] {"foo"};
+        UnknownReturnType execute(String foo);
+    }
+    public void testUnknownReturnType() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(UnknownReturnType.class, null, "1", emptyMap()));
+        assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
+                + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
     }
 
     public interface UnknownArgTypeInArray {

@@ -116,4 +116,9 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
             throw new UnsupportedOperationException();
         }
     }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        return super.doEquals(obj);
+    }
 }

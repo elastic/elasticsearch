@@ -39,5 +39,10 @@ public class Backwards50ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     public static Iterable<Object[]> parameters() throws IOException {
         return createParameters();
     }
+
+    @Override
+    protected boolean randomizeContentType() {
+        return false;
+    }
 }
 

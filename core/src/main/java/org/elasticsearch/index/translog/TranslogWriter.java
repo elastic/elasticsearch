@@ -239,10 +239,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * closes this writer and transfers it's underlying file channel to a new immutable reader
-     */
-
-    /**
      * Closes this writer and transfers its underlying file channel to a new immutable {@link TranslogReader}
      * @return a new {@link TranslogReader}
      * @throws IOException if any of the file operations resulted in an I/O exception
